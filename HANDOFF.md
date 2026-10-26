@@ -11201,6 +11201,41 @@ Implemented the complete, calm, editorial first-run onboarding experience, inter
 - `flutter analyze`: **0 issues, 0 warnings** (clean).
 - `flutter test test/notes/notes_pagination_race_test.dart test/notes/notes_query_database_test.dart test/sync/sync_engine_test.dart`: All 25 tests passing.
 
+---
+
+## 239. Optimization: Defer Local Attachment Analysis to On-Demand Page Open & Eliminate Startup Freeze (October 2026)
+
+### Overview
+Addressed a 5–10 second delay experienced on cold app launches caused by eager attachment and reference analysis:
+1. **Cold Launch Reference Projection Sync**: On startup, `SyncEngine.syncNow()` debounced 700ms and ran Step 6 ("Reference Projection Sync"), which previously performed an unconstrained `getAllNotesRaw()` query to deserialize every note's markdown body into memory on the main isolate, running two RegExp scans over every note and making a network call to `syncReferences`.
+2. **Local Breakdown Overhead**: Post-sync and auth listeners in `CloudStorageNotifier.fetchQuota()` triggered `calculateLocalBreakdown()`, querying all raw attachment and document entities.
+3. **Heavy Analysis on Page Open**: In `StorageManagementService.getLocalStorageAssets()`, full note texts were being loaded into memory to compute parent-note relationships and references.
+
+### Implementation Details
+1. **SyncEngine Scoped Reference Projection**:
+   - In [`lib/core/sync/sync_engine.dart`](file:///home/dog/git/quitepaper/lib/core/sync/sync_engine.dart), Step 6 in `syncNow()` now only computes and uploads references for notes modified and pushed during the active sync session (`dirtyNotes`). On cold start or clean syncs, Step 6 is skipped entirely (0 ms, 0 queries, 0 HTTP requests).
+   - Added `syncAllReferences()` to `SyncEngine` for on-demand execution when full remote reconciliation is required (e.g. before Garbage Collection maintenance).
+
+2. **Storage Management Service & Database Optimizations**:
+   - In [`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart):
+     - Added `getNotesWithAssetReferences()`: queries only notes where `content.like('%qp://%')`, avoiding loading the entire note database.
+     - Added `getNoteTitlesMap()`: lightweight projected column query (`id`, `title`) avoiding large note body deserialization.
+     - Added `getStorageBreakdownMetrics()`: executes lightweight column projections for calculating storage metrics without hydrating all class entities.
+   - In [`lib/core/storage/storage_management_service.dart`](file:///home/dog/git/quitepaper/lib/core/storage/storage_management_service.dart):
+     - In `getLocalStorageAssets()`, switched to `database.getNoteTitlesMap()` and `database.getNotesWithAssetReferences()`.
+     - In `runDryRunGc()` and `runGarbageCollection()`, invoke `syncEngine?.syncAllReferences()` prior to remote cleanup.
+   - In [`lib/core/storage/cloud_storage_provider.dart`](file:///home/dog/git/quitepaper/lib/core/storage/cloud_storage_provider.dart):
+     - Replaced manual row iteration in `calculateLocalBreakdown()` with `database.getStorageBreakdownMetrics()`.
+
+### Verification & Quality Gates
+- **Automated Tests**:
+  - Added test in [`test/sync/storage_lifecycle_sync_test.dart`](file:///home/dog/git/quitepaper/test/sync/storage_lifecycle_sync_test.dart): `SyncEngine cold-start sync skips reference projection when no notes are dirty`.
+  - Storage & Assets tests: `flutter test test/storage/` (all 43 tests passing).
+  - Sync test suite: `flutter test test/sync/` (all 76 tests passing).
+  - Full test suite: `flutter test` (**2386/2386 tests passed**).
+- **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
+
+
 
 
 

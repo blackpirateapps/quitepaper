@@ -109,46 +109,7 @@ class CloudStorageNotifier extends StateNotifier<CloudStorageState> {
   Future<StorageBreakdown> calculateLocalBreakdown() async {
     if (!mounted) return const StorageBreakdown();
     try {
-      final attachments = await database.getAllAttachmentsRaw();
-      final documents = await database.getAllDocumentsRaw();
-
-      var imgBytes = 0;
-      var imgCount = 0;
-      var docBytes = 0;
-      var docCount = 0;
-      var otherBytes = 0;
-      var otherCount = 0;
-
-      for (final a in attachments) {
-        if (a.isDeleted) continue;
-        final k = a.kind.toLowerCase();
-        final m = a.mimeType.toLowerCase();
-        if (k == 'image' || m.startsWith('image/')) {
-          imgCount++;
-          imgBytes += a.byteSize;
-        } else if (k == 'document' || m == 'application/pdf') {
-          docCount++;
-          docBytes += a.byteSize;
-        } else {
-          otherCount++;
-          otherBytes += a.byteSize;
-        }
-      }
-
-      for (final d in documents) {
-        if (d.isDeleted) continue;
-        docCount++;
-        docBytes += d.byteSize;
-      }
-
-      return StorageBreakdown(
-        imageBytes: imgBytes,
-        imageCount: imgCount,
-        documentBytes: docBytes,
-        documentCount: docCount,
-        otherBytes: otherBytes,
-        otherCount: otherCount,
-      );
+      return await database.getStorageBreakdownMetrics();
     } catch (e) {
       debugPrint('[CloudStorage] Error calculating local breakdown: $e');
       return const StorageBreakdown();

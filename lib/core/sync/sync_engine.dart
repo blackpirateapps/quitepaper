@@ -109,6 +109,58 @@ class SyncEngine {
     await syncNow();
   }
 
+  /// Performs a full reference projection scan across all notes containing asset
+  /// references and updates the remote server. Intended for on-demand maintenance
+  /// (e.g. before remote garbage collection), keeping cold-start sync instant.
+  Future<void> syncAllReferences() async {
+    if (_isDisposed || authService.currentUser == null) return;
+    try {
+      final deviceId = await database.getOrCreateDeviceId();
+      final notesWithRefs = await database.getNotesWithAssetReferences();
+      final references = <SyncReferenceItem>[];
+
+      for (final n in notesWithRefs) {
+        final content = '${n.title}\n${n.content}';
+        final imgMatches = RegExp(
+          r'qp://(?:attachment|asset)/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+        ).allMatches(content);
+        for (final m in imgMatches) {
+          final id = m.group(1);
+          if (id != null) {
+            references.add(SyncReferenceItem(
+              resourceType: 'attachment',
+              resourceId: id,
+              noteId: n.id,
+            ));
+          }
+        }
+
+        final docMatches = RegExp(
+          r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+        ).allMatches(content);
+        for (final m in docMatches) {
+          final id = m.group(1);
+          if (id != null) {
+            references.add(SyncReferenceItem(
+              resourceType: 'document',
+              resourceId: id,
+              noteId: n.id,
+            ));
+          }
+        }
+      }
+
+      if (references.isNotEmpty) {
+        await apiClient.syncReferences(
+          references: references,
+          deviceId: deviceId,
+        );
+      }
+    } catch (refErr) {
+      debugPrint('[SyncEngine] Full reference projection sync error: $refErr');
+    }
+  }
+
   /// Runs immediate push & pull synchronization
   Future<void> syncNow() async {
     if (_isDisposed || _isSyncing) return;
@@ -808,50 +860,54 @@ class SyncEngine {
         attachmentErrors.addAll(docResult.errors);
       }
 
-      // 6. REFERENCE PROJECTION SYNC: Compute note -> attachment/document bindings
-      try {
-        final allNotes = await database.getAllNotesRaw();
-        final references = <SyncReferenceItem>[];
+      // 6. REFERENCE PROJECTION SYNC: Compute note -> attachment/document bindings.
+      // Only extract references for notes that were modified and pushed during this sync.
+      // Cold launch and clean syncs skip this step to eliminate all startup latency.
+      if (dirtyNotes.isNotEmpty) {
+        try {
+          final references = <SyncReferenceItem>[];
 
-        for (final n in allNotes) {
-          final content = '${n.title}\n${n.content}';
-          final imgMatches = RegExp(
-            r'qp://(?:attachment|asset)/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-          ).allMatches(content);
-          for (final m in imgMatches) {
-            final id = m.group(1);
-            if (id != null) {
-              references.add(SyncReferenceItem(
-                resourceType: 'attachment',
-                resourceId: id,
-                noteId: n.id,
-              ));
+          for (final item in dirtyNotes) {
+            final n = item.note;
+            final content = '${n.title}\n${n.content}';
+            final imgMatches = RegExp(
+              r'qp://(?:attachment|asset)/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+            ).allMatches(content);
+            for (final m in imgMatches) {
+              final id = m.group(1);
+              if (id != null) {
+                references.add(SyncReferenceItem(
+                  resourceType: 'attachment',
+                  resourceId: id,
+                  noteId: n.id,
+                ));
+              }
+            }
+
+            final docMatches = RegExp(
+              r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+            ).allMatches(content);
+            for (final m in docMatches) {
+              final id = m.group(1);
+              if (id != null) {
+                references.add(SyncReferenceItem(
+                  resourceType: 'document',
+                  resourceId: id,
+                  noteId: n.id,
+                ));
+              }
             }
           }
 
-          final docMatches = RegExp(
-            r'qp://document/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-          ).allMatches(content);
-          for (final m in docMatches) {
-            final id = m.group(1);
-            if (id != null) {
-              references.add(SyncReferenceItem(
-                resourceType: 'document',
-                resourceId: id,
-                noteId: n.id,
-              ));
-            }
+          if (references.isNotEmpty) {
+            await apiClient.syncReferences(
+              references: references,
+              deviceId: deviceId,
+            );
           }
+        } catch (refErr) {
+          debugPrint('Reference projection sync error: $refErr');
         }
-
-        if (references.isNotEmpty) {
-          await apiClient.syncReferences(
-            references: references,
-            deviceId: deviceId,
-          );
-        }
-      } catch (refErr) {
-        debugPrint('Reference projection sync error: $refErr');
       }
 
       final pendingConflicts = await database.getPendingConflictsCount();

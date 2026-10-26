@@ -8,6 +8,7 @@ import '../documents/document_provider.dart';
 import '../documents/document_service.dart';
 import '../documents/document_storage.dart';
 import '../sync/sync_api_client.dart';
+import '../sync/sync_engine.dart';
 import '../sync/sync_models.dart';
 import '../sync/sync_provider.dart';
 import 'storage_asset_models.dart';
@@ -22,6 +23,7 @@ final storageManagementServiceProvider = Provider<StorageManagementService>((ref
     documentStorage: ref.watch(documentLocalStorageProvider),
     attachmentService: ref.watch(attachmentServiceProvider),
     documentService: ref.watch(documentServiceProvider),
+    syncEngine: ref.watch(syncEngineProvider),
   );
 });
 
@@ -91,6 +93,7 @@ class StorageManagementService {
     DocumentLocalStorage? documentStorage,
     this.attachmentService,
     this.documentService,
+    this.syncEngine,
   })  : _attachmentStorage = attachmentStorage ?? AttachmentLocalStorage(),
         _documentStorage = documentStorage ?? DocumentLocalStorage();
 
@@ -98,6 +101,7 @@ class StorageManagementService {
   final AppDatabase database;
   final AttachmentService? attachmentService;
   final DocumentService? documentService;
+  final SyncEngine? syncEngine;
   final AttachmentLocalStorage _attachmentStorage;
   final DocumentLocalStorage _documentStorage;
 
@@ -118,19 +122,20 @@ class StorageManagementService {
   }
 
   /// Builds the local asset view from Drift rows and a single note scan.
+  /// Scans only notes containing asset reference patterns ('qp://') and loads
+  /// note titles via projected mapping, avoiding large full-text database loads.
   Future<StorageLocalAssets> getLocalStorageAssets() async {
-    final notes = await database.getAllNotesRaw();
+    final noteTitles = await database.getNoteTitlesMap();
+    final notesWithRefs = await database.getNotesWithAssetReferences();
     final attachmentRows = await database.getAllAttachmentsRaw();
     final documentRows = await database.getAllDocumentsRaw();
 
     final referencedAttachmentIds = <String>{};
     final referencedDocumentIds = <String>{};
-    final noteTitles = <String, String>{};
     final attachmentParentNotes = <String, String>{};
     final documentParentNotes = <String, String>{};
 
-    for (final note in notes) {
-      noteTitles[note.id] = note.title;
+    for (final note in notesWithRefs) {
       final searchable = '${note.title}\n${note.content}';
 
       for (final match in _attachmentReferencePattern.allMatches(searchable)) {
@@ -213,10 +218,12 @@ class StorageManagementService {
   }
 
   Future<GcExecutionSummary> runDryRunGc() async {
+    await syncEngine?.syncAllReferences();
     return apiClient.runGarbageCollection(dryRun: true);
   }
 
   Future<GcExecutionSummary> runGarbageCollection({int batchSize = 100}) async {
+    await syncEngine?.syncAllReferences();
     return apiClient.runGarbageCollection(dryRun: false, batchSize: batchSize);
   }
 

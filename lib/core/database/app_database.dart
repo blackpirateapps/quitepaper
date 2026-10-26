@@ -32,6 +32,7 @@ import '../../features/notes/domain/note_model.dart';
 import '../../features/tags/domain/tag_model.dart';
 import '../../features/tags/domain/tag_path.dart';
 import '../ocr/ocr_models.dart';
+import '../storage/cloud_storage_models.dart';
 
 part 'app_database.g.dart';
 
@@ -1717,6 +1718,78 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<NoteEntity>> getAllNotesRaw() async => select(notesTable).get();
+
+  /// Returns only notes that contain asset/attachment reference schemes in their content.
+  Future<List<NoteEntity>> getNotesWithAssetReferences() async =>
+      (select(notesTable)..where((t) => t.content.like('%qp://%'))).get();
+
+  /// Returns a lightweight mapping of Note ID to Note Title without reading or
+  /// deserializing large note content bodies.
+  Future<Map<String, String>> getNoteTitlesMap() async {
+    final rows = await (selectOnly(notesTable)
+          ..addColumns([notesTable.id, notesTable.title]))
+        .get();
+    return {
+      for (final r in rows)
+        r.read(notesTable.id)!: r.read(notesTable.title) ?? '',
+    };
+  }
+
+  /// Calculates storage breakdown by resource category directly from SQLite
+  /// using lightweight projected columns instead of hydrating all class entities.
+  Future<StorageBreakdown> getStorageBreakdownMetrics() async {
+    final attRows = await (selectOnly(attachmentsTable)
+          ..addColumns([
+            attachmentsTable.kind,
+            attachmentsTable.mimeType,
+            attachmentsTable.byteSize,
+          ])
+          ..where(attachmentsTable.isDeleted.equals(false)))
+        .get();
+
+    final docRows = await (selectOnly(documentsTable)
+          ..addColumns([documentsTable.byteSize])
+          ..where(documentsTable.isDeleted.equals(false)))
+        .get();
+
+    var imgBytes = 0;
+    var imgCount = 0;
+    var docBytes = 0;
+    var docCount = 0;
+    var otherBytes = 0;
+    var otherCount = 0;
+
+    for (final r in attRows) {
+      final k = (r.read(attachmentsTable.kind) ?? '').toLowerCase();
+      final m = (r.read(attachmentsTable.mimeType) ?? '').toLowerCase();
+      final size = r.read(attachmentsTable.byteSize) ?? 0;
+      if (k == 'image' || m.startsWith('image/')) {
+        imgCount++;
+        imgBytes += size;
+      } else if (k == 'document' || m == 'application/pdf') {
+        docCount++;
+        docBytes += size;
+      } else {
+        otherCount++;
+        otherBytes += size;
+      }
+    }
+
+    for (final r in docRows) {
+      final size = r.read(documentsTable.byteSize) ?? 0;
+      docCount++;
+      docBytes += size;
+    }
+
+    return StorageBreakdown(
+      imageBytes: imgBytes,
+      imageCount: imgCount,
+      documentBytes: docBytes,
+      documentCount: docCount,
+      otherBytes: otherBytes,
+      otherCount: otherCount,
+    );
+  }
   Future<List<AttachmentEntity>> getAllAttachmentsRaw() async =>
       select(attachmentsTable).get();
   Future<List<DocumentEntity>> getAllDocumentsRaw() async =>

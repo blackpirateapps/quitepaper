@@ -226,6 +226,33 @@ void main() {
     expect(apiClient.syncedReferences.any((r) => r.resourceId == docId && r.resourceType == 'document'), true);
   });
 
+  test('SyncEngine cold-start sync skips reference projection when no notes are dirty', () async {
+    const noteId = 'clean-note-with-asset';
+    const assetId = '99999999-8888-7777-6666-555555555555';
+
+    await db.saveNote(
+      id: noteId,
+      title: 'Clean Note',
+      content: 'Contains asset: qp://asset/$assetId',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isPinned: false,
+      isDirty: false, // clean, as on cold launch without changes
+    );
+
+    apiClient.syncedReferences.clear();
+
+    // Cold-start sync with clean database
+    await syncEngine.syncNow();
+
+    // Zero references synced because no dirty notes were pushed
+    expect(apiClient.syncedReferences.isEmpty, true);
+
+    // Explicit on-demand full sync does project all references
+    await syncEngine.syncAllReferences();
+    expect(apiClient.syncedReferences.any((r) => r.resourceId == assetId), true);
+  });
+
   test('SyncEngine automatically recovers from SyncCursorExpiredException by resetting cursor', () async {
     const noteId = 'note-exp-test';
 
