@@ -18,7 +18,7 @@ class NotesQuery {
 
   /// Default and max query batch limits
   static const int defaultBatchSize = 40;
-  static const int maxBatchSize = 100;
+  static const int maxBatchSize = 250;
   static const int schemaVersion = 1;
 
   final NotesContext context;

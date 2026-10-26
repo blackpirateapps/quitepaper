@@ -11135,6 +11135,73 @@ Implemented the complete, calm, editorial first-run onboarding experience, inter
 - `flutter analyze`: **0 issues, 0 warnings** (clean).
 - `flutter test test/sync/sync_engine_test.dart test/sync/tag_sync_test.dart`: All unit and integration tests passing, including reconciliation of missing notes omitted by `sync_changes`.
 
+---
+
+## 238. Paginated Notes Collection State Mutex & Table Update Race Protection (October 2026)
+
+### 1. Problem Statement & Root Cause
+- **Symptoms**: On accounts with large collections (>800 notes), after syncing completed successfully, scrolling down on the notes list displayed an infinite loading spinner (`CircularProgressIndicator`) and froze. Scrolling further failed to load more notes. Closing and reopening the app did not resolve the freeze if background synchronization or OCR metadata updates fired during initial scrolling.
+- **Root Cause**:
+  1. In `NotesCollectionNotifier.loadMore()`, `state = state.copyWith(loadingMore: true)` was set before awaiting `_repository.executeNotesQuery(...)`.
+  2. Drift's `_tableSubscription` listened directly to database updates across `notesTable`, `noteTagsTable`, `attachmentsTable`, and `documentsTable` with no debounce.
+  3. When background sync or OCR page writes updated the database in batches, `_tableSubscription` fired `refresh()` repeatedly.
+  4. `refresh()` bumped `_activeGeneration = state.generation + 1`.
+  5. When the asynchronous Drift query in `loadMore()` returned, it executed:
+     ```dart
+     if (_activeGeneration != gen) return;
+     ```
+     This early return skipped state updating **without resetting `loadingMore: false`**. Furthermore, `refresh()` only reset `initialLoading: false, isRefreshing: false` and never reset `loadingMore: false`.
+  6. Consequently, `state.loadingMore` remained permanently locked at `true`. `NotesLoadingMoreIndicator` rendered the loading animation indefinitely, and subsequent scroll notifications were rejected by the `if (state.loadingMore) return;` guard.
+  7. When `refresh()` executed, it used `state.query.resetPagination()`, which reset `limit: 40`, collapsing the user's visible notes from 80 or 120 back down to 40 items and snapping their scroll position.
+
+### 2. Implementation Details
+
+1. **Guaranteed Mutex Release via `finally` (`lib/features/notes/application/notes_query_provider.dart`)**:
+   - Wrapped `loadMore()` execution in a `try ... catch ... finally` block.
+   - In `finally`: `if (mounted) state = state.copyWith(loadingMore: false);` guarantees that `loadingMore` is cleared upon completion, early generation exit, or query failure.
+   - Added explicit `loadingMore: false` reset in `_loadInitial()` and `refresh()`.
+
+2. **Debounced Database Table Updates (`Debouncer`)**:
+   - Introduced a 350ms `Debouncer` on `_tableSubscription` in `NotesCollectionNotifier`:
+     ```dart
+     _tableDebouncer.run(() {
+       if (mounted) refresh();
+     });
+     ```
+   - In `dispose()`, `_tableDebouncer.dispose()` cancels any pending timers cleanly.
+   - Prevents rapid bursts of table modifications during sync batches or OCR backfills from flooding the query notifier with dozens of redundant `refresh()` calls.
+
+3. **Scroll Depth & Loaded Count Preservation during Refresh**:
+   - Updated `NotesQuery.maxBatchSize` from 100 to 250 in `lib/features/notes/domain/notes_query.dart`.
+   - In `refresh()`, calculated dynamic refresh batch limit:
+     ```dart
+     final refreshLimit = math
+         .max(state.notes.length, state.query.limit)
+         .clamp(state.query.limit, NotesQuery.maxBatchSize);
+     final refreshQuery = state.query
+         .copyWith(limit: refreshLimit)
+         .resetPagination(newGeneration: gen);
+     ```
+   - Retained the original batch size in `state.query` (40) so subsequent `loadMore()` calls continue requesting standard 40-item pages without exponential growth.
+   - Prevents scroll position jumping and keeps the user's currently viewed depth intact when background data changes occur.
+
+4. **Keyset Pagination Empty-Progress Guard**:
+   - Added `hasValidProgress` check in `loadMore()`:
+     ```dart
+     final hasValidProgress = uniqueNewNotes.isNotEmpty ||
+         (result.nextCursor != null && result.nextCursor != state.cursor);
+     ```
+   - If a subsequent page yields zero unique new notes and the cursor does not advance, `hasMore` is set to `false`, eliminating infinite re-query loops on boundary collisions.
+
+### 3. Verification & Quality Gates
+- **Automated Tests (`test/notes/notes_pagination_race_test.dart`)**:
+  - `Race condition between loadMore and table updates never freezes loadingMore at true`: Simulates in-flight `loadMore()` interrupted by Drift table update, confirming `loadingMore: false` and continuous pagination.
+  - `Multi-page pagination smoothly loads 100 notes without duplicates`: Confirms 3 consecutive keyset pages across 100 seeded notes with zero ID collisions.
+  - `Debounced refresh preserves loaded note count and scroll depth`: Confirms that updating a note in the background after loading 80 items preserves 80 items on refresh.
+- `flutter analyze`: **0 issues, 0 warnings** (clean).
+- `flutter test test/notes/notes_pagination_race_test.dart test/notes/notes_query_database_test.dart test/sync/sync_engine_test.dart`: All 25 tests passing.
+
+
 
 
 

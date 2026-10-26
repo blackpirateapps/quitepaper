@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/utils/debouncer.dart';
 import '../../settings/application/settings_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
@@ -382,18 +384,25 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
         _db.documentsTable,
       ]),
     ).listen((_) {
-      refresh();
+      _tableDebouncer.run(() {
+        if (mounted) {
+          refresh();
+        }
+      });
     });
   }
 
   final Ref _ref;
   final AppDatabase _db;
   final NotesRepository _repository;
+  final Debouncer _tableDebouncer =
+      Debouncer(duration: const Duration(milliseconds: 350));
   StreamSubscription? _tableSubscription;
   int _activeGeneration = 0;
 
   @override
   void dispose() {
+    _tableDebouncer.dispose();
     _tableSubscription?.cancel();
     super.dispose();
   }
@@ -406,6 +415,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     state = state.copyWith(
       query: query,
       initialLoading: true,
+      loadingMore: false,
       clearError: true,
       generation: gen,
       clearCursor: true,
@@ -424,6 +434,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
         hasMore: result.hasMore,
         totalCount: result.totalCount,
         initialLoading: false,
+        loadingMore: false,
         isRefreshing: false,
         clearError: true,
       );
@@ -431,6 +442,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       if (_activeGeneration != gen) return;
       state = state.copyWith(
         initialLoading: false,
+        loadingMore: false,
         isRefreshing: false,
         error: e,
       );
@@ -440,7 +452,10 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   /// Loads subsequent batch using current keyset cursor
   Future<void> loadMore() async {
     // Load-more lock: ensure only one active load-more per generation
-    if (state.loadingMore || !state.hasMore || state.initialLoading || state.cursor == null) {
+    if (state.loadingMore ||
+        !state.hasMore ||
+        state.initialLoading ||
+        state.cursor == null) {
       return;
     }
 
@@ -458,7 +473,6 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 
       if (result.notes.isEmpty) {
         state = state.copyWith(
-          loadingMore: false,
           hasMore: false,
           clearCursor: true,
         );
@@ -467,25 +481,33 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 
       // Deduplicate new batch against existing note IDs
       final existingIds = state.notes.map((n) => n.id).toSet();
-      final uniqueNewNotes = result.notes.where((n) => !existingIds.contains(n.id)).toList();
+      final uniqueNewNotes =
+          result.notes.where((n) => !existingIds.contains(n.id)).toList();
 
-      final combined = List<Note>.of(state.notes)..addAll(uniqueNewNotes);
+      final hasValidProgress = uniqueNewNotes.isNotEmpty ||
+          (result.nextCursor != null && result.nextCursor != state.cursor);
+
+      final combined = uniqueNewNotes.isEmpty
+          ? state.notes
+          : (List<Note>.of(state.notes)..addAll(uniqueNewNotes));
 
       state = state.copyWith(
         notes: combined,
         cursor: result.nextCursor,
-        hasMore: result.hasMore,
+        hasMore: result.hasMore && hasValidProgress,
         totalCount: result.totalCount,
-        loadingMore: false,
         clearError: true,
       );
     } catch (e) {
       if (_activeGeneration != gen) return;
       // Failed load-more keeps existing loaded notes intact!
       state = state.copyWith(
-        loadingMore: false,
         error: e,
       );
+    } finally {
+      if (mounted) {
+        state = state.copyWith(loadingMore: false);
+      }
     }
   }
 
@@ -495,28 +517,38 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     _activeGeneration = gen;
     state = state.copyWith(
       isRefreshing: true,
+      loadingMore: false,
       clearError: true,
       generation: gen,
     );
 
     try {
-      final refreshQuery = state.query.resetPagination(newGeneration: gen);
+      final refreshLimit = math
+          .max(state.notes.length, state.query.limit)
+          .clamp(state.query.limit, NotesQuery.maxBatchSize);
+      final refreshQuery = state.query
+          .copyWith(limit: refreshLimit)
+          .resetPagination(newGeneration: gen);
       final result = await _repository.executeNotesQuery(refreshQuery);
 
       if (_activeGeneration != gen) return;
 
       state = state.copyWith(
         notes: result.notes,
+        query: state.query.resetPagination(newGeneration: gen),
         cursor: result.nextCursor,
         hasMore: result.hasMore,
         totalCount: result.totalCount,
         initialLoading: false,
+        loadingMore: false,
         isRefreshing: false,
         clearError: true,
       );
     } catch (e) {
       if (_activeGeneration != gen) return;
       state = state.copyWith(
+        initialLoading: false,
+        loadingMore: false,
         isRefreshing: false,
         error: e,
       );
