@@ -11281,3 +11281,56 @@ Addressed cursor positioning and newline continuation bugs when interacting with
 
 
 
+
+
+---
+
+## 241. Architecture: Super Editor Native Code Block with Live Syntax Highlighting & Line Numbers (October 2026)
+
+### Overview
+Integrated a first-class, Super Editor-native code block component (`QuietCodeBlockComponent`) into Quiet Paper's Super Editor mode (`EditorEditingStyle.superEditor`). Previously, Super Editor rendered code blocks as unbordered, plain paragraphs with no background, no header bar, no language selector, no copy button, and no syntax highlighting. Furthermore, stock markdown parsing and serialization dropped the code language tag (e.g. ````dart), losing syntax formatting on note round-trips.
+
+### Key Architectural & UI Enhancements
+1. **Editorial Card Container & Header Bar**:
+   - Styled to match Quiet Paper's Bear Notes aesthetic: warm surface background (`colors.surface`), subtle border (`colors.divider`), and rounded corners (`AppRadii.borderMd`).
+   - Top editorial header bar with:
+     - Interactive language pill displaying the uppercase language name (`DART`, `PYTHON`, `SQL`, or `PLAIN TEXT`), with dropdown chevron. Tapping opens `LanguageSelectorSheet` to switch language across dozens of supported programming languages.
+     - 1-tap Copy button (`QuietIconButton`) with animated checkmark feedback (`Copied!`) and clipboard synchronization.
+   - Hairline divider (`Divider(height: 1.0, color: colors.divider.withValues(alpha: 0.6))`).
+
+2. **Proxy Document Component with Subtle Line Numbers & Soft Text Wrapping**:
+   - Created [`lib/features/editor/presentation/widgets/super_editor/quiet_code_block_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_code_block_component.dart).
+   - Extends `StatefulWidget` with `ProxyDocumentComponent<QuietCodeBlockComponent>, ProxyTextComposable` wrapping `TextComponent`.
+   - Soft text wrapping: long lines wrap naturally within the card width.
+   - Subtle line numbers in a left gutter (`_LineNumberGutter` & `_LineNumberPainter`) separated by a vertical hairline. Line numbers query `DocumentComponent.getOffsetForPosition` to align with the first visual baseline of each logical line (continuation lines have no line number, matching modern code editor conventions). Line numbers are outside the selectable text area, avoiding stray numbers on copy.
+   - Caret Alignment: Overrides `getCaretForPosition` translating by `_getOffsetFromChild(Offset.zero)` to account for header bar height, gutter width, and internal padding with pixel-perfect caret placement.
+
+3. **Live Syntax Highlighting Without Undo Stack Pollution**:
+   - Computes tokens reactively using `SyntaxHighlighter` and `SyntaxLanguageResolver`.
+   - Generates presentation-only `AttributedText` decorated with `NamedAttribution('syntax_<type>')` fed to `TextComponent`.
+   - The authoritative `ParagraphNode.text` in Super Editor remains pure plaintext, ensuring syntax highlighting does **not** pollute the undo/redo history stack while delivering instantaneous, zero-latency token highlighting.
+
+4. **Language Tag Round-Tripping & Markdown Shortcuts**:
+   - `promoteQuietCodeBlockNodes(document, markdown)`: Scans markdown with `MarkdownCodeBlockParser` and attaches parsed fence languages to `node.metadata['language']`.
+   - `QuietCodeBlockNodeSerializer`: Implements `DocumentNodeMarkdownSerializer` for `ParagraphNode` with `blockType == codeAttribution`, writing ````<language>\n<code>\n````.
+   - `handleCodeBlockFenceNewlineRequest`: EditRequestHandler that intercepts Enter when a paragraph consists solely of a fence (e.g. ````, ````dart, `~~~python`), converting it directly into a code block with that language.
+   - `CodeBlockConversionReaction`: EditReaction that converts ```` or ````lang followed by space into a code block.
+   - Double Enter at the end of a code block exits to a new paragraph via Super Editor's built-in `InsertNewlineInCodeBlockAtCaretCommand`.
+
+5. **Controller Integration**:
+   - Updated `QuietSuperEditorController.insertCodeBlock({String? language})` to set `language` in metadata.
+   - Added `QuietSuperEditorController.setCodeBlockLanguage(nodeId, language)` to support programmatic language updates.
+
+### Verification & Quality Gates
+- **Automated Tests**:
+  - Added [`test/editor/quiet_code_block_test.dart`](file:///home/dog/git/quitepaper/test/editor/quiet_code_block_test.dart) (9 tests):
+    - Language extraction and promotion from markdown fences.
+    - Fenced serialization with language.
+    - Full round-trip preservation of code and languages.
+    - Markdown shortcut conversion on Enter (`handleCodeBlockFenceNewlineRequest`).
+    - Markdown shortcut conversion on Space (`CodeBlockConversionReaction`).
+    - Component rendering with language pill, copy button, and line numbers.
+    - Copy button clipboard functionality with mock method channel.
+    - Controller code block insertion and dynamic language changes.
+  - Test suites: `flutter test test/editor/quiet_code_block_test.dart` and `flutter test test/editor/quiet_super_editor_test.dart` (37/37 passing).
+- **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.

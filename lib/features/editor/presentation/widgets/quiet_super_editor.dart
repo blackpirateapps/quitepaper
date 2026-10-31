@@ -10,6 +10,7 @@ import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
 import 'super_editor/link_enhance_overlay.dart';
 import 'super_editor/quiet_attachment_component.dart';
+import 'super_editor/quiet_code_block_component.dart';
 import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
 import 'super_editor/quiet_table_component.dart';
@@ -84,12 +85,18 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // loading preview nodes with animated skeleton loaders.
     promoteLinkPreviewNodes(document, promoteUnbaked: true);
 
+    // Promote code block paragraphs with raw languages parsed from fences.
+    promoteQuietCodeBlockNodes(document, split.body);
+
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
       document: document,
       composer: _composer,
       isHistoryEnabled: true,
     );
+
+    _editor.reactionPipeline.insert(0, const CodeBlockConversionReaction());
+    _editor.requestHandlers.insert(0, handleCodeBlockFenceNewlineRequest);
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
@@ -167,6 +174,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietAttachmentNodeSerializer(),
           LinkPreviewNodeSerializer(),
           QuietTableBlockNodeSerializer(),
+          QuietCodeBlockNodeSerializer(),
         ],
       );
       final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
@@ -373,6 +381,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               shrinkWrap: true,
               stylesheet: stylesheet,
               componentBuilders: [
+                QuietCodeBlockComponentBuilder(_editor),
                 QuietTaskComponentBuilder(_editor),
                 QuietImageComponentBuilder(noteId: widget.noteId),
                 QuietAttachmentComponentBuilder(

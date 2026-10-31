@@ -488,7 +488,7 @@ class QuietSuperEditorController extends ChangeNotifier {
   // ===========================================================================
 
   /// Converts the current paragraph to a code block or vice versa.
-  void insertCodeBlock() {
+  void insertCodeBlock({String? language}) {
     if (_editor == null || _composer == null) return;
     final sel = _composer!.selection;
     if (sel == null) return;
@@ -497,13 +497,49 @@ class QuietSuperEditorController extends ChangeNotifier {
 
     if (node is ParagraphNode) {
       final isCode = node.getMetadataValue('blockType') == codeAttribution;
-      _editor!.execute([
-        ChangeParagraphBlockTypeRequest(
-          nodeId: nodeId,
-          blockType: isCode ? null : codeAttribution,
-        ),
-      ]);
+      if (isCode) {
+        _editor!.execute([
+          ChangeParagraphBlockTypeRequest(
+            nodeId: nodeId,
+            blockType: null,
+          ),
+        ]);
+      } else {
+        final newMetadata = Map<String, dynamic>.from(node.metadata);
+        newMetadata[NodeMetadata.blockType] = codeAttribution;
+        if (language != null && language.isNotEmpty) {
+          newMetadata['language'] = language;
+        }
+        _editor!.execute([
+          ReplaceNodeRequest(
+            existingNodeId: nodeId,
+            newNode: node.copyParagraphWith(metadata: newMetadata),
+          ),
+        ]);
+      }
     }
+  }
+
+  /// Sets the code language for an existing code block node.
+  void setCodeBlockLanguage(String nodeId, String language) {
+    if (_editor == null) return;
+    final node = _editor!.document.getNodeById(nodeId);
+    if (node is! ParagraphNode) return;
+    if (node.metadata[NodeMetadata.blockType] != codeAttribution) return;
+
+    final newMetadata = Map<String, dynamic>.from(node.metadata);
+    final trimmed = language.trim();
+    if (trimmed.isEmpty) {
+      newMetadata.remove('language');
+    } else {
+      newMetadata['language'] = trimmed;
+    }
+    _editor!.execute([
+      ReplaceNodeRequest(
+        existingNodeId: nodeId,
+        newNode: node.copyParagraphWith(metadata: newMetadata),
+      ),
+    ]);
   }
 
   /// Inserts a horizontal rule (divider) after the current node.
