@@ -330,5 +330,73 @@ void main() {
       // Verify serialized markdown contains updated uncheck
       expect(currentMd, contains('- [ ] Done 4'));
     });
+
+    testWidgets('checking a focused task clears composer selection and avoids ghost caret', (tester) async {
+      const initialMd = '''- [ ] Task to check
+- [x] Done 1
+- [x] Done 2
+- [x] Done 3
+''';
+
+      await tester.pumpWidget(
+        buildTestWidget(markdown: initialMd),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on the text of 'Task to check' to give it focus/caret
+      await tester.tap(find.text('Task to check', findRichText: true), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Tap the unchecked box to complete it
+      final uncheckedBox = find.byIcon(PhosphorIconsRegular.square);
+      expect(uncheckedBox, findsOneWidget);
+      await tester.tap(uncheckedBox);
+      await tester.pumpAndSettle();
+
+      // Completed items now total 4, so they collapse under summary header
+      expect(find.text('4 completed items'), findsOneWidget);
+
+      // Verify that the task component returns Rect.zero for collapsed items
+      final taskState = tester.state(
+        find.byType(QuietTaskComponent).first,
+      ) as DocumentComponent;
+      expect(
+        taskState.getRectForPosition(const TextNodePosition(offset: 0)),
+        equals(Rect.zero),
+      );
+    });
+
+    testWidgets('tapping checkbox exhibits immediate visual completion and smooth dwell', (tester) async {
+      const initialMd = '''- [ ] Dwell task
+- [ ] Another task
+''';
+      String currentMd = initialMd;
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          markdown: initialMd,
+          onChanged: (val) => currentMd = val,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstBox = find.byIcon(PhosphorIconsRegular.square).first;
+      await tester.tap(firstBox);
+      // Pump only 50ms (before the 250ms delay completes)
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Visually, the box immediately flipped to checkmark (optimistic visual feedback)
+      expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
+
+      // Document has NOT moved yet (giving user peaceful dwell time)
+      expect(currentMd, equals(initialMd));
+
+      // After completing the 250ms dwell animation:
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
+
+      // Now the document move has completed
+      expect(currentMd, contains('- [ ] Another task\n- [x] Dwell task'));
+    });
   });
 }

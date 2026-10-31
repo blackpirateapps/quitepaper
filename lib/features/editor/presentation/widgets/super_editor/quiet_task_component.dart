@@ -8,7 +8,8 @@ import 'smart_task_controller.dart';
 /// Custom [ComponentBuilder] for SuperEditor that renders smart checklists
 /// using Quiet Paper's calm editorial style with Phosphor icons,
 /// optically centered checkboxes, empty to-do placeholder ('New task...'),
-/// auto-sorting on check/uncheck, and collapsible completed items when count > 3.
+/// auto-sorting on check/uncheck, smooth completion animations, and collapsible
+/// completed items when count > 3.
 class QuietTaskComponentBuilder implements ComponentBuilder {
   QuietTaskComponentBuilder(
     this._editor, {
@@ -44,14 +45,14 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
         if (!isExpanded) {
           if (node.id == firstCompletedId) {
             isCollapseSummary = true;
-            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block);
+            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block, editor: _editor);
           } else if (node.isComplete) {
             isHiddenInCollapse = true;
           }
         } else {
           if (node.id == firstCompletedId) {
             isExpandedHeader = true;
-            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block);
+            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block, editor: _editor);
           }
         }
       }
@@ -200,7 +201,7 @@ class QuietTaskComponentViewModel extends TaskComponentViewModel {
 }
 
 /// A document component displaying an interactive checklist task
-/// in Quiet Paper's aesthetic style.
+/// in Quiet Paper's aesthetic style with smooth completion animations.
 class QuietTaskComponent extends StatefulWidget {
   const QuietTaskComponent({
     super.key,
@@ -218,6 +219,8 @@ class QuietTaskComponent extends StatefulWidget {
 class _QuietTaskComponentState extends State<QuietTaskComponent>
     with ProxyDocumentComponent<QuietTaskComponent>, ProxyTextComposable {
   final _textKey = GlobalKey();
+  bool _isPendingAnimation = false;
+  bool? _optimisticComplete;
 
   @override
   GlobalKey<State<StatefulWidget>> get childDocumentComponentKey => _textKey;
@@ -226,15 +229,74 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
   TextComposable get childTextComposable =>
       childDocumentComponentKey.currentState as TextComposable;
 
+  @override
+  void didUpdateWidget(QuietTaskComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.viewModel.isComplete != oldWidget.viewModel.isComplete) {
+      _isPendingAnimation = false;
+      _optimisticComplete = null;
+    }
+  }
+
+  /// Never report a caret rectangle for collapsed/hidden tasks.
+  /// This prevents SuperEditor from rendering a floating ghost caret in empty space.
+  @override
+  Rect getRectForPosition(NodePosition nodePosition) {
+    final quietVm = widget.viewModel is QuietTaskComponentViewModel
+        ? widget.viewModel as QuietTaskComponentViewModel
+        : null;
+    if (quietVm != null && (quietVm.isHiddenInCollapse || quietVm.isCollapseSummary)) {
+      return Rect.zero;
+    }
+    return super.getRectForPosition(nodePosition);
+  }
+
+  /// Never report a text position for collapsed/hidden tasks.
+  @override
+  NodePosition? getPositionAtOffset(Offset localOffset) {
+    final quietVm = widget.viewModel is QuietTaskComponentViewModel
+        ? widget.viewModel as QuietTaskComponentViewModel
+        : null;
+    if (quietVm != null && (quietVm.isHiddenInCollapse || quietVm.isCollapseSummary)) {
+      return null;
+    }
+    return super.getPositionAtOffset(localOffset);
+  }
+
+  bool get _isEffectiveComplete =>
+      _optimisticComplete ?? widget.viewModel.isComplete;
+
   TextStyle _computeStyles(Set<Attribution> attributions) {
     final style = widget.viewModel.textStyleBuilder(attributions);
-    return widget.viewModel.isComplete
+    return _isEffectiveComplete
         ? style.copyWith(
             decoration: style.decoration == null
                 ? TextDecoration.lineThrough
                 : TextDecoration.combine([TextDecoration.lineThrough, style.decoration!]),
           )
         : style;
+  }
+
+  void _onCheckboxTap() {
+    if (widget.viewModel.setComplete == null) return;
+    final targetComplete = !_isEffectiveComplete;
+
+    setState(() {
+      _isPendingAnimation = true;
+      _optimisticComplete = targetComplete;
+    });
+
+    // 250ms smooth visual dwell & fade transition before executing document move
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      widget.viewModel.setComplete!(targetComplete);
+      if (mounted) {
+        setState(() {
+          _isPendingAnimation = false;
+          _optimisticComplete = null;
+        });
+      }
+    });
   }
 
   Widget _buildHiddenComponent() {
@@ -331,77 +393,78 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
 
     return Directionality(
       textDirection: widget.viewModel.textDirection,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: widget.viewModel.indentCalculator(
-                widget.viewModel.textStyleBuilder({}),
-                widget.viewModel.indent,
+      child: AnimatedOpacity(
+        opacity: _isPendingAnimation ? 0.35 : 1.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: widget.viewModel.indentCalculator(
+                  widget.viewModel.textStyleBuilder({}),
+                  widget.viewModel.indent,
+                ),
               ),
-            ),
-            Padding(
-              padding: EdgeInsets.only(top: topPadding, right: 8.0),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: widget.viewModel.setComplete != null
-                    ? () {
-                        widget.viewModel.setComplete!(!widget.viewModel.isComplete);
-                      }
-                    : null,
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
-                    width: checkboxSize,
-                    height: checkboxSize,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      widget.viewModel.isComplete
-                          ? PhosphorIconsFill.checkSquare
-                          : PhosphorIconsRegular.square,
-                      size: checkboxSize,
-                      color: widget.viewModel.isComplete
-                          ? colors.accent
-                          : colors.textTertiary,
+              Padding(
+                padding: EdgeInsets.only(top: topPadding, right: 8.0),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.viewModel.setComplete != null ? _onCheckboxTap : null,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Container(
+                      width: checkboxSize,
+                      height: checkboxSize,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        _isEffectiveComplete
+                            ? PhosphorIconsFill.checkSquare
+                            : PhosphorIconsRegular.square,
+                        size: checkboxSize,
+                        color: _isEffectiveComplete
+                            ? colors.accent
+                            : colors.textTertiary,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Stack(
-                alignment: Alignment.topLeft,
-                children: [
-                  if (widget.viewModel.text.isEmpty)
-                    IgnorePointer(
-                      child: Text(
-                        placeholder,
-                        style: _computeStyles({}).copyWith(
-                          color: colors.textTertiary.withValues(alpha: 0.5),
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.topLeft,
+                  children: [
+                    if (widget.viewModel.text.isEmpty)
+                      IgnorePointer(
+                        child: Text(
+                          placeholder,
+                          style: _computeStyles({}).copyWith(
+                            color: colors.textTertiary.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
+                    TextComponent(
+                      key: _textKey,
+                      text: widget.viewModel.text,
+                      textDirection: widget.viewModel.textDirection,
+                      textAlign: widget.viewModel.textAlignment,
+                      maxLines: widget.viewModel.maxLines,
+                      overflow: widget.viewModel.overflow,
+                      textStyleBuilder: _computeStyles,
+                      inlineWidgetBuilders: widget.viewModel.inlineWidgetBuilders,
+                      textSelection: widget.viewModel.selection,
+                      selectionColor: widget.viewModel.selectionColor,
+                      highlightWhenEmpty: widget.viewModel.highlightWhenEmpty,
+                      underlines: widget.viewModel.createUnderlines(),
+                      showDebugPaint: widget.showDebugPaint,
                     ),
-                  TextComponent(
-                    key: _textKey,
-                    text: widget.viewModel.text,
-                    textDirection: widget.viewModel.textDirection,
-                    textAlign: widget.viewModel.textAlignment,
-                    maxLines: widget.viewModel.maxLines,
-                    overflow: widget.viewModel.overflow,
-                    textStyleBuilder: _computeStyles,
-                    inlineWidgetBuilders: widget.viewModel.inlineWidgetBuilders,
-                    textSelection: widget.viewModel.selection,
-                    selectionColor: widget.viewModel.selectionColor,
-                    highlightWhenEmpty: widget.viewModel.highlightWhenEmpty,
-                    underlines: widget.viewModel.createUnderlines(),
-                    showDebugPaint: widget.showDebugPaint,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -419,37 +482,49 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
     }
 
     if (quietVm != null && quietVm.isCollapseSummary) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSummaryHeader(
-            context: context,
-            colors: colors,
-            count: quietVm.completedCount,
-            isExpanded: false,
-            onTap: quietVm.onToggleCollapse,
+      return SizeChangedLayoutNotifier(
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSummaryHeader(
+                context: context,
+                colors: colors,
+                count: quietVm.completedCount,
+                isExpanded: false,
+                onTap: quietVm.onToggleCollapse,
+              ),
+              _buildHiddenComponent(),
+            ],
           ),
-          _buildHiddenComponent(),
-        ],
+        ),
       );
     }
 
     if (quietVm != null && quietVm.isExpandedHeader) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: _buildSummaryHeader(
-              context: context,
-              colors: colors,
-              count: quietVm.completedCount,
-              isExpanded: true,
-              onTap: quietVm.onToggleCollapse,
-            ),
+      return SizeChangedLayoutNotifier(
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: _buildSummaryHeader(
+                  context: context,
+                  colors: colors,
+                  count: quietVm.completedCount,
+                  isExpanded: true,
+                  onTap: quietVm.onToggleCollapse,
+                ),
+              ),
+              _buildTaskRow(context, colors),
+            ],
           ),
-          _buildTaskRow(context, colors),
-        ],
+        ),
       );
     }
 

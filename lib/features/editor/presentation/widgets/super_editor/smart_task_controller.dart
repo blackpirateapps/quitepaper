@@ -29,6 +29,7 @@ class TaskBlockRange {
 /// - Sorting on uncheck (moves to bottom of active items)
 /// - Collapsing completed items when completed count > 3
 /// - Interactive expansion state tracking
+/// - Caret & selection hygiene to avoid ghost carets on collapsed tasks
 class SmartTaskController extends ChangeNotifier {
   SmartTaskController();
 
@@ -143,12 +144,22 @@ class SmartTaskController extends ChangeNotifier {
   }
 
   /// Toggles the expansion state of the task block containing [block].
-  void toggleBlockExpansion(TaskBlockRange block) {
+  /// If collapsing and the editor has an active selection in one of the completed tasks,
+  /// clears the selection to avoid ghost carets.
+  void toggleBlockExpansion(TaskBlockRange block, {Editor? editor}) {
     final isExpanded = isBlockExpanded(block);
     if (isExpanded) {
       // Collapse: remove all node IDs in this block from expanded set
       for (final task in block.tasks) {
         _expandedBlockNodeIds.remove(task.id);
+      }
+      // Clear selection if it sat within any completed task in this block
+      final composer = editor?.maybeComposer;
+      if (composer != null && composer.selection != null) {
+        final selectionNodeId = composer.selection!.extent.nodeId;
+        if (block.completedTasks.any((t) => t.id == selectionNodeId)) {
+          composer.clearSelection();
+        }
       }
     } else {
       // Expand: add all node IDs in this block to expanded set
@@ -160,9 +171,11 @@ class SmartTaskController extends ChangeNotifier {
   }
 
   /// Executes smart task completion change on [editor]:
-  /// 1. Toggles completion state via [ChangeTaskCompletionRequest].
-  /// 2. If destination index differs, moves node via [MoveNodeRequest].
-  /// 3. Preserves undo/redo history.
+  /// 1. Clears selection if caret was inside the task being completed/moved.
+  /// 2. Toggles completion state via [ChangeTaskCompletionRequest].
+  /// 3. If destination index differs, moves node via [MoveNodeRequest].
+  /// 4. If resulting block is collapsed, ensures caret cannot remain on a collapsed node.
+  /// 5. Preserves undo/redo history.
   void toggleTaskCompletion({
     required Editor editor,
     required String nodeId,
@@ -174,6 +187,17 @@ class SmartTaskController extends ChangeNotifier {
       nodeId: nodeId,
       isComplete: isComplete,
     );
+
+    // Hygiene: Clear composer selection if the user was focused on the task being completed/moved.
+    // This prevents the caret overlay from painting a floating caret on a collapsed/moved node,
+    // and clears the active checklist highlight in the formatting toolbar.
+    final composer = editor.maybeComposer;
+    if (composer != null && composer.selection != null) {
+      final selectedNodeId = composer.selection!.extent.nodeId;
+      if (selectedNodeId == nodeId || (destinationIndex != null && isComplete)) {
+        composer.clearSelection();
+      }
+    }
 
     final requests = <EditRequest>[
       ChangeTaskCompletionRequest(
@@ -195,9 +219,17 @@ class SmartTaskController extends ChangeNotifier {
 
     // After updating, check if any block's completed count dropped <= 3 and prune expanded set
     final updatedBlock = findBlockForNode(editor.document, nodeId);
-    if (updatedBlock != null && !updatedBlock.hasCollapsibleCompleted) {
-      for (final task in updatedBlock.tasks) {
-        _expandedBlockNodeIds.remove(task.id);
+    if (updatedBlock != null) {
+      if (!updatedBlock.hasCollapsibleCompleted) {
+        for (final task in updatedBlock.tasks) {
+          _expandedBlockNodeIds.remove(task.id);
+        }
+      } else if (!isBlockExpanded(updatedBlock) && composer != null && composer.selection != null) {
+        // Double check: if block is now collapsed, clear selection if it's on any completed item
+        final selectionNodeId = composer.selection!.extent.nodeId;
+        if (updatedBlock.completedTasks.any((t) => t.id == selectionNodeId)) {
+          composer.clearSelection();
+        }
       }
     }
 

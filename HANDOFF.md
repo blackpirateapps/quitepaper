@@ -11368,12 +11368,22 @@ Significantly enhanced the checklist / to-do list editing experience in Quiet Pa
    - **Auto-Uncollapse**: If items are deleted or unchecked so that the completed count drops to $\le 3$, the section automatically uncollapses and displays all items inline.
    - **Super Editor Layout Stability**: Completed tasks remain native `TaskNode`s in the `MutableDocument`. Collapsed items render zero-height proxy components that fulfill Super Editor's `ProxyDocumentComponent` contract without disrupting caret hit-testing or layout calculations.
 
-5. **SuperEditor Integration**:
+5. **Smooth Completion Animation & Animated Expand/Collapse**:
+   - Immediate visual feedback: upon tapping the checkbox, the box instantly fills with the accent checkmark and strikethrough strikes the text.
+   - Graceful dwell & fade: over 250ms, `AnimatedOpacity(opacity: 0.35)` allows the user to see the completed state before executing the document reordering.
+   - Summary header and collapsible items utilize `SizeChangedLayoutNotifier` and `AnimatedSize(duration: 250ms, curve: Curves.easeInOut)` for smooth folding and expanding.
+
+6. **Ghost Caret & Toolbar Active-State Bugfix**:
+   - In [`SmartTaskController`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/smart_task_controller.dart), explicitly clears `composer.selection` when a focused task is completed or collapsed, preventing `DefaultCaretOverlayBuilder` from painting a floating ghost caret in empty space.
+   - In [`QuietTaskComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart), overrides `getRectForPosition` to return `Rect.zero` and `getPositionAtOffset` to return `null` for collapsed/hidden tasks.
+   - Clears selection whenever expanding/collapsing to ensure the formatting toolbar's checklist button `[✓]` does not mistakenly stay active when resting on hidden completed tasks.
+
+7. **SuperEditor Integration**:
    - Integrated `SmartTaskController` into [`QuietSuperEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart) with stateful listener lifecycle management.
 
 ### Verification & Quality Gates
 - **Automated Tests**:
-  - Added [`test/editor/smart_task_super_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/smart_task_super_editor_test.dart) (10 tests):
+  - Added [`test/editor/smart_task_super_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/smart_task_super_editor_test.dart) (12 tests):
     - `SmartTaskController` block discovery and isolation.
     - Destination index calculations for check and uncheck.
     - Default collapse (> 3) and interactive expansion toggling.
@@ -11381,7 +11391,9 @@ Significantly enhanced the checklist / to-do list editing experience in Quiet Pa
     - Dynamic optical top padding calculation.
     - Auto-sort to bottom of checklist on check.
     - Auto-sort to bottom of active items on uncheck.
+    - Immediate visual feedback with 250ms smooth dwell animation.
+    - Caret selection clearing on focused task check and `Rect.zero` protection.
     - Auto-collapse when $> 3$ completed and interactive expand/collapse toggle.
     - Auto-uncollapse when completed items drop to 3.
-  - Test suites: `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (38/38 passing).
+  - Test suites: `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (40/40 passing).
 - **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
