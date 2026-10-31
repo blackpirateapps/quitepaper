@@ -531,3 +531,47 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
     return _buildTaskRow(context, colors);
   }
 }
+
+/// A specialized [DocumentNodeMarkdownSerializer] for [TaskNode]s that ensures
+/// a blank line before following non-task nodes (such as [ParagraphNode]s).
+///
+/// In CommonMark, a list item followed immediately by a line of text without
+/// an empty line is parsed as a lazy multiline continuation of the list item.
+/// By appending a trailing newline when the following node is not a task or list item,
+/// this serializer guarantees a blank line (`\n\n`) is written between the checklist
+/// and the following paragraph.
+class QuietTaskNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<TaskNode> {
+  const QuietTaskNodeSerializer();
+
+  @override
+  String doSerialization(
+    Document document,
+    TaskNode node, {
+    NodeSelection? selection,
+  }) {
+    if (selection != null && selection is! TextNodeSelection) {
+      return '';
+    }
+    final textSelection = selection as TextNodeSelection?;
+    if (textSelection != null && textSelection.isCollapsed) {
+      return '';
+    }
+    final textToConvert = textSelection != null
+        ? node.text.copyText(textSelection.start, textSelection.end)
+        : node.text;
+
+    final markdownText = textToConvert.toMarkdown();
+    final taskMarkdown = '- [${node.isComplete ? 'x' : ' '}] $markdownText';
+
+    final nodeIndex = document.getNodeIndexById(node.id);
+    final isFollowedByNonList = nodeIndex < document.nodeCount - 1 &&
+        document.getNodeAt(nodeIndex + 1) is! TaskNode &&
+        document.getNodeAt(nodeIndex + 1) is! ListItemNode;
+
+    if (isFollowedByNonList) {
+      return '$taskMarkdown\n';
+    }
+
+    return taskMarkdown;
+  }
+}

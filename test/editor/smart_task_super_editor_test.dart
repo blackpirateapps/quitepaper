@@ -398,5 +398,52 @@ void main() {
       // Now the document move has completed
       expect(currentMd, contains('- [ ] Another task\n- [x] Dwell task'));
     });
+
+    testWidgets('paragraphs following a completed task list are not merged, struck through, or collapsed', (tester) async {
+      const initialMd = '''- [ ] new item
+- [x] item 1
+- [x] item 2
+- [x] item 3
+- [x] item 4
+- [x] item 5
+new thins
+hey thanks
+''';
+
+      await tester.pumpWidget(
+        buildTestWidget(markdown: initialMd),
+      );
+      await tester.pumpAndSettle();
+
+      // The completed items should be collapsed under "5 completed items"
+      expect(find.text('5 completed items'), findsOneWidget);
+
+      // Paragraphs following the task list MUST remain visible outside the collapse
+      expect(find.textContaining('new thins', findRichText: true), findsOneWidget);
+      expect(find.textContaining('hey thanks', findRichText: true), findsOneWidget);
+
+      // Verify that 'new thins' is in a ParagraphComponent (not a QuietTaskComponent)
+      final paragraphWidget = tester.firstWidget<ParagraphComponent>(
+        find.byType(ParagraphComponent),
+      );
+      expect(paragraphWidget.viewModel.text.toPlainText(), contains('new thins'));
+      expect(paragraphWidget.viewModel.text.hasAttributionAt(0, attribution: strikethroughAttribution), isFalse);
+    });
+
+    test('QuietTaskNodeSerializer outputs blank line before following non-task node', () {
+      final doc = MutableDocument(nodes: [
+        TaskNode(id: '1', text: AttributedText('task 1'), isComplete: true),
+        ParagraphNode(id: '2', text: AttributedText('paragraph after task')),
+      ]);
+
+      final serialized = serializeDocumentToMarkdown(
+        doc,
+        syntax: MarkdownSyntax.normal,
+        customNodeSerializers: const [QuietTaskNodeSerializer()],
+      );
+
+      // Must be separated by blank line (\n\n) so CommonMark doesn't merge them
+      expect(serialized, contains('- [x] task 1\n\nparagraph after task'));
+    });
   });
 }

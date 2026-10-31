@@ -181,6 +181,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         _editor.document,
         syntax: MarkdownSyntax.normal,
         customNodeSerializers: const [
+          QuietTaskNodeSerializer(),
           QuietImageNodeSerializer(),
           QuietAttachmentNodeSerializer(),
           LinkPreviewNodeSerializer(),

@@ -11395,5 +11395,39 @@ Significantly enhanced the checklist / to-do list editing experience in Quiet Pa
     - Caret selection clearing on focused task check and `Rect.zero` protection.
     - Auto-collapse when $> 3$ completed and interactive expand/collapse toggle.
     - Auto-uncollapse when completed items drop to 3.
-  - Test suites: `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (40/40 passing).
+  - Test suites: `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (42/42 passing).
 - **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
+
+---
+
+## 243. Bugfix: Markdown Task List Boundary Isolation & Paragraph Strikethrough Prevention (October 2026)
+
+### Problem Description & Root Cause
+When writing a standard text paragraph immediately following a task/checklist item in SuperEditor (e.g. typing notes directly beneath the to-do list), the paragraph would mistakenly receive strikethrough styling and collapse inside the completed items block upon saving/re-opening the note, despite rendering correctly in Markdown Preview.
+
+**Root Cause**:
+1. Under the CommonMark / GitHub Flavored Markdown specification, any text line immediately following a list item without an intervening blank line (`\n\n`) is parsed as a lazy multiline continuation of the preceding list item.
+2. SuperEditor's default `serializeDocumentToMarkdown` joins adjacent nodes with only a single newline (`\n`). As a result, a completed `TaskNode` (`- [x] item 5`) followed by a `ParagraphNode` (`new thins`) serialized to:
+   ```text
+   - [x] item 5
+   new thins
+   hey thanks
+   ```
+3. Upon re-opening the document, `deserializeMarkdownToDocument` parsed `new thins\nhey thanks` directly into the preceding `TaskNode("item 5\nnew thins\nhey thanks")`. Because the task node was completed (`[x]`), the entire block (including the paragraph text) was styled with `lineThrough` and folded into the collapsed completed items list!
+
+### Solution & Implementation
+1. **QuietTaskNodeSerializer**:
+   - Added `QuietTaskNodeSerializer` in [`lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart) extending `NodeTypedDocumentNodeMarkdownSerializer<TaskNode>`.
+   - Checks whether the task node is followed by a non-task node (such as `ParagraphNode`). If so, appends a trailing newline (`\n`), ensuring that when `serializeDocumentToMarkdown` joins nodes with `\n`, a full blank line (`\n\n`) is produced between the checklist and the following block.
+   - Registered `QuietTaskNodeSerializer()` in `QuietSuperEditor.customNodeSerializers` in [`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart).
+
+2. **Pre-Deserialization Normalization**:
+   - In `normalizeMarkdownForSuperEditor` ([`lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart)), added regex detection for task/list items (`RegExp(r'^\s*([-*+](\s+\[[ xX]\]|\s+)|\d+\.\s+)')`).
+   - When a task or list item is immediately followed by a non-list line without an empty line, automatically writes a double newline (`\n\n`) to cleanly terminate the list block before the paragraph line is deserialized.
+
+### Verification
+- Added regression tests in [`test/editor/smart_task_super_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/smart_task_super_editor_test.dart):
+  - `paragraphs following a completed task list are not merged, struck through, or collapsed`: Verifies that paragraphs following a completed task list remain distinct `ParagraphNode`s, are rendered outside the completed collapse header, and do not receive `strikethroughAttribution`.
+  - `QuietTaskNodeSerializer outputs blank line before following non-task node`: Verifies serialization produces `\n\n` boundary separation.
+- Ran `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (42/42 passed).
+- Ran `flutter analyze` (0 issues, 0 warnings).

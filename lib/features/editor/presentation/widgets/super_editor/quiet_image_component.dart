@@ -179,6 +179,8 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   final buffer = StringBuffer();
   final imageLineRegex = RegExp(r'^\s*!\[.*?\]\(.*?\)\s*$');
   final tableLineRegex = RegExp(r'^\s*\|.*?\|\s*$');
+  final listOrTaskLineRegex =
+      RegExp(r'^\s*([-*+](\s+\[[ xX]\]|\s+)|\d+\.\s+)');
   // A line that is exactly a single `[name](qp://document|asset/...)` link must
   // be isolated as its own block so it deserializes into a standalone paragraph
   // (which is then promoted to an embedded attachment card).
@@ -197,6 +199,7 @@ String normalizeMarkdownForSuperEditor(String markdown) {
     final isWebLink = webLinkLineRegex.hasMatch(line);
     final isLinkPreview = isLinkPreviewComment(trimmed) ||
         trimmed.startsWith(r'\<!-- qp-link-preview:');
+    final isListOrTask = listOrTaskLineRegex.hasMatch(line);
 
     if (isImage || isQpLink || isWebLink) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
@@ -227,6 +230,18 @@ String normalizeMarkdownForSuperEditor(String markdown) {
 
     buffer.write(line);
     if (isTable && i + 1 < lines.length && !tableLineRegex.hasMatch(lines[i + 1]) && lines[i + 1].trim().isNotEmpty) {
+      buffer.write('\n\n');
+      continue;
+    }
+
+    // In CommonMark, a list or task item followed immediately by a non-list line
+    // without a blank line is treated as a lazy continuation of the list item.
+    // Ensure a blank line (\n\n) to cleanly terminate the list and preserve
+    // following paragraphs as separate nodes.
+    if (isListOrTask &&
+        i + 1 < lines.length &&
+        lines[i + 1].trim().isNotEmpty &&
+        !listOrTaskLineRegex.hasMatch(lines[i + 1])) {
       buffer.write('\n\n');
       continue;
     }
