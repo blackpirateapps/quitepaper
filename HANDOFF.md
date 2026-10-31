@@ -11334,3 +11334,54 @@ Integrated a first-class, Super Editor-native code block component (`QuietCodeBl
     - Controller code block insertion and dynamic language changes.
   - Test suites: `flutter test test/editor/quiet_code_block_test.dart` and `flutter test test/editor/quiet_super_editor_test.dart` (37/37 passing).
 - **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.
+
+---
+
+## 242. Architecture: Smart Todolist in SuperEditor with Optical Alignment, Placeholders, Auto-Sorting & Collapsible Done Items (October 2026)
+
+### Overview
+Significantly enhanced the checklist / to-do list editing experience in Quiet Paper's Super Editor (`EditorEditingStyle.superEditor`). Prior to this overhaul, Super Editor treated task nodes as raw, independent checklist items with misaligned checkboxes (floating too high above the text baseline and caret), no hint text on empty items, no automated sorting on completion, and no grouping or folding for completed tasks.
+
+### Key Architectural & UI Enhancements
+1. **Dynamic Optical Checkbox & Caret Alignment**:
+   - In [`QuietTaskComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_task_component.dart), dynamically calculates the optical top padding based on font metrics: `((fontSize * lineHeight) - checkboxSize) / 2`.
+   - For standard 18sp body text with 1.6 line-height (28.8px line box), this precisely positions the 20x20 checkbox with 4.4px top inset, aligning the checkbox square with the font's cap/x-height, baseline, and the Super Editor blinking caret across all user-selected font sizes and line heights.
+
+2. **Empty Todo Placeholder (`New task...`)**:
+   - When a to-do is empty (`widget.viewModel.text.isEmpty`), renders an `IgnorePointer` placeholder displaying `'New task...'` layered behind `TextComponent` via a `Stack`.
+   - Inherits the exact same typography and line height via `_computeStyles({})`, ensuring zero jitter and pixel-identical vertical alignment with the caret.
+   - Instantly disappears upon entering any character, and seamlessly reappears if text is cleared.
+
+3. **Contiguous Task Range Discovery & Auto-Sorting on Check / Uncheck**:
+   - Created [`SmartTaskController`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/smart_task_controller.dart):
+     - `findTaskBlocks`: Discovers isolated contiguous runs of `TaskNode`s in the document (bounded by headings, paragraphs, tables, code blocks, or attachments).
+     - `calculateDestinationIndex`:
+       - **On Check**: Calculates the end index of the contiguous task block (`endIndex`) and moves the checked item to the bottom of the block.
+       - **On Uncheck**: Calculates the insertion position immediately following all other active tasks (`startIndex + otherActiveCount`), moving the unchecked task to the bottom of the active/uncompleted tasks.
+     - Preserves full undo/redo history using Super Editor's native command pipeline (`ChangeTaskCompletionRequest` & `MoveNodeRequest`).
+
+4. **Smart Auto-Collapse for Completed Items (> 3 Done Items)**:
+   - When a contiguous checklist block accumulates more than 3 completed tasks (`completedCount > 3`), all completed items automatically collapse under a clean editorial summary row:
+     `✓ N completed items  ›`
+   - Tapping the summary row smoothly expands the items (`✓ N completed items  ▾`), rendering all completed items inline with strike-through and checked boxes, fully selectable and editable.
+   - Tapping again toggles back to collapsed state.
+   - **Auto-Uncollapse**: If items are deleted or unchecked so that the completed count drops to $\le 3$, the section automatically uncollapses and displays all items inline.
+   - **Super Editor Layout Stability**: Completed tasks remain native `TaskNode`s in the `MutableDocument`. Collapsed items render zero-height proxy components that fulfill Super Editor's `ProxyDocumentComponent` contract without disrupting caret hit-testing or layout calculations.
+
+5. **SuperEditor Integration**:
+   - Integrated `SmartTaskController` into [`QuietSuperEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart) with stateful listener lifecycle management.
+
+### Verification & Quality Gates
+- **Automated Tests**:
+  - Added [`test/editor/smart_task_super_editor_test.dart`](file:///home/dog/git/quitepaper/test/editor/smart_task_super_editor_test.dart) (10 tests):
+    - `SmartTaskController` block discovery and isolation.
+    - Destination index calculations for check and uncheck.
+    - Default collapse (> 3) and interactive expansion toggling.
+    - Empty task placeholder `'New task...'` rendering and suppression.
+    - Dynamic optical top padding calculation.
+    - Auto-sort to bottom of checklist on check.
+    - Auto-sort to bottom of active items on uncheck.
+    - Auto-collapse when $> 3$ completed and interactive expand/collapse toggle.
+    - Auto-uncollapse when completed items drop to 3.
+  - Test suites: `flutter test test/editor/smart_task_super_editor_test.dart test/editor/quiet_super_editor_test.dart` (38/38 passing).
+- **Static Analysis**: `flutter analyze` reported **0 issues, 0 warnings**.

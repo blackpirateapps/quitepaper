@@ -15,6 +15,7 @@ import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
 import 'super_editor/quiet_table_component.dart';
 import 'super_editor/quiet_task_component.dart';
+import 'super_editor/smart_task_controller.dart';
 import 'super_editor/typewriter_document_layer.dart';
 
 /// Embedded block-based document editor surface powered by SuperEditor.
@@ -56,6 +57,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
 class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late Editor _editor;
   late MutableDocumentComposer _composer;
+  late SmartTaskController _smartTaskController;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
   bool _isInternalUpdate = false;
@@ -63,7 +65,14 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   @override
   void initState() {
     super.initState();
+    _smartTaskController = SmartTaskController()..addListener(_onSmartTaskChanged);
     _initEditor();
+  }
+
+  void _onSmartTaskChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _initEditor() {
@@ -155,6 +164,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
   @override
   void dispose() {
+    _smartTaskController.removeListener(_onSmartTaskChanged);
+    _smartTaskController.dispose();
     widget.controller?.detach();
     _editor.document.removeListener(_onDocumentChange);
     _editor.dispose();
@@ -382,7 +393,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               stylesheet: stylesheet,
               componentBuilders: [
                 QuietCodeBlockComponentBuilder(_editor),
-                QuietTaskComponentBuilder(_editor),
+                QuietTaskComponentBuilder(
+                  _editor,
+                  smartTaskController: _smartTaskController,
+                ),
                 QuietImageComponentBuilder(noteId: widget.noteId),
                 QuietAttachmentComponentBuilder(
                   editor: _editor,
