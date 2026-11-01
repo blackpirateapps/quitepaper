@@ -26,6 +26,8 @@ import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.da
 import '../document_models.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'widgets/pdf_thumbnail_sidebar.dart';
 
 /// Maximum allowed zoom level for PDF document viewing (5x / 500% magnification).
 /// Calibrated to prevent native multi-megabyte tile rasterization main-thread stalls.
@@ -99,6 +101,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   late final ValueNotifier<int> _selectedPageIndexNotifier;
   late final ValueNotifier<double> _zoomLevelNotifier;
   late final ValueNotifier<bool> _isDirtyNotifier;
+  late final ValueNotifier<bool> _isThumbnailSidebarOpenNotifier;
+  static const String _kPdfThumbnailSidebarPrefKey =
+      'setting_pdf_thumbnail_sidebar_open';
   PDFSource? _cachedPdfSource;
   GlobalKey<SfPdfViewerState> _pdfViewerStateKey =
       GlobalKey<SfPdfViewerState>();
@@ -147,6 +152,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     );
     _zoomLevelNotifier = ValueNotifier<double>(1.0);
     _isDirtyNotifier = ValueNotifier<bool>(false);
+    _isThumbnailSidebarOpenNotifier = ValueNotifier<bool>(false);
+    _initThumbnailSidebarPreference();
 
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
@@ -249,7 +256,34 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     _selectedPageIndexNotifier.dispose();
     _zoomLevelNotifier.dispose();
     _isDirtyNotifier.dispose();
+    _isThumbnailSidebarOpenNotifier.dispose();
     super.dispose();
+  }
+
+  Future<void> _initThumbnailSidebarPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getBool(_kPdfThumbnailSidebarPrefKey);
+      if (saved != null) {
+        if (mounted) _isThumbnailSidebarOpenNotifier.value = saved;
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final screenWidth = MediaQuery.of(context).size.width;
+          if (screenWidth >= 900) {
+            _isThumbnailSidebarOpenNotifier.value = true;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _toggleThumbnailSidebar() {
+    final next = !_isThumbnailSidebarOpenNotifier.value;
+    _isThumbnailSidebarOpenNotifier.value = next;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setBool(_kPdfThumbnailSidebarPrefKey, next);
+    }).catchError((_) {});
   }
 
   void _handleTextSelectionChanged(PdfTextSelectionChangedDetails details) {
@@ -551,6 +585,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       _isDirty = false;
       _activePdfBytes = savedBytes;
       _cachedPdfSource = BytePDFSource(savedBytes);
+      ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
     } catch (e) {
       debugPrint('[DocumentViewerScreen] Auto-save annotations failed: $e');
     } finally {
@@ -577,6 +612,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           _activePdfBytes = savedBytes;
           _cachedPdfSource = BytePDFSource(savedBytes);
         });
+        ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Annotations saved successfully'),
@@ -655,6 +691,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+      ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
     }
   }
 
@@ -1164,6 +1201,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         docInfo?.ocrState == 'processing' || docInfo?.ocrState == 'queued';
     final isOcrFailed = docInfo?.ocrState == 'failed';
     final isOcrSkipped = docInfo?.ocrState == 'skipped';
+    final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isBigScreen =
+        isDesktop || MediaQuery.of(context).size.width >= 768.0;
 
     return ValueListenableBuilder<bool>(
       valueListenable: _isDirtyNotifier,
@@ -1282,6 +1322,22 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ],
           ),
           actions: [
+            if (isBigScreen)
+              ValueListenableBuilder<bool>(
+                valueListenable: _isThumbnailSidebarOpenNotifier,
+                builder: (context, isOpen, _) {
+                  return IconButton(
+                    icon: Icon(
+                      isOpen
+                          ? Icons.view_sidebar
+                          : Icons.view_sidebar_outlined,
+                    ),
+                    tooltip: isOpen ? 'Hide thumbnails' : 'Show thumbnails',
+                    color: isOpen ? colors.accent : null,
+                    onPressed: _toggleThumbnailSidebar,
+                  );
+                },
+              ),
             ValueListenableBuilder<bool>(
               valueListenable: _isDirtyNotifier,
               builder: (context, isDirty, _) {
@@ -1594,6 +1650,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     }
 
     final isDesktop = PlatformLayoutHelper.isDesktop(context);
+    final isBigScreen =
+        isDesktop || MediaQuery.of(context).size.width >= 768.0;
 
     return Column(
       children: [
@@ -1656,71 +1714,153 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ),
           ),
         Expanded(
-          child: Stack(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: SfPdfViewer(
-                    source: _cachedPdfSource ?? BytePDFSource(_activePdfBytes!),
-                    key: _pdfViewerStateKey,
-                    controller: _pdfViewerController,
-                    undoController: _undoHistoryController,
-                    pageLayoutMode: _pageLayoutMode,
-                    interactionMode: _effectiveInteractionMode,
-                    maxZoomLevel: kPdfViewerMaxZoomLevel,
-                    canShowScrollHead: isDesktop,
-                    canShowScrollStatus: isDesktop,
-                    enableTextSelection: true,
-                    canShowTextSelectionMenu: false,
-                    enableDoubleTapZooming: false,
-                    canShowPaginationDialog: true,
-                    currentSearchTextHighlightColor: colors.accent.withValues(
-                      alpha: 0.6,
+              if (isBigScreen) ...[
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isThumbnailSidebarOpenNotifier,
+                  builder: (context, isOpen, _) {
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      width: isOpen ? 140.0 : 0.0,
+                      clipBehavior: Clip.hardEdge,
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        border: Border(
+                          right: BorderSide(
+                            color: colors.borderSubtle,
+                            width: isOpen ? 1.0 : 0.0,
+                          ),
+                        ),
+                      ),
+                      child: isOpen
+                          ? PdfThumbnailSidebar(
+                              documentId: widget.documentId,
+                              pdfBytes: _activePdfBytes!,
+                              pageCount: _pageCount,
+                              selectedPageIndexListenable:
+                                  _selectedPageIndexNotifier,
+                              onPageSelected: (pageIndex) {
+                                _pdfViewerController.jumpToPage(pageIndex + 1);
+                              },
+                            )
+                          : const SizedBox.shrink(),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isThumbnailSidebarOpenNotifier,
+                  builder: (context, isOpen, _) {
+                    return _buildSidebarCollapseHandle(colors, isOpen);
+                  },
+                ),
+              ],
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: SfPdfViewer(
+                          source: _cachedPdfSource ??
+                              BytePDFSource(_activePdfBytes!),
+                          key: _pdfViewerStateKey,
+                          controller: _pdfViewerController,
+                          undoController: _undoHistoryController,
+                          pageLayoutMode: _pageLayoutMode,
+                          interactionMode: _effectiveInteractionMode,
+                          maxZoomLevel: kPdfViewerMaxZoomLevel,
+                          canShowScrollHead: isDesktop,
+                          canShowScrollStatus: isDesktop,
+                          enableTextSelection: true,
+                          canShowTextSelectionMenu: false,
+                          enableDoubleTapZooming: false,
+                          canShowPaginationDialog: true,
+                          currentSearchTextHighlightColor:
+                              colors.accent.withValues(
+                            alpha: 0.6,
+                          ),
+                          otherSearchTextHighlightColor:
+                              colors.accent.withValues(
+                            alpha: 0.25,
+                          ),
+                          initialPageNumber: (widget.initialPageIndex >= 0
+                                  ? widget.initialPageIndex
+                                  : 0) +
+                              1,
+                          onZoomLevelChanged: (details) {
+                            _zoomLevelNotifier.value = details.newZoomLevel;
+                            _hideFloatingSelectionMenu();
+                          },
+                          onDocumentLoaded: (details) {
+                            if (mounted) {
+                              setState(() {
+                                _pageCount = details.document.pages.count;
+                              });
+                            }
+                          },
+                          onDocumentLoadFailed: (details) {
+                            debugPrint(
+                              '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
+                            );
+                          },
+                          onPageChanged: (details) {
+                            _selectedPageIndexNotifier.value =
+                                details.newPageNumber - 1;
+                          },
+                          onTextSelectionChanged: _handleTextSelectionChanged,
+                          onAnnotationAdded: (_) => _onAnnotationMutated(),
+                          onAnnotationEdited: (_) => _onAnnotationMutated(),
+                          onAnnotationRemoved: (_) => _onAnnotationMutated(),
+                        ),
+                      ),
                     ),
-                    otherSearchTextHighlightColor: colors.accent.withValues(
-                      alpha: 0.25,
-                    ),
-                    initialPageNumber: (widget.initialPageIndex >= 0
-                            ? widget.initialPageIndex
-                            : 0) +
-                        1,
-                    onZoomLevelChanged: (details) {
-                      _zoomLevelNotifier.value = details.newZoomLevel;
-                      _hideFloatingSelectionMenu();
-                    },
-                    onDocumentLoaded: (details) {
-                      if (mounted) {
-                        setState(() {
-                          _pageCount = details.document.pages.count;
-                        });
-                      }
-                    },
-                    onDocumentLoadFailed: (details) {
-                      debugPrint(
-                        '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
-                      );
-                    },
-                    onPageChanged: (details) {
-                      _selectedPageIndexNotifier.value =
-                          details.newPageNumber - 1;
-                    },
-                    onTextSelectionChanged: _handleTextSelectionChanged,
-                    onAnnotationAdded: (_) => _onAnnotationMutated(),
-                    onAnnotationEdited: (_) => _onAnnotationMutated(),
-                    onAnnotationRemoved: (_) => _onAnnotationMutated(),
-                  ),
+                    if (_activeAnnotationMode == PdfAnnotationMode.none)
+                      Positioned(
+                        right: AppSpacing.md,
+                        bottom: AppSpacing.md,
+                        child: _buildFloatingZoomPill(colors),
+                      ),
+                  ],
                 ),
               ),
-              if (_activeAnnotationMode == PdfAnnotationMode.none)
-                Positioned(
-                  right: AppSpacing.md,
-                  bottom: AppSpacing.md,
-                  child: _buildFloatingZoomPill(colors),
-                ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSidebarCollapseHandle(AppColors colors, bool isOpen) {
+    return Semantics(
+      label: isOpen ? 'Collapse thumbnail sidebar' : 'Expand thumbnail sidebar',
+      button: true,
+      child: InkWell(
+        onTap: _toggleThumbnailSidebar,
+        mouseCursor: SystemMouseCursors.click,
+        child: Container(
+          width: 14.0,
+          color: colors.surface,
+          alignment: Alignment.center,
+          child: Center(
+            child: Container(
+              width: 14.0,
+              height: 36.0,
+              decoration: BoxDecoration(
+                color: colors.surfaceElevated,
+                borderRadius: BorderRadius.circular(4.0),
+                border: Border.all(color: colors.borderSubtle, width: 0.5),
+              ),
+              child: Icon(
+                isOpen ? Icons.chevron_left : Icons.chevron_right,
+                size: 14.0,
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

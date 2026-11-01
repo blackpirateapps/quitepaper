@@ -16,6 +16,7 @@ import '../uri/resource_resolver.dart';
 import 'document_crypto.dart';
 import 'document_models.dart';
 import 'document_storage.dart';
+import 'pdf_thumbnail_service.dart';
 
 /// Central coordinator for scanned and imported document storage, cryptography,
 /// lifecycle, asynchronous OCR processing, and URI resolution.
@@ -28,6 +29,7 @@ class DocumentService implements DocumentResolver {
     CloudinaryClient? cloudinaryClient,
     this.processingService,
     this.apiClient,
+    this.thumbnailService,
   }) : _crypto = crypto ?? DocumentCrypto(),
        _storage = storage ?? DocumentLocalStorage(),
        _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
@@ -39,6 +41,7 @@ class DocumentService implements DocumentResolver {
   final CloudinaryClient _cloudinary;
   final DocumentProcessingService? processingService;
   final SyncApiClient? apiClient;
+  final PdfThumbnailService? thumbnailService;
 
   static const _uuid = Uuid();
 
@@ -614,6 +617,7 @@ class DocumentService implements DocumentResolver {
   }) async {
     _storage.invalidateDecryptedCache(documentId);
     _storage.invalidateDecryptedAnnotatedCache(documentId);
+    await thumbnailService?.deleteThumbnails(documentId);
     await database.deleteDocument(documentId, enqueueSync: enqueueSync);
     await database.deleteDocumentOcrPages(documentId);
     await _storage.deleteEncryptedFile(documentId: documentId);
@@ -628,6 +632,7 @@ class DocumentService implements DocumentResolver {
 
     _storage.invalidateDecryptedCache(documentId);
     _storage.invalidateDecryptedAnnotatedCache(documentId);
+    await thumbnailService?.deleteThumbnails(documentId);
 
     await _storage.deleteEncryptedFile(documentId: documentId);
     await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);

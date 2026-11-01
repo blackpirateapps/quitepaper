@@ -6,6 +6,7 @@ import 'document_crypto.dart';
 import 'document_service.dart';
 import 'document_storage.dart';
 import 'document_sync_service.dart';
+import 'pdf_thumbnail_service.dart';
 
 import '../ocr/ocr_provider.dart';
 
@@ -18,6 +19,18 @@ final documentLocalStorageProvider = Provider<DocumentLocalStorage>((ref) {
   return DocumentLocalStorage();
 });
 
+final pdfThumbnailServiceProvider = Provider<PdfThumbnailService>((ref) {
+  final keyManager = ref.watch(keyManagerProvider);
+  final crypto = ref.watch(documentCryptoProvider);
+  final renderer = ref.watch(pdfPageRendererProvider);
+
+  return PdfThumbnailService(
+    keyManager: keyManager,
+    crypto: crypto,
+    renderer: renderer,
+  );
+});
+
 final documentServiceProvider = Provider<DocumentService>((ref) {
   final database = ref.watch(databaseProvider);
   final keyManager = ref.watch(keyManagerProvider);
@@ -26,6 +39,7 @@ final documentServiceProvider = Provider<DocumentService>((ref) {
   final cloudinaryClient = ref.watch(cloudinaryClientProvider);
   final processingService = ref.watch(documentProcessingServiceProvider);
   final apiClient = ref.watch(syncApiClientProvider);
+  final thumbnailService = ref.watch(pdfThumbnailServiceProvider);
 
   return DocumentService(
     database: database,
@@ -35,6 +49,7 @@ final documentServiceProvider = Provider<DocumentService>((ref) {
     cloudinaryClient: cloudinaryClient,
     processingService: processingService,
     apiClient: apiClient,
+    thumbnailService: thumbnailService,
   );
 });
 
