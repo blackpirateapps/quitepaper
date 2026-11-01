@@ -215,6 +215,28 @@ void main() {
       );
     });
 
+    testWidgets('QuietCodeBlockComponent spans full width of editor container', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const markdown = '''```dart
+void main() {}
+```''';
+
+      await tester.pumpWidget(buildEditorWrapper(markdown: markdown));
+      await tester.pumpAndSettle();
+
+      final codeBlockFinder = find.byType(QuietCodeBlockComponent);
+      expect(codeBlockFinder, findsOneWidget);
+
+      final codeBlockSize = tester.getSize(codeBlockFinder);
+      expect(codeBlockSize.width, equals(800.0));
+    });
+
     testWidgets('copy button copies code block text to clipboard', (tester) async {
       String? clipboardText;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

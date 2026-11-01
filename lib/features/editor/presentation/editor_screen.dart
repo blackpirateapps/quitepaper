@@ -2057,7 +2057,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                                     controller: _titleController,
                                                     focusNode: _titleFocusNode,
                                                     readOnly: editorState.isReadOnly,
-                                                    textAlign: TextAlign.center,
+                                                    textAlign: TextAlign.left,
                                                     cursorColor: colors.accent,
                                     style: FontFamilyHelper.getTextStyle(
                                       fontFamily: FontFamilyHelper.resolveHeadingFontFamily(

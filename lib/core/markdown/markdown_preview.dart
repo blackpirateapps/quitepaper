@@ -518,7 +518,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           if (effectiveTitle.isNotEmpty) ...[
             Text(
               effectiveTitle,
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               style: FontFamilyHelper.getTextStyle(
                 fontFamily: headingFont,
                 baseStyle: AppTypography.editorTitle.copyWith(

@@ -5037,8 +5037,43 @@ Following the precedent established in Migration 016 (`016_remove_ocr_foreign_ke
 - **Frontend Test Suite**:
   - `flutter test test/attachments/ test/sync/` (**216/216 passing**).
 
+---
 
+## 251. UI Polish: Left-Aligned Note Titles & Full-Width SuperEditor Code Blocks (November 2026)
 
+### 1. Overview & Motivation
+1. **Left-Aligned Note Title**: In commit `319a6d7adeaf4ed6bc650d8208f5fbd097e64186`, note titles were centered across edit and preview surfaces. To preserve the editorial Bear Notes visual hierarchy where titles align flush with the left margin of document content, the title alignment was reverted back to left alignment (`TextAlign.left`).
+2. **Full-Width SuperEditor Code Blocks**: In Super Editor mode (`QuietSuperEditor`), code blocks (`QuietCodeBlockComponent`) previously failed to take up full width. This was caused by two issues:
+   - The stylesheet rule `BlockSelector('code')` in `QuietSuperEditor` specified `Styles.padding: const CascadingPadding.symmetric(horizontal: 16, vertical: 12)`, which overrode component padding and inset the code block card by 16px on the left and 16px on the right compared to all other document components.
+   - The root `Container` in `QuietCodeBlockComponent` lacked explicit `width: double.infinity`.
 
+### 2. Architectural Design & Implementation
+1. **Note Title Left Alignment**:
+   - In [`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart), updated note title `TextField` from `textAlign: TextAlign.center` to `textAlign: TextAlign.left`.
+   - In [`lib/core/markdown/markdown_preview.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart), updated note title `Text` in header from `textAlign: TextAlign.center` to `textAlign: TextAlign.left`.
+   - In [`test/editor/editor_scrollbar_test.dart`](file:///home/dog/git/quitepaper/test/editor/editor_scrollbar_test.dart), updated test to assert `TextAlign.left` in both edit and preview modes.
+2. **Full-Width SuperEditor Code Blocks**:
+   - In [`lib/features/editor/presentation/widgets/quiet_super_editor.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart), updated `BlockSelector('code')` stylesheet rule to set `Styles.maxWidth: double.infinity`, `Styles.padding: const CascadingPadding.symmetric(horizontal: 0, vertical: 0)`, and removed legacy `Styles.backgroundColor: colors.surfaceSecondary`.
+   - In [`lib/features/editor/presentation/widgets/super_editor/quiet_code_block_component.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_code_block_component.dart), added `width: double.infinity` to the root `Container`, ensuring the card stretches across 100% of the editor column width.
+   - In [`test/editor/quiet_code_block_test.dart`](file:///home/dog/git/quitepaper/test/editor/quiet_code_block_test.dart), added test case `QuietCodeBlockComponent spans full width of editor container` verifying full-width sizing.
+
+### 3. File Inventory
+- **Modified Source Files**:
+  - `lib/features/editor/presentation/editor_screen.dart`: Reverted title `TextField` to `TextAlign.left`.
+  - `lib/core/markdown/markdown_preview.dart`: Reverted title `Text` to `TextAlign.left`.
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Updated `BlockSelector('code')` stylesheet rule to remove 16px horizontal padding.
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_code_block_component.dart`: Added `width: double.infinity` to card container.
+- **Modified Test Files**:
+  - `test/editor/editor_scrollbar_test.dart`: Updated title alignment assertions to `TextAlign.left`.
+  - `test/editor/quiet_code_block_test.dart`: Added full-width layout test.
+- **Documentation**:
+  - `handoff/latest-logs.md`: Appended Section 251.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Targeted Test Suites**:
+  - `flutter test test/editor/editor_scrollbar_test.dart`: **5/5 tests passing**.
+  - `flutter test test/editor/quiet_code_block_test.dart`: **10/10 tests passing**.
+  - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
 
 

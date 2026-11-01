@@ -544,6 +544,7 @@ class _QuietCodeBlockComponentState extends State<QuietCodeBlockComponent>
     final gutterWidth = max(32.0, ('$lineCount'.length * 8.5) + 16.0);
 
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: colors.surface,

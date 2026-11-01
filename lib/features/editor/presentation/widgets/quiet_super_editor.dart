@@ -332,8 +332,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         StyleRule(
           const BlockSelector('code'),
           (doc, docNode) => {
-            Styles.padding: const CascadingPadding.symmetric(horizontal: 16, vertical: 12),
-            Styles.backgroundColor: colors.surfaceSecondary,
+            Styles.maxWidth: double.infinity,
+            Styles.padding: const CascadingPadding.symmetric(horizontal: 0, vertical: 0),
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.codeFontFamily ?? 'monospace',
