@@ -413,10 +413,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('#work'), findsOneWidget);
-        expect(find.text('#workflow'), findsOneWidget);
-        expect(find.text('#projects'), findsNothing);
-        expect(find.text('#alpha'), findsNothing);
+        expect(find.text('work'), findsOneWidget);
+        expect(find.text('workflow'), findsOneWidget);
+        expect(find.text('projects'), findsNothing);
+        expect(find.text('alpha'), findsNothing);
 
         expect(
           find.bySemanticsLabel(RegExp(r'#work, 3 notes')),
@@ -426,9 +426,9 @@ void main() {
         await tester.tap(find.byTooltip('Expand sub-tags'));
         await tester.pumpAndSettle();
 
-        expect(find.text('#projects'), findsOneWidget);
-        expect(find.text('#ideas'), findsOneWidget);
-        expect(find.text('#alpha'), findsNothing);
+        expect(find.text('projects'), findsOneWidget);
+        expect(find.text('ideas'), findsOneWidget);
+        expect(find.text('alpha'), findsNothing);
         expect(
           find.bySemanticsLabel(RegExp(r'#work/projects, 2 notes')),
           findsOneWidget,
@@ -436,9 +436,9 @@ void main() {
 
         await tester.tap(find.byTooltip('Expand sub-tags'));
         await tester.pumpAndSettle();
-        expect(find.text('#alpha'), findsOneWidget);
+        expect(find.text('alpha'), findsOneWidget);
 
-        await tester.tap(find.text('#alpha'));
+        await tester.tap(find.text('alpha'));
         await tester.pumpAndSettle();
         expect(selected, equals('work/projects/alpha'));
 
@@ -481,7 +481,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('PINNED'), findsOneWidget);
-      expect(find.text('#projects'), findsOneWidget);
+      expect(find.text('projects'), findsOneWidget);
       // The pinned row is flat: no expansion affordance is attached to it.
       final pinnedRow = find.byKey(const ValueKey('pinned_t-pinned'));
       expect(pinnedRow, findsOneWidget);
@@ -509,9 +509,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('#work'), findsOneWidget);
-        expect(find.text('#projects'), findsNothing);
-        expect(find.text('#alpha'), findsNothing);
+        expect(find.text('work'), findsOneWidget);
+        expect(find.text('projects'), findsNothing);
+        expect(find.text('alpha'), findsNothing);
 
         // Open header hierarchy menu on wide layout
         await tester.tap(find.byTooltip('Tag hierarchy options'));
@@ -521,8 +521,8 @@ void main() {
         await tester.tap(find.text('Expand all sub-tags'));
         await tester.pumpAndSettle();
 
-        expect(find.text('#projects'), findsOneWidget);
-        expect(find.text('#alpha'), findsOneWidget);
+        expect(find.text('projects'), findsOneWidget);
+        expect(find.text('alpha'), findsOneWidget);
 
         // Open menu and tap "Collapse all sub-tags"
         await tester.tap(find.byTooltip('Tag hierarchy options'));
@@ -531,8 +531,8 @@ void main() {
         await tester.tap(find.text('Collapse all sub-tags'));
         await tester.pumpAndSettle();
 
-        expect(find.text('#projects'), findsNothing);
-        expect(find.text('#alpha'), findsNothing);
+        expect(find.text('projects'), findsNothing);
+        expect(find.text('alpha'), findsNothing);
 
         // Switch to compact layout (<340 width) and test combined menu
         tester.view.physicalSize = const Size(320, 700);
@@ -544,8 +544,8 @@ void main() {
         await tester.tap(find.text('Expand all sub-tags'));
         await tester.pumpAndSettle();
 
-        expect(find.text('#projects'), findsOneWidget);
-        expect(find.text('#alpha'), findsOneWidget);
+        expect(find.text('projects'), findsOneWidget);
+        expect(find.text('alpha'), findsOneWidget);
 
         await finishTest(tester);
       },

@@ -160,8 +160,20 @@ void main() {
       expect(find.byType(TagBrowserView), findsOneWidget);
       expect(find.text('Tags'), findsWidgets);
       expect(find.text('PINNED'), findsOneWidget);
-      expect(find.text('#blog'), findsOneWidget);
-      expect(find.text('#ideas'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TagBrowserView),
+          matching: find.text('blog'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TagBrowserView),
+          matching: find.text('ideas'),
+        ),
+        findsOneWidget,
+      );
 
       // Editor pane shows empty state
       expect(find.text('No note selected'), findsOneWidget);
@@ -182,8 +194,13 @@ void main() {
 
       expect(find.byType(TagBrowserView), findsOneWidget);
 
-      // Tap on #blog row in TagBrowserView
-      await tester.tap(find.text('#blog'));
+      // Tap on blog row in TagBrowserView
+      await tester.tap(
+        find.descendant(
+          of: find.byType(TagBrowserView),
+          matching: find.text('blog'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Workspace switches to Tag context in the middle pane

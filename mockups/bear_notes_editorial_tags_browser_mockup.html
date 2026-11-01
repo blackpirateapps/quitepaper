@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bear Notes Aesthetic — Tags Browser Redesign</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Newsreader (Editorial Serif), Plus Jakarta Sans (Humanist Sans), JetBrains Mono (Tabular Counts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      /* Theme: Warm Paper (Default Bear Light) */
+      --bg-canvas: #FBF8F3;
+      --bg-elevated: #F3EDE2;
+      --bg-hover: #EFE7DA;
+      --bg-selected: #F8E5E2;
+      --bg-sheet: #FCF9F5;
+      --text-primary: #26221E;
+      --text-secondary: #6E655C;
+      --text-muted: #A3988D;
+      --accent: #D13B2E;
+      --accent-soft: rgba(209, 59, 46, 0.11);
+      --accent-border: rgba(209, 59, 46, 0.25);
+      --border-hairline: #E8E0D4;
+      --border-strong: #DCD1C1;
+      --tag-hash: #B29E8B;
+      --shadow-card: 0 2px 10px -2px rgba(38, 34, 30, 0.05), 0 1px 2px rgba(38, 34, 30, 0.04);
+      --status-bar-bg: rgba(251, 248, 243, 0.88);
+    }
+
+    [data-theme="sepia"] {
+      --bg-canvas: #F3EAD8;
+      --bg-elevated: #E8DEC8;
+      --bg-hover: #E2D5BC;
+      --bg-selected: #EED9D1;
+      --bg-sheet: #F6EFE0;
+      --text-primary: #2B2118;
+      --text-secondary: #695A4C;
+      --text-muted: #9A8978;
+      --accent: #B83A24;
+      --accent-soft: rgba(184, 58, 36, 0.12);
+      --accent-border: rgba(184, 58, 36, 0.28);
+      --border-hairline: #DFD2BA;
+      --border-strong: #CFC0A4;
+      --tag-hash: #9E8872;
+      --shadow-card: 0 2px 10px -2px rgba(43, 33, 24, 0.07), 0 1px 3px rgba(43, 33, 24, 0.05);
+      --status-bar-bg: rgba(243, 234, 216, 0.88);
+    }
+
+    [data-theme="espresso"] {
+      --bg-canvas: #1C1917;
+      --bg-elevated: #26221F;
+      --bg-hover: #2E2925;
+      --bg-selected: #382320;
+      --bg-sheet: #24201D;
+      --text-primary: #F2ECE4;
+      --text-secondary: #A69B8F;
+      --text-muted: #6E645A;
+      --accent: #E55344;
+      --accent-soft: rgba(229, 83, 68, 0.15);
+      --accent-border: rgba(229, 83, 68, 0.32);
+      --border-hairline: #2E2925;
+      --border-strong: #3B3530;
+      --tag-hash: #7D7065;
+      --shadow-card: 0 4px 14px -2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+      --status-bar-bg: rgba(28, 25, 23, 0.88);
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #EAE4DC;
+      color: #26221E;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .font-serif-editorial {
+      font-family: 'Newsreader', Georgia, serif;
+    }
+
+    .font-display-serif {
+      font-family: 'Instrument Serif', Georgia, serif;
+    }
+
+    .font-mono-tabular {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Custom Scrollbar inside Phone */
+    .phone-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .phone-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .phone-scroll::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 9999px;
+    }
+
+    /* Subtle paper grain overlay */
+    .paper-grain {
+      background-image: radial-gradient(rgba(38, 34, 30, 0.03) 1px, transparent 0);
+      background-size: 16px 16px;
+    }
+
+    /* Smooth accordion transition */
+    .nested-children {
+      transition: max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+      overflow: hidden;
+    }
+
+    /* Pulse animation for UX callout pins */
+    @keyframes softPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(209, 59, 46, 0.45); }
+      50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(209, 59, 46, 0); }
+    }
+    .ux-pin {
+      animation: softPulse 2.4s infinite ease-in-out;
+    }
+
+    /* Tag Row interactive feel */
+    .tag-row {
+      transition: background-color 0.15s ease, transform 0.12s ease;
+    }
+    .tag-row:active {
+      transform: scale(0.992);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 p-4 sm:p-6 lg:p-10 selection:bg-[#D13B2E]/15 selection:text-[#D13B2E]">
+
+  <!-- ===================================================================== -->
+  <!-- LEFT / TOP PANEL: EDITORIAL DESIGN CRITIQUE & INTERACTIVE CONTROLS    -->
+  <!-- ===================================================================== -->
+  <aside class="w-full max-w-xl lg:max-w-md xl:max-w-lg flex flex-col gap-5 lg:sticky lg:top-8">
+    <!-- Brand Badge & Title -->
+    <div class="bg-[#FBF8F3] border border-[#DFD7CA] rounded-3xl p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide uppercase bg-[#D13B2E]/10 text-[#D13B2E]">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#D13B2E]"></span>
+          Bear Notes Aesthetic Study
+        </span>
+        <span class="text-xs font-mono-tabular text-[#8C8175]">36 Tags • Mobile UI</span>
+      </div>
+
+      <h1 class="font-serif-editorial text-2xl sm:text-3xl font-medium text-[#26221E] tracking-tight leading-snug">
+        Warm, Literary &amp; Quietly Structured
+      </h1>
+      <p class="mt-2 text-sm text-[#6E655C] leading-relaxed">
+        Your original screenshot has great features (nested tags, custom icons for <code class="text-xs bg-[#EFE7DA] px-1.5 py-0.5 rounded text-[#26221E]">#journal</code> and <code class="text-xs bg-[#EFE7DA] px-1.5 py-0.5 rounded text-[#26221E]">#simplenote</code>), but repetitive grey icon boxes and 3-dot menus on every row create visual friction.
+      </p>
+
+      <!-- Control Group 1: Theme Palette -->
+      <div class="mt-5 pt-5 border-t border-[#E8E0D4]">
+        <div class="flex items-center justify-between mb-2.5">
+          <label class="text-xs font-semibold uppercase tracking-wider text-[#6E655C]">1. Paper &amp; Ink Theme</label>
+          <span id="themeNameLabel" class="text-xs font-serif-editorial italic text-[#8C8175]">Warm Paper (Bear Default)</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setTheme('paper')" id="btn-theme-paper" class="theme-btn flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-[#D13B2E] bg-[#FBF8F3] text-left transition-all">
+            <span class="w-4 h-4 rounded-full bg-[#FBF8F3] border border-[#26221E]/30 flex items-center justify-center shrink-0">
+              <span class="w-2 h-2 rounded-full bg-[#D13B2E]"></span>
+            </span>
+            <span class="text-xs font-semibold text-[#26221E] truncate">Warm Paper</span>
+          </button>
+
+          <button onclick="setTheme('sepia')" id="btn-theme-sepia" class="theme-btn flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[#DCD1C1] bg-[#F3EAD8] text-left transition-all hover:border-[#B83A24]/50">
+            <span class="w-4 h-4 rounded-full bg-[#F3EAD8] border border-[#2B2118]/30 flex items-center justify-center shrink-0">
+              <span class="w-2 h-2 rounded-full bg-[#B83A24]"></span>
+            </span>
+            <span class="text-xs font-semibold text-[#2B2118] truncate">Sepia Studio</span>
+          </button>
+
+          <button onclick="setTheme('espresso')" id="btn-theme-espresso" class="theme-btn flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[#DCD1C1] bg-[#1C1917] text-left transition-all hover:border-[#E55344]/50">
+            <span class="w-4 h-4 rounded-full bg-[#1C1917] border border-white/30 flex items-center justify-center shrink-0">
+              <span class="w-2 h-2 rounded-full bg-[#E55344]"></span>
+            </span>
+            <span class="text-xs font-semibold text-[#F2ECE4] truncate">Espresso</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Control Group 2: Layout Mode -->
+      <div class="mt-4 pt-4 border-t border-[#E8E0D4]">
+        <div class="flex items-center justify-between mb-2.5">
+          <label class="text-xs font-semibold uppercase tracking-wider text-[#6E655C]">2. Layout Architecture</label>
+          <span class="text-[11px] text-[#8C8175]">Tap to compare</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setLayoutMode('editorial')" id="btn-mode-editorial" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[#26221E] text-[#FBF8F3] transition-all shadow-sm">
+            Editorial Index
+          </button>
+          <button onclick="setLayoutMode('minimal')" id="btn-mode-minimal" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[#EFE7DA] text-[#6E655C] hover:text-[#26221E] transition-all">
+            Pure Bear List
+          </button>
+          <button onclick="setLayoutMode('callouts')" id="btn-mode-callouts" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[#EFE7DA] text-[#6E655C] hover:text-[#26221E] transition-all flex items-center justify-center gap-1">
+            <span>UX Callouts</span>
+            <span class="px-1.5 py-0.2 rounded-full bg-[#D13B2E] text-white text-[10px]">5</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Control Group 3: Interactive Prototype Highlights -->
+      <div class="mt-4 pt-4 border-t border-[#E8E0D4] flex flex-wrap items-center justify-between gap-2 text-xs text-[#6E655C]">
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="togglePinnedShelf" checked onchange="togglePinnedSection(this.checked)" class="accent-[#D13B2E] w-3.5 h-3.5 rounded" />
+          <span>Show "Anchored Collections" shelf</span>
+        </label>
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="toggleAlphaHeaders" onchange="toggleAlphaGrouping(this.checked)" class="accent-[#D13B2E] w-3.5 h-3.5 rounded" />
+          <span>A–Z Section Dividers</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Key Improvements Breakdown Card (Dynamic or Static summary) -->
+    <div id="uxCritiqueCard" class="bg-[#FBF8F3] border border-[#DFD7CA] rounded-3xl p-5 shadow-sm space-y-3.5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-[#6E655C]">What Changed from Your Screenshot</h2>
+        <span class="text-[11px] text-[#D13B2E] font-medium">Tap any tag row in phone →</span>
+      </div>
+
+      <div id="calloutDetailBox" class="space-y-2.5 text-xs">
+        <div onclick="highlightCallout(1)" class="callout-card p-3 rounded-2xl bg-[#F3EDE2]/70 border border-transparent hover:border-[#D13B2E]/30 cursor-pointer transition-all flex gap-3 items-start">
+          <span class="w-5 h-5 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+          <div>
+            <p class="font-semibold text-[#26221E]">Killed the "Double Signifier" (Grey Box + #)</p>
+            <p class="text-[#6E655C] mt-0.5 leading-relaxed">In your screenshot, every tag had a grey rounded box icon <em>plus</em> a <code class="font-mono-tabular">#</code> prefix. Now, custom <strong>TagCons</strong> (like <code class="font-mono-tabular">#journal</code> &amp; <code class="font-mono-tabular">#simplenote</code>) shine on their own, while standard tags use a warm terracotta <code class="font-mono-tabular">#</code> glyph.</p>
+          </div>
+        </div>
+
+        <div onclick="highlightCallout(2)" class="callout-card p-3 rounded-2xl bg-[#F3EDE2]/70 border border-transparent hover:border-[#D13B2E]/30 cursor-pointer transition-all flex gap-3 items-start">
+          <span class="w-5 h-5 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+          <div>
+            <p class="font-semibold text-[#26221E]">Removed the 16x Vertical 3-Dot (<code class="font-mono-tabular">⋮</code>) Menus</p>
+            <p class="text-[#6E655C] mt-0.5 leading-relaxed">Repeating <code class="font-mono-tabular">⋮</code> on every row crowds the right margin. Now the right edge belongs exclusively to crisp <code class="font-mono-tabular">tabular-nums</code> note counts. Tapping a tag's icon or action pill opens Bear's tactile <strong>TagCon &amp; Action Sheet</strong>.</p>
+          </div>
+        </div>
+
+        <div onclick="highlightCallout(3)" class="callout-card p-3 rounded-2xl bg-[#F3EDE2]/70 border border-transparent hover:border-[#D13B2E]/30 cursor-pointer transition-all flex gap-3 items-start">
+          <span class="w-5 h-5 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+          <div>
+            <p class="font-semibold text-[#26221E]">Editorial Hierarchy for High-Volume Tags</p>
+            <p class="text-[#6E655C] mt-0.5 leading-relaxed"><code class="font-mono-tabular">#journal</code> (224) and <code class="font-mono-tabular">#simplenote</code> (183) hold 94% of your notes, yet looked identical to <code class="font-mono-tabular">#sad</code> (0). The new <strong>Anchored Collections</strong> shelf gives your primary notebooks editorial presence.</p>
+          </div>
+        </div>
+
+        <div onclick="highlightCallout(4)" class="callout-card p-3 rounded-2xl bg-[#F3EDE2]/70 border border-transparent hover:border-[#D13B2E]/30 cursor-pointer transition-all flex gap-3 items-start">
+          <span class="w-5 h-5 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+          <div>
+            <p class="font-semibold text-[#26221E]">Delicate Nested Thread Line (<code class="font-mono-tabular">#journal/2026</code>)</p>
+            <p class="text-[#6E655C] mt-0.5 leading-relaxed">Replaced the oversized pink chevron box next to <code class="font-mono-tabular">224</code> with a subtle inline disclosure chevron and a warm vertical guide thread connecting <code class="font-mono-tabular">#2026</code> and sub-journals.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- CENTER / RIGHT: MOBILE DEVICE MOCKUP (BEAR NOTES TAGS BROWSER)        -->
+  <!-- ===================================================================== -->
+  <main class="relative flex flex-col items-center">
+    
+    <!-- Outer Phone Bezel -->
+    <div id="phoneFrame" data-theme="paper" class="relative w-[388px] sm:w-[400px] h-[835px] rounded-[50px] p-3 bg-[#24201D] shadow-[0_25px_70px_-15px_rgba(38,34,30,0.45),0_0_0_1px_rgba(255,255,255,0.12)_inset] select-none transition-colors duration-300">
+      
+      <!-- Dynamic Island / Speaker Cutout -->
+      <div class="absolute top-5 left-1/2 -translate-x-1/2 w-24 h-6 bg-[#12100E] rounded-full z-40 flex items-center justify-end px-2.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-[#1E293B] border border-white/10"></span>
+      </div>
+
+      <!-- Inner Screen Canvas -->
+      <div class="relative w-full h-full rounded-[40px] overflow-hidden flex flex-col paper-grain transition-colors duration-300" style="background-color: var(--bg-canvas); color: var(--text-primary);">
+
+        <!-- =============================================================== -->
+        <!-- 1. STATUS BAR (Matches User Screenshot: 2:57, 20% Battery)      -->
+        <!-- =============================================================== -->
+        <header class="pt-3 pb-2 px-6 flex items-center justify-between text-xs font-semibold z-30 shrink-0 backdrop-blur-md" style="background-color: var(--status-bar-bg);">
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono-tabular tracking-tight text-[13px] font-bold">2:57</span>
+            <span class="opacity-45 text-[10px]">•</span>
+            <i data-lucide="feather" class="w-3 h-3 opacity-60"></i>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <!-- Signal & Wifi -->
+            <i data-lucide="wifi" class="w-3.5 h-3.5 opacity-80"></i>
+            <i data-lucide="signal" class="w-3.5 h-3.5 opacity-80"></i>
+            <!-- 20% Warm Battery Badge matching screenshot -->
+            <div class="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono-tabular font-bold" style="background-color: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border);">
+              <span>20</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- =============================================================== -->
+        <!-- 2. TOP NAVIGATION & EDITORIAL MASTHEAD                          -->
+        <!-- =============================================================== -->
+        <div class="px-5 pt-2 pb-3 shrink-0 relative z-20" style="border-bottom: 1px solid var(--border-hairline);">
+          
+          <!-- UX Callout Pin #5 (Consolidated Toolbar) -->
+          <div id="pin-5" onclick="showPinTooltip(5)" class="ux-pin hidden absolute right-4 top-2 z-40 w-6 h-6 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-xs font-bold items-center justify-center cursor-pointer shadow-md">5</div>
+
+          <!-- Top Utility Bar -->
+          <div class="flex items-center justify-between mb-3">
+            <!-- Left Sidebar / Notes Drawer Button -->
+            <button onclick="showToast('Sidebar drawer: Notes, Archive, Trash')" class="w-9 h-9 -ml-1.5 rounded-xl flex items-center justify-center transition-colors hover:opacity-80" style="color: var(--text-secondary); background-color: transparent;" title="Navigation Drawer">
+              <i data-lucide="panel-left" class="w-[19px] h-[19px]"></i>
+            </button>
+
+            <!-- Right Consolidated Actions (Replaces cluttered 5 icons from screenshot) -->
+            <div class="flex items-center gap-1.5">
+              <!-- Toggle Expand/Collapse All Nested Tags -->
+              <button onclick="toggleAllNested()" id="btnExpandAll" class="h-8 px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-medium transition-colors" style="background-color: var(--bg-elevated); color: var(--text-secondary);" title="Expand/Collapse Nested Tree">
+                <i data-lucide="git-Fork" class="w-3.5 h-3.5"></i>
+                <span id="treeStatusText" class="text-[11px]">Tree</span>
+              </button>
+
+              <!-- Sort & View Options Popover Trigger -->
+              <button onclick="toggleSortMenu()" id="btnSortMenu" class="w-8 h-8 rounded-xl flex items-center justify-center transition-colors relative" style="background-color: var(--bg-elevated); color: var(--text-secondary);" title="Sort & Filter Options">
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+
+              <!-- Bear Signature Carmine "+ New Tag" Pill -->
+              <button onclick="openNewTagModal()" class="h-8 px-3 rounded-xl flex items-center gap-1 text-xs font-semibold text-white shadow-sm transition-transform active:scale-95" style="background-color: var(--accent);">
+                <i data-lucide="plus" class="w-3.5 h-3.5 stroke-[2.5]"></i>
+                <span>New</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Editorial Serif Title Row -->
+          <div id="mastheadTitleBlock" class="flex items-baseline justify-between">
+            <div class="flex items-baseline gap-2.5">
+              <h1 class="font-serif-editorial text-[32px] font-medium tracking-tight leading-none" style="color: var(--text-primary);">
+                Tags
+              </h1>
+              <span id="totalTagsBadge" class="font-mono-tabular text-xs font-medium px-2 py-0.5 rounded-full" style="background-color: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-hairline);">
+                36
+              </span>
+            </div>
+            <span id="sortIndicatorLabel" onclick="toggleSortMenu()" class="text-[11px] font-serif-editorial italic cursor-pointer hover:underline" style="color: var(--text-muted);">
+              Sorted A–Z
+            </span>
+          </div>
+
+          <!-- Integrated Soft-Inset Search & Filter Bar -->
+          <div class="mt-3 relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style="color: var(--text-muted);"></i>
+            <input
+              id="tagSearchInput"
+              type="text"
+              oninput="handleSearch(this.value)"
+              placeholder="Filter 36 tags or #journal/..."
+              class="w-full pl-9 pr-8 py-2 rounded-xl text-xs font-medium focus:outline-none transition-all placeholder:opacity-70"
+              style="background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-hairline);"
+            />
+            <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full items-center justify-center text-[10px]" style="background-color: var(--text-muted); color: var(--bg-canvas);">
+              ✕
+            </button>
+          </div>
+
+          <!-- Editorial Quick Filter Pills -->
+          <div id="filterChipsRow" class="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            <button onclick="setFilterChip('all')" data-chip="all" class="filter-chip px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0" style="background-color: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border);">
+              All <span class="font-mono-tabular opacity-80 ml-0.5">36</span>
+            </button>
+            <button onclick="setFilterChip('frequent')" data-chip="frequent" class="filter-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0" style="background-color: transparent; color: var(--text-secondary); border: 1px solid var(--border-hairline);">
+              Major <span class="font-mono-tabular opacity-70 ml-0.5">4</span>
+            </button>
+            <button onclick="setFilterChip('nested')" data-chip="nested" class="filter-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0" style="background-color: transparent; color: var(--text-secondary); border: 1px solid var(--border-hairline);">
+              Nested <span class="font-mono-tabular opacity-70 ml-0.5">4</span>
+            </button>
+            <button onclick="setFilterChip('tagcons')" data-chip="tagcons" class="filter-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0" style="background-color: transparent; color: var(--text-secondary); border: 1px solid var(--border-hairline);">
+              TagCons
+            </button>
+            <button onclick="setFilterChip('empty')" data-chip="empty" class="filter-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0" style="background-color: transparent; color: var(--text-secondary); border: 1px solid var(--border-hairline);">
+              Unused <span class="font-mono-tabular opacity-70 ml-0.5">1</span>
+            </button>
+          </div>
+
+          <!-- Sort & View Popover Menu (Hidden by default) -->
+          <div id="sortPopover" class="hidden absolute right-5 top-12 w-56 rounded-2xl p-2 z-50 shadow-xl" style="background-color: var(--bg-sheet); border: 1px solid var(--border-strong);">
+            <div class="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-muted);">Sort Tags By</div>
+            <button onclick="setSortOrder('alpha')" class="w-full px-2.5 py-2 rounded-xl text-xs font-medium flex items-center justify-between hover:opacity-80" style="color: var(--text-primary);">
+              <span class="flex items-center gap-2"><i data-lucide="arrow-down-a-z" class="w-3.5 h-3.5 opacity-70"></i> Alphabetical (A–Z)</span>
+              <span id="check-sort-alpha" style="color: var(--accent);">✓</span>
+            </button>
+            <button onclick="setSortOrder('count')" class="w-full px-2.5 py-2 rounded-xl text-xs font-medium flex items-center justify-between hover:opacity-80" style="color: var(--text-primary);">
+              <span class="flex items-center gap-2"><i data-lucide="Flame" class="w-3.5 h-3.5 opacity-70"></i> Note Volume (224 → 0)</span>
+              <span id="check-sort-count" class="hidden" style="color: var(--accent);">✓</span>
+            </button>
+            <div class="my-1 border-t" style="border-color: var(--border-hairline);"></div>
+            <div class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-muted);">Editorial Display</div>
+            <button onclick="togglePinnedSection(!state.showPinned); toggleSortMenu();" class="w-full px-2.5 py-2 rounded-xl text-xs font-medium flex items-center justify-between hover:opacity-80" style="color: var(--text-primary);">
+              <span>Pinned Collections Shelf</span>
+              <span id="check-pinned-shelf" style="color: var(--accent);">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 3. SCROLLABLE TAGS STREAM                                       -->
+        <!-- =============================================================== -->
+        <div id="phoneScrollContainer" class="phone-scroll flex-1 overflow-y-auto px-4 py-3 space-y-4 relative">
+
+          <!-- UX Callout Pins inside Scroll Area -->
+          <div id="pin-3" onclick="showPinTooltip(3)" class="ux-pin hidden absolute right-5 top-3 z-30 w-6 h-6 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-xs font-bold items-center justify-center cursor-pointer shadow-md">3</div>
+          <div id="pin-1" onclick="showPinTooltip(1)" class="ux-pin hidden absolute left-6 top-44 z-30 w-6 h-6 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-xs font-bold items-center justify-center cursor-pointer shadow-md">1</div>
+          <div id="pin-4" onclick="showPinTooltip(4)" class="ux-pin hidden absolute left-28 top-[330px] z-30 w-6 h-6 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-xs font-bold items-center justify-center cursor-pointer shadow-md">4</div>
+          <div id="pin-2" onclick="showPinTooltip(2)" class="ux-pin hidden absolute right-6 top-60 z-30 w-6 h-6 rounded-full bg-[#D13B2E] text-white font-mono-tabular text-xs font-bold items-center justify-center cursor-pointer shadow-md">2</div>
+
+          <!-- A. ANCHORED / PINNED COLLECTIONS SHELF (Highlights #journal 224 & #simplenote 183) -->
+          <section id="pinnedCollectionsSection" class="space-y-2">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[10px] font-bold uppercase tracking-[0.08em]" style="color: var(--text-muted);">
+                Anchored Collections
+              </span>
+              <span class="text-[10px] font-serif-editorial italic" style="color: var(--text-muted);">
+                91% of library
+              </span>
+            </div>
+
+            <div id="pinnedCardsGrid" class="grid grid-cols-2 gap-2.5">
+              <!-- Populated dynamically via JS from pinned tags (#journal 224, #simplenote 183) -->
+            </div>
+          </section>
+
+          <!-- B. MAIN TAGS INDEX LIST -->
+          <section class="space-y-1 pb-12">
+            <div id="allTagsSectionHeader" class="flex items-center justify-between px-1 pt-1 pb-1">
+              <span class="text-[10px] font-bold uppercase tracking-[0.08em]" style="color: var(--text-muted);">
+                All Tags Index
+              </span>
+              <span class="text-[10px] font-mono-tabular" style="color: var(--text-muted);">
+                Tap icon to style
+              </span>
+            </div>
+
+            <!-- Dynamic Tag List Container -->
+            <div id="tagsListContainer" class="space-y-0.5">
+              <!-- Rendered by JS -->
+            </div>
+          </section>
+
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 4. INTERACTIVE BEAR TAGCON & ACTION BOTTOM SHEET                -->
+        <!--    (Replaces the noisy 3-dot menu on every single row!)         -->
+        <!-- =============================================================== -->
+        <div id="tagActionSheetBackdrop" onclick="closeTagActionSheet()" class="hidden absolute inset-0 bg-black/35 backdrop-blur-[1px] z-40 transition-opacity"></div>
+
+        <div id="tagActionSheet" class="hidden absolute bottom-0 inset-x-0 rounded-t-[32px] p-5 z-50 shadow-2xl transition-transform duration-300" style="background-color: var(--bg-sheet); border-top: 1px solid var(--border-strong);">
+          <!-- Drag Handle -->
+          <div class="w-10 h-1 rounded-full mx-auto mb-3 opacity-40" style="background-color: var(--text-muted);"></div>
+
+          <!-- Selected Tag Header -->
+          <div class="flex items-center justify-between pb-3.5" style="border-bottom: 1px solid var(--border-hairline);">
+            <div class="flex items-center gap-2.5">
+              <div id="sheetTagIconPreview" class="w-9 h-9 rounded-xl flex items-center justify-center" style="background-color: var(--accent-soft); color: var(--accent);">
+                #
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 id="sheetTagTitle" class="font-serif-editorial text-xl font-medium" style="color: var(--text-primary);">#journal</h3>
+                  <span id="sheetTagCountBadge" class="font-mono-tabular text-xs px-2 py-0.5 rounded-full" style="background-color: var(--bg-elevated); color: var(--text-secondary);">224 notes</span>
+                </div>
+                <p class="text-[11px]" style="color: var(--text-muted);">Bear-style contextual actions &amp; TagCon studio</p>
+              </div>
+            </div>
+            <button onclick="closeTagActionSheet()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs" style="background-color: var(--bg-elevated); color: var(--text-secondary);">✕</button>
+          </div>
+
+          <!-- Bear "TagCon" Icon Picker -->
+          <div class="mt-3.5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-muted);">Assign Bear TagCon Icon</span>
+              <button onclick="assignTagCon('hash')" class="text-[11px] font-medium hover:underline" style="color: var(--accent);">Reset to #</button>
+            </div>
+            <div id="tagConPickerGrid" class="grid grid-cols-7 gap-1.5">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Quick Tag Operations -->
+          <div class="mt-4 pt-3.5 grid grid-cols-2 gap-2" style="border-top: 1px solid var(--border-hairline);">
+            <button onclick="togglePinSelectedTag()" class="px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors" style="background-color: var(--bg-elevated); color: var(--text-primary);">
+              <i data-lucide="pin" class="w-3.5 h-3.5" style="color: var(--accent);"></i>
+              <span id="sheetPinBtnText">Pin to Top Shelf</span>
+            </button>
+            <button onclick="promptRenameSelectedTag()" class="px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors" style="background-color: var(--bg-elevated); color: var(--text-primary);">
+              <i data-lucide="pencil" class="w-3.5 h-3.5 opacity-75"></i>
+              <span>Rename Tag</span>
+            </button>
+          </div>
+
+          <!-- Inline Rename Input (Hidden unless Rename clicked) -->
+          <div id="inlineRenameBox" class="hidden mt-2.5 flex items-center gap-2">
+            <input id="renameTagInput" type="text" class="flex-1 px-3 py-2 rounded-xl text-xs font-medium focus:outline-none" style="background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--accent);" placeholder="Enter tag name..." />
+            <button onclick="confirmRenameSelectedTag()" class="px-3 py-2 rounded-xl text-xs font-semibold text-white" style="background-color: var(--accent);">Save</button>
+          </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 5. "+ NEW TAG" MODAL SHEET                                      -->
+        <!-- =============================================================== -->
+        <div id="newTagModal" class="hidden absolute inset-x-4 top-28 rounded-3xl p-4 z-50 shadow-2xl" style="background-color: var(--bg-sheet); border: 1px solid var(--border-strong);">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-serif-editorial text-lg font-medium" style="color: var(--text-primary);">Create New Tag</h3>
+            <button onclick="closeNewTagModal()" class="w-6 h-6 rounded-full text-xs flex items-center justify-center" style="background-color: var(--bg-elevated); color: var(--text-secondary);">✕</button>
+          </div>
+          <p class="text-[11px] mb-2.5" style="color: var(--text-secondary);">
+            Tip: Use a forward slash like <code class="font-mono-tabular px-1 py-0.5 rounded" style="background-color: var(--bg-elevated);">#journal/2027</code> to nest inside an existing tag.
+          </p>
+          <input id="newTagNameInput" type="text" placeholder="e.g. reading-list or journal/2027" class="w-full px-3.5 py-2.5 rounded-xl text-xs font-medium mb-3 focus:outline-none" style="background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-strong);" />
+          <div class="flex justify-end gap-2">
+            <button onclick="closeNewTagModal()" class="px-3.5 py-2 rounded-xl text-xs font-medium" style="background-color: var(--bg-elevated); color: var(--text-secondary);">Cancel</button>
+            <button onclick="createNewTag()" class="px-4 py-2 rounded-xl text-xs font-semibold text-white" style="background-color: var(--accent);">Create Tag</button>
+          </div>
+        </div>
+
+        <!-- Subtle Toast Notification inside Phone -->
+        <div id="phoneToast" class="pointer-events-none opacity-0 transition-all duration-200 absolute bottom-7 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-full text-[11px] font-medium shadow-lg z-50 whitespace-nowrap" style="background-color: var(--text-primary); color: var(--bg-canvas);">
+          Saved changes
+        </div>
+
+        <!-- Home Indicator Pill -->
+        <div class="py-2 flex justify-center shrink-0 z-30" style="background-color: var(--bg-canvas);">
+          <div class="w-32 h-1 rounded-full opacity-35" style="background-color: var(--text-primary);"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- APPLICATION LOGIC & DATA (FAITHFUL TO USER SCREENSHOT)                -->
+  <!-- ===================================================================== -->
+  <script>
+    // Available Bear-style single-weight TagCon icons
+    const TAGCON_LIBRARY = [
+      { id: 'hash', icon: null, label: 'Classic #' },
+      { id: 'align-left', icon: 'pilcrow', label: 'Journal' },
+      { id: 'file-text', icon: 'file-text', label: 'Document' },
+      { id: 'gamepad-2', icon: 'gamepad-2', label: 'Games' },
+      { id: 'compass', icon: 'compass', label: 'Guide' },
+      { id: 'smile', icon: 'smile', label: 'Mood' },
+      { id: 'activity', icon: 'activity', label: 'Health' },
+      { id: 'terminal', icon: 'terminal', label: 'Linux' },
+      { id: 'film', icon: 'clapperboard', label: 'Movies' },
+      { id: 'music', icon: 'music', label: 'Music' },
+      { id: 'newspaper', icon: 'newspaper', label: 'News' },
+      { id: 'microscope', icon: 'flask-conical', label: 'Research' },
+      { id: 'flame', icon: 'flame', label: 'Intimate' },
+      { id: 'cloud-rain', icon: 'cloud-rain', label: 'Sad' }
+    ];
+
+    // Tag dataset faithfully mirroring the user's screenshot (with nested #journal -> #2026)
+    const INITIAL_TAGS = [
+      {
+        id: 'games',
+        name: 'games',
+        count: 1,
+        tagCon: 'hash',
+        pinned: false,
+        subtitle: 'Board & indie notes'
+      },
+      {
+        id: 'gaming',
+        name: 'gaming',
+        count: 2,
+        tagCon: 'gamepad-2',
+        pinned: false,
+        subtitle: 'Playthrough logs'
+      },
+      {
+        id: 'general',
+        name: 'general',
+        count: 1,
+        tagCon: 'hash',
+        pinned: false,
+        subtitle: 'Quick scratchpad'
+      },
+      {
+        id: 'guide',
+        name: 'guide',
+        count: 1,
+        tagCon: 'compass',
+        pinned: false,
+        subtitle: 'How-to reference'
+      },
+      {
+        id: 'happy',
+        name: 'happy',
+        count: 2,
+        tagCon: 'smile',
+        pinned: false,
+        subtitle: 'Gratitude moments'
+      },
+      {
+        id: 'headache',
+        name: 'headache',
+        count: 1,
+        tagCon: 'activity',
+        pinned: false,
+        subtitle: 'Symptom tracker'
+      },
+      {
+        id: 'horny',
+        name: 'horny',
+        count: 9,
+        tagCon: 'flame',
+        pinned: false,
+        subtitle: 'Private reflections'
+      },
+      {
+        id: 'journal',
+        name: 'journal',
+        count: 224,
+        tagCon: 'align-left', // Matches the T-paragraph icon from screenshot
+        pinned: true,
+        expanded: true,
+        subtitle: 'Daily entries & yearly archives',
+        children: [
+          { id: 'journal-2026', name: '2026', fullPath: 'journal/2026', count: 5, tagCon: 'hash' },
+          { id: 'journal-2025', name: '2025', fullPath: 'journal/2025', count: 142, tagCon: 'hash' },
+          { id: 'journal-reflections', name: 'morning-pages', fullPath: 'journal/morning-pages', count: 77, tagCon: 'hash' }
+        ]
+      },
+      {
+        id: 'linux',
+        name: 'linux',
+        count: 1,
+        tagCon: 'terminal',
+        pinned: false,
+        subtitle: 'Dotfiles & shell commands'
+      },
+      {
+        id: 'movies',
+        name: 'movies',
+        count: 1,
+        tagCon: 'film',
+        pinned: false,
+        subtitle: 'Watchlist & reviews'
+      },
+      {
+        id: 'music',
+        name: 'music',
+        count: 3,
+        tagCon: 'music',
+        pinned: false,
+        subtitle: 'Albums & lyrics'
+      },
+      {
+        id: 'newspaper',
+        name: 'newspaper',
+        count: 9,
+        tagCon: 'newspaper',
+        pinned: true,
+        subtitle: 'Clipped essays & articles'
+      },
+      {
+        id: 'research',
+        name: 'research',
+        count: 1,
+        tagCon: 'microscope',
+        pinned: false,
+        subtitle: 'Deep dives'
+      },
+      {
+        id: 'sad',
+        name: 'sad',
+        count: 0,
+        tagCon: 'hash',
+        pinned: false,
+        subtitle: 'No active notes'
+      },
+      {
+        id: 'simplenote',
+        name: 'simplenote',
+        count: 183,
+        tagCon: 'file-text', // Matches the document icon from screenshot
+        pinned: true,
+        subtitle: 'Imported archive notes'
+      }
+    ];
+
+    // Reactive UI State
+    const state = {
+      theme: 'paper',          // 'paper' | 'sepia' | 'espresso'
+      layoutMode: 'editorial', // 'editorial' | 'minimal' | 'callouts'
+      showPinned: true,
+      showAlphaHeaders: false,
+      sortBy: 'alpha',         // 'alpha' | 'count'
+      filterChip: 'all',       // 'all' | 'frequent' | 'nested' | 'tagcons' | 'empty'
+      searchQuery: '',
+      selectedTagId: 'journal',
+      activeSheetTagId: null,
+      tags: JSON.parse(JSON.stringify(INITIAL_TAGS))
+    };
+
+    // Helper: Get icon markup for a tag
+    function getTagIconHTML(tag, isSelected = false) {
+      const libItem = TAGCON_LIBRARY.find(i => i.id === tag.tagCon);
+      if (!libItem || tag.tagCon === 'hash' || !libItem.icon) {
+        // Editorial single '#' glyph — no grey box!
+        return `<span class="font-serif-editorial italic text-[17px] leading-none select-none transition-colors" style="color: ${isSelected ? 'var(--accent)' : 'var(--tag-hash)'};">#</span>`;
+      }
+      return `<i data-lucide="${libItem.icon}" class="w-[15px] h-[15px] stroke-[1.9] transition-colors" style="color: ${isSelected ? 'var(--accent)' : 'var(--text-secondary)'};"></i>`;
+    }
+
+    // Render Pinned / Anchored Collections Shelf
+    function renderPinnedShelf() {
+      const section = document.getElementById('pinnedCollectionsSection');
+      const grid = document.getElementById('pinnedCardsGrid');
+      const checkPinned = document.getElementById('check-pinned-shelf');
+
+      if (checkPinned) {
+        checkPinned.style.display = state.showPinned ? 'inline' : 'none';
+      }
+
+      if (!state.showPinned || state.layoutMode === 'minimal' || state.searchQuery.trim() !== '' || state.filterChip !== 'all') {
+        section.classList.add('hidden');
+        return;
+      }
+
+      const pinnedTags = state.tags.filter(t => t.pinned);
+      if (pinnedTags.length === 0) {
+        section.classList.add('hidden');
+        return;
+      }
+
+      section.classList.remove('hidden');
+
+      // Show top 2 major collections as tactile editorial cards (#journal 224, #simplenote 183)
+      const topPinned = pinnedTags.slice(0, 2);
+      grid.innerHTML = topPinned.map(tag => {
+        const isSelected = state.selectedTagId === tag.id;
+        const pct = Math.min(100, Math.round((tag.count / 240) * 100));
+        return `
+          <div onclick="selectTag('${tag.id}')" class="group relative rounded-2xl p-3 cursor-pointer transition-all duration-150"
+               style="background-color: ${isSelected ? 'var(--bg-selected)' : 'var(--bg-elevated)'};
+                      border: 1px solid ${isSelected ? 'var(--accent-border)' : 'var(--border-hairline)'};
+                      box-shadow: var(--shadow-card);">
+            <div class="flex items-center justify-between mb-2">
+              <button onclick="event.stopPropagation(); openTagActionSheet('${tag.id}')"
+                      class="w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105"
+                      style="background-color: var(--bg-canvas); border: 1px solid var(--border-hairline);"
+                      title="Change TagCon Icon">
+                ${getTagIconHTML(tag, true)}
+              </button>
+              <span class="font-mono-tabular text-xs font-semibold px-1.5 py-0.5 rounded-md"
+                    style="background-color: var(--bg-canvas); color: var(--text-primary);">
+                ${tag.count}
+              </span>
+            </div>
+            <div class="flex items-baseline justify-between gap-1">
+              <div class="font-medium text-[14px] tracking-tight truncate" style="color: var(--text-primary);">
+                <span class="opacity-45 font-serif-editorial mr-0.5">#</span>${tag.name}
+              </div>
+              ${tag.children && tag.children.length ? `<span class="text-[10px] font-mono-tabular opacity-65" style="color: var(--accent);">${tag.children.length} sub</span>` : ''}
+            </div>
+            <p class="text-[10px] truncate mt-0.5" style="color: var(--text-muted);">${tag.subtitle || 'Collection'}</p>
+            <!-- Subtle Editorial Volume Bar -->
+            <div class="w-full h-1 rounded-full mt-2.5 overflow-hidden" style="background-color: var(--border-hairline);">
+              <div class="h-full rounded-full transition-all duration-500" style="width: ${pct}%; background-color: var(--accent);"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Filter & Sort Tags
+    function getFilteredTags() {
+      const q = state.searchQuery.trim().toLowerCase().replace(/^#/, '');
+      let list = state.tags.filter(t => {
+        // Chip filter
+        if (state.filterChip === 'frequent' && t.count < 5) return false;
+        if (state.filterChip === 'nested' && (!t.children || t.children.length === 0)) return false;
+        if (state.filterChip === 'tagcons' && (!t.tagCon || t.tagCon === 'hash')) return false;
+        if (state.filterChip === 'empty' && t.count !== 0) return false;
+
+        // Search query
+        if (!q) return true;
+        const matchParent = t.name.toLowerCase().includes(q);
+        const matchChild = t.children && t.children.some(c => c.name.toLowerCase().includes(q) || (c.fullPath && c.fullPath.toLowerCase().includes(q)));
+        return matchParent || matchChild;
+      });
+
+      if (state.sortBy === 'count') {
+        list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      } else {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return list;
+    }
+
+    // Render Main Tags Stream
+    function renderTagsList() {
+      const container = document.getElementById('tagsListContainer');
+      const filtered = getFilteredTags();
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 px-4 text-center rounded-2xl" style="background-color: var(--bg-elevated); border: 1px dashed var(--border-strong);">
+            <p class="font-serif-editorial text-base" style="color: var(--text-primary);">No matching tags found</p>
+            <p class="text-xs mt-1" style="color: var(--text-muted);">Try clearing your filter or create a new tag.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      let currentLetter = '';
+      let html = '';
+
+      filtered.forEach(tag => {
+        const firstLetter = tag.name.charAt(0).toUpperCase();
+        if (state.showAlphaHeaders && state.sortBy === 'alpha' && firstLetter !== currentLetter) {
+          currentLetter = firstLetter;
+          html += `
+            <div class="pt-3 pb-1 px-2 flex items-center gap-2">
+              <span class="font-serif-editorial italic text-xs font-semibold" style="color: var(--accent);">${currentLetter}</span>
+              <div class="h-px flex-1" style="background-color: var(--border-hairline);"></div>
+            </div>
+          `;
+        }
+
+        const isSelected = state.selectedTagId === tag.id;
+        const hasChildren = tag.children && tag.children.length > 0;
+        const isZero = tag.count === 0;
+
+        html += `
+          <div class="rounded-xl transition-colors">
+            <!-- Parent Tag Row -->
+            <div onclick="handleRowClick('${tag.id}', ${hasChildren})"
+                 class="tag-row group flex items-center justify-between px-2.5 py-2.5 rounded-xl cursor-pointer"
+                 style="background-color: ${isSelected ? 'var(--bg-selected)' : 'transparent'};">
+              
+              <!-- Left: TagCon / # + Label + Inline Disclosure Chevron -->
+              <div class="flex items-center gap-2.5 min-w-0">
+                <button onclick="event.stopPropagation(); openTagActionSheet('${tag.id}')"
+                        class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors hover:scale-105"
+                        style="background-color: ${tag.tagCon !== 'hash' ? 'var(--bg-elevated)' : 'transparent'};
+                               border: ${tag.tagCon !== 'hash' ? '1px solid var(--border-hairline)' : 'none'};"
+                        title="Tap to change TagCon or edit tag">
+                  ${getTagIconHTML(tag, isSelected)}
+                </button>
+
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-[14.5px] ${isSelected || tag.count > 50 ? 'font-semibold' : 'font-medium'} tracking-[-0.01em] truncate"
+                        style="color: ${isZero ? 'var(--text-muted)' : 'var(--text-primary)'};">
+                    ${tag.tagCon !== 'hash' ? `<span class="opacity-40 font-normal mr-0.5">#</span>` : ''}${tag.name}
+                  </span>
+
+                  ${hasChildren ? `
+                    <button onclick="event.stopPropagation(); toggleNested('${tag.id}')"
+                            class="w-5 h-5 rounded-md flex items-center justify-center transition-transform duration-200"
+                            style="background-color: var(--accent-soft); color: var(--accent); transform: rotate(${tag.expanded ? '90deg' : '0deg'});"
+                            title="Expand/Collapse Subtags">
+                      <i data-lucide="chevron-right" class="w-3.5 h-3.5 stroke-[2.4]"></i>
+                    </button>
+                  ` : ''}
+
+                  ${tag.pinned && state.layoutMode === 'minimal' ? `
+                    <span class="w-1.5 h-1.5 rounded-full" style="background-color: var(--accent);" title="Pinned"></span>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Right: Clean Tabular Note Count + Subtle Contextual Action Trigger on Hover/Select -->
+              <div class="flex items-center gap-2 shrink-0">
+                <!-- Contextual edit pill only appears on selected/hovered row instead of 16 static 3-dot menus -->
+                <button onclick="event.stopPropagation(); openTagActionSheet('${tag.id}')"
+                        class="${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-opacity flex items-center gap-1"
+                        style="background-color: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-hairline);"
+                        title="Tag options & TagCon">
+                  <i data-lucide="more-horizontal" class="w-3 h-3"></i>
+                </button>
+
+                <span class="font-mono-tabular text-[12.5px] min-w-[26px] text-right ${tag.count >= 100 ? 'font-semibold' : 'font-normal'}"
+                      style="color: ${isSelected ? 'var(--accent)' : isZero ? 'var(--border-strong)' : 'var(--text-secondary)'};">
+                  ${tag.count}
+                </span>
+              </div>
+            </div>
+
+            <!-- Nested Children Tree (e.g. #journal -> #2026) -->
+            ${hasChildren ? `
+              <div class="nested-children pl-6 pr-1" style="max-height: ${tag.expanded ? '260px' : '0px'}; opacity: ${tag.expanded ? '1' : '0'};">
+                <div class="pl-3.5 py-1 space-y-0.5 relative" style="border-left: 1.5px solid var(--accent-border);">
+                  ${tag.children.map(child => {
+                    const isChildSelected = state.selectedTagId === child.id;
+                    return `
+                      <div onclick="selectTag('${child.id}')"
+                           class="tag-row group flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer"
+                           style="background-color: ${isChildSelected ? 'var(--bg-selected)' : 'transparent'};">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="font-serif-editorial italic text-sm leading-none" style="color: var(--tag-hash);">#</span>
+                          <span class="text-[13.5px] font-medium truncate" style="color: var(--text-primary);">
+                            <span class="opacity-45 font-normal text-xs">${tag.name}/</span>${child.name}
+                          </span>
+                        </div>
+                        <span class="font-mono-tabular text-xs" style="color: ${isChildSelected ? 'var(--accent)' : 'var(--text-secondary)'};">
+                          ${child.count}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    // Master Render
+    function renderAll() {
+      renderPinnedShelf();
+      renderTagsList();
+      lucide.createIcons();
+    }
+
+    // Interaction: Select Tag or Toggle Nested
+    function handleRowClick(tagId, hasChildren) {
+      state.selectedTagId = tagId;
+      if (hasChildren) {
+        const t = state.tags.find(x => x.id === tagId);
+        if (t) t.expanded = !t.expanded;
+      }
+      renderAll();
+    }
+
+    function selectTag(tagId) {
+      state.selectedTagId = tagId;
+      renderAll();
+      showToast(`Filtered notes by #${tagId.replace('journal-', 'journal/')}`);
+    }
+
+    function toggleNested(tagId) {
+      const t = state.tags.find(x => x.id === tagId);
+      if (t) {
+        t.expanded = !t.expanded;
+        renderAll();
+      }
+    }
+
+    function toggleAllNested() {
+      const journal = state.tags.find(x => x.id === 'journal');
+      if (!journal) return;
+      journal.expanded = !journal.expanded;
+      document.getElementById('treeStatusText').textContent = journal.expanded ? 'Tree' : 'Closed';
+      renderAll();
+      showToast(journal.expanded ? 'Expanded nested tags (#journal/2026)' : 'Collapsed nested tags');
+    }
+
+    // Interaction: Search & Filter Chips
+    function handleSearch(val) {
+      state.searchQuery = val;
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (val.trim().length > 0) {
+        clearBtn.classList.remove('hidden');
+        clearBtn.classList.add('flex');
+      } else {
+        clearBtn.classList.add('hidden');
+        clearBtn.classList.remove('flex');
+      }
+      renderAll();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('tagSearchInput');
+      input.value = '';
+      handleSearch('');
+    }
+
+    function setFilterChip(chip) {
+      state.filterChip = chip;
+      document.querySelectorAll('.filter-chip').forEach(btn => {
+        const isMatch = btn.getAttribute('data-chip') === chip;
+        btn.style.backgroundColor = isMatch ? 'var(--accent-soft)' : 'transparent';
+        btn.style.color = isMatch ? 'var(--accent)' : 'var(--text-secondary)';
+        btn.style.borderColor = isMatch ? 'var(--accent-border)' : 'var(--border-hairline)';
+        btn.style.fontWeight = isMatch ? '600' : '500';
+      });
+      renderAll();
+    }
+
+    // Sort Popover
+    function toggleSortMenu() {
+      const pop = document.getElementById('sortPopover');
+      pop.classList.toggle('hidden');
+    }
+
+    function setSortOrder(order) {
+      state.sortBy = order;
+      document.getElementById('check-sort-alpha').classList.toggle('hidden', order !== 'alpha');
+      document.getElementById('check-sort-count').classList.toggle('hidden', order !== 'count');
+      document.getElementById('sortIndicatorLabel').textContent = order === 'alpha' ? 'Sorted A–Z' : 'Sorted by Volume';
+      document.getElementById('sortPopover').classList.add('hidden');
+      renderAll();
+      showToast(order === 'alpha' ? 'Sorted alphabetically (A–Z)' : 'Sorted by note count (224 → 0)');
+    }
+
+    // Bear TagCon & Action Bottom Sheet
+    function openTagActionSheet(tagId) {
+      const tag = state.tags.find(t => t.id === tagId);
+      if (!tag) return;
+      state.activeSheetTagId = tagId;
+      state.selectedTagId = tagId;
+      renderAll();
+
+      document.getElementById('sheetTagTitle').textContent = `#${tag.name}`;
+      document.getElementById('sheetTagCountBadge').textContent = `${tag.count} ${tag.count === 1 ? 'note' : 'notes'}`;
+      document.getElementById('sheetTagIconPreview').innerHTML = getTagIconHTML(tag, true);
+      document.getElementById('sheetPinBtnText').textContent = tag.pinned ? 'Unpin from Shelf' : 'Pin to Top Shelf';
+      document.getElementById('inlineRenameBox').classList.add('hidden');
+
+      // Render TagCon grid
+      const grid = document.getElementById('tagConPickerGrid');
+      grid.innerHTML = TAGCON_LIBRARY.map(item => {
+        const isCurrent = tag.tagCon === item.id;
+        return `
+          <button onclick="assignTagCon('${item.id}')"
+                  class="h-9 rounded-xl flex items-center justify-center transition-all"
+                  style="background-color: ${isCurrent ? 'var(--accent)' : 'var(--bg-elevated)'};
+                         color: ${isCurrent ? '#FFFFFF' : 'var(--text-primary)'};
+                         border: 1px solid ${isCurrent ? 'var(--accent)' : 'var(--border-hairline)'};"
+                  title="${item.label}">
+            ${item.icon ? `<i data-lucide="${item.icon}" class="w-4 h-4"></i>` : `<span class="font-serif-editorial italic text-base font-bold">#</span>`}
+          </button>
+        `;
+      }).join('');
+
+      document.getElementById('tagActionSheetBackdrop').classList.remove('hidden');
+      document.getElementById('tagActionSheet').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeTagActionSheet() {
+      document.getElementById('tagActionSheetBackdrop').classList.add('hidden');
+      document.getElementById('tagActionSheet').classList.add('hidden');
+      state.activeSheetTagId = null;
+    }
+
+    function assignTagCon(tagConId) {
+      const tag = state.tags.find(t => t.id === state.activeSheetTagId);
+      if (!tag) return;
+      tag.tagCon = tagConId;
+      openTagActionSheet(tag.id); // refresh sheet
+      renderAll();
+      showToast(`Updated TagCon for #${tag.name}`);
+    }
+
+    function togglePinSelectedTag() {
+      const tag = state.tags.find(t => t.id === state.activeSheetTagId);
+      if (!tag) return;
+      tag.pinned = !tag.pinned;
+      document.getElementById('sheetPinBtnText').textContent = tag.pinned ? 'Unpin from Shelf' : 'Pin to Top Shelf';
+      renderAll();
+      showToast(tag.pinned ? `Pinned #${tag.name} to Anchored Shelf` : `Unpinned #${tag.name}`);
+    }
+
+    function promptRenameSelectedTag() {
+      const tag = state.tags.find(t => t.id === state.activeSheetTagId);
+      if (!tag) return;
+      const box = document.getElementById('inlineRenameBox');
+      const input = document.getElementById('renameTagInput');
+      box.classList.remove('hidden');
+      input.value = tag.name;
+      input.focus();
+    }
+
+    function confirmRenameSelectedTag() {
+      const tag = state.tags.find(t => t.id === state.activeSheetTagId);
+      const val = document.getElementById('renameTagInput').value.trim().toLowerCase().replace(/^#/, '');
+      if (!tag || !val) return;
+      tag.name = val;
+      document.getElementById('sheetTagTitle').textContent = `#${tag.name}`;
+      document.getElementById('inlineRenameBox').classList.add('hidden');
+      renderAll();
+      showToast(`Renamed tag to #${val}`);
+    }
+
+    // New Tag Modal
+    function openNewTagModal() {
+      document.getElementById('newTagModal').classList.remove('hidden');
+      document.getElementById('newTagNameInput').focus();
+    }
+
+    function closeNewTagModal() {
+      document.getElementById('newTagModal').classList.add('hidden');
+      document.getElementById('newTagNameInput').value = '';
+    }
+
+    function createNewTag() {
+      const raw = document.getElementById('newTagNameInput').value.trim().toLowerCase().replace(/^#/, '');
+      if (!raw) return;
+
+      if (raw.includes('/')) {
+        const [parentName, childName] = raw.split('/');
+        let parent = state.tags.find(t => t.name === parentName);
+        if (parent && childName) {
+          parent.children = parent.children || [];
+          parent.children.unshift({
+            id: `${parentName}-${childName}`,
+            name: childName,
+            fullPath: `${parentName}/${childName}`,
+            count: 1,
+            tagCon: 'hash'
+          });
+          parent.expanded = true;
+          parent.count += 1;
+        }
+      } else {
+        state.tags.unshift({
+          id: raw,
+          name: raw,
+          count: 1,
+          tagCon: 'hash',
+          pinned: false,
+          subtitle: 'Newly added tag'
+        });
+      }
+
+      const badge = document.getElementById('totalTagsBadge');
+      badge.textContent = parseInt(badge.textContent, 10) + 1;
+      closeNewTagModal();
+      renderAll();
+      showToast(`Created #${raw}`);
+    }
+
+    // Workbench Controls (Left Panel)
+    function setTheme(theme) {
+      state.theme = theme;
+      const frame = document.getElementById('phoneFrame');
+      frame.setAttribute('data-theme', theme);
+
+      const labels = {
+        paper: 'Warm Paper (Bear Default)',
+        sepia: 'Sepia Studio (Parchment)',
+        espresso: 'Espresso Dark (Warm Night)'
+      };
+      document.getElementById('themeNameLabel').textContent = labels[theme];
+
+      ['paper', 'sepia', 'espresso'].forEach(t => {
+        const btn = document.getElementById(`btn-theme-${t}`);
+        if (t === theme) {
+          btn.classList.add('border-2', 'border-[#D13B2E]');
+          btn.classList.remove('border-[#DCD1C1]');
+        } else {
+          btn.classList.remove('border-2', 'border-[#D13B2E]');
+          btn.classList.add('border', 'border-[#DCD1C1]');
+        }
+      });
+    }
+
+    function setLayoutMode(mode) {
+      state.layoutMode = mode;
+      ['editorial', 'minimal', 'callouts'].forEach(m => {
+        const btn = document.getElementById(`btn-mode-${m}`);
+        if (m === mode) {
+          btn.className = 'px-3 py-2 rounded-xl text-xs font-semibold bg-[#26221E] text-[#FBF8F3] transition-all shadow-sm flex items-center justify-center gap-1';
+        } else {
+          btn.className = 'px-3 py-2 rounded-xl text-xs font-semibold bg-[#EFE7DA] text-[#6E655C] hover:text-[#26221E] transition-all flex items-center justify-center gap-1';
+        }
+      });
+
+      // Toggle UX Callout Pins visibility
+      const pins = [1, 2, 3, 4, 5];
+      pins.forEach(num => {
+        const el = document.getElementById(`pin-${num}`);
+        if (el) {
+          el.classList.toggle('hidden', mode !== 'callouts');
+          el.classList.toggle('flex', mode === 'callouts');
+        }
+      });
+
+      // Minimal mode hides filter chips & anchored shelf for pure Bear sidebar look
+      document.getElementById('filterChipsRow').classList.toggle('hidden', mode === 'minimal');
+      document.getElementById('allTagsSectionHeader').classList.toggle('hidden', mode === 'minimal');
+
+      renderAll();
+      if (mode === 'callouts') {
+        showToast('Tap any numbered red pin (1–5) to inspect UX improvements');
+      }
+    }
+
+    function togglePinnedSection(checked) {
+      state.showPinned = checked;
+      document.getElementById('togglePinnedShelf').checked = checked;
+      renderAll();
+    }
+
+    function toggleAlphaGrouping(checked) {
+      state.showAlphaHeaders = checked;
+      document.getElementById('toggleAlphaHeaders').checked = checked;
+      renderAll();
+    }
+
+    function highlightCallout(num) {
+      setLayoutMode('callouts');
+      showPinTooltip(num);
+    }
+
+    function showPinTooltip(num) {
+      const messages = {
+        1: 'Pin 1: Replaced repetitive grey icon boxes with clean TagCons & warm # glyphs.',
+        2: 'Pin 2: Removed noisy 3-dot menus on every row; right edge now cleanly aligns counts.',
+        3: 'Pin 3: Anchored Shelf highlights #journal (224) & #simplenote (183).',
+        4: 'Pin 4: Delicate vertical thread line & inline chevron for #journal/2026.',
+        5: 'Pin 5: Consolidated 5 cramped top-right icons into clean Sort, Tree, and + New pills.'
+      };
+      showToast(messages[num]);
+    }
+
+    // Toast Helper
+    let toastTimer = null;
+    function showToast(msg) {
+      const toast = document.getElementById('phoneToast');
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2400);
+    }
+
+    // Initialize on load
+    window.onload = function () {
+      renderAll();
+    };
+  </script>
+</body>
+</html>

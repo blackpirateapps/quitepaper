@@ -4869,4 +4869,59 @@ Updated `lib/core/documents/presentation/document_viewer_screen.dart`:
 - **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings**).
 - **Targeted Document Tests**: All 25 tests passed across `pdf_thumbnail_service_test.dart`, `document_viewer_thumbnail_test.dart`, `document_viewer_zoom_test.dart`, and `document_service_test.dart` (**25/25 passing, 0 failures**).
 
+---
+
+## 247. Redesign: Tags Browser Screen ("Pure Bear List" Aesthetic) (November 2026)
+
+### 1. Context & Motivation
+Quiet Paper's previous Tag Browser interface featured heavy rounded-square background containers behind row icons, duplicate `#` signifiers (both an icon and a text prefix), repetitive vertical three-dot (`⋮`) action menus cluttering the right margin of every row, and boxed chevron buttons. Users requested a warm, breathable, editorial single-column tag index redesign strictly adhering to the "Pure Bear List" aesthetic from Bear Notes.
+
+### 2. Architectural Design & Implementation Details
+
+#### A. Zero Hardcoded Colors — Strict App Theme Token Mapping
+All visual roles are mapped strictly to Quiet Paper's semantic tokens in `AppColors`:
+- **Canvas Background**: `colors.background`
+- **Elevated Surfaces (Search bar, pills, menus)**: `colors.surfaceSecondary` and `colors.surface`
+- **Primary Text**: `colors.textPrimary`
+- **Secondary / Muted Text (Ledger note counts, inactive icons)**: `colors.textSecondary`
+- **Tertiary / Dimmed Text (Default `#` glyph, subtitles, search placeholder)**: `colors.textTertiary`
+- **Zero-Count Text**: `colors.textDisabled` so empty tags visually recede
+- **Primary Accent (`+ New` pill button, active filters, pin indicators)**: `colors.accent`
+- **Soft Accent Container**: `colors.accentSoft`
+- **Dividers & Hierarchy Thread Line**: `colors.divider` and `colors.borderSubtle`
+
+#### B. Streamlined Masthead & Editorial Header
+- **Editorial Typography**: Rendered `Tags` masthead in Newsreader serif (`GoogleFonts.newsreader`, 30–32sp, font weight 600, tracking -0.6) with automatic serif fallback.
+- **Inline Count Badge**: Placed total tag count inline next to the `Tags` title in a compact rounded pill using `colors.surfaceSecondary`, `colors.borderSubtle`, and tabular figures.
+- **Sort Indicator**: Right-aligned sort indicator label (e.g. `Sorted A–Z` or `Sorted by notes`) in italic serif, supporting quick sort toggling.
+- **Top Actions**: Clean, uncrowded toolbar with drawer/sidebar toggle on the left, and hierarchy `Tree` pill button, `Sort and filter tags` button, and signature carmine `+ New` pill button on the right.
+- **Integrated Soft-Inset Search Bar & Filter Chips**: Integrated search input (`Filter X tags or #journal/...`) with clear button and horizontal scrollable quick filter chips (`All`, `Pinned`, `TagCons`, `With Notes`, `Unused`).
+
+#### C. Row Architecture & "Single Signifier" Iconography
+- **Eliminated Double Signifier**: Removed heavy rounded-square background boxes. Rows now never render both an icon AND a duplicate `#` prefix on the label string.
+- **Fixed 28px Left Icon Slot**:
+  - Tags with a custom TagCon icon render the clean single-weight icon directly in the left slot.
+  - Standard tags without a custom icon render an editorial, slightly italicized `#` glyph in the slot.
+  - Tag label displays clean leaf name without duplicate `#`.
+- **Right Margin De-cluttering**: Removed repetitive `⋮` buttons so note counts form a clean, scannable ledger right margin with monospace tabular figures (`FontFeature.tabularFigures()`).
+- **Contextual Actions Trigger**: Wired up long-press on row body and tap on left icon slot to trigger the tag action sheet / popover (`_showTagOptions`), preserving all tag operations (Open, Add nested tag, Pin/Unpin, Rename, Change icon, Change color, Merge into, Delete).
+
+#### D. Nested Hierarchy & Vertical Thread Guide Line
+- **Inline Disclosure Chevron**: Replaced the large boxed chevron with a compact, rotating inline chevron (`PhosphorIconsRegular.caretRight` rotating 90° on expand) placed immediately after the parent tag's name.
+- **Vertical Thread Line**: When expanded, child tags are smoothly animated (`AnimatedSize`, `Curves.easeInOutCubic`) and connected to their parent via a delicate 1.0px vertical thread line (`border: Border(left: BorderSide(color: colors.divider))`) along the left indentation channel. Supports arbitrary recursive nesting depth.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/tags/presentation/widgets/tag_browser_view.dart`: Complete redesign of header, search bar, row architecture, tree hierarchy widget, and tag options sheet.
+  - `test/tags/tag_ui_test.dart`: Updated widget tests to test single signifier names, left icon tap popovers, and search filtering.
+  - `test/tags/tag_hierarchy_ui_test.dart`: Updated hierarchy tests for clean tag names, inline chevron expansion, and combined compact menu.
+  - `test/tags/tag_workspace_navigation_test.dart`: Updated 3-pane workspace integration tests.
+  - `handoff/tags-and-search.md`: Added reference link to Section 247.
+  - `handoff/latest-logs.md`: Appended Section 247 documentation log.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
+- **Targeted Tests**: All 31 tests passed across `tag_ui_test.dart`, `tag_hierarchy_ui_test.dart`, and `tag_workspace_navigation_test.dart` (**31/31 passing, 0 failures**).
+
+
 

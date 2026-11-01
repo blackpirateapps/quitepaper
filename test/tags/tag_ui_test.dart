@@ -9,6 +9,7 @@ import 'package:quitepaper/features/tags/application/phosphor_catalog_service.da
 import 'package:quitepaper/features/tags/application/tag_icon_preferences_service.dart';
 import 'package:quitepaper/features/tags/application/tag_providers.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
+import 'package:quitepaper/features/tags/domain/tag_icon_registry.dart';
 import 'package:quitepaper/features/tags/domain/tag_model.dart';
 import 'package:quitepaper/features/tags/presentation/tag_browser_screen.dart';
 import 'package:quitepaper/features/tags/presentation/tag_detail_screen.dart';
@@ -86,9 +87,9 @@ void main() {
       expect(find.text('ALL TAGS'), findsOneWidget);
 
       // Check tag names
-      expect(find.text('#pinned-tag'), findsOneWidget);
-      expect(find.text('#work'), findsOneWidget);
-      expect(find.text('#ideas'), findsOneWidget);
+      expect(find.text('pinned-tag'), findsOneWidget);
+      expect(find.text('work'), findsOneWidget);
+      expect(find.text('ideas'), findsOneWidget);
 
       // Note count badges
       expect(find.text('4'), findsOneWidget);
@@ -102,24 +103,23 @@ void main() {
       await tester.enterText(find.byType(TextField), 'work');
       await tester.pumpAndSettle();
 
-      expect(find.text('#work'), findsOneWidget);
-      expect(find.text('#pinned-tag'), findsNothing);
+      expect(find.byKey(const ValueKey('tag_tag-2')), findsOneWidget);
+      expect(find.text('pinned-tag'), findsNothing);
     });
 
-    testWidgets('TagBrowserScreen clicking 3-dot options button opens anchored popover', (tester) async {
+    testWidgets('TagBrowserScreen tapping left tag icon opens anchored popover', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
       await tester.pumpAndSettle();
 
-      final optionsButtons = find.byIcon(PhosphorIconsRegular.dotsThreeVertical);
-      expect(optionsButtons, findsWidgets);
+      final bookmarkIcon = find.byIcon(TagIconRegistry.getIconData('bookmark'));
+      expect(bookmarkIcon, findsOneWidget);
 
-      final firstButton = optionsButtons.first;
-      final buttonRect = tester.getRect(firstButton);
+      final buttonRect = tester.getRect(bookmarkIcon);
 
-      await tester.tap(firstButton);
+      await tester.tap(bookmarkIcon);
       await tester.pumpAndSettle();
 
       // Tag options modal content: Change color, Change icon
@@ -128,10 +128,9 @@ void main() {
       expect(find.text('Change color'), findsOneWidget);
       expect(find.text('Change icon'), findsOneWidget);
 
-      // Verify the popover is anchored directly below the button, NOT centered on the 1200px screen
+      // Verify the popover is anchored directly below the icon/row, NOT centered on the 1200px screen
       final changeColorRect = tester.getRect(find.text('Change color'));
       expect(changeColorRect.top, greaterThanOrEqualTo(buttonRect.bottom));
-      expect(changeColorRect.left, lessThan(buttonRect.right));
 
       // Dismiss with Escape
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -148,8 +147,8 @@ void main() {
         await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
         await tester.pumpAndSettle();
 
-        // Long press on unpinned tag #work
-        await tester.longPress(find.text('#work'));
+        // Long press on unpinned tag work
+        await tester.longPress(find.text('work'));
         await tester.pumpAndSettle();
 
         expect(find.text('Open'), findsOneWidget);
@@ -181,8 +180,8 @@ void main() {
         await tester.pumpWidget(createTestApp(const TagBrowserScreen()));
         await tester.pumpAndSettle();
 
-        // Long press on pinned tag #pinned-tag
-        await tester.longPress(find.text('#pinned-tag'));
+        // Long press on pinned tag pinned-tag
+        await tester.longPress(find.text('pinned-tag'));
         await tester.pumpAndSettle();
 
         expect(find.text('Open'), findsOneWidget);

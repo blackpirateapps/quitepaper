@@ -59,6 +59,7 @@ The search subsystem resides in [`lib/features/search/`](file:///home/dog/git/qu
 ---
 
 ## Key References & Logs
+- Redesign: "Pure Bear List" Aesthetic: [Latest Logs, Section 247](latest-logs.md#247-redesign-tags-browser-screen-pure-bear-list-aesthetic-november-2026)
 - Nested Tag Hierarchy & Path Identity: [Latest Logs, Section 227](latest-logs.md#227-nested-tag-hierarchy-with-path-based-identity-october-2026)
 - Tag Picker on '#' & Deferred Creation: [Latest Logs, Section 228](latest-logs.md#228-tag-picker-on--full-path-note-display-and-deferred-tag-creation-october-2026)
 - Collapsible Tags & Subtree Count Propagation: [Latest Logs, Section 229 & 230](latest-logs.md#229-prominently-collapsible-children-tags-in-sidebar-and-tags-page-october-2026)
