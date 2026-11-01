@@ -5076,4 +5076,52 @@ Following the precedent established in Migration 016 (`016_remove_ocr_foreign_ke
   - `flutter test test/editor/quiet_code_block_test.dart`: **10/10 tests passing**.
   - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
 
+---
+
+## 252. SuperEditor: Divider Interaction, Typing, and Tap Navigation (November 2026)
+
+### 1. Overview & Problem
+In `QuietSuperEditor`, inserting a horizontal rule creates an empty paragraph after the divider with a placed caret. However, if the user manually deleted the empty paragraph after the divider (or opened a note ending with `---`), `HorizontalRuleNode` became the terminal node of the document.
+Because `HorizontalRuleNode` is an uneditable `BlockNode` and stock SuperEditor's `HorizontalRuleComponent` wraps the widget in `IgnorePointer`:
+1. Clicking anywhere on or below the divider was ignored and did not focus or place a caret.
+2. SuperEditor's `moveCaretDown` stops at the bottom of the document, preventing `ArrowDown` from stepping past the divider.
+3. Typing characters or pressing `Enter` when a divider was selected failed or deleted the divider.
+4. The user was blocked from continuing to write after the divider line.
+
+### 2. Architectural Design & Implementation
+Implemented a comprehensive 4-pillar solution:
+1. **Interactive Component Builder (`QuietHorizontalRuleComponentBuilder`)**:
+   - Implemented [`QuietHorizontalRuleComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) and [`QuietHorizontalRuleComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) to replace stock `HorizontalRuleComponentBuilder`.
+   - Renders a styled `Divider` bound to `colors.divider` with 4px vertical padding.
+   - Removed `IgnorePointer` to enable hit-testing and pointer interactions.
+2. **Sub-Divider Tap Handling (`QuietDividerTapHandler`)**:
+   - Implemented `QuietDividerTapHandler` implementing `ContentTapDelegate` registered in `SuperEditor.contentTapDelegateFactories`.
+   - When a tap occurs on or below a terminal `HorizontalRuleNode`, it inserts an empty `ParagraphNode` immediately after the divider and collapses the selection to offset 0 with `SelectionChangeType.insertContent`.
+   - Registered `superEditorAddEmptyParagraphTapHandlerFactory` alongside it for general empty-space viewport clicks.
+3. **Keyboard Actions & Plugin (`handleDividerKeyboardActions` / `QuietDividerPlugin`)**:
+   - Created `QuietDividerPlugin` extending `SuperEditorPlugin`, registered in `SuperEditor.plugins`.
+   - `Enter` on divider: inserts an empty paragraph after the divider and focuses it.
+   - `ArrowDown` on terminal divider: inserts an empty paragraph after the divider and moves the caret there.
+   - `ArrowRight` at downstream edge of terminal divider: inserts an empty paragraph after the divider and moves the caret there.
+   - Typing printable characters (letters, numbers, space) when a divider is selected: inserts a new paragraph with the typed character and places the caret at offset 1.
+   - `Backspace` on divider continues execution, allowing standard deletion of the divider.
+4. **Document Trailing Invariant**:
+   - In `QuietSuperEditor._initEditor`, checks if `document.last is HorizontalRuleNode`. If true, appends an empty `ParagraphNode`. Notes ending in `---` open in an immediately editable state without altering markdown serialization.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart`: Custom component builder, component widget, tap handler, and divider keyboard action plugin.
+  - `test/editor/quiet_divider_test.dart`: Unit and widget tests for divider rendering, tap handling, keyboard actions, and document invariants.
+- **Modified Files**:
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Registered `QuietHorizontalRuleComponentBuilder`, `QuietDividerPlugin`, `QuietDividerTapHandler`, and trailing paragraph invariant in `_initEditor`.
+  - `handoff/editor-and-typography.md`: Documented divider interaction subsystem.
+  - `handoff/latest-logs.md`: Appended Section 252.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Targeted Test Suites**:
+  - `flutter test test/editor/quiet_divider_test.dart`: **9/9 tests passing**.
+  - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
+
+
 

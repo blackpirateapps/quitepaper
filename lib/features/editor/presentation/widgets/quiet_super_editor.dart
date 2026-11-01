@@ -11,6 +11,7 @@ import '../../application/quiet_super_editor_controller.dart';
 import 'super_editor/link_enhance_overlay.dart';
 import 'super_editor/quiet_attachment_component.dart';
 import 'super_editor/quiet_code_block_component.dart';
+import 'super_editor/quiet_horizontal_rule_component.dart';
 import 'super_editor/quiet_image_component.dart';
 import 'super_editor/quiet_link_preview_component.dart';
 import 'super_editor/quiet_table_component.dart';
@@ -58,6 +59,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late Editor _editor;
   late MutableDocumentComposer _composer;
   late SmartTaskController _smartTaskController;
+  late final QuietDividerPlugin _dividerPlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
   bool _isInternalUpdate = false;
@@ -65,6 +67,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   @override
   void initState() {
     super.initState();
+    _dividerPlugin = QuietDividerPlugin();
     _smartTaskController = SmartTaskController()..addListener(_onSmartTaskChanged);
     _initEditor();
   }
@@ -96,6 +99,17 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
     // Promote code block paragraphs with raw languages parsed from fences.
     promoteQuietCodeBlockNodes(document, split.body);
+
+    // Ensure notes ending with a horizontal rule have an editable paragraph after it.
+    if (document.isNotEmpty && document.last is HorizontalRuleNode) {
+      document.insertNodeAfter(
+        existingNodeId: document.last.id,
+        newNode: ParagraphNode(
+          id: Editor.createNodeId(),
+          text: AttributedText(),
+        ),
+      );
+    }
 
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
@@ -392,6 +406,14 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               focusNode: widget.focusNode,
               shrinkWrap: true,
               stylesheet: stylesheet,
+              plugins: {
+                _dividerPlugin,
+              },
+              contentTapDelegateFactories: const [
+                superEditorLaunchLinkTapHandlerFactory,
+                quietDividerTapHandlerFactory,
+                superEditorAddEmptyParagraphTapHandlerFactory,
+              ],
               componentBuilders: [
                 QuietCodeBlockComponentBuilder(_editor),
                 QuietTaskComponentBuilder(
@@ -410,6 +432,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
                   showRemove: !widget.readOnly,
                 ),
                 QuietTableComponentBuilder(editor: _editor),
+                QuietHorizontalRuleComponentBuilder(_editor),
                 ...defaultComponentBuilders,
               ],
               selectionStyle: SelectionStyles(

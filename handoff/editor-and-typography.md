@@ -39,6 +39,15 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
   - Line numbering gutter with monospaced alignment.
   - Quick language selector modal.
 
+### Horizontal Rules & Dividers
+- **Component**: [`QuietHorizontalRuleComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) and `QuietHorizontalRuleComponentBuilder`.
+- **Features**:
+  - Themed divider rendered with `colors.divider` and clean padding.
+  - Interactive tap target: removes `IgnorePointer` to permit direct pointer and tap events.
+  - Sub-divider tap handler: [`QuietDividerTapHandler`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) and `superEditorAddEmptyParagraphTapHandlerFactory` detect taps on or below terminal dividers and spawn an editable `ParagraphNode` with focused caret.
+  - Divider keyboard actions: [`QuietDividerPlugin`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) registers handlers for `Enter`, `ArrowDown`, `ArrowRight`, and printable typing when a divider is selected to automatically create a paragraph and continue writing seamlessly.
+  - Trailing divider invariant: documents ending with `---` automatically load with an editable trailing paragraph.
+
 ### Typewriter Scrolling
 - Automatically keeps the active cursor centered vertically in the viewport during typing.
 - Operates across both mobile and desktop screens to prevent the cursor from dropping below the keyboard or viewport edge.
