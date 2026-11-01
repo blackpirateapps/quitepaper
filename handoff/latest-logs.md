@@ -4760,3 +4760,58 @@ Users reported that the document PDF viewer (`DocumentViewerScreen`) suffered fr
   - `flutter test test/documents/document_service_test.dart`: All 11 tests passing.
 - **Static Analysis**:
   - `flutter analyze`: **0 issues, 0 warnings**.
+
+---
+
+## 245. Editor Design Polish: Centered Toolbar, Centered Title, Full-Width Far-Edge Scrollbar & Adaptive Multi-Column Properties Card (November 2026)
+
+### 1. Overview & Motivation
+When both the notes list and sidebar are minimized (or on expansive wide desktop monitors), the editor surface previously exhibited four visual and layout shortcomings:
+1. **Left-Biased Formatting Toolbar**: The top-docked toolbar pill groups were packed strictly to the left edge of the screen via an unbounded `ListView`, leaving massive unbalanced white space to the right.
+2. **Left-Biased Document Heading**: The note title (e.g. "November 1, 2026") sat left-aligned while the top bar brand header sat centered, producing an optical imbalance.
+3. **Scrollbar Drifting Inwards on Narrow/Medium Paragraph Widths**: Wrapping the entire scrollable widget (`SingleChildScrollView` and `QuietMarkdownPreview`) inside a centered `ConstrainedBox(maxWidth: paragraphWidth)` caused Flutter desktop's native scrollbar to paint along the middle of the screen (at $x \approx 540\text{px}$ or $720\text{px}$) rather than resting at the right viewport window boundary.
+4. **Single-Column Stacking in YAML Frontmatter Card**: Properties (Created, Moment, Mood, Weather, Location, Activities, Tags) always stacked vertically in a single column even on 4K or ultrawide displays, needlessly elongating the document header before the user reached the body text.
+
+### 2. Architectural Design & Implementation
+
+#### A. Horizontally Centered Formatting Toolbar (`formatting_toolbar.dart`)
+- Replaced the left-aligned `ListView` with a `LayoutBuilder` driving a `SingleChildScrollView(scrollDirection: Axis.horizontal)`.
+- Applied `ConstrainedBox(constraints: BoxConstraints(minWidth: constraints.maxWidth - padding))` around `Center(child: Row(mainAxisSize: MainAxisSize.min, children: [...]))`.
+- **Responsive Guarantee**: On wide monitors where toolbar button groups fit easily, they are perfectly centered. When the viewport narrows below the toolbar's intrinsic width, the row smoothly scrolls from left to right with pointer scroll wheel support preserved.
+
+#### B. Pinned Screen-Edge Scrollbar & Centered Note Surface (`editor_screen.dart`, `markdown_preview.dart`)
+- Relocated `SingleChildScrollView` and `QuietMarkdownPreview` to the root viewport level, spanning 100% of the display width.
+- Pushed `Align(alignment: Alignment.topCenter)` and `ConstrainedBox(constraints: BoxConstraints(maxWidth: typography.paragraphWidth.maxWidth))` **inside** the scroll view around the content column (Title, Properties Card, Document Body).
+- Wrapped scrollables in `ScrollConfiguration(behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false))` so Flutter desktop's default scrollbar is suppressed and `IntelligentHeadingScrollbar` acts as the sole, interactive scrollbar pinned cleanly to the viewport's far right edge.
+- Empty margins outside the centered text column remain interactive and kinetic mouse-wheel scrollable.
+- Applied identical viewport-spanning and centered chunk item wrapping to `QuietMarkdownPreview`.
+
+#### C. Centered Document Title (`editor_screen.dart`, `markdown_preview.dart`)
+- Added `textAlign: TextAlign.center` to the note title `TextField` in `EditorScreen`.
+- Added `textAlign: TextAlign.center` to the note title header `Text` widget in `QuietMarkdownPreview`.
+
+#### D. Adaptive Multi-Column Properties Card (`frontmatter_properties_section.dart`, `markdown_preview.dart`)
+- In `FrontmatterPropertiesSection` and `QuietFrontmatterCard`, partitioned properties into:
+  - **Compact Fields**: `Author`, `Created`, `Moment`, `Mood`, `Weather`, `Source`.
+  - **Wide / Multi-Line Fields**: `Location`, `Activities`, `Tags`, `Description`.
+- Integrated `LayoutBuilder`:
+  - When card width $< 560\text{px}$ (e.g. `narrow` paragraph width of $540\text{px}$ or compact mobile windows): retains 1-column vertical stacking.
+  - When card width $\ge 560\text{px}$ (e.g. `medium` $720\text{px}$ and `full` paragraph width on wide screens): renders compact fields in 2-column rows (`Row(children: [Expanded(child: item1), SizedBox(width: AppSpacing.md), Expanded(child: item2)])`), while wide fields (`Location`, `Activities`, `Tags`, `Description`) span the full card width underneath.
+- Added `Flexible` containers and `maxLines: 1, overflow: TextOverflow.ellipsis` safeguards to chip badges and weather status to eliminate `RenderFlex` overflow during layout transitions.
+
+### 3. File Inventory
+- **Modified**:
+  - `lib/features/editor/presentation/widgets/formatting_toolbar.dart`: Centered layout builder and horizontal row container.
+  - `lib/features/editor/presentation/editor_screen.dart`: Title center alignment, root full-width scrollable, inner constrained column, and scrollbar suppression.
+  - `lib/core/markdown/markdown_preview.dart`: Title center alignment, chunk item width constraints, and 2-column frontmatter card.
+  - `lib/features/editor/presentation/widgets/frontmatter_properties_section.dart`: Responsive 2-column grid for compact properties and overflow protection.
+  - `test/editor/formatting_toolbar_test.dart`: Added widget test for centered toolbar buttons on wide displays.
+  - `test/editor/frontmatter_properties_section_test.dart`: Added widget tests for 2-column layout ($\ge 560\text{px}$) and 1-column fallback ($< 560\text{px}$).
+  - `test/editor/editor_scrollbar_test.dart`: Added widget test for centered title in editor and preview modes.
+  - `test/editor/desktop_toolbar_and_shortcuts_test.dart`: Updated toolbar finder from `ListView` to `SingleChildScrollView`.
+  - `test/editor/typewriter_scrolling_test.dart`: Updated vertical scrollable predicate for typewriter coordinator.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings**).
+- **Automated Tests**: `flutter test` across all 2415 tests in the repository (**2415/2415 passing, 0 failures**).
+

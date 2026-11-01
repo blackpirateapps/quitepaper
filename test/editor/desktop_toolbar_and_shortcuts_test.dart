@@ -147,20 +147,20 @@ void main() {
         ),
       );
 
-      final listViewFinder = find.descendant(
+      final scrollFinder = find.descendant(
         of: find.byType(FormattingToolbar),
-        matching: find.byType(ListView),
+        matching: find.byType(SingleChildScrollView),
       );
-      expect(listViewFinder, findsOneWidget);
+      expect(scrollFinder, findsOneWidget);
 
-      final scrollable = tester.widget<ListView>(listViewFinder);
+      final scrollable = tester.widget<SingleChildScrollView>(scrollFinder);
       final scrollController = scrollable.controller!;
 
       expect(scrollController.offset, equals(0.0));
       expect(scrollController.position.maxScrollExtent, greaterThan(0.0));
 
       // Send a pointer scroll event on the toolbar
-      final center = tester.getCenter(listViewFinder);
+      final center = tester.getCenter(scrollFinder);
       final pointerSignal = PointerScrollEvent(
         position: center,
         scrollDelta: const Offset(0.0, 50.0), // vertical wheel scroll

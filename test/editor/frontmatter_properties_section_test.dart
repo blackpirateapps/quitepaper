@@ -326,5 +326,88 @@ date: 2026-10-08
       expect(find.text('Fetch Weather'), findsOneWidget);
       expect(find.text('Add Activities'), findsOneWidget);
     });
+
+    testWidgets('adapts to 2-column layout for compact fields when width >= 560px', (tester) async {
+      const journalWithAll = '''---
+journal: true
+date: 2026-10-08
+moment: travel
+mood: 8
+weather:
+  temperature: 22.0
+  condition: "Partly cloudy"
+  code: 1
+created: 2026-10-08
+activities: [exercise]
+tags: [journal/test]
+---
+# Diary
+''';
+      final doc = FrontmatterEditorHelper.parse(journalWithAll);
+
+      // Render at 800px width (>= 560px)
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalWithAll,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+      await tester.pumpAndSettle();
+
+      final createdRect = tester.getRect(find.text('Created'));
+      final momentRect = tester.getRect(find.text('Moment'));
+
+      // In 2-column mode, Created and Moment are in the same horizontal row (same top coordinate, different left)
+      expect((createdRect.top - momentRect.top).abs(), lessThan(5.0));
+      expect(createdRect.left, lessThan(momentRect.left));
+
+      // Activities and Tags span full width below them
+      final activitiesRect = tester.getRect(find.text('Activities'));
+      expect(activitiesRect.top, greaterThan(createdRect.bottom));
+      expect(activitiesRect.left, equals(createdRect.left));
+    });
+
+    testWidgets('falls back to 1-column layout when width < 560px', (tester) async {
+      const journalWithAll = '''---
+journal: true
+date: 2026-10-08
+moment: travel
+mood: 8
+created: 2026-10-08
+---
+# Diary
+''';
+      final doc = FrontmatterEditorHelper.parse(journalWithAll);
+
+      // Render at 400px width (< 560px)
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildTestSection(
+        frontmatter: doc,
+        rawDocument: journalWithAll,
+        onDocumentChanged: (_) {},
+        isJournal: true,
+      ));
+      await tester.pumpAndSettle();
+
+      final createdRect = tester.getRect(find.text('Created'));
+      final momentRect = tester.getRect(find.text('Moment'));
+
+      // In 1-column mode, Moment is stacked vertically below Created
+      expect(momentRect.top, greaterThan(createdRect.bottom));
+      expect(momentRect.left, equals(createdRect.left));
+    });
   });
 }

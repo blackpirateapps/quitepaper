@@ -283,5 +283,39 @@ ${List.generate(25, (i) => 'Line $i of text in Section 2').join('\n')}
 
       await finishTest(tester);
     });
+
+    testWidgets('EditorScreen note title is center-aligned in edit and preview modes', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'note-title-center-1',
+        title: 'November 1, 2026',
+        content: 'Journal entry body text.',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      // 1. Edit mode: Title TextField has textAlign: TextAlign.center
+      await tester.pumpWidget(createEditorApp(note, initialPreview: false));
+      await tester.pumpAndSettle();
+
+      final titleTextField = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'November 1, 2026'),
+      );
+      expect(titleTextField.textAlign, equals(TextAlign.center));
+
+      await finishTest(tester);
+
+      // 2. Preview mode: Title Text has textAlign: TextAlign.center
+      await tester.pumpWidget(createEditorApp(note, initialPreview: true));
+      await tester.pumpAndSettle();
+
+      final titleTextWidget = tester.widget<Text>(
+        find.text('November 1, 2026'),
+      );
+      expect(titleTextWidget.textAlign, equals(TextAlign.center));
+
+      await finishTest(tester);
+    });
   });
 }

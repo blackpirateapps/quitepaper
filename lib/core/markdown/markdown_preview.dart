@@ -518,6 +518,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
           if (effectiveTitle.isNotEmpty) ...[
             Text(
               effectiveTitle,
+              textAlign: TextAlign.center,
               style: FontFamilyHelper.getTextStyle(
                 fontFamily: headingFont,
                 baseStyle: AppTypography.editorTitle.copyWith(
@@ -842,65 +843,78 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
         padding: effectivePadding,
         itemCount: totalCount,
         itemBuilder: (context, index) {
+          Widget item;
           if (hasHeader && index == 0) {
-            return buildHeader();
-          }
-
-          final bodyIndex = index - headerCount;
-          if (bodyIndex < bodyCount) {
-            if (_chunks.isEmpty) {
-              return MarkdownBody(
-                key: ValueKey('preview_empty_${widget.searchQuery ?? ''}'),
-                data: '*No content*',
-                selectable: false,
-                styleSheet: customStyleSheet,
-                inlineSyntaxes: inlineSyntaxes,
-                blockSyntaxes: blockSyntaxes,
-                builders: builders,
-                checkboxBuilder: (bool checked) => buildCheckboxWidget(
-                  checked: checked,
-                  itemIndex: 0,
-                ),
-                // ignore: deprecated_member_use
-                imageBuilder: customImageBuilder,
-                extensionSet: md.ExtensionSet.gitHubFlavored,
-                onTapLink: effectiveOnTapLink,
-                softLineBreak: widget.softLineBreak,
-              );
-            }
-            return buildChunkMarkdownBody(
-              chunk: _chunks[bodyIndex],
-              chunkIndex: bodyIndex,
-              key: ValueKey('preview_body_${bodyIndex}_${widget.searchQuery ?? ''}'),
-            );
-          }
-
-          if (widget.noteId != null && bodyIndex == bodyCount) {
-            return BacklinksSection(
-              noteId: widget.noteId!,
-              onOpenNote: (note) {
-                if (widget.onOpenLinkedNote != null) {
-                  widget.onOpenLinkedNote!(note, initialPreviewMode: true);
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => EditorScreen(
-                        note: note,
-                        initialPreviewMode: true,
+            item = buildHeader();
+          } else {
+            final bodyIndex = index - headerCount;
+            if (bodyIndex < bodyCount) {
+              if (_chunks.isEmpty) {
+                item = MarkdownBody(
+                  key: ValueKey('preview_empty_${widget.searchQuery ?? ''}'),
+                  data: '*No content*',
+                  selectable: false,
+                  styleSheet: customStyleSheet,
+                  inlineSyntaxes: inlineSyntaxes,
+                  blockSyntaxes: blockSyntaxes,
+                  builders: builders,
+                  checkboxBuilder: (bool checked) => buildCheckboxWidget(
+                    checked: checked,
+                    itemIndex: 0,
+                  ),
+                  // ignore: deprecated_member_use
+                  imageBuilder: customImageBuilder,
+                  extensionSet: md.ExtensionSet.gitHubFlavored,
+                  onTapLink: effectiveOnTapLink,
+                  softLineBreak: widget.softLineBreak,
+                );
+              } else {
+                item = buildChunkMarkdownBody(
+                  chunk: _chunks[bodyIndex],
+                  chunkIndex: bodyIndex,
+                  key: ValueKey('preview_body_${bodyIndex}_${widget.searchQuery ?? ''}'),
+                );
+              }
+            } else if (widget.noteId != null && bodyIndex == bodyCount) {
+              item = BacklinksSection(
+                noteId: widget.noteId!,
+                onOpenNote: (note) {
+                  if (widget.onOpenLinkedNote != null) {
+                    widget.onOpenLinkedNote!(note, initialPreviewMode: true);
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => EditorScreen(
+                          note: note,
+                          initialPreviewMode: true,
+                        ),
                       ),
-                    ),
-                  );
-                }
-              },
-            );
+                    );
+                  }
+                },
+              );
+            } else {
+              item = const SizedBox(height: 120.0);
+            }
           }
 
-
-          // Generous bottom scroll area for comfortable preview reading
-          return const SizedBox(height: 120.0);
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: typography.paragraphWidth.maxWidth,
+              ),
+              child: item,
+            ),
+          );
         },
       );
     }
+
+    content = ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: content,
+    );
 
 
     if (widget.selectable) {
@@ -935,11 +949,12 @@ class QuietFrontmatterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final rows = <Widget>[];
+    final compactRows = <Widget>[];
+    final wideRows = <Widget>[];
 
-    // 1. Author
+    // 1. Author (compact)
     if (metadata.author != null && metadata.author!.trim().isNotEmpty) {
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: Icons.person_outline_rounded,
           label: 'Author',
@@ -953,7 +968,7 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 2. Created date
+    // 2. Created date (compact)
     if (metadata.createdAt != null ||
         (metadata.createdRaw != null && metadata.createdRaw!.trim().isNotEmpty)) {
       String displayDate;
@@ -963,7 +978,7 @@ class QuietFrontmatterCard extends StatelessWidget {
         displayDate = metadata.createdRaw!.trim();
       }
 
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: Icons.calendar_today_outlined,
           label: 'Created',
@@ -977,13 +992,13 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 3. Moment
+    // 3. Moment (compact)
     if (metadata.moment != null && metadata.moment!.trim().isNotEmpty) {
       final moment = JournalMoment.fromKey(metadata.moment);
       final label = moment?.label ?? metadata.moment!.trim();
       final icon = moment?.icon ?? Icons.auto_awesome_outlined;
 
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: icon,
           label: 'Moment',
@@ -998,13 +1013,13 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 4. Mood
+    // 4. Mood (compact)
     if (metadata.mood != null) {
       final mood = JournalMood.fromLevel(metadata.mood);
       final emoji = mood?.emoji ?? '😊';
       final label = mood != null ? '${mood.label} (${mood.level}/10)' : '${metadata.mood}/10';
 
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: Icons.sentiment_satisfied_alt_rounded,
           label: 'Mood',
@@ -1026,10 +1041,10 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 5. Weather
+    // 5. Weather (compact)
     if (metadata.weather != null && metadata.weather!.isNotEmpty) {
       final weather = metadata.weather!;
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: weather.icon,
           label: 'Weather',
@@ -1044,7 +1059,7 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 6. Location with Open in Maps
+    // 6. Location with Open in Maps (wide)
     if (metadata.location != null && metadata.location!.isNotEmpty) {
       final loc = metadata.location!;
       final hasAddress = loc.address.trim().isNotEmpty;
@@ -1084,7 +1099,7 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
 
       if (hasAddress) {
-        rows.add(
+        wideRows.add(
           _PropertyRow(
             icon: Icons.place_outlined,
             label: 'Location',
@@ -1126,7 +1141,7 @@ class QuietFrontmatterCard extends StatelessWidget {
           ),
         );
       } else {
-        rows.add(
+        wideRows.add(
           _PropertyRow(
             icon: Icons.place_outlined,
             label: 'Location',
@@ -1148,9 +1163,9 @@ class QuietFrontmatterCard extends StatelessWidget {
       }
     }
 
-    // 7. Activities
+    // 7. Activities (wide)
     if (metadata.activities.isNotEmpty) {
-      rows.add(
+      wideRows.add(
         _PropertyRow(
           icon: Icons.directions_run_rounded,
           label: 'Activities',
@@ -1197,14 +1212,14 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 8. Source
+    // 8. Source (compact)
     if (metadata.source != null && metadata.source!.trim().isNotEmpty) {
       final source = metadata.source!.trim();
       final isUrl = source.startsWith('http://') ||
           source.startsWith('https://') ||
           source.startsWith('www.');
 
-      rows.add(
+      compactRows.add(
         _PropertyRow(
           icon: Icons.link_rounded,
           label: 'Source',
@@ -1253,9 +1268,9 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    // 5. Description
+    // 9. Description (wide)
     if (metadata.description != null && metadata.description!.trim().isNotEmpty) {
-      rows.add(
+      wideRows.add(
         _PropertyRow(
           icon: Icons.notes_rounded,
           label: 'Description',
@@ -1270,42 +1285,99 @@ class QuietFrontmatterCard extends StatelessWidget {
       );
     }
 
-    if (rows.isEmpty) {
+    if (compactRows.isEmpty && wideRows.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.compact,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: AppRadii.borderMd,
-        border: Border.all(
-          color: colors.divider.withValues(alpha: 0.7),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (int i = 0; i < rows.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Divider(
-                  color: colors.divider.withValues(alpha: 0.4),
-                  height: 1,
-                  thickness: 0.5,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMultiCol = constraints.maxWidth >= 560;
+        final contentChildren = <Widget>[];
+
+        if (isMultiCol && compactRows.isNotEmpty) {
+          for (int i = 0; i < compactRows.length; i += 2) {
+            if (contentChildren.isNotEmpty) {
+              contentChildren.add(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Divider(
+                    color: colors.divider.withValues(alpha: 0.4),
+                    height: 1,
+                    thickness: 0.5,
+                  ),
                 ),
+              );
+            }
+            final item1 = compactRows[i];
+            final item2 = (i + 1 < compactRows.length) ? compactRows[i + 1] : null;
+            contentChildren.add(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: item1),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: item2 ?? const SizedBox.shrink(),
+                  ),
+                ],
               ),
-            rows[i],
-          ],
-        ],
-      ),
+            );
+          }
+          for (final wideItem in wideRows) {
+            if (contentChildren.isNotEmpty) {
+              contentChildren.add(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Divider(
+                    color: colors.divider.withValues(alpha: 0.4),
+                    height: 1,
+                    thickness: 0.5,
+                  ),
+                ),
+              );
+            }
+            contentChildren.add(wideItem);
+          }
+        } else {
+          final allRows = [...compactRows, ...wideRows];
+          for (int i = 0; i < allRows.length; i++) {
+            if (i > 0) {
+              contentChildren.add(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Divider(
+                    color: colors.divider.withValues(alpha: 0.4),
+                    height: 1,
+                    thickness: 0.5,
+                  ),
+                ),
+              );
+            }
+            contentChildren.add(allRows[i]);
+          }
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.compact,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: AppRadii.borderMd,
+            border: Border.all(
+              color: colors.divider.withValues(alpha: 0.7),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: contentChildren,
+          ),
+        );
+      },
     );
   }
 }

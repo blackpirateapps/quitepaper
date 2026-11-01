@@ -244,5 +244,32 @@ void main() {
       focusNode.dispose();
       controller.dispose();
     });
+
+    testWidgets('toolbar buttons are horizontally centered on wide displays', (tester) async {
+      tester.view.physicalSize = const Size(1400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = MarkdownEditingController(text: 'sample text');
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(buildTestableWidget(
+        controller: controller,
+        focusNode: focusNode,
+      ));
+      await tester.pumpAndSettle();
+
+      final undoFinder = find.byTooltip('Undo');
+      expect(undoFinder, findsOneWidget);
+      final undoRect = tester.getRect(undoFinder);
+      // Undo button starts significantly indented from left edge because it is centered
+      expect(undoRect.left, greaterThan(100.0));
+
+      focusNode.dispose();
+      controller.dispose();
+    });
   });
 }

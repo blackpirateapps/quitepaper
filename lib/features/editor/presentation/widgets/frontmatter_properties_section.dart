@@ -419,149 +419,168 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.xs,
               ),
-              child: Column(
-                children: [
-                  // Author property
-                  if (showAuthor)
-                    _PropertyRow(
-                      icon: Icons.person_outline_rounded,
-                      label: 'Author',
-                      child: TextField(
-                        controller: _authorController,
-                        readOnly: widget.readOnly,
-                        cursorColor: colors.accent,
-                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                        decoration: _inputDecoration(colors, 'Add author...'),
-                        onSubmitted: (val) => _onPropertySubmitted('author', val),
-                      ),
-                    ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isMultiCol = constraints.maxWidth >= 560;
 
-                  // Created property
-                  if (doc.created != null || !widget.readOnly)
-                    _PropertyRow(
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Created',
-                      child: TextField(
-                        controller: _createdController,
-                        readOnly: widget.readOnly,
-                        cursorColor: colors.accent,
-                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                        decoration: _inputDecoration(colors, 'YYYY-MM-DD'),
-                        onSubmitted: (val) => _onPropertySubmitted('created', val),
-                      ),
-                    ),
-
-                  // Moment property
-                  if (showMoment)
-                    _PropertyRow(
-                      icon: JournalMoment.fromKey(doc.moment)?.icon ?? Icons.auto_awesome_outlined,
-                      label: 'Moment',
-                      child: _buildMomentField(colors, doc.moment),
-                    ),
-
-                  // Mood property
-                  if (showMood)
-                    _PropertyRow(
-                      icon: Icons.sentiment_satisfied_alt_rounded,
-                      label: 'Mood',
-                      child: _buildMoodField(colors, doc.mood),
-                    ),
-
-                  // Weather property
-                  if (showWeather)
-                    _PropertyRow(
-                      icon: doc.weather?.icon ?? Icons.wb_sunny_outlined,
-                      label: 'Weather',
-                      child: _buildWeatherField(colors, doc.weather),
-                    ),
-
-                  // Location property
-                  if (showLocation)
-                    _PropertyRow(
-                      icon: Icons.place_outlined,
-                      label: 'Location',
-                      child: _buildLocationField(colors, doc.location),
-                    ),
-
-                  // Activities property
-                  if (showActivities)
-                    _PropertyRow(
-                      icon: Icons.directions_run_rounded,
-                      label: 'Activities',
-                      child: _buildActivitiesField(colors, doc.activities),
-                    ),
-
-                  // Source property
-                  if (showSource)
-                    _PropertyRow(
-                      icon: Icons.link_rounded,
-                      label: 'Source',
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _sourceController,
-                              readOnly: widget.readOnly,
-                              cursorColor: colors.accent,
-                              style: AppTypography.bodySmall.copyWith(
-                                color: (doc.source?.startsWith('http://') == true ||
-                                        doc.source?.startsWith('https://') == true)
-                                    ? colors.accent
-                                    : colors.textPrimary,
-                              ),
-                              decoration: _inputDecoration(colors, 'Add source URL or text...'),
-                              onSubmitted: (val) => _onPropertySubmitted('source', val),
-                            ),
-                          ),
-                          if (doc.source?.startsWith('http://') == true ||
-                              doc.source?.startsWith('https://') == true)
-                            IconButton(
-                              icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                              color: colors.accent,
-                              tooltip: 'Open link',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                              onPressed: () {
-                                LinkLauncherHelper.handleLinkTap(context, doc.source!);
-                              },
-                            ),
-                        ],
-                      ),
-                    ),
-
-                  // Description property
-                  if (showDescription)
-                    _PropertyRow(
-                      icon: Icons.notes_rounded,
-                      label: 'Description',
-                      child: TextField(
-                        controller: _descriptionController,
-                        readOnly: widget.readOnly,
-                        cursorColor: colors.accent,
-                        maxLines: null,
-                        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
-                        decoration: _inputDecoration(colors, 'Add description...'),
-                        onSubmitted: (val) => _onPropertySubmitted('description', val),
-                      ),
-                    ),
-
-                  // Tags property
-                  if (doc.tags.isNotEmpty || !widget.readOnly)
-                    _PropertyRow(
-                      icon: Icons.tag_rounded,
-                      label: 'Tags',
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: TagEditorBar(
-                          tags: doc.tags,
-                          showAddButton: !widget.readOnly,
-                          padding: EdgeInsets.zero,
-                          onAddTag: _onAddTag,
-                          onRemoveTag: _onRemoveTag,
+                  // 1. Compact property rows (Author, Created, Moment, Mood, Weather, Source)
+                  final compactRows = <Widget>[
+                    if (showAuthor)
+                      _PropertyRow(
+                        icon: Icons.person_outline_rounded,
+                        label: 'Author',
+                        child: TextField(
+                          controller: _authorController,
+                          readOnly: widget.readOnly,
+                          cursorColor: colors.accent,
+                          style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                          decoration: _inputDecoration(colors, 'Add author...'),
+                          onSubmitted: (val) => _onPropertySubmitted('author', val),
                         ),
                       ),
-                    ),
-                ],
+                    if (doc.created != null || !widget.readOnly)
+                      _PropertyRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Created',
+                        child: TextField(
+                          controller: _createdController,
+                          readOnly: widget.readOnly,
+                          cursorColor: colors.accent,
+                          style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                          decoration: _inputDecoration(colors, 'YYYY-MM-DD'),
+                          onSubmitted: (val) => _onPropertySubmitted('created', val),
+                        ),
+                      ),
+                    if (showMoment)
+                      _PropertyRow(
+                        icon: JournalMoment.fromKey(doc.moment)?.icon ?? Icons.auto_awesome_outlined,
+                        label: 'Moment',
+                        child: _buildMomentField(colors, doc.moment),
+                      ),
+                    if (showMood)
+                      _PropertyRow(
+                        icon: Icons.sentiment_satisfied_alt_rounded,
+                        label: 'Mood',
+                        child: _buildMoodField(colors, doc.mood),
+                      ),
+                    if (showWeather)
+                      _PropertyRow(
+                        icon: doc.weather?.icon ?? Icons.wb_sunny_outlined,
+                        label: 'Weather',
+                        child: _buildWeatherField(colors, doc.weather),
+                      ),
+                    if (showSource)
+                      _PropertyRow(
+                        icon: Icons.link_rounded,
+                        label: 'Source',
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _sourceController,
+                                readOnly: widget.readOnly,
+                                cursorColor: colors.accent,
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: (doc.source?.startsWith('http://') == true ||
+                                          doc.source?.startsWith('https://') == true)
+                                      ? colors.accent
+                                      : colors.textPrimary,
+                                ),
+                                decoration: _inputDecoration(colors, 'Add source URL or text...'),
+                                onSubmitted: (val) => _onPropertySubmitted('source', val),
+                              ),
+                            ),
+                            if (doc.source?.startsWith('http://') == true ||
+                                doc.source?.startsWith('https://') == true)
+                              IconButton(
+                                icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                                color: colors.accent,
+                                tooltip: 'Open link',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                onPressed: () {
+                                  LinkLauncherHelper.handleLinkTap(context, doc.source!);
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                  ];
+
+                  // 2. Wide property rows (Location, Activities, Description, Tags)
+                  final wideRows = <Widget>[
+                    if (showLocation)
+                      _PropertyRow(
+                        icon: Icons.place_outlined,
+                        label: 'Location',
+                        child: _buildLocationField(colors, doc.location),
+                      ),
+                    if (showDescription)
+                      _PropertyRow(
+                        icon: Icons.notes_rounded,
+                        label: 'Description',
+                        child: TextField(
+                          controller: _descriptionController,
+                          readOnly: widget.readOnly,
+                          cursorColor: colors.accent,
+                          maxLines: null,
+                          style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+                          decoration: _inputDecoration(colors, 'Add description...'),
+                          onSubmitted: (val) => _onPropertySubmitted('description', val),
+                        ),
+                      ),
+                    if (showActivities)
+                      _PropertyRow(
+                        icon: Icons.directions_run_rounded,
+                        label: 'Activities',
+                        child: _buildActivitiesField(colors, doc.activities),
+                      ),
+                    if (doc.tags.isNotEmpty || !widget.readOnly)
+                      _PropertyRow(
+                        icon: Icons.tag_rounded,
+                        label: 'Tags',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: TagEditorBar(
+                            tags: doc.tags,
+                            showAddButton: !widget.readOnly,
+                            padding: EdgeInsets.zero,
+                            onAddTag: _onAddTag,
+                            onRemoveTag: _onRemoveTag,
+                          ),
+                        ),
+                      ),
+                  ];
+
+                  final children = <Widget>[];
+                  if (isMultiCol && compactRows.isNotEmpty) {
+                    for (int i = 0; i < compactRows.length; i += 2) {
+                      final item1 = compactRows[i];
+                      final item2 = (i + 1 < compactRows.length) ? compactRows[i + 1] : null;
+                      children.add(
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: item1),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: item2 ?? const SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    children.addAll(wideRows);
+                  } else {
+                    children.addAll(compactRows);
+                    children.addAll(wideRows);
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children,
+                  );
+                },
               ),
             ),
           ],
@@ -741,11 +760,15 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                   children: [
                     Icon(icon, size: 14, color: colors.accent),
                     const SizedBox(width: 6.0),
-                    Text(
-                      label,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (!widget.readOnly) ...[
@@ -833,11 +856,15 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                       style: const TextStyle(fontSize: 14),
                     ),
                     const SizedBox(width: 6.0),
-                    Text(
-                      mood != null ? '${mood.label} (${mood.level}/10)' : '$moodLevel/10',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        mood != null ? '${mood.label} (${mood.level}/10)' : '$moodLevel/10',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (!widget.readOnly) ...[
@@ -926,30 +953,37 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
       return Padding(
         padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              decoration: BoxDecoration(
-                color: colors.surfaceSubtle,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-                border: Border.all(
-                  color: colors.divider.withValues(alpha: 0.6),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(weather.icon, size: 14, color: colors.accent),
-                  const SizedBox(width: 6.0),
-                  Text(
-                    '${weather.temperatureString}, ${weather.condition}',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                    ),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  border: Border.all(
+                    color: colors.divider.withValues(alpha: 0.6),
+                    width: 0.8,
                   ),
-                ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(weather.icon, size: 14, color: colors.accent),
+                    const SizedBox(width: 6.0),
+                    Flexible(
+                      child: Text(
+                        '${weather.temperatureString}, ${weather.condition}',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             if (!widget.readOnly) ...[
@@ -1165,7 +1199,7 @@ class _PropertyRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 88,
+            width: 80,
             child: Padding(
               padding: const EdgeInsets.only(top: 6.0),
               child: Row(
@@ -1179,6 +1213,8 @@ class _PropertyRow extends StatelessWidget {
                         color: colors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

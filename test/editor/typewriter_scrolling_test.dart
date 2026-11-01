@@ -362,7 +362,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Find the SingleChildScrollView scroll controller
-      final scrollable = tester.widget<SingleChildScrollView>(find.byType(SingleChildScrollView));
+      final scrollable = tester.widget<SingleChildScrollView>(
+        find.byWidgetPredicate((w) => w is SingleChildScrollView && w.scrollDirection == Axis.vertical),
+      );
       final controller = scrollable.controller!;
 
       // Initially at top of note

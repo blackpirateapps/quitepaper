@@ -1053,11 +1053,20 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                 _scrollController.jumpTo(newOffset);
               }
             },
-            child: ListView(
-              controller: _scrollController,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              children: [
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: (constraints.maxWidth - AppSpacing.xs * 2).clamp(0.0, double.infinity),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                 // 1. HISTORY GROUP (Undo, Redo)
                 _ToolbarPillGroup(
                   children: [
@@ -1365,7 +1374,12 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                 ],
               ],
             ),
-          );
+          ),
+        ),
+      );
+    },
+  ),
+);
         },
       ),
     );

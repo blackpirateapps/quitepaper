@@ -1995,14 +1995,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                               viewportHeight * 0.55,
                             );
 
-                            return Align(
-                              alignment: Alignment.topCenter,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: typography.paragraphWidth.maxWidth,
-                                ),
-                                child: editorState.isPreviewMode
-                                    ? QuietMarkdownPreview(
+                            return editorState.isPreviewMode
+                                ? QuietMarkdownPreview(
                                     markdownData: _contentController.text.isNotEmpty
                                         ? _contentController.text
                                         : note.content,
@@ -2031,30 +2025,40 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                 : DesktopSmoothScroll(
                                     key: _viewportKey,
                                     controller: _scrollController,
-                                    child: SingleChildScrollView(
-                                      controller: _scrollController,
-                              padding: EdgeInsets.only(
-                                left: AppSpacing.lg + typography.paragraphIndent,
-                                right: AppSpacing.lg,
-                                top: AppSpacing.md,
-                                bottom: AppSpacing.md,
-                              ),
-                              physics: PlatformLayoutHelper.isDesktopPlatform
-                                  ? const ClampingScrollPhysics(
-                                      parent: AlwaysScrollableScrollPhysics(),
-                                    )
-                                  : const BouncingScrollPhysics(
-                                      parent: AlwaysScrollableScrollPhysics(),
-                                    ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Document Title input
-                                  TextField(
-                                    controller: _titleController,
-                                    focusNode: _titleFocusNode,
-                                    readOnly: editorState.isReadOnly,
-                                    cursorColor: colors.accent,
+                                    child: ScrollConfiguration(
+                                      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                                      child: SingleChildScrollView(
+                                        controller: _scrollController,
+                                        physics: PlatformLayoutHelper.isDesktopPlatform
+                                            ? const ClampingScrollPhysics(
+                                                parent: AlwaysScrollableScrollPhysics(),
+                                              )
+                                            : const BouncingScrollPhysics(
+                                                parent: AlwaysScrollableScrollPhysics(),
+                                              ),
+                                        child: Align(
+                                          alignment: Alignment.topCenter,
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              maxWidth: typography.paragraphWidth.maxWidth,
+                                            ),
+                                            child: Padding(
+                                              padding: EdgeInsets.only(
+                                                left: AppSpacing.lg + typography.paragraphIndent,
+                                                right: AppSpacing.lg,
+                                                top: AppSpacing.md,
+                                                bottom: AppSpacing.md,
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                children: [
+                                                  // Document Title input
+                                                  TextField(
+                                                    controller: _titleController,
+                                                    focusNode: _titleFocusNode,
+                                                    readOnly: editorState.isReadOnly,
+                                                    textAlign: TextAlign.center,
+                                                    cursorColor: colors.accent,
                                     style: FontFamilyHelper.getTextStyle(
                                       fontFamily: FontFamilyHelper.resolveHeadingFontFamily(
                                         typography.headingFontFamily ??
@@ -2200,7 +2204,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    ),
+                  );
                     },
                   ),
                 ),
