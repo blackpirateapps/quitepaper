@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
@@ -10,9 +12,11 @@ import '../../../core/widgets/desktop_smooth_scroll.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../../core/widgets/quiet_adaptive_modal.dart';
+import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/application/notes_query_provider.dart';
 import '../../notes/application/saved_filters_provider.dart';
+import '../../notes/domain/note_model.dart';
 import '../../notes/domain/saved_filter.dart';
 import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
@@ -46,6 +50,93 @@ class SidebarView extends ConsumerWidget {
 
   static const int _maxVisibleTags = 7;
 
+  Future<void> _handleQuickCompose(BuildContext context, WidgetRef ref) async {
+    onItemSelected?.call();
+    const uuid = Uuid();
+    final now = DateTime.now();
+    final selectedFilter = ref.read(selectedTagFilterProvider);
+    final initialTags = selectedFilter != null && selectedFilter.isNotEmpty
+        ? [selectedFilter]
+        : <String>[];
+    final newNote = Note(
+      id: uuid.v4(),
+      title: '',
+      content: '',
+      createdAt: now,
+      updatedAt: now,
+      tags: initialTags,
+    );
+    await ref.read(notesRepositoryProvider).saveNote(newNote);
+    ref.read(notesCollectionProvider.notifier).refresh();
+    if (context.mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditorScreen(
+            note: newNote,
+            autoFocusBody: true,
+            initialPreviewMode: false,
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildSettingsButton(BuildContext context) {
+    final colors = context.appColors;
+    return Semantics(
+      label: 'Settings',
+      button: true,
+      child: Tooltip(
+        message: 'Settings',
+        child: Material(
+          color: colors.surfaceSecondary,
+          borderRadius: BorderRadius.circular(9.0),
+          child: InkWell(
+            onTap: () {
+              onItemSelected?.call();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(9.0),
+            child: Container(
+              width: 34.0,
+              height: 34.0,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(9.0),
+                border: Border.all(
+                  color: colors.borderSubtle,
+                  width: 0.8,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Opacity(
+                    opacity: 0.0,
+                    child: SizedBox(
+                      width: 0,
+                      height: 0,
+                      child: Text('Settings'),
+                    ),
+                  ),
+                  Icon(
+                    PhosphorIconsRegular.gearSix,
+                    size: 18.0,
+                    color: colors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
@@ -66,7 +157,7 @@ class SidebarView extends ConsumerWidget {
         : colors.textPrimary;
     final searchBgColor = isSidebarDark
         ? colors.sidebarSelected
-        : colors.background;
+        : colors.surfaceSecondary;
     final searchHintColor = isSidebarDark
         ? const Color(0xFF9CA3AF)
         : colors.textTertiary;
@@ -83,51 +174,71 @@ class SidebarView extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // App Header & Branding
+            // App Header & Branding (Literary Masthead)
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.xs,
-              ),
+              padding: const EdgeInsets.fromLTRB(14.0, 12.0, 10.0, 6.0),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       'Quiet Paper',
-                      style: AppTypography.title.copyWith(
+                      style: GoogleFonts.newsreader(
+                        textStyle: const TextStyle(fontFamily: 'serif'),
+                        fontSize: 22.0,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.4,
                         color: headerTextColor,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                   ),
-                  if (isCollapsible)
-                    QuietIconButton(
-                      icon: PhosphorIconsRegular.sidebarSimple,
-                      tooltip: 'Hide navigation sidebar',
-                      onPressed: () {
+                  // Quick Compose Button
+                  Material(
+                    color: colors.accentSoft,
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8.0),
+                      onTap: () => _handleQuickCompose(context, ref),
+                      child: Container(
+                        width: 32.0,
+                        height: 32.0,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          PhosphorIconsRegular.pencilSimple,
+                          size: 17.0,
+                          color: colors.accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6.0),
+                  // Collapse / Close drawer button
+                  QuietIconButton(
+                    icon: PhosphorIconsRegular.sidebarSimple,
+                    tooltip: isCollapsible
+                        ? 'Hide navigation sidebar'
+                        : 'Close drawer',
+                    size: 18.0,
+                    onPressed: () {
+                      if (isCollapsible) {
                         ref.read(isNavSidebarVisibleProvider.notifier).state =
                             false;
-                      },
-                    ),
+                      } else {
+                        onItemSelected?.call();
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
 
-            // Global Search entry button
+            // Tactile Search Pill
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
+              padding: const EdgeInsets.fromLTRB(10.0, 0.0, 10.0, 6.0),
               child: Material(
                 color: searchBgColor,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
+                borderRadius: BorderRadius.circular(10.0),
                 child: InkWell(
                   onTap: () {
                     onItemSelected?.call();
@@ -135,29 +246,59 @@ class SidebarView extends ConsumerWidget {
                       MaterialPageRoute(builder: (_) => const SearchScreen()),
                     );
                   },
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 9.0,
+                  borderRadius: BorderRadius.circular(10.0),
+                  child: Container(
+                    height: 38.0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(
+                        color: colors.borderSubtle,
+                        width: 0.8,
+                      ),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           PhosphorIconsRegular.magnifyingGlass,
-                          size: 18,
+                          size: 16.0,
                           color: searchIconColor,
                         ),
-                        const SizedBox(width: 10.0),
+                        const SizedBox(width: 8.0),
                         Expanded(
                           child: Text(
                             'Search notes...',
                             style: AppTypography.bodySmall.copyWith(
                               color: searchHintColor,
-                              fontSize: 14,
+                              fontSize: 13.5,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6.0,
+                            vertical: 2.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.sidebarBackground.withValues(
+                              alpha: 0.5,
+                            ),
+                            borderRadius: BorderRadius.circular(4.0),
+                            border: Border.all(
+                              color: colors.borderSubtle,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            '/',
+                            style: TextStyle(
+                              color: searchHintColor,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1.1,
+                            ),
                           ),
                         ),
                       ],
@@ -167,18 +308,11 @@ class SidebarView extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(height: AppSpacing.xs),
-
-            // Scrollable navigation list (Library + Tags)
+            // Scrollable navigation list (Middle Zone)
             Expanded(
               child: DesktopSmoothScroll(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    0,
-                    AppSpacing.xs,
-                    0,
-                    AppSpacing.sm,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(0, 4.0, 0, 8.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -263,16 +397,29 @@ class SidebarView extends ConsumerWidget {
                       ),
 
                       // JOURNAL Section Header
-                      const SizedBox(height: AppSpacing.md),
-                      _buildSectionHeader(context, 'JOURNAL'),
+                      _buildSectionHeader(
+                        context,
+                        'JOURNAL',
+                        trailing: Text(
+                          'Daily',
+                          style: GoogleFonts.newsreader(
+                            textStyle: const TextStyle(fontFamily: 'serif'),
+                            fontStyle: FontStyle.italic,
+                            fontSize: 12.5,
+                            color: isSidebarDark
+                                ? const Color(0xFF9CA3AF)
+                                : colors.textTertiary,
+                          ),
+                        ),
+                      ),
 
                       SidebarItem(
                         icon: PhosphorIconsRegular.calendarCheck,
                         label: 'Today',
                         trailing: hasTodayEntry
                             ? Container(
-                                width: 6,
-                                height: 6,
+                                width: 6.0,
+                                height: 6.0,
                                 decoration: BoxDecoration(
                                   color: colors.accent,
                                   shape: BoxShape.circle,
@@ -281,7 +428,9 @@ class SidebarView extends ConsumerWidget {
                             : null,
                         onTap: () async {
                           onItemSelected?.call();
-                          final autoTag = ref.read(defaultSettingsProvider).autoTagTodayJournal;
+                          final autoTag = ref
+                              .read(defaultSettingsProvider)
+                              .autoTagTodayJournal;
                           final journalService = ref.read(
                             journalServiceProvider,
                           );
@@ -363,18 +512,17 @@ class SidebarView extends ConsumerWidget {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: AppSpacing.md),
                               _buildSectionHeader(
                                 context,
                                 'SMART VIEWS',
                                 trailing: SizedBox(
-                                  height: 28,
-                                  width: 28,
+                                  height: 24.0,
+                                  width: 24.0,
                                   child: QuietIconButton(
                                     icon:
                                         PhosphorIconsRegular.slidersHorizontal,
-                                    size: 16,
-                                    padding: const EdgeInsets.all(4.0),
+                                    size: 15.0,
+                                    padding: EdgeInsets.zero,
                                     tooltip: 'Manage smart views',
                                     onPressed: () {
                                       onItemSelected?.call();
@@ -414,15 +562,13 @@ class SidebarView extends ConsumerWidget {
                         },
                       ),
 
-                      // TAGS Section
+                      // TAGS Section ("Pure Bear List" Design)
                       tagsAsync.when(
                         data: (tags) {
                           if (tags.isEmpty) {
                             return const SizedBox.shrink();
                           }
 
-                          final isDark =
-                              Theme.of(context).brightness == Brightness.dark;
                           final tree = TagTree.build(
                             tags,
                             compare: TagTree.compareByUsage,
@@ -445,182 +591,113 @@ class SidebarView extends ConsumerWidget {
                           }
                           final hasMore =
                               tree.roots.length > visibleRoots.length;
-                          final displayTags = TagTree.flatten(
-                            tree,
-                            expandedPaths: expandedTagPaths,
-                            roots: visibleRoots,
-                          );
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: AppSpacing.md),
                               _buildSectionHeader(
                                 context,
                                 'TAGS',
-                                trailing: SizedBox(
-                                  height: 28,
-                                  width: 28,
-                                  child: QuietIconButton(
-                                    icon:
-                                        PhosphorIconsRegular.slidersHorizontal,
-                                    size: 16,
-                                    padding: const EdgeInsets.all(4.0),
-                                    tooltip: 'Manage tags',
-                                    onPressed: () {
-                                      ref
-                                          .read(
-                                            currentDestinationProvider.notifier,
-                                          )
-                                          .state = AppDestination
-                                          .tagBrowser;
-                                      ref
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () {
+                                        ref
+                                            .read(
+                                              currentDestinationProvider
+                                                  .notifier,
+                                            )
+                                            .state = AppDestination
+                                            .tagBrowser;
+                                        ref
+                                                .read(
+                                                  selectedTagFilterProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            null;
+                                        ref
+                                                .read(
+                                                  selectedTagIdProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            null;
+                                        onItemSelected?.call();
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4.0,
+                                          vertical: 2.0,
+                                        ),
+                                        child: Text(
+                                          'All ${tags.length} ↗',
+                                          style: TextStyle(
+                                            color: colors.accent,
+                                            fontSize: 12.0,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4.0),
+                                    SizedBox(
+                                      height: 24.0,
+                                      width: 24.0,
+                                      child: QuietIconButton(
+                                        icon:
+                                            PhosphorIconsRegular
+                                                .slidersHorizontal,
+                                        size: 15.0,
+                                        padding: EdgeInsets.zero,
+                                        tooltip: 'Manage tags',
+                                        onPressed: () {
+                                          ref
                                               .read(
-                                                selectedTagFilterProvider
+                                                currentDestinationProvider
                                                     .notifier,
                                               )
-                                              .state =
-                                          null;
-                                      ref
-                                              .read(
-                                                selectedTagIdProvider.notifier,
-                                              )
-                                              .state =
-                                          null;
-                                      onItemSelected?.call();
-                                    },
-                                  ),
-                                ),
-                              ),
-                              ...displayTags.map((entry) {
-                                final node = entry.node;
-                                final tag = node.tag;
-                                final path = node.path?.value ?? tag.name;
-                                final isExpanded = expandedTagPaths.contains(
-                                  path,
-                                );
-                                final isTagSelected =
-                                    currentDestination == AppDestination.tag &&
-                                    selectedTag == tag.name;
-
-                                final colorDef = TagColors.fromId(tag.color);
-                                final customColor = colorDef?.foreground(
-                                  isDark,
-                                );
-                                final iconData = TagIconRegistry.getIconData(
-                                  tag.icon,
-                                  fallback: tag.isPinned
-                                      ? PhosphorIconsFill.pushPin
-                                      : PhosphorIconsRegular.tag,
-                                );
-
-                                return SidebarItem(
-                                  icon: iconData,
-                                  label: node.displayName,
-                                  indent: entry.depth,
-                                  semanticLabel:
-                                      '${node.displayPath}, ${tag.noteCount} notes'
-                                      '${tag.isImplicit ? ', implicit parent tag' : ''}',
-                                  count: tag.noteCount,
-                                  isSelected: isTagSelected,
-                                  customIconColor: customColor,
-                                  trailing: node.hasChildren
-                                      ? SizedBox(
-                                          width: 32,
-                                          height: 32,
-                                          child: Material(
-                                            color: isExpanded
-                                                ? colors.accent.withValues(
-                                                    alpha: 0.12,
-                                                  )
-                                                : Colors.transparent,
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                  AppRadii.sm,
-                                                ),
-                                            child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints.tightFor(
-                                                    width: 32,
-                                                    height: 32,
-                                                  ),
-                                              iconSize: 18,
-                                              icon: Icon(
-                                                isExpanded
-                                                    ? PhosphorIconsRegular
-                                                          .caretDown
-                                                    : PhosphorIconsRegular
-                                                          .caretRight,
-                                                color: isExpanded
-                                                    ? colors.accent
-                                                    : (isSidebarDark
-                                                        ? const Color(
-                                                            0xFFD1D5DB,
-                                                          )
-                                                        : colors.textSecondary),
-                                              ),
-                                              tooltip: isExpanded
-                                                  ? 'Collapse ${node.displayName}'
-                                                  : 'Expand ${node.displayName}',
-                                              onPressed: () => ref
+                                              .state = AppDestination
+                                              .tagBrowser;
+                                          ref
                                                   .read(
-                                                    expandedTagPathsProvider
+                                                    selectedTagFilterProvider
                                                         .notifier,
                                                   )
-                                                  .toggle(path),
-                                            ),
-                                          ),
-                                        )
-                                      : null,
-                                  onTap: () {
-                                    if (tag.isImplicit && node.hasChildren) {
-                                      ref
-                                          .read(
-                                            expandedTagPathsProvider.notifier,
-                                          )
-                                          .toggle(path);
-                                      return;
-                                    }
-                                    ref
-                                        .read(
-                                          currentDestinationProvider.notifier,
-                                        )
-                                        .state = AppDestination.tag;
-                                    ref
-                                        .read(
-                                          selectedTagFilterProvider.notifier,
-                                        )
-                                        .state = tag.name;
-                                    ref
-                                        .read(selectedTagIdProvider.notifier)
-                                        .state = tag.id;
-                                    ref
-                                        .read(notesQueryProvider.notifier)
-                                        .setTag(tag.name);
-                                    onItemSelected?.call();
-                                  },
-                                  onLongPress: () {
-                                    _showTagOptions(context, ref, tag);
-                                  },
-                                  onSecondaryTap: () {
-                                    _showTagOptions(context, ref, tag);
-                                  },
-                                  onSecondaryTapUp: (details) {
-                                    _showTagOptions(
-                                      context,
-                                      ref,
-                                      tag,
-                                      details.globalPosition,
-                                    );
-                                  },
-                                );
-                              }),
+                                                  .state =
+                                              null;
+                                          ref
+                                                  .read(
+                                                    selectedTagIdProvider
+                                                        .notifier,
+                                                  )
+                                                  .state =
+                                              null;
+                                          onItemSelected?.call();
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final rootNode in visibleRoots)
+                                _buildTagTreeNode(
+                                  context,
+                                  ref,
+                                  colors,
+                                  isSidebarDark,
+                                  rootNode,
+                                  expandedTagPaths,
+                                  selectedTag,
+                                  currentDestination,
+                                ),
                               if (hasMore) ...[
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md,
-                                    vertical: 4.0,
+                                    horizontal: 8.0,
+                                    vertical: 2.0,
                                   ),
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(
@@ -650,7 +727,7 @@ class SidebarView extends ConsumerWidget {
                                     },
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.sm,
+                                        horizontal: 10.0,
                                         vertical: 6.0,
                                       ),
                                       child: Text(
@@ -660,9 +737,11 @@ class SidebarView extends ConsumerWidget {
                                               currentDestination ==
                                                   AppDestination.tagBrowser
                                               ? colors.accent
-                                              : colors.textSecondary,
+                                              : (isSidebarDark
+                                                  ? const Color(0xFF9CA3AF)
+                                                  : colors.textSecondary),
                                           fontWeight: FontWeight.w600,
-                                          fontSize: 13,
+                                          fontSize: 13.0,
                                         ),
                                       ),
                                     ),
@@ -681,42 +760,284 @@ class SidebarView extends ConsumerWidget {
               ),
             ),
 
-            // Bottom Divider & Actions
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: 2.0,
-              ),
-              child: Divider(
-                color: sidebarDividerColor,
-                height: 1,
-                thickness: 0.8,
-              ),
+            // Pinned Bottom Hairline Divider
+            Container(
+              height: 1.0,
+              color: sidebarDividerColor,
             ),
+
+            // Pinned Bottom Footer Bar (Unified Sync + Settings)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SidebarSyncTile(onItemSelected: onItemSelected),
-                  SidebarItem(
-                    icon: PhosphorIconsRegular.gearSix,
-                    label: 'Settings',
-                    onTap: () {
-                      onItemSelected?.call();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SettingsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(6.0, 6.0, 8.0, 6.0),
+              child: SidebarSyncTile(
+                onItemSelected: onItemSelected,
+                trailing: _buildSettingsButton(context),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTagTreeNode(
+    BuildContext context,
+    WidgetRef ref,
+    AppColors colors,
+    bool isSidebarDark,
+    TagTreeNode node,
+    Set<String> expandedTagPaths,
+    String? selectedTag,
+    AppDestination currentDestination,
+  ) {
+    final path = node.path?.value ?? node.tag.name;
+    final isExpanded = expandedTagPaths.contains(path);
+    final isTagSelected =
+        currentDestination == AppDestination.tag && selectedTag == node.tag.name;
+
+    final colorDef = TagColors.fromId(node.tag.color);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final customColor = colorDef?.foreground(isDark);
+    final hasCustomIcon = node.tag.icon != null && node.tag.icon!.isNotEmpty;
+
+    final defaultTextColor = isSidebarDark
+        ? const Color(0xFFF1F2F4)
+        : colors.textPrimary;
+    final defaultSecondaryColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textSecondary;
+    final defaultTertiaryColor = isSidebarDark
+        ? const Color(0xFF9CA3AF)
+        : colors.textTertiary;
+
+    final textColor = isTagSelected
+        ? (isSidebarDark ? Colors.white : colors.textPrimary)
+        : defaultTextColor;
+
+    final countColor = isTagSelected
+        ? (isSidebarDark ? const Color(0xFFE5E7EB) : colors.textPrimary)
+        : (node.tag.noteCount == 0 ? colors.textDisabled : defaultTertiaryColor);
+
+    final backgroundColor = isTagSelected
+        ? colors.sidebarSelected
+        : Colors.transparent;
+
+    final textStyle =
+        (isTagSelected ? AppTypography.bodyMedium : AppTypography.body).copyWith(
+          color: textColor,
+          fontWeight: isTagSelected ? FontWeight.w600 : FontWeight.w400,
+          fontSize: 14.5,
+        );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          selected: isTagSelected,
+          label:
+              '${node.displayPath}, ${node.tag.noteCount} notes${node.tag.isImplicit ? ', implicit parent tag' : ''}',
+          button: true,
+          child: Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 8.0,
+              vertical: 1.5,
+            ),
+            child: Material(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(9.0),
+              child: InkWell(
+                onTap: () {
+                  if (node.tag.isImplicit && node.hasChildren) {
+                    ref.read(expandedTagPathsProvider.notifier).toggle(path);
+                    return;
+                  }
+                  ref.read(currentDestinationProvider.notifier).state =
+                      AppDestination.tag;
+                  ref.read(selectedTagFilterProvider.notifier).state =
+                      node.tag.name;
+                  ref.read(selectedTagIdProvider.notifier).state = node.tag.id;
+                  ref.read(notesQueryProvider.notifier).setTag(node.tag.name);
+                  onItemSelected?.call();
+                },
+                onLongPress: () => _showTagOptions(context, ref, node.tag),
+                onSecondaryTap: () => _showTagOptions(context, ref, node.tag),
+                onSecondaryTapUp: (details) => _showTagOptions(
+                  context,
+                  ref,
+                  node.tag,
+                  details.globalPosition,
+                ),
+                borderRadius: BorderRadius.circular(9.0),
+                splashColor: colors.accent.withValues(alpha: 0.1),
+                highlightColor: colors.selection.withValues(alpha: 0.3),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 36.0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10.0,
+                      vertical: 7.0,
+                    ),
+                    child: Row(
+                      children: [
+                        // Fixed 22px Left Icon Slot
+                        SizedBox(
+                          width: 22.0,
+                          height: 22.0,
+                          child: Center(
+                            child: hasCustomIcon
+                                ? Icon(
+                                    TagIconRegistry.getIconData(node.tag.icon),
+                                    size: 17.0,
+                                    color: isTagSelected
+                                        ? colors.accent
+                                        : (customColor ??
+                                            defaultSecondaryColor),
+                                  )
+                                : Text(
+                                    '#',
+                                    style: GoogleFonts.newsreader(
+                                      textStyle: const TextStyle(
+                                        fontFamily: 'serif',
+                                      ),
+                                      fontSize: 16.0,
+                                      fontStyle: FontStyle.italic,
+                                      fontWeight: FontWeight.w500,
+                                      color: isTagSelected
+                                          ? colors.accent
+                                          : (customColor ??
+                                              defaultTertiaryColor),
+                                      height: 1.0,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 10.0),
+
+                        // Label & Inline Disclosure Chevron
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  node.displayName,
+                                  style: textStyle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (node.hasChildren)
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => ref
+                                      .read(expandedTagPathsProvider.notifier)
+                                      .toggle(path),
+                                  child: Tooltip(
+                                    message: isExpanded
+                                        ? 'Collapse ${node.displayName}'
+                                        : 'Expand ${node.displayName}',
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 5.0,
+                                        right: 2.0,
+                                      ),
+                                      child: AnimatedRotation(
+                                        turns: isExpanded ? 0.25 : 0.0,
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        curve: Curves.easeInOut,
+                                        child: Icon(
+                                          PhosphorIconsRegular.caretRight,
+                                          size: 12.0,
+                                          color: isExpanded
+                                              ? colors.accent
+                                              : defaultTertiaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (node.tag.isPinned) ...[
+                                const SizedBox(width: 5.0),
+                                Container(
+                                  width: 5.0,
+                                  height: 5.0,
+                                  decoration: BoxDecoration(
+                                    color: colors.accent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        // Right-Aligned Tabular Count
+                        const SizedBox(width: 8.0),
+                        Text(
+                          '${node.tag.noteCount}',
+                          style: GoogleFonts.jetBrainsMono(
+                            textStyle: const TextStyle(
+                              fontFeatures: [FontFeature.tabularFigures()],
+                              fontFamily: 'monospace',
+                            ),
+                            fontSize: 12.5,
+                            fontWeight: isTagSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: countColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Nested Children with 1px Vertical Thread Line
+        if (node.hasChildren)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Container(
+                    margin: const EdgeInsets.only(left: 21.0),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: colors.divider,
+                          width: 1.0,
+                        ),
+                      ),
+                    ),
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final child in node.children)
+                          _buildTagTreeNode(
+                            context,
+                            ref,
+                            colors,
+                            isSidebarDark,
+                            child,
+                            expandedTagPaths,
+                            selectedTag,
+                            currentDestination,
+                          ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+      ],
     );
   }
 
@@ -729,14 +1050,14 @@ class SidebarView extends ConsumerWidget {
     final isSidebarDark = colors.sidebarBackground.computeLuminance() < 0.5;
     final headerColor = isSidebarDark
         ? const Color(0xFF9CA3AF)
-        : colors.textSecondary;
+        : colors.textTertiary;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.xs,
+        14.0,
+        14.0,
+        10.0,
+        4.0,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -745,9 +1066,9 @@ class SidebarView extends ConsumerWidget {
             title,
             style: AppTypography.caption.copyWith(
               color: headerColor,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+              fontSize: 11.0,
             ),
           ),
           ?trailing,

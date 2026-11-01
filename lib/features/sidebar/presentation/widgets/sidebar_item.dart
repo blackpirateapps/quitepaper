@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 
@@ -76,7 +76,7 @@ class SidebarItem extends StatelessWidget {
         (isSelected ? AppTypography.bodyMedium : AppTypography.body).copyWith(
           color: textColor,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          fontSize: 15,
+          fontSize: 14.5,
         );
 
     return Semantics(
@@ -85,33 +85,39 @@ class SidebarItem extends StatelessWidget {
       button: true,
       child: Container(
         margin: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: 2.0,
+          horizontal: 8.0,
+          vertical: 1.5,
         ),
         child: Material(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(AppRadii.sm),
+          borderRadius: BorderRadius.circular(9.0),
           child: InkWell(
             onTap: onTap,
             onLongPress: onLongPress,
             onSecondaryTap: onSecondaryTap,
             onSecondaryTapUp: onSecondaryTapUp,
-            borderRadius: BorderRadius.circular(AppRadii.sm),
+            borderRadius: BorderRadius.circular(9.0),
             splashColor: colors.accent.withValues(alpha: 0.1),
             highlightColor: colors.selection.withValues(alpha: 0.3),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 44.0),
+              constraints: const BoxConstraints(minHeight: 36.0),
               child: Padding(
                 padding: EdgeInsets.only(
-                  left: AppSpacing.md + (indent * 16.0),
-                  right: AppSpacing.sm,
-                  top: 10.0,
-                  bottom: 10.0,
+                  left: 10.0 + (indent * 16.0),
+                  right: 10.0,
+                  top: 7.0,
+                  bottom: 7.0,
                 ),
                 child: Row(
                   children: [
-                    Icon(icon, size: 20, color: iconColor),
-                    const SizedBox(width: 14.0),
+                    SizedBox(
+                      width: 22.0,
+                      height: 22.0,
+                      child: Center(
+                        child: Icon(icon, size: 18.0, color: iconColor),
+                      ),
+                    ),
+                    const SizedBox(width: 10.0),
                     Expanded(
                       child: Text(
                         label,
@@ -124,12 +130,16 @@ class SidebarItem extends StatelessWidget {
                       const SizedBox(width: AppSpacing.sm),
                       Text(
                         '$count',
-                        style: AppTypography.caption.copyWith(
+                        style: GoogleFonts.jetBrainsMono(
+                          textStyle: const TextStyle(
+                            fontFeatures: [FontFeature.tabularFigures()],
+                            fontFamily: 'monospace',
+                          ),
                           color: countColor,
                           fontWeight: isSelected
                               ? FontWeight.w600
                               : FontWeight.w400,
-                          fontSize: 13,
+                          fontSize: 12.5,
                         ),
                       ),
                     ],
@@ -147,3 +157,4 @@ class SidebarItem extends StatelessWidget {
     );
   }
 }
+

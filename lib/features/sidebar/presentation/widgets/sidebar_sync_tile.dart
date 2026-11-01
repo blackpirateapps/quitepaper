@@ -17,9 +17,11 @@ class SidebarSyncTile extends ConsumerStatefulWidget {
   const SidebarSyncTile({
     super.key,
     this.onItemSelected,
+    this.trailing,
   });
 
   final VoidCallback? onItemSelected;
+  final Widget? trailing;
 
   @override
   ConsumerState<SidebarSyncTile> createState() => _SidebarSyncTileState();
@@ -360,120 +362,40 @@ class _SidebarSyncTileState extends ConsumerState<SidebarSyncTile>
         ? const Color(0xFFFBBF24).withValues(alpha: 0.3)
         : const Color(0xFFB45309).withValues(alpha: 0.3);
 
+    final Color iconBgColor;
+    if (currentUser == null) {
+      iconBgColor = colors.surfaceSecondary;
+    } else {
+      switch (syncState.status) {
+        case SyncStatus.synced:
+        case SyncStatus.syncing:
+          iconBgColor = colors.accentSoft;
+          break;
+        case SyncStatus.pendingSync:
+          iconBgColor = colors.warning.withValues(alpha: 0.15);
+          break;
+        case SyncStatus.syncError:
+          iconBgColor = colors.error.withValues(alpha: 0.12);
+          break;
+        case SyncStatus.conflict:
+          iconBgColor = amberBgColor;
+          break;
+        default:
+          iconBgColor = colors.surfaceSecondary;
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
+        horizontal: 4.0,
         vertical: 2.0,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadii.sm),
-            child: InkWell(
-              onTap: () => _handleSyncTap(context),
-              borderRadius: BorderRadius.circular(AppRadii.sm),
-              splashColor: colors.accent.withValues(alpha: 0.1),
-              highlightColor: colors.selection.withValues(alpha: 0.3),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44.0),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 8.0,
-                  ),
-                  child: Row(
-                    children: [
-                      RotationTransition(
-                        turns: _syncRotationController,
-                        child: Icon(
-                          iconData,
-                          size: 20,
-                          color: iconColor,
-                        ),
-                      ),
-                      const SizedBox(width: 14.0),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    titleText,
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: defaultTextColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14.5,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (currentUser != null &&
-                                    syncState.status == SyncStatus.synced &&
-                                    syncState.lastSyncedAt != null) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    DateFormatter.formatRelative(
-                                      syncState.lastSyncedAt!,
-                                    ),
-                                    style: AppTypography.caption.copyWith(
-                                      color: defaultTertiaryColor,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 1.5),
-                            Text(
-                              currentUser != null
-                                  ? currentUser.email
-                                  : statusDetail,
-                              style: AppTypography.caption.copyWith(
-                                color: defaultSecondaryColor,
-                                fontSize: 12.0,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (currentUser != null &&
-                                syncState.status != SyncStatus.synced) ...[
-                              const SizedBox(height: 1.5),
-                              Text(
-                                statusDetail,
-                                style: AppTypography.caption.copyWith(
-                                  color: syncState.status == SyncStatus.syncError
-                                      ? colors.error
-                                      : defaultTertiaryColor,
-                                  fontSize: 11.0,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
           if (conflictsCount > 0) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.sm,
-                2.0,
-                AppSpacing.sm,
-                4.0,
-              ),
+              padding: const EdgeInsets.only(bottom: 6.0),
               child: Material(
                 color: amberBgColor,
                 borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -524,6 +446,126 @@ class _SidebarSyncTileState extends ConsumerState<SidebarSyncTile>
               ),
             ),
           ],
+          Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  child: InkWell(
+                    onTap: () => _handleSyncTap(context),
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    splashColor: colors.accent.withValues(alpha: 0.1),
+                    highlightColor: colors.selection.withValues(alpha: 0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6.0,
+                        vertical: 4.0,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 34.0,
+                            height: 34.0,
+                            decoration: BoxDecoration(
+                              color: iconBgColor,
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                            alignment: Alignment.center,
+                            child: RotationTransition(
+                              turns: _syncRotationController,
+                              child: Icon(
+                                iconData,
+                                size: 18.0,
+                                color: iconColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10.0),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        titleText,
+                                        style: AppTypography.bodySmallMedium.copyWith(
+                                          color: defaultTextColor,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (currentUser != null &&
+                                        syncState.status == SyncStatus.synced &&
+                                        syncState.lastSyncedAt != null) ...[
+                                      Text(
+                                        ' · ',
+                                        style: TextStyle(
+                                          color: defaultTertiaryColor,
+                                          fontSize: 12.0,
+                                        ),
+                                      ),
+                                      Text(
+                                        DateFormatter.formatRelative(
+                                          syncState.lastSyncedAt!,
+                                        ),
+                                        style: AppTypography.caption.copyWith(
+                                          color: defaultTertiaryColor,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 1.5),
+                                Text(
+                                  currentUser != null
+                                      ? currentUser.email
+                                      : statusDetail,
+                                  style: AppTypography.caption.copyWith(
+                                    color: defaultSecondaryColor,
+                                    fontSize: 11.5,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (currentUser != null &&
+                                    syncState.status != SyncStatus.synced) ...[
+                                  const SizedBox(height: 1.0),
+                                  Text(
+                                    statusDetail,
+                                    style: AppTypography.caption.copyWith(
+                                      color: syncState.status == SyncStatus.syncError
+                                          ? colors.error
+                                          : defaultTertiaryColor,
+                                      fontSize: 10.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 6.0),
+                widget.trailing!,
+              ],
+            ],
+          ),
         ],
       ),
     );

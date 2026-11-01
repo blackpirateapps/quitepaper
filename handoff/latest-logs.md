@@ -4980,6 +4980,67 @@ Users who prefer untagged journal entries can disable this behavior at any time 
   - `test/journal/sidebar_journal_widget_test.dart` (**5/5 passing**).
   - Full test suite: `flutter test` (**2,428/2,428 passing**).
 
+---
+
+## 249. Redesign: Sidebar Navigation Drawer ("Quiet Paper" Editorial Bear Aesthetic) (November 2026)
+
+### 1. Context & Motivation
+Quiet Paper's previous sidebar navigation drawer suffered from excessive vertical row height and padding across `LIBRARY` and `JOURNAL`, pushing the `TAGS` hierarchy down so only 1–2 tags were visible above the fold on mobile screens. Furthermore, the tag tree in the drawer used legacy rounded-square background containers, repetitive boxed chevron expand buttons, and stacked `Sync` and `Settings` as two tall individual rows at the bottom.
+
+This refactor brings a warm, literary Bear Notes aesthetic to the **Quiet Paper** sidebar while unifying its `TAGS` section with the **"Pure Bear List"** design language introduced in Section 247.
+
+### 2. Architectural Design & Implementation Details
+
+#### A. Zero Hardcoded Colors — Strict App Theme Token Mapping
+All visual elements are mapped strictly to existing semantic tokens in `AppColors`:
+- **Drawer Surface Background**: `colors.sidebarBackground`
+- **Elevated / Pill Surface**: `colors.surfaceSecondary` (or `colors.sidebarSelected` for active rows and search bar)
+- **Primary Text**: `colors.textPrimary` (Newsreader masthead, active labels, primary row labels)
+- **Secondary / Muted Text**: `colors.textSecondary` (inactive items, note counts, section header subtitles, settings gear)
+- **Tertiary / Dimmed Text**: `colors.textTertiary` (subtitles, search placeholder, default `#` glyph, relative timestamps)
+- **Zero-Count Text**: `colors.textDisabled`
+- **Primary Accent**: `colors.accent` (quick compose icon, active row icon tint, Today 6px indicator dot, cloud check icon, `All X ↗` link)
+- **Soft Accent Container**: `colors.accentSoft` (quick compose button, sync icon box)
+- **Dividers & Hierarchy Thread Line**: `colors.divider` and `colors.borderSubtle`
+
+#### B. Three-Zone Flex Architecture
+1. **Pinned Top Header**:
+   - **Literary Masthead**: "Quiet Paper" set in Newsreader serif (`GoogleFonts.newsreader`, 22sp, font-weight 600, letter spacing -0.4) reflecting a literary publication masthead.
+   - **Quick-Compose Button**: Soft accent container (`colors.accentSoft`, 32x32) with a carmine pencil icon (`PhosphorIconsRegular.pencilSimple`) for one-tap note creation.
+   - **Tactile Search Pill**: Compact 38px pill in `colors.surfaceSecondary` with `PhosphorIconsRegular.magnifyingGlass`, placeholder "Search notes...", and a right-aligned `'/'` keyboard shortcut badge.
+2. **Scrollable Middle Navigation**:
+   - **Calibrated Vertical Rhythm**: Navigation rows tightened to 36–38px height (`padding: 7px 10px`, `border-radius: 9px`), allowing 5+ tags to sit comfortably above the footer fold without scrolling.
+   - **Aligned 22px Fixed Icon Slot**: Every navigation row across `LIBRARY`, `JOURNAL`, and `TAGS` uses a fixed 22px width container so all text labels align along a single crisp vertical axis.
+   - **Journal Section Polish**: Header features italic Newsreader "Daily" subtitle; `Today` row features a 6px circular indicator dot in `colors.accent`.
+3. **Cohesive "Pure Bear List" TAGS Tree**:
+   - **Header Actions**: Features `All ${tags.length} ↗` accent link on the right alongside `PhosphorIconsRegular.slidersHorizontal` to open the Tag Browser.
+   - **Elimination of Boxed Chevrons**: Replaced large boxed chevron buttons with an inline disclosure chevron (`PhosphorIconsRegular.caretRight` rotating 90° on expand via `AnimatedRotation`).
+   - **Single Signifier Iconography**: Custom TagCon icons render directly in the 22px slot without background boxes; standard tags render an editorial italic `#` glyph in Newsreader serif.
+   - **1px Vertical Thread Guide Line**: Sub-tags under expanded parents animate smoothly with `AnimatedSize` and connect via a delicate 1.0px vertical thread line along the left indentation channel (`margin: EdgeInsets.only(left: 21.0)`).
+4. **Unified Pinned Bottom Footer (`Sync` + `Settings`)**:
+   - Replaced the stacked 2-row layout with a single consolidated pinned bar separated by a 1px hairline border (`colors.divider`).
+   - **Left Interactive Sync Area**: 34x34 rounded accent container with cloud icon (rotating transition when syncing), `Sync` title + relative timestamp (`DateFormatter.formatRelative`), and user email (`hi@sudipx.in`), with conflict alerts rendered when pending.
+   - **Right Action Button (`Settings`)**: 34x34 rounded container with gear icon (`PhosphorIconsRegular.gearSix`), tooltip, and accessibility semantics.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/sidebar/presentation/sidebar_view.dart`: Literary masthead, quick-compose button, search pill with shortcut badge, calibrated vertical rhythm, recursive `_buildTagTreeNode` with 1px vertical thread guide line, and unified footer bar.
+  - `lib/features/sidebar/presentation/widgets/sidebar_item.dart`: Calibrated row height (36–38px), 22px fixed left icon container, tabular monospace figures for ledger note counts.
+  - `lib/features/sidebar/presentation/widgets/sidebar_sync_tile.dart`: Compact sync tile layout supporting `trailing` action button and soft accent icon container.
+  - `HANDOFF.md`: Updated quick index.
+  - `handoff/latest-logs.md`: Appended Section 249 documentation log.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings, 0 errors**).
+- **Automated Tests**:
+  - `test/sidebar/sidebar_sync_tile_test.dart` (**6/6 passing**).
+  - `test/sidebar/sidebar_smart_views_test.dart` (**3/3 passing**).
+  - `test/journal/sidebar_journal_widget_test.dart` (**5/5 passing**).
+  - `test/tags/tag_hierarchy_ui_test.dart` (**15/15 passing**).
+  - `test/widget_test.dart` (**16/16 passing**).
+  - Full test suite: `flutter test` (**2,428/2,428 passing**).
+
+
 
 
 
