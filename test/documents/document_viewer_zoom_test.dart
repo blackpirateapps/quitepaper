@@ -56,7 +56,7 @@ void main() {
     });
 
     testWidgets(
-      'SfPdfViewer is configured with maxZoomLevel 12.0 and mobile scrollhead is false on mobile',
+      'SfPdfViewer is configured with calibrated maxZoomLevel 5.0, pan mode, no double-tap lag, and RepaintBoundary',
       (tester) async {
         final resolution = ResourceResolution.available(
           QuietPaperUri.document(testDocId),
@@ -97,11 +97,25 @@ void main() {
         final SfPdfViewer pdfViewer = tester.widget<SfPdfViewer>(
           pdfViewerFinder,
         );
-        expect(pdfViewer.maxZoomLevel, equals(12.0));
+        expect(pdfViewer.maxZoomLevel, equals(5.0));
         expect(pdfViewer.maxZoomLevel, equals(kPdfViewerMaxZoomLevel));
         // On mobile (Android/iOS), scrollhead must be disabled to prevent pinch-zoom gesture conflicts
         expect(pdfViewer.canShowScrollHead, isFalse);
         expect(pdfViewer.canShowScrollStatus, isFalse);
+        // Double-tap zoom is disabled to eliminate the 300ms gesture arena slop lag
+        expect(pdfViewer.enableDoubleTapZooming, isFalse);
+        // Default interaction mode is pan for smooth 60 FPS scrolling without text hit-test contention
+        expect(pdfViewer.interactionMode, equals(PdfInteractionMode.pan));
+        expect(pdfViewer.pageLayoutMode, equals(PdfPageLayoutMode.continuous));
+
+        // Must be wrapped in RepaintBoundary to isolate raster repaints
+        expect(
+          find.ancestor(
+            of: pdfViewerFinder,
+            matching: find.byType(RepaintBoundary),
+          ),
+          findsWidgets,
+        );
 
         await tester.pump(const Duration(milliseconds: 600));
       },
@@ -328,5 +342,138 @@ void main() {
 
       await tester.pump(const Duration(milliseconds: 600));
     });
+
+    testWidgets(
+      'Can toggle page layout mode between continuous scroll and single page view via document options',
+      (tester) async {
+        final resolution = ResourceResolution.available(
+          QuietPaperUri.document(testDocId),
+          ResolvedDocumentInfo(
+            documentId: testDocId,
+            title: 'Contract Scan',
+            pdfBytes: samplePdfBytes,
+            pageCount: 2,
+            byteSize: samplePdfBytes.length,
+            sha256: 'mocksha',
+            ocrState: 'ready',
+          ),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [documentServiceProvider.overrideWithValue(fakeService)],
+            child: MaterialApp(
+              theme: AppTheme.light().copyWith(
+                platform: TargetPlatform.android,
+              ),
+              home: DocumentViewerScreen(
+                documentId: testDocId,
+                title: 'Contract Scan',
+                initialResolution: resolution,
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+
+        SfPdfViewer pdfViewer = tester.widget<SfPdfViewer>(
+          find.byType(SfPdfViewer),
+        );
+        expect(pdfViewer.pageLayoutMode, equals(PdfPageLayoutMode.continuous));
+
+        // Open Document Options overflow menu
+        await tester.tap(find.byTooltip('Document options'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Switch to Single Page View'), findsOneWidget);
+
+        // Tap to switch to Single Page View
+        await tester.tap(find.text('Switch to Single Page View'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        pdfViewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+        expect(pdfViewer.pageLayoutMode, equals(PdfPageLayoutMode.single));
+
+        // Open menu again to toggle back
+        await tester.tap(find.byTooltip('Document options'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Switch to Continuous Scroll'), findsOneWidget);
+        await tester.tap(find.text('Switch to Continuous Scroll'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        pdfViewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+        expect(pdfViewer.pageLayoutMode, equals(PdfPageLayoutMode.continuous));
+      },
+    );
+
+    testWidgets(
+      'Switches interactionMode to selection during text markup annotation mode and reverts to pan on Done',
+      (tester) async {
+        final resolution = ResourceResolution.available(
+          QuietPaperUri.document(testDocId),
+          ResolvedDocumentInfo(
+            documentId: testDocId,
+            title: 'Contract Scan',
+            pdfBytes: samplePdfBytes,
+            pageCount: 2,
+            byteSize: samplePdfBytes.length,
+            sha256: 'mocksha',
+            ocrState: 'ready',
+          ),
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [documentServiceProvider.overrideWithValue(fakeService)],
+            child: MaterialApp(
+              theme: AppTheme.light().copyWith(
+                platform: TargetPlatform.android,
+              ),
+              home: DocumentViewerScreen(
+                documentId: testDocId,
+                title: 'Contract Scan',
+                initialResolution: resolution,
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+
+        SfPdfViewer pdfViewer = tester.widget<SfPdfViewer>(
+          find.byType(SfPdfViewer),
+        );
+        expect(pdfViewer.interactionMode, equals(PdfInteractionMode.pan));
+
+        // Open annotation tools modal
+        await tester.tap(find.byTooltip('Annotation Tools'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // Select Underline mode
+        await tester.tap(find.text('Underline Text'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        pdfViewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+        expect(pdfViewer.interactionMode, equals(PdfInteractionMode.selection));
+
+        // Tap Done
+        await tester.tap(find.text('Done'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        pdfViewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+        expect(pdfViewer.interactionMode, equals(PdfInteractionMode.pan));
+      },
+    );
   });
 }

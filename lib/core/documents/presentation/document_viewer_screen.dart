@@ -27,8 +27,9 @@ import '../document_models.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
 
-/// Maximum allowed zoom level for PDF document viewing (12x / 1200% magnification).
-const double kPdfViewerMaxZoomLevel = 12.0;
+/// Maximum allowed zoom level for PDF document viewing (5x / 500% magnification).
+/// Calibrated to prevent native multi-megabyte tile rasterization main-thread stalls.
+const double kPdfViewerMaxZoomLevel = 5.0;
 
 /// Minimum zoom level for PDF document viewing (1x / 100% fit).
 const double kPdfViewerMinZoomLevel = 1.0;
@@ -97,6 +98,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   late final UndoHistoryController _undoHistoryController;
   late final ValueNotifier<int> _selectedPageIndexNotifier;
   late final ValueNotifier<double> _zoomLevelNotifier;
+  late final ValueNotifier<bool> _isDirtyNotifier;
   PDFSource? _cachedPdfSource;
   GlobalKey<SfPdfViewerState> _pdfViewerStateKey =
       GlobalKey<SfPdfViewerState>();
@@ -110,11 +112,27 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   Uint8List? _activePdfBytes;
   bool _isLoading = true;
   bool _hasAnnotatedDerivative = false;
-  bool _isDirty = false;
   bool _isSavingAnnotations = false;
   PdfAnnotationMode _activeAnnotationMode = PdfAnnotationMode.none;
+  PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
   int _pageCount = 1;
   String? _currentTitle;
+
+  bool get _isDirty => _isDirtyNotifier.value;
+  set _isDirty(bool val) => _isDirtyNotifier.value = val;
+
+  PdfInteractionMode get _effectiveInteractionMode {
+    switch (_activeAnnotationMode) {
+      case PdfAnnotationMode.highlight:
+      case PdfAnnotationMode.underline:
+      case PdfAnnotationMode.strikethrough:
+      case PdfAnnotationMode.squiggly:
+        return PdfInteractionMode.selection;
+      case PdfAnnotationMode.stickyNote:
+      case PdfAnnotationMode.none:
+        return PdfInteractionMode.pan;
+    }
+  }
 
   String get displayTitle =>
       _currentTitle ?? _resolution?.data?.title ?? widget.title;
@@ -128,10 +146,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       widget.initialPageIndex >= 0 ? widget.initialPageIndex : 0,
     );
     _zoomLevelNotifier = ValueNotifier<double>(1.0);
+    _isDirtyNotifier = ValueNotifier<bool>(false);
 
     if (widget.initialResolution != null) {
       _resolution = widget.initialResolution;
-      _isLoading = false;
+      _isLoading = true;
       if (_resolution!.isAvailable && _resolution!.data != null) {
         if (_isWebSnapshotDoc(_resolution!.data!)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -229,6 +248,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     _undoHistoryController.dispose();
     _selectedPageIndexNotifier.dispose();
     _zoomLevelNotifier.dispose();
+    _isDirtyNotifier.dispose();
     super.dispose();
   }
 
@@ -512,9 +532,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   void _onAnnotationMutated() {
     if (!mounted) return;
-    setState(() {
-      _isDirty = true;
-    });
+    _isDirtyNotifier.value = true;
   }
 
   /// Automatically persists annotated PDF bytes back to encrypted storage if modified.
@@ -532,6 +550,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       _hasAnnotatedDerivative = true;
       _isDirty = false;
       _activePdfBytes = savedBytes;
+      _cachedPdfSource = BytePDFSource(savedBytes);
     } catch (e) {
       debugPrint('[DocumentViewerScreen] Auto-save annotations failed: $e');
     } finally {
@@ -556,6 +575,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           _hasAnnotatedDerivative = true;
           _isDirty = false;
           _activePdfBytes = savedBytes;
+          _cachedPdfSource = BytePDFSource(savedBytes);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1145,15 +1165,21 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final isOcrFailed = docInfo?.ocrState == 'failed';
     final isOcrSkipped = docInfo?.ocrState == 'skipped';
 
-    return PopScope(
-      canPop: !_isDirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (!didPop) {
-          await _autoSaveIfDirty();
-          if (context.mounted) {
-            Navigator.of(context).pop(_currentTitle);
-          }
-        }
+    return ValueListenableBuilder<bool>(
+      valueListenable: _isDirtyNotifier,
+      builder: (context, isDirty, child) {
+        return PopScope(
+          canPop: !isDirty,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (!didPop) {
+              await _autoSaveIfDirty();
+              if (context.mounted) {
+                Navigator.of(context).pop(_currentTitle);
+              }
+            }
+          },
+          child: child!,
+        );
       },
       child: Scaffold(
         backgroundColor: colors.background,
@@ -1256,13 +1282,18 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ],
           ),
           actions: [
-            if (_isDirty)
-              IconButton(
-                icon: const Icon(Icons.save_outlined),
-                tooltip: 'Save Annotations',
-                color: colors.accent,
-                onPressed: _manualSaveAnnotations,
-              ),
+            ValueListenableBuilder<bool>(
+              valueListenable: _isDirtyNotifier,
+              builder: (context, isDirty, _) {
+                if (!isDirty) return const SizedBox.shrink();
+                return IconButton(
+                  icon: const Icon(Icons.save_outlined),
+                  tooltip: 'Save Annotations',
+                  color: colors.accent,
+                  onPressed: _manualSaveAnnotations,
+                );
+              },
+            ),
             IconButton(
               icon: Icon(
                 _activeAnnotationMode != PdfAnnotationMode.none
@@ -1333,6 +1364,14 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                   case 'rename':
                     _promptRenameDocument();
                     break;
+                  case 'layout_mode':
+                    setState(() {
+                      _pageLayoutMode =
+                          _pageLayoutMode == PdfPageLayoutMode.continuous
+                              ? PdfPageLayoutMode.single
+                              : PdfPageLayoutMode.continuous;
+                    });
+                    break;
                   case 'view_ocr':
                     _openOcrTextViewer();
                     break;
@@ -1376,6 +1415,27 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       Icon(Icons.edit_outlined, size: 18),
                       SizedBox(width: 12),
                       Expanded(child: Text('Rename Document')),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'layout_mode',
+                  child: Row(
+                    children: [
+                      Icon(
+                        _pageLayoutMode == PdfPageLayoutMode.continuous
+                            ? Icons.view_carousel_outlined
+                            : Icons.view_agenda_outlined,
+                        size: 18,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _pageLayoutMode == PdfPageLayoutMode.continuous
+                              ? 'Switch to Single Page View'
+                              : 'Switch to Continuous Scroll',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1599,52 +1659,56 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: SfPdfViewer(
-                  source: _cachedPdfSource ?? BytePDFSource(_activePdfBytes!),
-                  key: _pdfViewerStateKey,
-                  controller: _pdfViewerController,
-                  undoController: _undoHistoryController,
-                  maxZoomLevel: kPdfViewerMaxZoomLevel,
-                  canShowScrollHead: isDesktop,
-                  canShowScrollStatus: isDesktop,
-                  enableTextSelection: true,
-                  canShowTextSelectionMenu: false,
-                  enableDoubleTapZooming: true,
-                  canShowPaginationDialog: true,
-                  currentSearchTextHighlightColor: colors.accent.withValues(
-                    alpha: 0.6,
+                child: RepaintBoundary(
+                  child: SfPdfViewer(
+                    source: _cachedPdfSource ?? BytePDFSource(_activePdfBytes!),
+                    key: _pdfViewerStateKey,
+                    controller: _pdfViewerController,
+                    undoController: _undoHistoryController,
+                    pageLayoutMode: _pageLayoutMode,
+                    interactionMode: _effectiveInteractionMode,
+                    maxZoomLevel: kPdfViewerMaxZoomLevel,
+                    canShowScrollHead: isDesktop,
+                    canShowScrollStatus: isDesktop,
+                    enableTextSelection: true,
+                    canShowTextSelectionMenu: false,
+                    enableDoubleTapZooming: false,
+                    canShowPaginationDialog: true,
+                    currentSearchTextHighlightColor: colors.accent.withValues(
+                      alpha: 0.6,
+                    ),
+                    otherSearchTextHighlightColor: colors.accent.withValues(
+                      alpha: 0.25,
+                    ),
+                    initialPageNumber: (widget.initialPageIndex >= 0
+                            ? widget.initialPageIndex
+                            : 0) +
+                        1,
+                    onZoomLevelChanged: (details) {
+                      _zoomLevelNotifier.value = details.newZoomLevel;
+                      _hideFloatingSelectionMenu();
+                    },
+                    onDocumentLoaded: (details) {
+                      if (mounted) {
+                        setState(() {
+                          _pageCount = details.document.pages.count;
+                        });
+                      }
+                    },
+                    onDocumentLoadFailed: (details) {
+                      debugPrint(
+                        '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
+                      );
+                    },
+                    onPageChanged: (details) {
+                      _selectedPageIndexNotifier.value =
+                          details.newPageNumber - 1;
+                    },
+                    onTextSelectionChanged: _handleTextSelectionChanged,
+                    onAnnotationAdded: (_) => _onAnnotationMutated(),
+                    onAnnotationEdited: (_) => _onAnnotationMutated(),
+                    onAnnotationRemoved: (_) => _onAnnotationMutated(),
                   ),
-                  otherSearchTextHighlightColor: colors.accent.withValues(
-                    alpha: 0.25,
-                  ),
-                  initialPageNumber: (widget.initialPageIndex >= 0
-                          ? widget.initialPageIndex
-                          : 0) +
-                      1,
-                  onZoomLevelChanged: (details) {
-                    _zoomLevelNotifier.value = details.newZoomLevel;
-                    _hideFloatingSelectionMenu();
-                  },
-                  onDocumentLoaded: (details) {
-                    if (mounted) {
-                      setState(() {
-                        _pageCount = details.document.pages.count;
-                      });
-                    }
-                  },
-                  onDocumentLoadFailed: (details) {
-                    debugPrint(
-                      '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
-                    );
-                  },
-                  onPageChanged: (details) {
-                    _selectedPageIndexNotifier.value =
-                        details.newPageNumber - 1;
-                  },
-                  onTextSelectionChanged: _handleTextSelectionChanged,
-                  onAnnotationAdded: (_) => _onAnnotationMutated(),
-                  onAnnotationEdited: (_) => _onAnnotationMutated(),
-                  onAnnotationRemoved: (_) => _onAnnotationMutated(),
                 ),
               ),
               if (_activeAnnotationMode == PdfAnnotationMode.none)

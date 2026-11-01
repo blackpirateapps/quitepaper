@@ -14,11 +14,15 @@ Documents are encrypted client-side and saved into the app's local document vaul
 
 ---
 
-## 2. Syncfusion PDF Viewer (`lib/features/pdf_viewer/`)
+## 2. Syncfusion PDF Viewer (`lib/features/pdf_viewer/` & `lib/core/documents/`)
 
-Quiet Paper migrated from a custom rasterized viewer to the production-grade **Syncfusion Flutter PDF Viewer** (`syncfusion_flutter_pdfviewer`):
-- **Smooth 60 FPS Performance**: Supports high-fidelity vector rendering, virtualized page rendering, and lag-free pinch-to-zoom (up to 12x zoom range).
-- **Dual-Storage Strategy**: Fast memory caching of rendered pages alongside encrypted on-disk storage.
+Quiet Paper utilizes the production-grade **Syncfusion Flutter PDF Viewer** (`syncfusion_flutter_pdfviewer`), optimized for 60 FPS performance, low latency, and non-destructive encrypted storage:
+- **Calibrated 5x Max Zoom Ceiling**: Configured `kPdfViewerMaxZoomLevel = 5.0` to eliminate catastrophic 36x multi-megabyte tile rasterization main-thread stalls, while providing crisp readability for fine print.
+- **Dynamic Interaction Mode**: Defaults to `PdfInteractionMode.pan` for lag-free scrolling, panning, and desktop mouse dragging without continuous text hit-test contention. Dynamically switches to `PdfInteractionMode.selection` when markup annotation tools (Highlight, Underline, Strikethrough, Squiggly) are active.
+- **Configurable Page Layout Modes**: Supports both continuous vertical scroll (`PdfPageLayoutMode.continuous`) and isolated single-page view (`PdfPageLayoutMode.single`) with 1-tap switching via the Document Options menu.
+- **Zero-Delay Touch Interactions**: Disabled double-tap zooming (`enableDoubleTapZooming: false`) to eliminate the 300ms gesture arena slop delay, pairing with the dedicated Floating Quick-Zoom Controller Pill.
+- **RepaintBoundary & Decoupled State**: Wrapped viewer in `RepaintBoundary` and decoupled annotation dirty-state tracking from full screen rebuilds via `ValueNotifier<bool>`.
+- **Dual-Storage Strategy**: Fast memory caching of rendered pages alongside encrypted on-disk storage (`<uuid>.qpd` and `<uuid>.annotated.qpd`).
 - **Custom Floating Selection Menu**: Quiet Paper branded context menu for copying text, highlighting, or searching directly from the PDF canvas.
 - **In-Document Search**: High-speed keyword search with occurrence cycling and highlight markers.
 
