@@ -4923,5 +4923,63 @@ All visual roles are mapped strictly to Quiet Paper's semantic tokens in `AppCol
 - **Static Analysis**: `flutter analyze` (**0 issues, 0 warnings, 0 errors**).
 - **Targeted Tests**: All 31 tests passed across `tag_ui_test.dart`, `tag_hierarchy_ui_test.dart`, and `tag_workspace_navigation_test.dart` (**31/31 passing, 0 failures**).
 
+---
+
+## 248. Automatic Year Tagging for Today's Journal Entry (`#journal/<year>`) & Default Settings Toggle (November 2026)
+
+### 1. Overview & Motivation
+When users open **Today** under the **JOURNAL** section in the navigation sidebar, Quiet Paper opens or creates today's canonical daily note (`YYYY-MM-DD`). To facilitate structured long-term organization and take advantage of the Bear Notes-style nested tag hierarchy (e.g. `#journal/2026`), entries now automatically receive the current calendar year tag derived dynamically from the device clock (`DateTime.now().year`). 
+
+Users who prefer untagged journal entries can disable this behavior at any time under **Settings > Default Settings > JOURNAL**.
+
+### 2. Architecture & Implementation
+
+#### A. Settings & State Management
+- **Domain Model ([`lib/features/settings/domain/default_settings.dart`](file:///home/dog/git/quitepaper/lib/features/settings/domain/default_settings.dart))**:
+  - Added `autoTagTodayJournal` boolean property (defaults to `true`).
+  - Updated `copyWith`, value equality (`operator ==`), and `hashCode`.
+- **Notifier & Persistence ([`lib/features/settings/application/default_settings_provider.dart`](file:///home/dog/git/quitepaper/lib/features/settings/application/default_settings_provider.dart))**:
+  - Added SharedPreferences key `setting_auto_tag_today_journal`.
+  - Added `setAutoTagTodayJournal(bool value)` to update in-memory state and persist asynchronously.
+- **UI Toggle ([`lib/features/settings/presentation/default_settings_screen.dart`](file:///home/dog/git/quitepaper/lib/features/settings/presentation/default_settings_screen.dart))**:
+  - Placed an editorial switch row in the **JOURNAL** group card with icon `PhosphorIconsRegular.tag`, title `"Auto-tag today's entry"`, and subtitle `"Automatically apply #journal/<year> tag when opening Today from sidebar"`.
+
+#### B. Journal Service & Note Synchronization
+- **Tag Application Engine ([`lib/features/journal/application/journal_service.dart`](file:///home/dog/git/quitepaper/lib/features/journal/application/journal_service.dart))**:
+  - Implemented `ensureYearTagApplied(Note note, int year)`:
+    - Normalizes the target tag as `journal/$year`.
+    - Returns early if the note already contains the tag (idempotent, prevents duplicate sync revisions).
+    - If YAML frontmatter is present on the journal note, synchronizes `tags: [..., 'journal/<year>']` via `FrontmatterEditorHelper.updateTags`.
+    - Persists the updated note via `_repository.saveNote(updatedNote, preserveEmptyTags: true)` so the tag is written to SQLite `tagsTable` and `noteTagsTable`.
+  - Updated `openOrCreateTodayFlow` and `openOrCreateEntryFlow` to accept `bool autoTagYear = false` and optional `int? tagYear`. If `autoTagYear` is enabled, applies the year tag before navigating to the editor (or after restoring from Trash if the note was previously trashed).
+
+#### C. Sidebar Navigation Integration
+- **Sidebar Today Handler ([`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart))**:
+  - On tapping **Today**, reads `ref.read(defaultSettingsProvider).autoTagTodayJournal` and forwards `autoTagYear: autoTag` to `journalService.openOrCreateTodayFlow(context, isTablet: isCollapsible, autoTagYear: autoTag)`.
+
+### 3. File Inventory
+- **Modified Source Files**:
+  - `lib/features/settings/domain/default_settings.dart`
+  - `lib/features/settings/application/default_settings_provider.dart`
+  - `lib/features/settings/presentation/default_settings_screen.dart`
+  - `lib/features/journal/application/journal_service.dart`
+  - `lib/features/sidebar/presentation/sidebar_view.dart`
+- **Modified Test Files**:
+  - `test/settings/default_settings_test.dart`: Added domain, persistence, and widget tests for `autoTagTodayJournal`.
+  - `test/journal/journal_service_test.dart`: Added unit and widget tests for `ensureYearTagApplied` and `openOrCreateTodayFlow`.
+  - `test/journal/sidebar_journal_widget_test.dart`: Added widget tests for tapping Today with auto-tagging enabled vs disabled.
+- **Documentation**:
+  - `handoff/journal-and-audio.md`: Documented feature and linked reference.
+  - `handoff/latest-logs.md`: Appended Section 248.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` (**0 issues found, 0 warnings**).
+- **Automated Tests**:
+  - `test/settings/default_settings_test.dart` (**15/15 passing**).
+  - `test/journal/journal_service_test.dart` (**8/8 passing**).
+  - `test/journal/sidebar_journal_widget_test.dart` (**5/5 passing**).
+  - Full test suite: `flutter test` (**2,428/2,428 passing**).
+
+
 
 

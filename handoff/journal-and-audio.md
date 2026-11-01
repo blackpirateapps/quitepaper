@@ -25,6 +25,7 @@ The journal feature provides a dedicated, date-centric space for daily reflectio
     ---
     ```
   - **Location Dateline**: Optional ambient location stamp automatically resolved or manually entered.
+- **Automatic Year Tagging**: When opening Today from the sidebar, entries are automatically tagged with `#journal/<year>` (e.g. `#journal/2026`) derived from the device clock, keeping yearly reflection archives organized. Configurable under Default Settings.
 
 ---
 
@@ -67,6 +68,7 @@ The web clipper ([`lib/features/web_clipper/`](file:///home/dog/git/quitepaper/l
 ---
 
 ## Key References & Logs
+- Automatic Year Tagging for Today's Journal Entry: [Latest Logs, Section 248](latest-logs.md#248-automatic-year-tagging-for-todays-journal-entry-journalyear--default-settings-toggle-november-2026)
 - Audio Journaling & Voice Memos: [Latest Logs, Section 36](latest-logs.md#36-audio-journaling--in-editor-voice-memos-promptsaudiomd)
 - On-Device Audio Transcription: [Latest Logs, Section 37](latest-logs.md#37-on-device-audio-journal-transcription-promptstranscriptionforaudiomd)
 - Journal Frontmatter & Paper Calendar: [Latest Logs, Section 149 & 164](latest-logs.md#149-journal-frontmatter-properties-mood-activities-weather--moment-october-2026)

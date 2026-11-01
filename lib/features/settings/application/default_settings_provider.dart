@@ -22,6 +22,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   static const String suggestPlaceForPastEntriesKey =
       'setting_suggest_place_for_past_entries';
   static const String bengaliDatesKey = 'setting_bengali_dates';
+  static const String autoTagTodayJournalKey = 'setting_auto_tag_today_journal';
 
   static DefaultSettings _loadSettings(SharedPreferences? prefs) {
     if (prefs == null) {
@@ -37,6 +38,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
         prefs.getBool(showPlaceAndWeatherOnEntriesKey) ?? true;
     final suggestPlace = prefs.getBool(suggestPlaceForPastEntriesKey) ?? true;
     final bengaliDates = prefs.getBool(bengaliDatesKey) ?? false;
+    final autoTagToday = prefs.getBool(autoTagTodayJournalKey) ?? true;
 
     return DefaultSettings(
       swipeToSearchEditor: swipeEditor,
@@ -47,6 +49,7 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
       showPlaceAndWeatherOnEntries: showPlaceWeather,
       suggestPlaceForPastEntries: suggestPlace,
       bengaliDates: bengaliDates,
+      autoTagTodayJournal: autoTagToday,
     );
   }
 
@@ -88,6 +91,11 @@ class DefaultSettingsNotifier extends StateNotifier<DefaultSettings> {
   Future<void> setBengaliDates(bool value) async {
     state = state.copyWith(bengaliDates: value);
     await _prefs?.setBool(bengaliDatesKey, value);
+  }
+
+  Future<void> setAutoTagTodayJournal(bool value) async {
+    state = state.copyWith(autoTagTodayJournal: value);
+    await _prefs?.setBool(autoTagTodayJournalKey, value);
   }
 }
 

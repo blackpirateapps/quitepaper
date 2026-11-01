@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/journal/application/journal_service.dart';
@@ -62,6 +63,73 @@ void main() {
       expect(entries.length, 2);
       expect(entries[0].id, n2025.id);
       expect(entries[1].id, n2024.id);
+    });
+
+    test('ensureYearTagApplied applies journal/<year> to note tags and updates frontmatter', () async {
+      final now = DateTime(2026, 11, 1);
+      final note = await journalService.getOrCreateToday(now);
+      expect(note.tags, isEmpty);
+
+      final tagged = await journalService.ensureYearTagApplied(note, 2026);
+      expect(tagged.tags, contains('journal/2026'));
+      expect(tagged.content, contains('tags: [journal/2026]'));
+
+      final fromDb = await repository.getJournalEntry('2026-11-01');
+      expect(fromDb!.tags, contains('journal/2026'));
+      expect(fromDb.content, contains('tags: [journal/2026]'));
+    });
+
+    test('ensureYearTagApplied is idempotent and does not duplicate tag', () async {
+      final now = DateTime(2026, 11, 1);
+      final note = await journalService.getOrCreateToday(now);
+      final tagged1 = await journalService.ensureYearTagApplied(note, 2026);
+      expect(tagged1.tags, equals(['journal/2026']));
+
+      final tagged2 = await journalService.ensureYearTagApplied(tagged1, 2026);
+      expect(tagged2.tags, equals(['journal/2026']));
+    });
+
+    testWidgets('openOrCreateTodayFlow applies journal/<year> when autoTagYear is true', (tester) async {
+      late BuildContext testContext;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (ctx) {
+          testContext = ctx;
+          return const SizedBox();
+        }),
+      ));
+
+      final now = DateTime(2026, 11, 1);
+      final note = await journalService.openOrCreateTodayFlow(
+        testContext,
+        now: now,
+        autoTagYear: true,
+      );
+
+      expect(note.tags, contains('journal/2026'));
+      final inDb = await repository.getJournalEntry('2026-11-01');
+      expect(inDb!.tags, contains('journal/2026'));
+      expect(inDb.content, contains('tags: [journal/2026]'));
+    });
+
+    testWidgets('openOrCreateTodayFlow does not apply tag when autoTagYear is false', (tester) async {
+      late BuildContext testContext;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (ctx) {
+          testContext = ctx;
+          return const SizedBox();
+        }),
+      ));
+
+      final now = DateTime(2026, 11, 1);
+      final note = await journalService.openOrCreateTodayFlow(
+        testContext,
+        now: now,
+        autoTagYear: false,
+      );
+
+      expect(note.tags, isNot(contains('journal/2026')));
+      final inDb = await repository.getJournalEntry('2026-11-01');
+      expect(inDb!.tags, isNot(contains('journal/2026')));
     });
   });
 }

@@ -16,6 +16,7 @@ import '../../notes/application/saved_filters_provider.dart';
 import '../../notes/domain/saved_filter.dart';
 import '../../notes/presentation/widgets/saved_filters_sheet.dart';
 import '../../search/presentation/search_screen.dart';
+import '../../settings/application/default_settings_provider.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../tags/application/tag_providers.dart';
 import '../../tags/domain/tag_colors.dart';
@@ -280,12 +281,14 @@ class SidebarView extends ConsumerWidget {
                             : null,
                         onTap: () async {
                           onItemSelected?.call();
+                          final autoTag = ref.read(defaultSettingsProvider).autoTagTodayJournal;
                           final journalService = ref.read(
                             journalServiceProvider,
                           );
                           await journalService.openOrCreateTodayFlow(
                             context,
                             isTablet: isCollapsible,
+                            autoTagYear: autoTag,
                           );
                         },
                       ),

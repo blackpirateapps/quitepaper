@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../editor/application/frontmatter_editor_helper.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
+import '../../../core/utils/tag_parser.dart';
 
 class JournalService {
   const JournalService(this._repository);
@@ -60,28 +62,37 @@ class JournalService {
   }
 
   /// Opens today's journal entry in the editor, creating it first if it doesn't exist yet.
+  /// When [autoTagYear] is true, automatically ensures the `#journal/<year>` tag is applied.
   Future<Note> openOrCreateTodayFlow(
     BuildContext context, {
     bool isTablet = false,
     void Function(Note note)? onTabletSelectNote,
+    bool autoTagYear = false,
+    DateTime? now,
   }) {
+    final effectiveNow = now ?? DateTime.now();
     return openOrCreateEntryFlow(
       context,
-      DateTime.now(),
+      effectiveNow,
       isTablet: isTablet,
       onTabletSelectNote: onTabletSelectNote,
+      autoTagYear: autoTagYear,
+      tagYear: effectiveNow.year,
     );
   }
 
   /// Opens the journal entry for [date] in the editor, creating it first if it
   /// doesn't exist yet. Used for both Today and backfilling historical entries.
+  /// When [autoTagYear] is true, automatically ensures the `#journal/<year>` tag is applied.
   Future<Note> openOrCreateEntryFlow(
     BuildContext context,
     DateTime date, {
     bool isTablet = false,
     void Function(Note note)? onTabletSelectNote,
+    bool autoTagYear = false,
+    int? tagYear,
   }) async {
-    final note = await getOrCreateForDate(date);
+    var note = await getOrCreateForDate(date);
 
     if (!context.mounted) return note;
 
@@ -115,15 +126,60 @@ class JournalService {
         await _repository.restoreFromTrash(note.id);
         final restored = await _repository.getNoteById(note.id);
         if (restored != null && context.mounted) {
-          _navigateToEditor(context, restored, isTablet: isTablet, onTabletSelectNote: onTabletSelectNote);
-          return restored;
+          var targetNote = restored;
+          if (autoTagYear) {
+            final effectiveYear = tagYear ?? date.year;
+            targetNote = await ensureYearTagApplied(targetNote, effectiveYear);
+          }
+          if (!context.mounted) return targetNote;
+          _navigateToEditor(context, targetNote, isTablet: isTablet, onTabletSelectNote: onTabletSelectNote);
+          return targetNote;
         }
       }
       return note;
     }
 
+    if (autoTagYear) {
+      final effectiveYear = tagYear ?? date.year;
+      note = await ensureYearTagApplied(note, effectiveYear);
+    }
+
+    if (!context.mounted) return note;
     _navigateToEditor(context, note, isTablet: isTablet, onTabletSelectNote: onTabletSelectNote);
     return note;
+  }
+
+  /// Ensures the `#journal/<year>` tag is applied to [note] and persisted in the repository.
+  /// Synchronizes both `note.tags` and frontmatter `tags: [...]` when frontmatter is present.
+  Future<Note> ensureYearTagApplied(Note note, int year) async {
+    final yearTag = 'journal/$year';
+    final normalizedTag = TagParser.normalizeTag(yearTag);
+    if (!TagParser.isValidTag(normalizedTag)) return note;
+    if (note.tags.contains(normalizedTag)) return note;
+
+    final updatedTags = [...note.tags, normalizedTag];
+    String updatedContent = note.content;
+
+    final doc = FrontmatterEditorHelper.parse(note.content);
+    if (doc.hasFrontmatter) {
+      final currentFmTags = List<String>.from(doc.tags);
+      if (!currentFmTags.contains(normalizedTag)) {
+        currentFmTags.add(normalizedTag);
+        updatedContent = FrontmatterEditorHelper.updateTags(
+          documentText: note.content,
+          tags: currentFmTags,
+        );
+      }
+    }
+
+    final updatedNote = note.copyWith(
+      tags: updatedTags,
+      content: updatedContent,
+      updatedAt: DateTime.now(),
+    );
+
+    await _repository.saveNote(updatedNote, preserveEmptyTags: true);
+    return updatedNote;
   }
 
   void _navigateToEditor(

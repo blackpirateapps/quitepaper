@@ -6,6 +6,7 @@ import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/journal/application/journal_providers.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/settings/application/default_settings_provider.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
 
@@ -128,6 +129,39 @@ void main() {
       final entry = await repository.getJournalEntry(todayDate);
       expect(entry, isNotNull);
       expect(entry!.journalDate, todayDate);
+      expect(entry.tags, contains('journal/${DateTime.now().year}'));
+
+      await finishTest(tester);
+    });
+
+    testWidgets('tapping Today does not apply year tag when autoTagTodayJournal is false', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        DefaultSettingsNotifier.autoTagTodayJournalKey: false,
+      });
+      final customPrefs = await SharedPreferences.getInstance();
+
+      tester.view.physicalSize = const Size(1200, 1800);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(createTestWidget(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(customPrefs),
+        ],
+      ));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(tester.element(find.byType(SidebarView)));
+      final todayDate = container.read(todayJournalDateProvider);
+
+      // Tap Today
+      await tester.tap(find.text('Today'));
+      await tester.pumpAndSettle();
+
+      // Today entry was created in database without year tag
+      final entry = await repository.getJournalEntry(todayDate);
+      expect(entry, isNotNull);
+      expect(entry!.journalDate, todayDate);
+      expect(entry.tags, isEmpty);
 
       await finishTest(tester);
     });

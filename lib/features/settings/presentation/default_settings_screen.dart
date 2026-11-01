@@ -243,6 +243,18 @@ class DefaultSettingsScreen extends ConsumerWidget {
                     _buildSwitchRow(
                       context: context,
                       colors: colors,
+                      icon: PhosphorIconsRegular.tag,
+                      title: "Auto-tag today's entry",
+                      subtitle:
+                          'Automatically apply #journal/<year> tag when opening Today from sidebar',
+                      value: settings.autoTagTodayJournal,
+                      onChanged: (val) =>
+                          notifier.setAutoTagTodayJournal(val),
+                    ),
+                    _buildDivider(colors),
+                    _buildSwitchRow(
+                      context: context,
+                      colors: colors,
                       icon: PhosphorIconsRegular.mapPin,
                       title: 'Show place & weather on entries',
                       subtitle:

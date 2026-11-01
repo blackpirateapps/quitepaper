@@ -20,6 +20,7 @@ void main() {
       expect(settings.interactiveChecklistsInPreview, isTrue);
       expect(settings.imageCompressionAction, ImageCompressionAction.ask);
       expect(settings.imageCompressionPreset, ImageCompressionPreset.balanced);
+      expect(settings.autoTagTodayJournal, isTrue);
     });
 
     test('copyWith updates specified properties correctly', () {
@@ -44,9 +45,11 @@ void main() {
       final updated4 = updated3.copyWith(
         imageCompressionAction: ImageCompressionAction.alwaysCompress,
         imageCompressionPreset: ImageCompressionPreset.compact,
+        autoTagTodayJournal: false,
       );
       expect(updated4.imageCompressionAction, ImageCompressionAction.alwaysCompress);
       expect(updated4.imageCompressionPreset, ImageCompressionPreset.compact);
+      expect(updated4.autoTagTodayJournal, isFalse);
     });
 
     test('equality and hashCode work as expected', () {
@@ -218,6 +221,29 @@ void main() {
       );
     });
 
+    test('setAutoTagTodayJournal updates state and persists to SharedPreferences',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = DefaultSettingsNotifier(prefs);
+
+      expect(notifier.state.autoTagTodayJournal, isTrue);
+
+      await notifier.setAutoTagTodayJournal(false);
+      expect(notifier.state.autoTagTodayJournal, isFalse);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.autoTagTodayJournalKey),
+        isFalse,
+      );
+
+      await notifier.setAutoTagTodayJournal(true);
+      expect(notifier.state.autoTagTodayJournal, isTrue);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.autoTagTodayJournalKey),
+        isTrue,
+      );
+    });
+
     test('setImageCompressionPreset updates state and persists to SharedPreferences',
         () async {
       SharedPreferences.setMockInitialValues({});
@@ -306,6 +332,12 @@ void main() {
         findsOneWidget,
       );
 
+      expect(find.text("Auto-tag today's entry"), findsOneWidget);
+      expect(
+        find.text('Automatically apply #journal/<year> tag when opening Today from sidebar'),
+        findsOneWidget,
+      );
+
       final checklistSwitch = find.descendant(
         of: find.ancestor(
           of: find.text('Interactive Checklists in Preview'),
@@ -347,6 +379,12 @@ void main() {
 
       await tester.pumpWidget(buildScreen(prefs: prefs));
       await tester.pumpAndSettle();
+
+      expect(find.text("Auto-tag today's entry"), findsOneWidget);
+      expect(
+        find.text('Automatically apply #journal/<year> tag when opening Today from sidebar'),
+        findsOneWidget,
+      );
 
       final checklistSwitch = find.descendant(
         of: find.ancestor(
@@ -397,6 +435,25 @@ void main() {
       expect(tester.widget<CupertinoSwitch>(swipeNotesSwitch).value, isFalse);
       expect(
         prefs.getBool(DefaultSettingsNotifier.swipeDownToSearchNotesKey),
+        isFalse,
+      );
+
+      // Toggle auto-tag today's journal entry switch
+      final autoTagSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text("Auto-tag today's entry"),
+          matching: find.byType(Row),
+        ).first,
+        matching: find.byType(CupertinoSwitch),
+      );
+      expect(tester.widget<CupertinoSwitch>(autoTagSwitch).value, isTrue);
+
+      await tester.tap(autoTagSwitch);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<CupertinoSwitch>(autoTagSwitch).value, isFalse);
+      expect(
+        prefs.getBool(DefaultSettingsNotifier.autoTagTodayJournalKey),
         isFalse,
       );
     });

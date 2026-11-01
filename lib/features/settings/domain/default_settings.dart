@@ -88,6 +88,7 @@ class DefaultSettings {
     this.showPlaceAndWeatherOnEntries = true,
     this.suggestPlaceForPastEntries = true,
     this.bengaliDates = false,
+    this.autoTagTodayJournal = true,
   });
 
   /// Whether pulling/swiping down at the top of an open note reveals the in-note search bar.
@@ -116,6 +117,10 @@ class DefaultSettings {
   /// Display-only: canonical date keys/storage always stay ASCII `yyyy-MM-dd`.
   final bool bengaliDates;
 
+  /// Whether opening Today's journal entry from the sidebar automatically tags
+  /// the note with `#journal/<year>` based on the current device year.
+  final bool autoTagTodayJournal;
+
   DefaultSettings copyWith({
     bool? swipeToSearchEditor,
     bool? swipeDownToSearchNotes,
@@ -125,6 +130,7 @@ class DefaultSettings {
     bool? showPlaceAndWeatherOnEntries,
     bool? suggestPlaceForPastEntries,
     bool? bengaliDates,
+    bool? autoTagTodayJournal,
   }) {
     return DefaultSettings(
       swipeToSearchEditor: swipeToSearchEditor ?? this.swipeToSearchEditor,
@@ -141,6 +147,7 @@ class DefaultSettings {
       suggestPlaceForPastEntries:
           suggestPlaceForPastEntries ?? this.suggestPlaceForPastEntries,
       bengaliDates: bengaliDates ?? this.bengaliDates,
+      autoTagTodayJournal: autoTagTodayJournal ?? this.autoTagTodayJournal,
     );
   }
 
@@ -157,7 +164,8 @@ class DefaultSettings {
           imageCompressionPreset == other.imageCompressionPreset &&
           showPlaceAndWeatherOnEntries == other.showPlaceAndWeatherOnEntries &&
           suggestPlaceForPastEntries == other.suggestPlaceForPastEntries &&
-          bengaliDates == other.bengaliDates;
+          bengaliDates == other.bengaliDates &&
+          autoTagTodayJournal == other.autoTagTodayJournal;
 
   @override
   int get hashCode => Object.hash(
@@ -169,5 +177,6 @@ class DefaultSettings {
         showPlaceAndWeatherOnEntries,
         suggestPlaceForPastEntries,
         bengaliDates,
+        autoTagTodayJournal,
       );
 }
