@@ -157,5 +157,94 @@ describe('Backend Attachment Control Plane & Cloudinary Auth Tests', () => {
     expect(getRes.statusCode).toBe(200);
     expect(getRes.body.kind).toBe('linkPreview');
   });
+
+  it('Confirms attachment upload with offline/un-synced noteId without FOREIGN KEY failure', async () => {
+    const attachmentId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    const offlineNoteId = '99999999-9999-9999-9999-999999999999';
+
+    // Even though offlineNoteId has not been pushed to Turso notes table yet,
+    // upload authorization and confirmation must succeed without FOREIGN KEY error.
+    const authRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/attachments/upload-auth',
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+      body: {
+        attachmentId,
+        noteId: offlineNoteId,
+        mimeType: 'image/jpeg',
+        byteSize: 12345,
+        sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        variant: 'original',
+      },
+    });
+    expect(authRes.statusCode).toBe(200);
+
+    const confirmRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/attachments/confirm',
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+      body: {
+        attachmentId,
+        noteId: offlineNoteId,
+        cloudPublicId: 'quitepaper_test/user_1_eeeeeeee',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v12345/quitepaper_test/user_1_eeeeeeee',
+        mimeType: 'image/jpeg',
+        byteSize: 12345,
+        sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      },
+    });
+
+    expect(confirmRes.statusCode).toBe(200);
+    expect(confirmRes.body.success).toBe(true);
+    expect(confirmRes.body.attachment.id).toBe(attachmentId);
+    expect(confirmRes.body.attachment.noteId).toBe(offlineNoteId);
+
+    // Retrieve metadata and verify noteId is persisted
+    const getRes = await handleApiRequest({
+      method: 'GET',
+      url: `/api/v1/attachments/${attachmentId}`,
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+    });
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.noteId).toBe(offlineNoteId);
+  });
+
+  it('Rejects attachment upload with 403 when noteId belongs to another user', async () => {
+    const db = getDbClient();
+    const otherUserNoteId = '88888888-8888-8888-8888-888888888888';
+
+    // Seed other user first
+    await db.execute({
+      sql: `INSERT INTO users (id, firebase_uid, created_at, updated_at)
+            VALUES ('user-attach-2', 'user-attach-2', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+      args: [],
+    });
+
+    // Seed a note belonging to user-attach-2
+    await db.execute({
+      sql: `INSERT INTO notes (id, user_id, created_at, updated_at, content_ciphertext, content_nonce)
+            VALUES (?, 'user-attach-2', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'cipher', 'nonce')`,
+      args: [otherUserNoteId],
+    });
+
+    const attachmentId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+    const confirmRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/attachments/confirm',
+      headers: { authorization: 'Bearer mock:user-attach-1' },
+      body: {
+        attachmentId,
+        noteId: otherUserNoteId,
+        cloudPublicId: 'quitepaper_test/user_1_ffffffff',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v12345/quitepaper_test/user_1_ffffffff',
+        mimeType: 'image/jpeg',
+        byteSize: 5000,
+        sha256: 'ffffffff0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+      },
+    });
+
+    expect(confirmRes.statusCode).toBe(403);
+    expect(confirmRes.body.error.code).toBe('FORBIDDEN');
+  });
 });
 

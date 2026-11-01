@@ -104,8 +104,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   file_name TEXT NOT NULL DEFAULT 'attachment',
   kind TEXT NOT NULL DEFAULT 'image',
   created_device_id TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -129,8 +128,7 @@ CREATE TABLE IF NOT EXISTS documents (
   ocr_state TEXT NOT NULL DEFAULT 'not_requested',
   ocr_language TEXT NOT NULL DEFAULT 'en',
   created_device_id TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS document_ocr_pages (
@@ -753,6 +751,93 @@ export async function runMigrations(db: Client): Promise<void> {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_doc_ocr_user_rev ON document_ocr_pages (user_id, revision);');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_document_ocr_doc ON document_ocr_pages (document_id);');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_document_ocr_user ON document_ocr_pages (user_id);');
+    }
+  } catch (_) {}
+
+  // v17: Remove foreign key constraints on media tables (attachments and documents) referencing notes
+  // Decouples binary media confirmations from asynchronous note sync ordering
+  try {
+    const attTableInfo = await db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='attachments'");
+    const attSql = (attTableInfo.rows[0]?.sql as string) || '';
+    if (attSql.includes('REFERENCES notes')) {
+      await db.execute(`CREATE TABLE IF NOT EXISTS attachments_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        note_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'image/png',
+        byte_size INTEGER NOT NULL DEFAULT 0,
+        width INTEGER,
+        height INTEGER,
+        sha256 TEXT NOT NULL DEFAULT '',
+        encryption_key_version INTEGER NOT NULL DEFAULT 1,
+        server_revision INTEGER NOT NULL DEFAULT 1,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        cloud_public_id TEXT,
+        cloud_url TEXT,
+        file_name TEXT NOT NULL DEFAULT 'attachment',
+        kind TEXT NOT NULL DEFAULT 'image',
+        created_device_id TEXT,
+        status TEXT NOT NULL DEFAULT 'referenced',
+        orphaned_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );`);
+      await db.execute(`INSERT OR IGNORE INTO attachments_new
+        SELECT id, user_id, note_id, created_at, updated_at, mime_type,
+               byte_size, width, height, sha256, encryption_key_version,
+               server_revision, is_deleted, deleted_at, cloud_public_id,
+               cloud_url, file_name, kind, created_device_id, status, orphaned_at
+        FROM attachments;`);
+      await db.execute('DROP TABLE attachments;');
+      await db.execute('ALTER TABLE attachments_new RENAME TO attachments;');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_attachments_user_id ON attachments (user_id);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_attachments_user_rev ON attachments (user_id, server_revision);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_attachments_note_id ON attachments (note_id);');
+    }
+  } catch (_) {}
+
+  try {
+    const docTableInfo = await db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='documents'");
+    const docSql = (docTableInfo.rows[0]?.sql as string) || '';
+    if (docSql.includes('REFERENCES notes')) {
+      await db.execute(`CREATE TABLE IF NOT EXISTS documents_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        note_id TEXT,
+        title TEXT NOT NULL DEFAULT 'Scanned Document',
+        source TEXT NOT NULL DEFAULT 'scanner',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+        byte_size INTEGER NOT NULL DEFAULT 0,
+        page_count INTEGER NOT NULL DEFAULT 1,
+        sha256 TEXT NOT NULL DEFAULT '',
+        encryption_key_version INTEGER NOT NULL DEFAULT 1,
+        server_revision INTEGER NOT NULL DEFAULT 1,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        cloud_public_id TEXT,
+        cloud_url TEXT,
+        ocr_state TEXT NOT NULL DEFAULT 'not_requested',
+        ocr_language TEXT NOT NULL DEFAULT 'en',
+        created_device_id TEXT,
+        status TEXT NOT NULL DEFAULT 'referenced',
+        orphaned_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );`);
+      await db.execute(`INSERT OR IGNORE INTO documents_new
+        SELECT id, user_id, note_id, title, source, created_at, updated_at,
+               mime_type, byte_size, page_count, sha256, encryption_key_version,
+               server_revision, is_deleted, deleted_at, cloud_public_id,
+               cloud_url, ocr_state, ocr_language, created_device_id, status, orphaned_at
+        FROM documents;`);
+      await db.execute('DROP TABLE documents;');
+      await db.execute('ALTER TABLE documents_new RENAME TO documents;');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_documents_user_rev ON documents (user_id, server_revision);');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_documents_note_id ON documents (note_id);');
     }
   } catch (_) {}
 }

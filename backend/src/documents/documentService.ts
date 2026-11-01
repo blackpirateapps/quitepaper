@@ -82,6 +82,21 @@ export async function confirmDocumentUpload(
     ocrLanguage = 'en',
   } = parseRes.data;
 
+  // If noteId is specified, verify note ownership if it already exists on server
+  if (noteId) {
+    const noteRes = await db.execute({
+      sql: 'SELECT id, user_id FROM notes WHERE id = ?',
+      args: [noteId],
+    });
+
+    if (noteRes.rows.length > 0) {
+      const row = noteRes.rows[0];
+      if (row.user_id !== userId) {
+        throw new ApiError('FORBIDDEN', 'Access to specified note is forbidden', 403);
+      }
+    }
+  }
+
   // Finalize reservation and commit actual bytes into user's storage quota
   await commitUploadStorage(db, userId, 'document', documentId, byteSize);
 
@@ -102,66 +117,138 @@ export async function confirmDocumentUpload(
     }
     serverRevision = ((row.server_revision as number) || 0) + 1;
 
-    await db.execute({
-      sql: `UPDATE documents SET
-              note_id = COALESCE(?, note_id),
-              title = COALESCE(?, title),
-              source = COALESCE(?, source),
-              cloud_public_id = ?,
-              cloud_url = ?,
-              mime_type = ?,
-              byte_size = ?,
-              page_count = ?,
-              sha256 = ?,
-              ocr_state = COALESCE(?, ocr_state),
-              ocr_language = COALESCE(?, ocr_language),
-              server_revision = ?,
-              updated_at = ?
-            WHERE id = ? AND user_id = ?`,
-      args: [
-        noteId || null,
-        title,
-        source,
-        cloudPublicId,
-        cloudUrl,
-        mimeType,
-        byteSize,
-        pageCount,
-        sha256,
-        ocrState,
-        ocrLanguage,
-        serverRevision,
-        nowIso,
-        documentId,
-        userId,
-      ],
-    });
+    try {
+      await db.execute({
+        sql: `UPDATE documents SET
+                note_id = COALESCE(?, note_id),
+                title = COALESCE(?, title),
+                source = COALESCE(?, source),
+                cloud_public_id = ?,
+                cloud_url = ?,
+                mime_type = ?,
+                byte_size = ?,
+                page_count = ?,
+                sha256 = ?,
+                ocr_state = COALESCE(?, ocr_state),
+                ocr_language = COALESCE(?, ocr_language),
+                server_revision = ?,
+                updated_at = ?
+              WHERE id = ? AND user_id = ?`,
+        args: [
+          noteId || null,
+          title,
+          source,
+          cloudPublicId,
+          cloudUrl,
+          mimeType,
+          byteSize,
+          pageCount,
+          sha256,
+          ocrState,
+          ocrLanguage,
+          serverRevision,
+          nowIso,
+          documentId,
+          userId,
+        ],
+      });
+    } catch (updateErr: any) {
+      // Fallback defense-in-depth: if legacy schema still has active FK on notes(id)
+      if (noteId && updateErr?.message?.includes('FOREIGN KEY constraint failed')) {
+        await db.execute({
+          sql: `UPDATE documents SET
+                  title = COALESCE(?, title),
+                  source = COALESCE(?, source),
+                  cloud_public_id = ?,
+                  cloud_url = ?,
+                  mime_type = ?,
+                  byte_size = ?,
+                  page_count = ?,
+                  sha256 = ?,
+                  ocr_state = COALESCE(?, ocr_state),
+                  ocr_language = COALESCE(?, ocr_language),
+                  server_revision = ?,
+                  updated_at = ?
+                WHERE id = ? AND user_id = ?`,
+          args: [
+            title,
+            source,
+            cloudPublicId,
+            cloudUrl,
+            mimeType,
+            byteSize,
+            pageCount,
+            sha256,
+            ocrState,
+            ocrLanguage,
+            serverRevision,
+            nowIso,
+            documentId,
+            userId,
+          ],
+        });
+      } else {
+        throw updateErr;
+      }
+    }
   } else {
-    await db.execute({
-      sql: `INSERT INTO documents (
-              id, user_id, note_id, title, source, created_at, updated_at, mime_type,
-              byte_size, page_count, sha256, server_revision,
-              cloud_public_id, cloud_url, ocr_state, ocr_language
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        documentId,
-        userId,
-        noteId || null,
-        title,
-        source,
-        nowIso,
-        nowIso,
-        mimeType,
-        byteSize,
-        pageCount,
-        sha256,
-        serverRevision,
-        cloudPublicId,
-        cloudUrl,
-        ocrState,
-        ocrLanguage,
-      ],
-    });
+    try {
+      await db.execute({
+        sql: `INSERT INTO documents (
+                id, user_id, note_id, title, source, created_at, updated_at, mime_type,
+                byte_size, page_count, sha256, server_revision,
+                cloud_public_id, cloud_url, ocr_state, ocr_language
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          documentId,
+          userId,
+          noteId || null,
+          title,
+          source,
+          nowIso,
+          nowIso,
+          mimeType,
+          byteSize,
+          pageCount,
+          sha256,
+          serverRevision,
+          cloudPublicId,
+          cloudUrl,
+          ocrState,
+          ocrLanguage,
+        ],
+      });
+    } catch (insertErr: any) {
+      // Fallback defense-in-depth: if legacy schema still has active FK on notes(id)
+      if (noteId && insertErr?.message?.includes('FOREIGN KEY constraint failed')) {
+        await db.execute({
+          sql: `INSERT INTO documents (
+                  id, user_id, note_id, title, source, created_at, updated_at, mime_type,
+                  byte_size, page_count, sha256, server_revision,
+                  cloud_public_id, cloud_url, ocr_state, ocr_language
+                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            documentId,
+            userId,
+            title,
+            source,
+            nowIso,
+            nowIso,
+            mimeType,
+            byteSize,
+            pageCount,
+            sha256,
+            serverRevision,
+            cloudPublicId,
+            cloudUrl,
+            ocrState,
+            ocrLanguage,
+          ],
+        });
+      } else {
+        throw insertErr;
+      }
+    }
   }
 
   return {

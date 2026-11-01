@@ -85,6 +85,21 @@ export async function confirmAttachmentUpload(
     kind,
   } = parseRes.data;
 
+  // If noteId is specified, verify note ownership if it already exists on server
+  if (noteId) {
+    const noteRes = await db.execute({
+      sql: 'SELECT id, user_id FROM notes WHERE id = ?',
+      args: [noteId],
+    });
+
+    if (noteRes.rows.length > 0) {
+      const row = noteRes.rows[0];
+      if (row.user_id !== userId) {
+        throw new ApiError('FORBIDDEN', 'Access to specified note is forbidden', 403);
+      }
+    }
+  }
+
   // Finalize reservation and commit actual bytes into user's storage quota
   await commitUploadStorage(db, userId, 'attachment', attachmentId, byteSize);
 
@@ -105,63 +120,132 @@ export async function confirmAttachmentUpload(
     }
     serverRevision = ((row.server_revision as number) || 0) + 1;
 
-    await db.execute({
-      sql: `UPDATE attachments SET
-              note_id = COALESCE(?, note_id),
-              cloud_public_id = ?,
-              cloud_url = ?,
-              mime_type = ?,
-              byte_size = ?,
-              sha256 = ?,
-              width = COALESCE(?, width),
-              height = COALESCE(?, height),
-              file_name = COALESCE(?, file_name),
-              kind = COALESCE(?, kind),
-              server_revision = ?,
-              updated_at = ?
-            WHERE id = ? AND user_id = ?`,
-      args: [
-        noteId || null,
-        cloudPublicId,
-        cloudUrl,
-        mimeType,
-        byteSize,
-        sha256,
-        width || null,
-        height || null,
-        fileName || null,
-        kind || null,
-        serverRevision,
-        nowIso,
-        attachmentId,
-        userId,
-      ],
-    });
+    try {
+      await db.execute({
+        sql: `UPDATE attachments SET
+                note_id = COALESCE(?, note_id),
+                cloud_public_id = ?,
+                cloud_url = ?,
+                mime_type = ?,
+                byte_size = ?,
+                sha256 = ?,
+                width = COALESCE(?, width),
+                height = COALESCE(?, height),
+                file_name = COALESCE(?, file_name),
+                kind = COALESCE(?, kind),
+                server_revision = ?,
+                updated_at = ?
+              WHERE id = ? AND user_id = ?`,
+        args: [
+          noteId || null,
+          cloudPublicId,
+          cloudUrl,
+          mimeType,
+          byteSize,
+          sha256,
+          width || null,
+          height || null,
+          fileName || null,
+          kind || null,
+          serverRevision,
+          nowIso,
+          attachmentId,
+          userId,
+        ],
+      });
+    } catch (updateErr: any) {
+      // Fallback defense-in-depth: if legacy schema still has active FK on notes(id)
+      if (noteId && updateErr?.message?.includes('FOREIGN KEY constraint failed')) {
+        await db.execute({
+          sql: `UPDATE attachments SET
+                  cloud_public_id = ?,
+                  cloud_url = ?,
+                  mime_type = ?,
+                  byte_size = ?,
+                  sha256 = ?,
+                  width = COALESCE(?, width),
+                  height = COALESCE(?, height),
+                  file_name = COALESCE(?, file_name),
+                  kind = COALESCE(?, kind),
+                  server_revision = ?,
+                  updated_at = ?
+                WHERE id = ? AND user_id = ?`,
+          args: [
+            cloudPublicId,
+            cloudUrl,
+            mimeType,
+            byteSize,
+            sha256,
+            width || null,
+            height || null,
+            fileName || null,
+            kind || null,
+            serverRevision,
+            nowIso,
+            attachmentId,
+            userId,
+          ],
+        });
+      } else {
+        throw updateErr;
+      }
+    }
   } else {
-    await db.execute({
-      sql: `INSERT INTO attachments (
-              id, user_id, note_id, created_at, updated_at, mime_type,
-              byte_size, width, height, sha256, server_revision,
-              cloud_public_id, cloud_url, file_name, kind
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        attachmentId,
-        userId,
-        noteId || null,
-        nowIso,
-        nowIso,
-        mimeType,
-        byteSize,
-        width || null,
-        height || null,
-        sha256,
-        serverRevision,
-        cloudPublicId,
-        cloudUrl,
-        fileName || 'attachment',
-        kind || 'image',
-      ],
-    });
+    try {
+      await db.execute({
+        sql: `INSERT INTO attachments (
+                id, user_id, note_id, created_at, updated_at, mime_type,
+                byte_size, width, height, sha256, server_revision,
+                cloud_public_id, cloud_url, file_name, kind
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          attachmentId,
+          userId,
+          noteId || null,
+          nowIso,
+          nowIso,
+          mimeType,
+          byteSize,
+          width || null,
+          height || null,
+          sha256,
+          serverRevision,
+          cloudPublicId,
+          cloudUrl,
+          fileName || 'attachment',
+          kind || 'image',
+        ],
+      });
+    } catch (insertErr: any) {
+      // Fallback defense-in-depth: if legacy schema still has active FK on notes(id)
+      if (noteId && insertErr?.message?.includes('FOREIGN KEY constraint failed')) {
+        await db.execute({
+          sql: `INSERT INTO attachments (
+                  id, user_id, note_id, created_at, updated_at, mime_type,
+                  byte_size, width, height, sha256, server_revision,
+                  cloud_public_id, cloud_url, file_name, kind
+                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            attachmentId,
+            userId,
+            nowIso,
+            nowIso,
+            mimeType,
+            byteSize,
+            width || null,
+            height || null,
+            sha256,
+            serverRevision,
+            cloudPublicId,
+            cloudUrl,
+            fileName || 'attachment',
+            kind || 'image',
+          ],
+        });
+      } else {
+        throw insertErr;
+      }
+    }
   }
 
   return {

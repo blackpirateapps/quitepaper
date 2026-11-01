@@ -180,4 +180,40 @@ describe('Backend Scanned Document Control Plane & Sync Tests', () => {
     expect(columnNames).toContain('cloud_url');
     expect(columnNames).toContain('cloud_public_id');
   });
+
+  it('Confirms document upload with offline/un-synced noteId without FOREIGN KEY failure', async () => {
+    const documentId = '33333333-4444-5555-6666-777777777777';
+    const offlineNoteId = '77777777-7777-7777-7777-777777777777';
+
+    const confirmRes = await handleApiRequest({
+      method: 'POST',
+      url: '/api/v1/documents/confirm',
+      headers: { authorization: 'Bearer mock:user-doc-1' },
+      body: {
+        documentId,
+        noteId: offlineNoteId,
+        title: 'Offline Document',
+        cloudPublicId: 'quitepaper_test/user_1_doc_3333',
+        cloudUrl: 'https://res.cloudinary.com/test-cloud/raw/upload/v12345/quitepaper_test/user_1_doc_3333',
+        mimeType: 'application/pdf',
+        byteSize: 10000,
+        pageCount: 1,
+        sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      },
+    });
+
+    expect(confirmRes.statusCode).toBe(200);
+    expect(confirmRes.body.success).toBe(true);
+    expect(confirmRes.body.document.id).toBe(documentId);
+    expect(confirmRes.body.document.noteId).toBe(offlineNoteId);
+
+    // Retrieve metadata and verify noteId is persisted
+    const getRes = await handleApiRequest({
+      method: 'GET',
+      url: `/api/v1/documents/${documentId}`,
+      headers: { authorization: 'Bearer mock:user-doc-1' },
+    });
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.body.noteId).toBe(offlineNoteId);
+  });
 });

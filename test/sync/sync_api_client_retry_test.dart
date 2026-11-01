@@ -221,5 +221,107 @@ void main() {
       expect(requestedUris.last.host, 'custom-sync-backend.internal');
       expect(requestedUris.last.port, 8080);
     });
+
+    test('confirmAttachmentUpload retries with noteId: null on FOREIGN KEY constraint failure', () async {
+      final auth = FakeAuthService(
+        initialToken: 'valid-token',
+        refreshedToken: 'valid-token',
+      );
+
+      final bodiesReceived = <Map<String, dynamic>>[];
+      var attempt = 0;
+
+      final client = MockHttpClient((request) async {
+        if (request.url.path.contains('/api/v1/attachments/confirm')) {
+          attempt++;
+          final bodyBytes = await request.finalize().toBytes();
+          final bodyJson = jsonDecode(utf8.decode(bodyBytes)) as Map<String, dynamic>;
+          bodiesReceived.add(bodyJson);
+
+          if (attempt == 1) {
+            return http.Response(
+              '{"error":{"code":"INTERNAL_ERROR","message":"SQLITE_CONSTRAINT: SQLite error: FOREIGN KEY constraint failed"}}',
+              500,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            '{"success":true,"attachment":{"id":"att-1","noteId":null}}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final apiClient = HttpSyncApiClient(
+        authService: auth,
+        baseUrl: 'https://test-server.com',
+        httpClient: client,
+      );
+
+      final res = await apiClient.confirmAttachmentUpload(
+        attachmentId: 'att-1',
+        noteId: 'offline-note-uuid',
+        cloudPublicId: 'pub_1',
+        cloudUrl: 'https://cloud.com/img.png',
+      );
+
+      expect(res['success'], true);
+      expect(attempt, 2);
+      expect(bodiesReceived[0]['noteId'], 'offline-note-uuid');
+      expect(bodiesReceived[1]['noteId'], isNull);
+    });
+
+    test('confirmDocumentUpload retries with noteId: null on FOREIGN KEY constraint failure', () async {
+      final auth = FakeAuthService(
+        initialToken: 'valid-token',
+        refreshedToken: 'valid-token',
+      );
+
+      final bodiesReceived = <Map<String, dynamic>>[];
+      var attempt = 0;
+
+      final client = MockHttpClient((request) async {
+        if (request.url.path.contains('/api/v1/documents/confirm')) {
+          attempt++;
+          final bodyBytes = await request.finalize().toBytes();
+          final bodyJson = jsonDecode(utf8.decode(bodyBytes)) as Map<String, dynamic>;
+          bodiesReceived.add(bodyJson);
+
+          if (attempt == 1) {
+            return http.Response(
+              '{"error":{"code":"INTERNAL_ERROR","message":"SQLITE_CONSTRAINT: SQLite error: FOREIGN KEY constraint failed"}}',
+              500,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            '{"success":true,"document":{"id":"doc-1","noteId":null}}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final apiClient = HttpSyncApiClient(
+        authService: auth,
+        baseUrl: 'https://test-server.com',
+        httpClient: client,
+      );
+
+      final res = await apiClient.confirmDocumentUpload(
+        documentId: 'doc-1',
+        noteId: 'offline-doc-note-uuid',
+        cloudPublicId: 'pub_doc_1',
+        cloudUrl: 'https://cloud.com/doc.pdf',
+      );
+
+      expect(res['success'], true);
+      expect(attempt, 2);
+      expect(bodiesReceived[0]['noteId'], 'offline-doc-note-uuid');
+      expect(bodiesReceived[1]['noteId'], isNull);
+    });
   });
 }

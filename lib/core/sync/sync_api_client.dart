@@ -746,6 +746,23 @@ class HttpSyncApiClient implements SyncApiClient {
           response = fallbackRes;
         }
       }
+
+      if (response.statusCode != 200 &&
+          body['noteId'] != null &&
+          (response.body.contains('FOREIGN KEY constraint failed') ||
+           response.body.contains('SQLITE_CONSTRAINT'))) {
+        // Fallback for legacy deployed servers with active foreign keys on notes(id)
+        // when the note record has not yet synced to the remote control plane.
+        body['noteId'] = null;
+        final fallbackRes = await _sendWithAuthRetry((headers) => _client.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ));
+        if (fallbackRes.statusCode == 200) {
+          response = fallbackRes;
+        }
+      }
     }
 
     if (response.statusCode != 200) {
@@ -864,11 +881,30 @@ class HttpSyncApiClient implements SyncApiClient {
       body: encoded,
     ));
 
-    if (res.statusCode != 200) {
-      _checkQuotaOrSizeError(res, 'Failed to confirm document upload with backend');
+    var response = res;
+    if (response.statusCode != 200) {
+      if (body['noteId'] != null &&
+          (response.body.contains('FOREIGN KEY constraint failed') ||
+           response.body.contains('SQLITE_CONSTRAINT'))) {
+        // Fallback for legacy deployed servers with active foreign keys on notes(id)
+        // when the note record has not yet synced to the remote control plane.
+        body['noteId'] = null;
+        final fallbackRes = await _sendWithAuthRetry((headers) => _client.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ));
+        if (fallbackRes.statusCode == 200) {
+          response = fallbackRes;
+        }
+      }
     }
 
-    final data = _safeParseJson(res.body);
+    if (response.statusCode != 200) {
+      _checkQuotaOrSizeError(response, 'Failed to confirm document upload with backend');
+    }
+
+    final data = _safeParseJson(response.body);
     if (data == null) {
       throw Exception('Failed to confirm document upload: Invalid JSON response');
     }
