@@ -9,6 +9,10 @@ import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
 import 'super_editor/link_enhance_overlay.dart';
+import 'super_editor/math/quiet_inline_math.dart';
+import 'super_editor/math/quiet_math_block_component.dart';
+import 'super_editor/math/quiet_math_block_node.dart';
+import 'super_editor/math/quiet_math_parser.dart';
 import 'super_editor/quiet_attachment_component.dart';
 import 'super_editor/quiet_code_block_component.dart';
 import 'super_editor/quiet_horizontal_rule_component.dart';
@@ -100,6 +104,9 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // Promote code block paragraphs with raw languages parsed from fences.
     promoteQuietCodeBlockNodes(document, split.body);
 
+    // Promote math block paragraphs (\[ ... \], $$ ... $$, ```math) into QuietMathBlockNodes.
+    promoteQuietMathBlockNodes(document);
+
     // Ensure notes ending with a horizontal rule have an editable paragraph after it.
     if (document.isNotEmpty && document.last is HorizontalRuleNode) {
       document.insertNodeAfter(
@@ -120,10 +127,18 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
     _editor.reactionPipeline.insert(0, const CodeBlockConversionReaction());
     _editor.requestHandlers.insert(0, handleCodeBlockFenceNewlineRequest);
+    _editor.requestHandlers.insert(0, handleMathBlockFenceNewlineRequest);
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
+    _composer.selectionNotifier.addListener(_onSelectionChange);
     widget.controller?.attach(_editor, _composer);
+  }
+
+  void _onSelectionChange() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   /// Splits [markdown] into its preserved frontmatter prefix and the editable
@@ -181,6 +196,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     _smartTaskController.removeListener(_onSmartTaskChanged);
     _smartTaskController.dispose();
     widget.controller?.detach();
+    _composer.selectionNotifier.removeListener(_onSelectionChange);
     _editor.document.removeListener(_onDocumentChange);
     _editor.dispose();
     _composer.dispose();
@@ -201,6 +217,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           LinkPreviewNodeSerializer(),
           QuietTableBlockNodeSerializer(),
           QuietCodeBlockNodeSerializer(),
+          QuietMathBlockNodeSerializer(),
         ],
       );
       final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
@@ -384,7 +401,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         ),
       ],
       inlineTextStyler: defaultInlineTextStyler,
-      inlineWidgetBuilders: defaultInlineWidgetBuilderChain,
+      inlineWidgetBuilders: [
+        inlineMathWidgetBuilder,
+        ...defaultInlineWidgetBuilderChain,
+      ],
     );
   }
 
@@ -415,6 +435,9 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
                 superEditorAddEmptyParagraphTapHandlerFactory,
               ],
               componentBuilders: [
+                QuietMathBlockComponentBuilder(_editor),
+                QuietMathParagraphComponentBuilder(_editor),
+                QuietMathListItemComponentBuilder(_editor),
                 QuietCodeBlockComponentBuilder(_editor),
                 QuietTaskComponentBuilder(
                   _editor,

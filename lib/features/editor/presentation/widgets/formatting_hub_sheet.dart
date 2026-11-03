@@ -326,6 +326,13 @@ class FormattingHubSheet extends StatelessWidget {
                       shortcut: 'Ctrl+Alt+T',
                     ),
                   _FormattingTileData(
+                    option: FormattingOption.math,
+                    icon: PhosphorIconsRegular.mathOperations,
+                    title: 'Math Formula',
+                    syntax: r'\[ ... \]',
+                    shortcut: r'$$',
+                  ),
+                  _FormattingTileData(
                     option: FormattingOption.link,
                     icon: PhosphorIconsRegular.link,
                     title: 'Web Link',
@@ -448,6 +455,7 @@ enum FormattingOption {
   heading3,
   quote,
   codeBlock,
+  math,
   checklist,
   bulletList,
   orderedList,

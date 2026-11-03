@@ -903,6 +903,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  void _insertMathBlock() {
+    if (_isSuperEditor) {
+      _superEditorController.insertMathBlock();
+      final fn = _activeTargetFocusNode ?? _contentFocusNode;
+      if (!fn.hasFocus) fn.requestFocus();
+    } else {
+      _applyFormattingHelper(MarkdownHelper.insertMathBlock);
+    }
+  }
+
   void _insertDivider() {
     if (_isSuperEditor) {
       _superEditorController.insertHorizontalRule();
@@ -1755,6 +1765,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyC, meta: true, alt: true): _insertCodeBlock,
         const SingleActivator(LogicalKeyboardKey.keyK, control: true, shift: true): _insertCodeBlock,
         const SingleActivator(LogicalKeyboardKey.keyK, meta: true, shift: true): _insertCodeBlock,
+
+        // Math Formula
+        const SingleActivator(LogicalKeyboardKey.keyM, control: true, alt: true): _insertMathBlock,
+        const SingleActivator(LogicalKeyboardKey.keyM, meta: true, alt: true): _insertMathBlock,
+        const SingleActivator(LogicalKeyboardKey.keyM, control: true, shift: true): _insertMathBlock,
+        const SingleActivator(LogicalKeyboardKey.keyM, meta: true, shift: true): _insertMathBlock,
 
         // Text Styles & Links
         const SingleActivator(LogicalKeyboardKey.keyB, control: true): _toggleBold,

@@ -5,6 +5,7 @@ import '../../../core/utils/web_url_helper.dart';
 import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
 import '../presentation/widgets/super_editor/quiet_link_preview_component.dart';
+import '../presentation/widgets/super_editor/math/quiet_math_block_node.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
@@ -540,6 +541,45 @@ class QuietSuperEditorController extends ChangeNotifier {
         newNode: node.copyParagraphWith(metadata: newMetadata),
       ),
     ]);
+  }
+
+  /// Inserts a [QuietMathBlockNode] at the current selection or replaces an empty paragraph.
+  void insertMathBlock({
+    String latex = '',
+    MathDelimiterType delimiterType = MathDelimiterType.brackets,
+  }) {
+    if (_editor == null || _composer == null) return;
+    final sel = _composer!.selection;
+    if (sel == null) return;
+    final nodeId = sel.extent.nodeId;
+    final node = _editor!.document.getNodeById(nodeId);
+
+    final mathNode = QuietMathBlockNode(
+      id: Editor.createNodeId(),
+      latex: latex,
+      delimiterType: delimiterType,
+    );
+
+    if (node is ParagraphNode && node.text.toPlainText().trim().isEmpty) {
+      _editor!.execute([
+        ReplaceNodeRequest(
+          existingNodeId: nodeId,
+          newNode: mathNode,
+        ),
+      ]);
+    } else {
+      _editor!.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: nodeId,
+          newNode: mathNode,
+        ),
+      ]);
+    }
+  }
+
+  /// Inserts an inline math snippet `\(...\)` at the current caret.
+  void insertInlineMath({String formula = ''}) {
+    insertSnippet(formula.isEmpty ? r'\(' : r'\(' + formula + r'\)');
   }
 
   /// Inserts a horizontal rule (divider) after the current node.

@@ -39,6 +39,21 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
   - Line numbering gutter with monospaced alignment.
   - Quick language selector modal.
 
+### LaTeX Math Syntax Support (Block & Bear-Style Inline Folding)
+- **Engine**: 100% offline, pure-Dart LaTeX rendering powered by `flutter_math_fork`. Zero WebViews or external JavaScript runtimes.
+- **Block Math (`QuietMathBlockNode`)**:
+  - Implemented in [`QuietMathBlockNode`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_node.dart) and rendered via [`QuietMathBlockComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart).
+  - Delimiters supported: `\[ ... \]`, `$$ ... $$`, and ````math ... ````.
+  - Interactive UX: displays rendered mathematical formula with hover/active controls (Copy LaTeX, Delimiter Toggle, Delete, Edit). Tapping expands an inline TeX editor card with live real-time formula preview, delimiter switcher, `Ctrl/Cmd+Enter` to save, and `Escape` to cancel.
+  - Shortcut creation: typing `$$` or `\[` on an empty line and pressing `Enter` automatically transforms the paragraph into a `QuietMathBlockNode` via `handleMathBlockFenceNewlineRequest`.
+- **Inline Math (`QuietInlineMath`)**:
+  - Delimiters supported: `\( ... \)` and `$...$`.
+  - Seamless Bear/Typora-style folding: when the user's cursor is outside the formula, it folds into an inline rendered LaTeX equation pill via `AttributedText` placeholders. When the cursor moves inside the equation, it unfolds immediately into the raw LaTeX source for direct editing.
+  - Component builders: custom [`QuietMathParagraphComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart) and [`QuietMathListItemComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart) seamlessly fold formulas in both body paragraphs and bullet/task lists.
+- **Roundtrip Serialization & Escape Sanitization**:
+  - CommonMark escape protection: automatically unescapes corrupted LaTeX underscores (`\_` -> `_`) and asterisks (`\*` -> `*`) via [`QuietMathParser`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_parser.dart).
+  - Markdown preview parity: [`quiet_math_markdown_extension.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_math_markdown_extension.dart) registers `MathBracketInlineSyntax`, `MathDollarInlineSyntax`, and `MathBlockSyntax` with `QuietMathElementBuilder` for `QuietMarkdownPreview`.
+
 ### Horizontal Rules & Dividers
 - **Component**: [`QuietHorizontalRuleComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) and `QuietHorizontalRuleComponentBuilder`.
 - **Features**:
@@ -79,6 +94,7 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 ---
 
 ## Key References & Logs
+- LaTeX Math Syntax Support (Block & Bear-Style Inline Folding): [Latest Logs, Section 253](latest-logs.md#253-supereditor-comprehensive-math-syntax-support-latex-block--inline-math-bear-style-folding)
 - Left-Aligned Note Title & Full-Width SuperEditor Code Blocks: [Latest Logs, Section 251](latest-logs.md#251-ui-polish-left-aligned-note-titles--full-width-supereditor-code-blocks-november-2026)
 - Smart Todolist & Task Boundary Isolation: [Latest Logs, Section 242 & 243](latest-logs.md#242-architecture-smart-todolist-in-supereditor-with-optical-alignment-placeholders-auto-sorting--collapsible-done-items-october-2026)
 - Native Code Blocks with Syntax Highlighting: [Latest Logs, Section 241](latest-logs.md#241-architecture-super-editor-native-code-block-with-live-syntax-highlighting--line-numbers-october-2026)

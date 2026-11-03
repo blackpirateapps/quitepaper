@@ -287,6 +287,16 @@ abstract final class MarkdownHelper {
     );
   }
 
+  /// Inserts a LaTeX math block.
+  static TextEditingValue insertMathBlock(TextEditingValue value) {
+    return wrapSelection(
+      value: value,
+      prefix: '\n\\[\n',
+      suffix: '\n\\]\n',
+      defaultText: 'equation',
+    );
+  }
+
   /// Returns the current language identifier of the code block at cursor, or null if cursor is not inside a code block.
   static String? getCodeBlockLanguageAtCursor(TextEditingValue value) {
     final text = value.text;

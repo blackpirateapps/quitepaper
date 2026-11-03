@@ -5123,5 +5123,85 @@ Implemented a comprehensive 4-pillar solution:
   - `flutter test test/editor/quiet_divider_test.dart`: **9/9 tests passing**.
   - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
 
+---
+
+## 253. SuperEditor: Comprehensive Math Syntax Support (LaTeX Block & Inline Math, Bear-Style Folding)
+
+### 1. Overview & Motivation
+Previously, SuperEditor rendered LaTeX math expressions as raw, unformatted text strings (`\[ S\_{17}=\frac{17}{2}(3+99) \]`, `\(n=17\)`, `\(a=3\)`). In addition, CommonMark markdown serialization automatically escaped underscores (`_` -> `\_`) and asterisks (`*` -> `\*`), corrupting equations upon roundtripping.
+To provide an editorial writing experience on par with Bear and Obsidian, full LaTeX mathematical typesetting support was designed and integrated directly into `QuietSuperEditor`.
+
+### 2. Architectural Design & Implementation
+
+#### 1. Pure-Dart LaTeX Rendering (`flutter_math_fork`)
+- Integrated `flutter_math_fork: ^0.7.4` for 100% offline, pure-Dart rendering without WebViews, headless browsers, or native binaries.
+- Supports comprehensive KaTeX/LaTeX math grammar, symbols, fractions, superscripts, subscripts, matrices, and boxed expressions (`\boxed{...}`).
+
+#### 2. First-Class Block Math AST Node (`QuietMathBlockNode`)
+- Implemented [`QuietMathBlockNode`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_node.dart) extending `BlockNode` with:
+  - `id`: unique document node identifier.
+  - `latex`: raw LaTeX source code.
+  - `delimiterType`: preservation of original delimiter style (`brackets` `\[...\]`, `dollars` `$$...$$`, or `codeFence` ````math...````).
+  - Node metadata copy and replacement methods for full SuperEditor dev.52 tree compatibility.
+- Implemented `QuietMathBlockNodeSerializer` implementing `DocumentNodeMarkdownSerializer` for lossless roundtrip markdown export.
+- Implemented `handleMathBlockFenceNewlineRequest`: typing `$$` or `\[` on an empty paragraph and pressing `Enter` automatically transforms the node into a `QuietMathBlockNode`.
+
+#### 3. Interactive Block Math Component (`QuietMathBlockComponent`)
+- Implemented [`QuietMathBlockComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart) and `QuietMathBlockComponentBuilder`:
+  - **Rendered Mode**: Clean card displaying rendered LaTeX formula with hover/action controls: Copy LaTeX to clipboard, delimiter switcher (`\[` / `$$`), edit toggle, and delete formula.
+  - **Expanded Editor Mode**: Tapping the card opens an inline TeX editor with live real-time preview, delimiter selector, save button (`Ctrl/Cmd+Enter`), and cancel button (`Escape`).
+  - Error boundary: displays graceful syntax error feedback when invalid LaTeX is typed.
+
+#### 4. Bear/Typora-Style Inline Math Folding (`QuietInlineMath`)
+- Implemented [`foldInlineMathText`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart) supporting `\( ... \)` and `$...$`.
+- **Caret-Aware Folding**: When the caret or selection intersects an inline equation's offset range, the formula remains unfolded as raw LaTeX for direct typing. When the caret is outside, the formula folds into an inline rendered LaTeX pill via SuperEditor `AttributedText` placeholders.
+- **Component Builders**: Implemented `QuietMathParagraphComponentBuilder` and `QuietMathListItemComponentBuilder`, extending inline math folding across paragraphs, bullet lists, and smart checklists.
+- Added selection change listener in `QuietSuperEditor._onSelectionChange` to dynamically re-evaluate inline folding whenever the cursor moves.
+
+#### 5. CommonMark Escapes & Markdown Preview Parity
+- Implemented [`QuietMathParser`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_parser.dart):
+  - `cleanCorruptedEscapes`: auto-repairs legacy `\_` and `\*` inside math delimiters back to valid LaTeX.
+  - `promoteQuietMathBlockNodes`: converts math paragraphs and `code` nodes with language `math` into `QuietMathBlockNode`.
+- Updated `normalizeMarkdownForSuperEditor`: isolates block math with double newlines and shields inline delimiters from CommonMark stripping.
+- Created [`quiet_math_markdown_extension.dart`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_math_markdown_extension.dart) with `MathBracketInlineSyntax`, `MathDollarInlineSyntax`, `MathBlockSyntax`, and `QuietMathElementBuilder` to guarantee identical LaTeX rendering in `QuietMarkdownPreview`.
+
+#### 6. UI & Keyboard Integrations
+- Added `FormattingOption.math` in [`FormattingHubSheet`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_hub_sheet.dart) under "INSERTS & MEDIA".
+- Added "Math Formula" to Insert (+) dropdown menu in [`FormattingToolbar`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/formatting_toolbar.dart).
+- Added keyboard shortcuts in [`EditorScreen`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+  - `Ctrl/Cmd + Alt + M`: Insert Block Math formula.
+  - `Ctrl/Cmd + Shift + M`: Insert Inline Math.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_node.dart`: AST node, markdown serializer, fence newline handler.
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_math_parser.dart`: Math detection, escape cleanup, node promotion.
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart`: Interactive component builder, card view, and inline TeX editor.
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart`: Inline math placeholder, paragraph builder, and list item builder.
+  - `lib/core/markdown/quiet_math_markdown_extension.dart`: Markdown parser syntaxes and element builder.
+  - `test/editor/quiet_math_test.dart`: 15 comprehensive unit and widget tests for math parsing, node creation, serialization, inline folding, and component interaction.
+- **Modified Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Added `flutter_math_fork: ^0.7.4`.
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Registered math node builders, serializer, inline widget builder, and selection listener.
+  - `lib/features/editor/presentation/widgets/super_editor/quiet_image_component.dart`: Enhanced markdown pre-normalization.
+  - `lib/features/editor/application/quiet_super_editor_controller.dart`: Added `insertMathBlock` and `insertInlineMath`.
+  - `lib/features/editor/presentation/editor_screen.dart`: Added math shortcuts and insert methods.
+  - `lib/features/editor/presentation/widgets/formatting_toolbar.dart`: Added Math Formula insert menu entry.
+  - `lib/features/editor/presentation/widgets/formatting_hub_sheet.dart`: Added Math Formula tile to Inserts & Media section.
+  - `lib/core/markdown/markdown_helper.dart`: Added `insertMathBlock`.
+  - `lib/core/markdown/markdown_preview.dart`: Registered math syntaxes and element builder.
+  - `HANDOFF.md` & `handoff/editor-and-typography.md`: Documented architecture and updated index.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 12.3s).
+- **Targeted Test Suites**:
+  - `flutter test test/editor/quiet_math_test.dart`: **15/15 tests passing**.
+  - `flutter test test/editor/quiet_code_block_test.dart`: **10/10 tests passing**.
+  - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
+  - `flutter test test/editor/formatting_toolbar_test.dart`: **8/8 tests passing**.
+- **Full Test Suite**:
+  - `flutter test`: **2,455/2,455 tests passing** (ran in 04:46).
+
+
 
 

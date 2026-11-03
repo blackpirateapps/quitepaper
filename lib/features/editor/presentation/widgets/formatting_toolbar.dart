@@ -529,6 +529,14 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       case FormattingOption.codeBlock:
         _handleCodeBlock(context);
         break;
+      case FormattingOption.math:
+        if (widget.superController != null) {
+          widget.superController!.insertMathBlock();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyHelperFormat(MarkdownHelper.insertMathBlock);
+        }
+        break;
       case FormattingOption.checklist:
         if (widget.superController != null) {
           widget.superController!.toggleChecklist();
@@ -663,6 +671,13 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
           ),
           _buildInsertMenuItem(
             context,
+            value: 'math',
+            icon: PhosphorIconsRegular.mathOperations,
+            label: 'Math Formula',
+            shortcut: r'$$',
+          ),
+          _buildInsertMenuItem(
+            context,
             value: 'tag',
             icon: PhosphorIconsRegular.tag,
             label: 'Tag',
@@ -777,6 +792,11 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       onTap: () => Navigator.of(ctx).pop('code_block'),
                     ),
                     ListTile(
+                      leading: Icon(PhosphorIconsRegular.mathOperations, color: colors.textPrimary),
+                      title: const Text('Math Formula'),
+                      onTap: () => Navigator.of(ctx).pop('math'),
+                    ),
+                    ListTile(
                       leading: Icon(PhosphorIconsRegular.tag, color: colors.textPrimary),
                       title: const Text('Tag'),
                       onTap: () => Navigator.of(ctx).pop('tag'),
@@ -882,6 +902,14 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         break;
       case 'code_block':
         _handleCodeBlock(context);
+        break;
+      case 'math':
+        if (widget.superController != null) {
+          widget.superController!.insertMathBlock();
+          widget.focusNode?.requestFocus();
+        } else {
+          _applyHelperFormat(MarkdownHelper.insertMathBlock);
+        }
         break;
       case 'tag':
         widget.onTagPressed();

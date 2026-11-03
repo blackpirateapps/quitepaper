@@ -175,7 +175,15 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   if (markdown.isEmpty) return markdown;
 
   final inlineNormalized = normalizeInlineMarkdownSpacing(markdown);
-  final lines = const LineSplitter().convert(inlineNormalized);
+
+  // Protect inline LaTeX delimiters: CommonMark parses \( as an escaped parenthesis `(`.
+  // Escaping to \\( ensures CommonMark parses it into a literal `\(` in the Document AST.
+  final protectedMath = inlineNormalized.replaceAllMapped(
+    RegExp(r'(?<!\\)\\\(([^\)\n]+?)(?<!\\)\\\)'),
+    (m) => r'\\(' + m.group(1)! + r'\\)',
+  );
+
+  final lines = const LineSplitter().convert(protectedMath);
   final buffer = StringBuffer();
   final imageLineRegex = RegExp(r'^\s*!\[.*?\]\(.*?\)\s*$');
   final tableLineRegex = RegExp(r'^\s*\|.*?\|\s*$');
@@ -189,6 +197,8 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   // A standalone web link line `[Title](https?://...)`
   final webLinkLineRegex =
       RegExp(r'^\s*\[[^\]]*\]\(\s*https?://[^)]*\)\s*$');
+  final mathBracketStartRegex = RegExp(r'^\s*\\\[');
+  final mathDollarStartRegex = RegExp(r'^\s*\$\$');
 
   for (int i = 0; i < lines.length; i++) {
     final line = lines[i];
@@ -200,6 +210,48 @@ String normalizeMarkdownForSuperEditor(String markdown) {
     final isLinkPreview = isLinkPreviewComment(trimmed) ||
         trimmed.startsWith(r'\<!-- qp-link-preview:');
     final isListOrTask = listOrTaskLineRegex.hasMatch(line);
+    final isMathBracket = mathBracketStartRegex.hasMatch(trimmed);
+    final isMathDollar = mathDollarStartRegex.hasMatch(trimmed);
+
+    // Isolate block math formulas (\[ ... \] and $$ ... $$) with blank lines
+    // and repair legacy escaped underscores (\_ -> _) so CommonMark does not merge
+    // them into neighboring paragraphs or list items.
+    if (isMathBracket || isMathDollar) {
+      if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
+        if (!buffer.toString().endsWith('\n')) {
+          buffer.write('\n');
+        }
+        buffer.write('\n');
+      }
+
+      final isSingleLineBracket = isMathBracket && trimmed.endsWith(r'\]') && trimmed.length > 2;
+      final isSingleLineDollar = isMathDollar && trimmed.endsWith(r'$$') && trimmed.length > 2;
+
+      if (isSingleLineBracket || isSingleLineDollar) {
+        final cleaned = trimmed.replaceAll(r'\_', '_').replaceAll(r'\*', '*');
+        buffer.write(cleaned);
+        buffer.write('\n\n');
+        continue;
+      }
+
+      // Multi-line block math
+      final mathLines = <String>[line];
+      final closingPattern = isMathBracket ? r'\]' : r'$$';
+      int j = i + 1;
+      while (j < lines.length) {
+        final nextLine = lines[j];
+        mathLines.add(nextLine);
+        if (nextLine.trim().endsWith(closingPattern)) {
+          break;
+        }
+        j++;
+      }
+      i = j; // Advance outer loop
+      final joinedMath = mathLines.join('\n').replaceAll(r'\_', '_').replaceAll(r'\*', '*');
+      buffer.write(joinedMath);
+      buffer.write('\n\n');
+      continue;
+    }
 
     if (isImage || isQpLink || isWebLink) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {

@@ -46,6 +46,7 @@ import '../../features/settings/application/default_settings_provider.dart';
 import '../../features/settings/application/settings_provider.dart';
 import '../../features/tags/domain/phosphor_icons.dart';
 import 'markdown_checklist_helper.dart';
+import 'quiet_math_markdown_extension.dart';
 
 
 class QuietMarkdownPreview extends ConsumerStatefulWidget {
@@ -559,9 +560,12 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
       HighlightSyntax(),
       QuietDocumentSyntax(),
       QuietAttachmentSyntax(),
+      MathBracketInlineSyntax(),
+      MathDollarInlineSyntax(),
     ];
     final blockSyntaxes = <md.BlockSyntax>[
       const LinkPreviewBlockSyntax(),
+      const MathBlockSyntax(),
     ];
     final highlighter = ref.watch(syntaxHighlighterProvider);
     final resolver = ref.watch(syntaxLanguageResolverProvider);
@@ -590,6 +594,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
 
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
+      'math': QuietMathElementBuilder(),
       'quietdoc': QuietDocumentElementBuilder(
         onDocumentRenamed: widget.onDocumentRenamed,
       ),
