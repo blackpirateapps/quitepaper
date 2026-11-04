@@ -32,6 +32,18 @@ void main() {
       expect(parsed.latex, r'x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}');
     });
 
+    test('parses double-backslash bracket block math from LLM or JSON exports', () {
+      final parsed = QuietMathParser.parseBlockMath(r'\[ (n-2)\times180^\circ=k\times360^\circ \]');
+      expect(parsed, isNotNull);
+      expect(parsed!.delimiterType, MathDelimiterType.brackets);
+      expect(parsed.latex, r'(n-2)\times180^\circ=k\times360^\circ');
+
+      final parsedDouble = QuietMathParser.parseBlockMath(r'\\[ (n-2)\times180^\circ=k\times360^\circ \\]');
+      expect(parsedDouble, isNotNull);
+      expect(parsedDouble!.delimiterType, MathDelimiterType.brackets);
+      expect(parsedDouble.latex, r'(n-2)\times180^\circ=k\times360^\circ');
+    });
+
     test('parses multi-line block math', () {
       final text = "\\[\nS_{17}=\\frac{17}{2}(3+99)\n\\]";
       final parsed = QuietMathParser.parseBlockMath(text);
@@ -60,6 +72,18 @@ void main() {
 
       expect(matches[2].latex, 'l=99');
       expect(matches[2].isBracket, isTrue);
+    });
+
+    test('finds inline math with internal parentheses and double backslashes', () {
+      const line = r'Formula \((n-2)\times180^\circ\) and answer \\(\boxed{2(k+1)}\\)';
+      final matches = QuietMathParser.findInlineMathMatches(line);
+      expect(matches.length, 2);
+
+      expect(matches[0].latex, r'(n-2)\times180^\circ');
+      expect(matches[0].isBracket, isTrue);
+
+      expect(matches[1].latex, r'\boxed{2(k+1)}');
+      expect(matches[1].isBracket, isTrue);
     });
 
     test('does not parse plain non-math dollar signs or brackets', () {

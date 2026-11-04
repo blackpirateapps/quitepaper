@@ -179,7 +179,7 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   // Protect inline LaTeX delimiters: CommonMark parses \( as an escaped parenthesis `(`.
   // Escaping to \\( ensures CommonMark parses it into a literal `\(` in the Document AST.
   final protectedMath = inlineNormalized.replaceAllMapped(
-    RegExp(r'(?<!\\)\\\(([^\)\n]+?)(?<!\\)\\\)'),
+    RegExp(r'(?<!\\)\\{1,2}\(([\s\S]+?)(?<!\\)\\{1,2}\)'),
     (m) => r'\\(' + m.group(1)! + r'\\)',
   );
 
@@ -197,7 +197,7 @@ String normalizeMarkdownForSuperEditor(String markdown) {
   // A standalone web link line `[Title](https?://...)`
   final webLinkLineRegex =
       RegExp(r'^\s*\[[^\]]*\]\(\s*https?://[^)]*\)\s*$');
-  final mathBracketStartRegex = RegExp(r'^\s*\\\[');
+  final mathBracketStartRegex = RegExp(r'^\s*\\{1,2}\[');
   final mathDollarStartRegex = RegExp(r'^\s*\$\$');
 
   for (int i = 0; i < lines.length; i++) {
@@ -224,7 +224,7 @@ String normalizeMarkdownForSuperEditor(String markdown) {
         buffer.write('\n');
       }
 
-      final isSingleLineBracket = isMathBracket && trimmed.endsWith(r'\]') && trimmed.length > 2;
+      final isSingleLineBracket = isMathBracket && RegExp(r'\\{1,2}\]$').hasMatch(trimmed) && trimmed.length > 2;
       final isSingleLineDollar = isMathDollar && trimmed.endsWith(r'$$') && trimmed.length > 2;
 
       if (isSingleLineBracket || isSingleLineDollar) {
@@ -236,12 +236,12 @@ String normalizeMarkdownForSuperEditor(String markdown) {
 
       // Multi-line block math
       final mathLines = <String>[line];
-      final closingPattern = isMathBracket ? r'\]' : r'$$';
+      final closingRegex = isMathBracket ? RegExp(r'\\{1,2}\]$') : RegExp(r'\$\$$');
       int j = i + 1;
       while (j < lines.length) {
         final nextLine = lines[j];
         mathLines.add(nextLine);
-        if (nextLine.trim().endsWith(closingPattern)) {
+        if (closingRegex.hasMatch(nextLine.trim())) {
           break;
         }
         j++;

@@ -3,9 +3,9 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 
-/// Markdown [md.InlineSyntax] for matching LaTeX inline math delimiters: `\( ... \)`.
+/// Markdown [md.InlineSyntax] for matching LaTeX inline math delimiters: `\( ... \)` and `\\( ... \\)`.
 class MathBracketInlineSyntax extends md.InlineSyntax {
-  MathBracketInlineSyntax() : super(r'\\\(([\s\S]+?)\\\)');
+  MathBracketInlineSyntax() : super(r'\\{1,2}\(([\s\S]+?)\\{1,2}\)');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -32,23 +32,23 @@ class MathDollarInlineSyntax extends md.InlineSyntax {
   }
 }
 
-/// Markdown [md.BlockSyntax] for parsing display math blocks: `\[ ... \]` and `$$ ... $$`.
+/// Markdown [md.BlockSyntax] for parsing display math blocks: `\[ ... \]`, `\\[ ... \\]`, and `$$ ... $$`.
 class MathBlockSyntax extends md.BlockSyntax {
   const MathBlockSyntax();
 
   static final RegExp _singleLineBracket =
-      RegExp(r'^\s*\\\[([\s\S]*?)\\\]\s*$');
+      RegExp(r'^\s*\\{1,2}\[([\s\S]*?)\\{1,2}\]\s*$');
   static final RegExp _singleLineDollar =
       RegExp(r'^\s*\$\$([\s\S]*?)\$\$\s*$');
 
   @override
-  RegExp get pattern => RegExp(r'^\s*(?:\\\[|\$\$)');
+  RegExp get pattern => RegExp(r'^\s*(?:\\{1,2}\[|\$\$)');
 
   @override
   md.Node parse(md.BlockParser parser) {
     final firstLine = parser.current.content;
 
-    // Single-line bracket `\[ ... \]`
+    // Single-line bracket `\[ ... \]` or `\\[ ... \\]`
     final singleBracketMatch = _singleLineBracket.firstMatch(firstLine);
     if (singleBracketMatch != null) {
       parser.advance();
@@ -71,25 +71,30 @@ class MathBlockSyntax extends md.BlockSyntax {
     }
 
     // Multi-line block
-    final isBracket = firstLine.trim().startsWith(r'\[');
-    final closingPattern = isBracket ? r'\]' : r'$$';
+    final trimmedFirst = firstLine.trim();
+    final isBracket = RegExp(r'^\\{1,2}\[').hasMatch(trimmedFirst);
     final lines = <String>[];
 
     // Remove opening delimiter if on same line
-    final openingDelimiter = isBracket ? r'\[' : r'$$';
-    final remainingFirst =
-        firstLine.trim().substring(openingDelimiter.length).trim();
+    final openingMatch = isBracket
+        ? RegExp(r'^\s*\\{1,2}\[').firstMatch(firstLine)
+        : RegExp(r'^\s*\$\$').firstMatch(firstLine);
+    final openingLen = openingMatch != null ? openingMatch.group(0)!.length : 0;
+    final remainingFirst = firstLine.substring(openingLen).trim();
     if (remainingFirst.isNotEmpty) {
       lines.add(remainingFirst);
     }
     parser.advance();
 
+    final closingRegex = isBracket
+        ? RegExp(r'\\{1,2}\]\s*$')
+        : RegExp(r'\$\$\s*$');
+
     while (!parser.isDone) {
       final currentLine = parser.current.content;
-      final trimmed = currentLine.trim();
-      if (trimmed.endsWith(closingPattern)) {
-        final content =
-            trimmed.substring(0, trimmed.length - closingPattern.length).trim();
+      final match = closingRegex.firstMatch(currentLine);
+      if (match != null) {
+        final content = currentLine.substring(0, match.start).trim();
         if (content.isNotEmpty) {
           lines.add(content);
         }

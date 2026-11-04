@@ -401,20 +401,26 @@ Reflecting on the day.
       expect(find.text('Nanolathe'), findsOneWidget);
     });
 
-    testWidgets('renders LaTeX display math and inline math without error',
+    testWidgets('renders user screenshot math note with double and single backslash LaTeX delimiters correctly',
         (tester) async {
-      const mathMarkdown = r'''Step 1: Find the sum of the first 50 positive odd integers
+      const mathMarkdown = r'''We know that:
 
-The first 50 positive odd integers are:
+- Sum of interior angles of a polygon = \((n-2)\times180^\circ\)
+- Sum of exterior angles of any polygon = \(360^\circ\)
 
-\[ 1, 3, 5, 7, 9, \dots, 99 \]
+According to the question,
 
-We use the formula:
+\[ (n-2)\times180^\circ=k\times360^\circ \]
 
-\[ S_n = n^2 \]
+Dividing both sides by \(180^\circ\),
 
-This formula gives the sum of the first $n$ positive odd integers.
-Here, $n = 50$.
+\[ n-2=2k \]
+
+Therefore,
+
+\[ \boxed{n=2k+2} \]
+
+Answer: The number of sides of the polygon is \(\boxed{2(k+1)}\).
 ''';
 
       await tester.pumpWidget(
@@ -426,10 +432,52 @@ Here, $n = 50$.
       );
       await tester.pumpAndSettle();
 
-      // Math blocks and inline math render properly with Math widgets
-      expect(find.byType(Math), findsNWidgets(4));
-      expect(find.textContaining('The first 50 positive odd integers are:'), findsOneWidget);
-      expect(find.textContaining('We use the formula:'), findsOneWidget);
+      // All 3 display math blocks and all 4 inline math formulas must render cleanly as Math widgets
+      expect(find.byType(Math), findsNWidgets(7));
+      // No raw unparsed delimiters should leak into rendered text
+      expect(find.textContaining(r'\['), findsNothing);
+      expect(find.textContaining(r'\]'), findsNothing);
+      expect(find.textContaining(r'\('), findsNothing);
+      expect(find.textContaining(r'\)'), findsNothing);
+    });
+
+    testWidgets('renders math with double-escaped backslashes from LLM or JSON exports',
+        (tester) async {
+      const doubleEscapedMarkdown = r'''We know that:
+
+- Sum of interior angles of a polygon = \\((n-2)\times180^\circ\\)
+- Sum of exterior angles of any polygon = \\(360^\circ\\)
+
+According to the question,
+
+\\[ (n-2)\times180^\circ=k\times360^\circ \\]
+
+Dividing both sides by \\(180^\circ\\),
+
+\\[ n-2=2k \\]
+
+Therefore,
+
+\\[ \boxed{n=2k+2} \\]
+
+Answer: The number of sides of the polygon is \\(\boxed{2(k+1)}\\).
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: doubleEscapedMarkdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // All 3 display math blocks and all 4 inline math formulas must render cleanly as Math widgets
+      expect(find.byType(Math), findsNWidgets(7));
+      expect(find.textContaining(r'\['), findsNothing);
+      expect(find.textContaining(r'\]'), findsNothing);
+      expect(find.textContaining(r'\('), findsNothing);
+      expect(find.textContaining(r'\)'), findsNothing);
     });
   });
 }

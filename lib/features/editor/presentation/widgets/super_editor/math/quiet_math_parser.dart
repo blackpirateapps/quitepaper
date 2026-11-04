@@ -44,7 +44,7 @@ class QuietMathParser {
   QuietMathParser._();
 
   static final RegExp _bracketBlockRegex = RegExp(
-    r'^\s*(?:\\\[|\[)([\s\S]*?)(?:\\\]|\])\s*$',
+    r'^\s*(?:\\{1,2}\[|\[)([\s\S]*?)(?:\\{1,2}\]|\])\s*$',
   );
 
   static final RegExp _dollarBlockRegex = RegExp(
@@ -52,7 +52,7 @@ class QuietMathParser {
   );
 
   static final RegExp _inlineBracketRegex = RegExp(
-    r'(?:\\\(|\()([^\)\n]+?)(?:\\\)|\))',
+    r'(?<!\\)\\{1,2}\(([\s\S]+?)(?<!\\)\\{1,2}\)',
   );
 
   static final RegExp _inlineDollarRegex = RegExp(
@@ -78,7 +78,7 @@ class QuietMathParser {
     if (bracketMatch != null) {
       final raw = bracketMatch.group(1)?.trim() ?? '';
       // If it started with raw `[` without backslash, only treat as math if it contains LaTeX syntax (\, _, ^, =)
-      if (trimmed.startsWith(r'\[') || raw.contains(r'\') || raw.contains('_') || raw.contains('^') || raw.contains('=')) {
+      if (RegExp(r'^\\{1,2}\[').hasMatch(trimmed) || raw.contains(r'\') || raw.contains('_') || raw.contains('^') || raw.contains('=')) {
         return ParsedBlockMath(
           latex: cleanCorruptedEscapes(raw),
           delimiterType: MathDelimiterType.brackets,
@@ -104,12 +104,11 @@ class QuietMathParser {
 
     final matches = <InlineMathMatch>[];
 
-    // 1. Find `\( ... \)` matches
+    // 1. Find `\( ... \)` and `\\( ... \\)` matches
     for (final m in _inlineBracketRegex.allMatches(text)) {
       final raw = m.group(1)?.trim() ?? '';
       final full = m.group(0)!;
-      // Only treat as math if preceded by backslash `\(` or contains LaTeX commands/symbols
-      if (raw.isNotEmpty && (full.startsWith(r'\(') || raw.contains(r'\') || raw.contains('='))) {
+      if (raw.isNotEmpty) {
         matches.add(InlineMathMatch(
           start: m.start,
           end: m.end,
