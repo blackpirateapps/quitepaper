@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pasteboard/pasteboard.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -21,6 +20,7 @@ import '../../../core/documents/document_models.dart';
 import '../../../core/documents/document_provider.dart';
 import '../../../core/documents/presentation/document_viewer_screen.dart';
 import '../../../core/markdown/markdown_preview.dart';
+import '../../../core/utils/linux_clipboard_helper.dart';
 import '../../../core/utils/web_url_helper.dart';
 import '../../../core/web_clipper/link_title_fetcher.dart';
 import '../../../core/web_clipper/link_preview_baker.dart';
@@ -3096,13 +3096,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     List<String> files = [];
     try {
-      files = await Pasteboard.files();
+      files = await const LinuxClipboardHelper().getClipboardFiles();
     } catch (_) {}
 
     Uint8List? imageBytes;
     if (files.isEmpty) {
       try {
-        imageBytes = await Pasteboard.image;
+        imageBytes = await const LinuxClipboardHelper().getClipboardImage();
       } catch (_) {}
     }
 

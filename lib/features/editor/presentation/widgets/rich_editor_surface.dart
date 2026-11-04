@@ -27,6 +27,7 @@ class RichEditorSurface extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onChanged,
     this.onKeyEvent,
+    this.onPaste,
   });
 
   final RichDocumentController controller;
@@ -41,6 +42,7 @@ class RichEditorSurface extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
   final FocusOnKeyEventCallback? onKeyEvent;
+  final VoidCallback? onPaste;
 
   @override
   State<RichEditorSurface> createState() => _RichEditorSurfaceState();
@@ -88,6 +90,7 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
         onActiveTargetChanged: widget.onActiveTargetChanged,
         onChanged: widget.onChanged,
         onKeyEvent: widget.onKeyEvent,
+        onPaste: widget.onPaste,
       );
     }
 
@@ -110,6 +113,7 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
             onActiveTargetChanged: widget.onActiveTargetChanged,
             onChanged: widget.onChanged,
             onKeyEvent: widget.onKeyEvent,
+            onPaste: widget.onPaste,
           ),
         );
         currentTextIndices.clear();
@@ -128,6 +132,7 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
             onActiveTargetChanged: widget.onActiveTargetChanged,
             onChanged: widget.onChanged,
             onKeyEvent: widget.onKeyEvent,
+            onPaste: widget.onPaste,
           ),
         );
         currentChecklistIndices.clear();

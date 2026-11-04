@@ -495,6 +495,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         hintText: widget.hintText,
         noteId: widget.noteId,
         onCaretPositionChanged: widget.onCaretPositionChanged,
+        onPaste: widget.onPaste,
+        onKeyEvent: widget.onKeyEvent,
         onChanged: (newMarkdown) {
           widget.controller.text = newMarkdown;
           widget.onChanged?.call(newMarkdown);
@@ -515,6 +517,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           noteId: widget.noteId,
           onActiveTargetChanged: widget.onActiveTargetChanged,
           onKeyEvent: widget.onKeyEvent,
+          onPaste: widget.onPaste,
           onChanged: (newVal) {
             _autosaveDebouncer.run(_flushRichContent);
           },
@@ -640,6 +643,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             hintText: currentOffset == 0 ? widget.hintText : '',
             searchQuery: widget.searchQuery,
             editingStyle: widget.editingStyle,
+            onPaste: widget.onPaste,
             onActiveTarget: _handleSegmentActiveTarget,
             onTap: _handleSegmentTap,
             onChanged: (newSegText) {
@@ -699,6 +703,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           hintText: '',
           searchQuery: widget.searchQuery,
           editingStyle: widget.editingStyle,
+          onPaste: widget.onPaste,
           onActiveTarget: _handleSegmentActiveTarget,
           onTap: _handleSegmentTap,
           onChanged: (newSegText) {
@@ -721,6 +726,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           hintText: 'Continue writing...',
           searchQuery: widget.searchQuery,
           editingStyle: widget.editingStyle,
+          onPaste: widget.onPaste,
           onActiveTarget: _handleSegmentActiveTarget,
           onChanged: (newSegText) {
             final newFullText = '$text\n\n$newSegText';
@@ -1006,6 +1012,7 @@ class _TextSegmentField extends StatefulWidget {
     this.editingStyle = EditorEditingStyle.markdown,
     this.onTap,
     this.onActiveTarget,
+    this.onPaste,
   });
 
   final String initialText;
@@ -1017,6 +1024,7 @@ class _TextSegmentField extends StatefulWidget {
   final EditorEditingStyle editingStyle;
   final void Function(TextEditingController controller)? onTap;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTarget;
+  final VoidCallback? onPaste;
 
   @override
   State<_TextSegmentField> createState() => _TextSegmentFieldState();
@@ -1084,28 +1092,58 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
     }
   }
 
+  Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
+    final rawButtonItems = editableTextState.contextMenuButtonItems;
+    final buttonItems = rawButtonItems.map((item) {
+      if (item.type == ContextMenuButtonType.paste && widget.onPaste != null) {
+        return ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          label: item.label,
+          onPressed: () {
+            ContextMenuController.removeAny();
+            widget.onPaste!();
+          },
+        );
+      }
+      return item;
+    }).toList();
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return TextField(
-      controller: _sourceController,
-      focusNode: _focusNode,
-      readOnly: widget.readOnly,
-      cursorColor: colors.accent,
-      style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
-        color: colors.textPrimary,
-      ),
-      inputFormatters: const [MarkdownTextInputFormatter()],
-      maxLines: null,
-      onTap: () {
-        widget.onActiveTarget?.call(_sourceController, _focusNode);
-        widget.onTap?.call(_sourceController);
+    return CallbackShortcuts(
+      bindings: {
+        if (widget.onPaste != null) ...{
+          const SingleActivator(LogicalKeyboardKey.keyV, control: true): widget.onPaste!,
+          const SingleActivator(LogicalKeyboardKey.keyV, meta: true): widget.onPaste!,
+        },
       },
-      decoration: InputDecoration(
-        hintText: widget.hintText,
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
+      child: TextField(
+        controller: _sourceController,
+        focusNode: _focusNode,
+        readOnly: widget.readOnly,
+        cursorColor: colors.accent,
+        style: (widget.styles?.body ?? AppTypography.editorBody).copyWith(
+          color: colors.textPrimary,
+        ),
+        inputFormatters: const [MarkdownTextInputFormatter()],
+        maxLines: null,
+        onTap: () {
+          widget.onActiveTarget?.call(_sourceController, _focusNode);
+          widget.onTap?.call(_sourceController);
+        },
+        contextMenuBuilder: _buildContextMenu,
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
       ),
     );
   }

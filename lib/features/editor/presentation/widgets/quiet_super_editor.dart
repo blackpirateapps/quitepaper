@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -43,6 +44,8 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
     this.hintText,
     this.noteId,
     this.onCaretPositionChanged,
+    this.onPaste,
+    this.onKeyEvent,
   });
 
   final String initialMarkdown;
@@ -54,6 +57,8 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   final String? hintText;
   final String? noteId;
   final ValueChanged<Offset>? onCaretPositionChanged;
+  final VoidCallback? onPaste;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
   ConsumerState<QuietSuperEditor> createState() => _QuietSuperEditorState();
@@ -65,6 +70,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late SmartTaskController _smartTaskController;
   late final QuietDividerPlugin _dividerPlugin;
   late final QuietMathBlockPlugin _mathBlockPlugin;
+  late final QuietPastePlugin _pastePlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
   bool _isInternalUpdate = false;
@@ -74,6 +80,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     super.initState();
     _dividerPlugin = QuietDividerPlugin();
     _mathBlockPlugin = QuietMathBlockPlugin();
+    _pastePlugin = QuietPastePlugin(onPaste: widget.onPaste);
     _smartTaskController = SmartTaskController()..addListener(_onSmartTaskChanged);
     _initEditor();
   }
@@ -163,6 +170,9 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   @override
   void didUpdateWidget(QuietSuperEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.onPaste != oldWidget.onPaste) {
+      _pastePlugin.onPaste = widget.onPaste;
+    }
     if (widget.controller != oldWidget.controller) {
       oldWidget.controller?.detach();
       widget.controller?.attach(_editor, _composer);
@@ -418,87 +428,133 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        Widget editorWidget = SuperEditor(
+          editor: _editor,
+          focusNode: widget.focusNode,
+          shrinkWrap: true,
+          stylesheet: stylesheet,
+          selectionPolicies: const SuperEditorSelectionPolicies(
+            placeCaretAtEndOfDocumentOnGainFocus: false,
+          ),
+          plugins: {
+            _dividerPlugin,
+            _mathBlockPlugin,
+            _pastePlugin,
+          },
+          contentTapDelegateFactories: const [
+            superEditorLaunchLinkTapHandlerFactory,
+            quietMathBlockTapHandlerFactory,
+            quietDividerTapHandlerFactory,
+            superEditorAddEmptyParagraphTapHandlerFactory,
+          ],
+          componentBuilders: [
+            QuietMathBlockComponentBuilder(_editor),
+            QuietMathParagraphComponentBuilder(_editor),
+            QuietMathListItemComponentBuilder(_editor),
+            QuietCodeBlockComponentBuilder(_editor),
+            QuietTaskComponentBuilder(
+              _editor,
+              smartTaskController: _smartTaskController,
+            ),
+            QuietImageComponentBuilder(noteId: widget.noteId),
+            QuietAttachmentComponentBuilder(
+              editor: _editor,
+              noteId: widget.noteId,
+              showRemove: !widget.readOnly,
+            ),
+            LinkPreviewComponentBuilder(
+              editor: _editor,
+              noteId: widget.noteId,
+              showRemove: !widget.readOnly,
+            ),
+            QuietTableComponentBuilder(editor: _editor),
+            QuietHorizontalRuleComponentBuilder(_editor),
+            ...defaultComponentBuilders,
+          ],
+          selectionStyle: SelectionStyles(
+            selectionColor: colors.selection,
+          ),
+          androidHandleColor: colors.accent,
+          iOSHandleColor: colors.accent,
+          documentOverlayBuilders: [
+            const SuperEditorIosToolbarFocalPointDocumentLayerBuilder(),
+            SuperEditorIosHandlesDocumentLayerBuilder(
+              handleColor: colors.accent,
+            ),
+            const SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder(),
+            SuperEditorAndroidHandlesDocumentLayerBuilder(
+              caretColor: colors.accent,
+            ),
+            DefaultCaretOverlayBuilder(
+              caretStyle: CaretStyle(
+                width: 2,
+                color: colors.accent,
+              ),
+              displayOnAllPlatforms: true,
+            ),
+            LinkEnhanceDocumentLayerBuilder(
+              controller: widget.controller,
+              readOnly: widget.readOnly,
+            ),
+            if (widget.onCaretPositionChanged != null)
+              TypewriterDocumentLayerBuilder(
+                onCaretGlobalPosition: widget.onCaretPositionChanged!,
+              ),
+          ],
+        );
+
+        if (widget.onKeyEvent != null) {
+          editorWidget = Focus(
+            onKeyEvent: widget.onKeyEvent,
+            child: editorWidget,
+          );
+        }
+
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
           child: SizedBox(
             width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
-            child: SuperEditor(
-              editor: _editor,
-              focusNode: widget.focusNode,
-              shrinkWrap: true,
-              stylesheet: stylesheet,
-              selectionPolicies: const SuperEditorSelectionPolicies(
-                placeCaretAtEndOfDocumentOnGainFocus: false,
-              ),
-              plugins: {
-                _dividerPlugin,
-                _mathBlockPlugin,
-              },
-              contentTapDelegateFactories: const [
-                superEditorLaunchLinkTapHandlerFactory,
-                quietMathBlockTapHandlerFactory,
-                quietDividerTapHandlerFactory,
-                superEditorAddEmptyParagraphTapHandlerFactory,
-              ],
-              componentBuilders: [
-                QuietMathBlockComponentBuilder(_editor),
-                QuietMathParagraphComponentBuilder(_editor),
-                QuietMathListItemComponentBuilder(_editor),
-                QuietCodeBlockComponentBuilder(_editor),
-                QuietTaskComponentBuilder(
-                  _editor,
-                  smartTaskController: _smartTaskController,
-                ),
-                QuietImageComponentBuilder(noteId: widget.noteId),
-                QuietAttachmentComponentBuilder(
-                  editor: _editor,
-                  noteId: widget.noteId,
-                  showRemove: !widget.readOnly,
-                ),
-                LinkPreviewComponentBuilder(
-                  editor: _editor,
-                  noteId: widget.noteId,
-                  showRemove: !widget.readOnly,
-                ),
-                QuietTableComponentBuilder(editor: _editor),
-                QuietHorizontalRuleComponentBuilder(_editor),
-                ...defaultComponentBuilders,
-              ],
-              selectionStyle: SelectionStyles(
-                selectionColor: colors.selection,
-              ),
-              androidHandleColor: colors.accent,
-              iOSHandleColor: colors.accent,
-              documentOverlayBuilders: [
-                const SuperEditorIosToolbarFocalPointDocumentLayerBuilder(),
-                SuperEditorIosHandlesDocumentLayerBuilder(
-                  handleColor: colors.accent,
-                ),
-                const SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder(),
-                SuperEditorAndroidHandlesDocumentLayerBuilder(
-                  caretColor: colors.accent,
-                ),
-                DefaultCaretOverlayBuilder(
-                  caretStyle: CaretStyle(
-                    width: 2,
-                    color: colors.accent,
-                  ),
-                  displayOnAllPlatforms: true,
-                ),
-                LinkEnhanceDocumentLayerBuilder(
-                  controller: widget.controller,
-                  readOnly: widget.readOnly,
-                ),
-                if (widget.onCaretPositionChanged != null)
-                  TypewriterDocumentLayerBuilder(
-                    onCaretGlobalPosition: widget.onCaretPositionChanged!,
-                  ),
-              ],
-            ),
+            child: editorWidget,
           ),
         );
       },
     );
+  }
+}
+
+/// Plugin that intercepts Ctrl+V / Cmd+V paste events in SuperEditor and routes
+/// them to [onPaste], preventing SuperEditor from silently swallowing image/file pastes.
+class QuietPastePlugin extends SuperEditorPlugin {
+  QuietPastePlugin({this.onPaste});
+  VoidCallback? onPaste;
+
+  @override
+  List<SuperEditorKeyboardAction> get keyboardActions => [
+        _pasteKeyboardAction,
+      ];
+
+  ExecutionInstruction _pasteKeyboardAction({
+    required SuperEditorContext editContext,
+    required KeyEvent keyEvent,
+  }) {
+    if (onPaste == null) return ExecutionInstruction.continueExecution;
+    if (keyEvent is! KeyDownEvent) {
+      return ExecutionInstruction.continueExecution;
+    }
+    if (!HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      return ExecutionInstruction.continueExecution;
+    }
+    if (HardwareKeyboard.instance.isShiftPressed ||
+        HardwareKeyboard.instance.isAltPressed) {
+      return ExecutionInstruction.continueExecution;
+    }
+    if (keyEvent.logicalKey != LogicalKeyboardKey.keyV) {
+      return ExecutionInstruction.continueExecution;
+    }
+
+    onPaste!();
+    return ExecutionInstruction.haltExecution;
   }
 }

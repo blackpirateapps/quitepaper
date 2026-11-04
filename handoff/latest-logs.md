@@ -5250,3 +5250,70 @@ Root cause investigation revealed a dual-factor interaction within SuperEditor:
 
 
 
+
+
+---
+
+## 255. Linux Desktop: Multi-Mode Image & File Paste Fix with Wayland/X11 Fallback (November 2026)
+
+### 1. Overview & Bug Analysis
+Image pasting into notes on Linux desktop environments stopped working across several scenarios:
+1. **SuperEditor Interception**: In `QuietSuperEditor`, SuperEditor's default `pasteWhenCmdVIsPressed` keyboard action halted event processing and executed an internal plain-text paste (`Clipboard.getData('text/plain')`), discarding image bytes and preventing `EditorScreen._handlePaste()` from running. `MarkdownEditor` also did not forward `onPaste` or `onKeyEvent` to `QuietSuperEditor`.
+2. **Visual (WYSIWYG) & Segmented Table Paste Gaps**: `MarkdownEditor` did not forward `onPaste` to `RichEditorSurface`, `RichTextEditor`, or `RichChecklistEditor`. In these surfaces, `CallbackShortcuts` lacked bindings for `Ctrl+V` / `Cmd+V`, and right-click context menus defaulted to Flutter's text-only `PasteTextIntent`. Similarly, non-table `_TextSegmentField` instances surrounding Markdown tables lacked paste shortcuts and context menu routing.
+3. **Linux Wayland / GTK Clipboard Inconsistencies**: On Wayland sessions (GNOME, KDE Plasma, Sway, Hyprland), GTK's `Pasteboard.image` can return `null` if GdkPixbuf cannot negotiate the offered MIME types (e.g. `image/png` from KDE Spectacle screenshots or browser "Copy Image" actions without explicit window focus). When `Pasteboard.image` returned null, Quiet Paper had no fallback for Linux image streams.
+4. **Empty Document & Non-Text Node Insertion Failures**: In `QuietSuperEditorController.insertSnippet`, attempting to paste structured image content into an empty document or when the selection was on a non-text node (`ImageNode`, `HorizontalRuleNode`) failed due to missing text node anchor points.
+
+### 2. Architectural Design & Fix Implementation
+1. **Native Linux Clipboard Helper (`LinuxClipboardHelper`)**:
+   - Created [`LinuxClipboardHelper`](file:///home/dog/git/quitepaper/lib/core/utils/linux_clipboard_helper.dart).
+   - First queries `Pasteboard.image` / `Pasteboard.files`.
+   - On Linux, if `Pasteboard.image` is null or empty, queries native command-line utilities with short timeouts:
+     - Wayland: `wl-paste --type image/png` (with fallback to `image/jpeg`).
+     - X11: `xclip -selection clipboard -target image/png -out` (with fallback to `image/jpeg`).
+   - For files, falls back to `wl-paste --type text/uri-list` and `xclip` to resolve `file://` URIs.
+   - Built with dependency injection (`processRunner`) for unit testing.
+2. **SuperEditor Paste Plugin (`QuietPastePlugin`)**:
+   - Implemented `QuietPastePlugin` in [`QuietSuperEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart).
+   - Injected into `SuperEditor.plugins` so its keyboard action executes before `defaultKeyboardActions`.
+   - Intercepts `Ctrl+V` and `Cmd+V`, invokes `widget.onPaste!()`, and halts execution so SuperEditor's text-only paste never runs.
+   - Wrapped `SuperEditor` in `Focus(onKeyEvent: widget.onKeyEvent)` to propagate keyboard events upward.
+3. **Robust Insertion in `QuietSuperEditorController`**:
+   - In [`insertSnippet`](file:///home/dog/git/quitepaper/lib/features/editor/application/quiet_super_editor_controller.dart):
+     - If document is empty (`_editor!.document.isEmpty`), initializes an empty `ParagraphNode` via `InsertNodeAtIndexRequest(nodeIndex: 0, ...)` and sets selection.
+     - If selection is on a non-text node (`node is! TextNode`), inserts a `ParagraphNode` after it and anchors the selection there before executing `PasteStructuredContentEditorRequest`.
+4. **Visual (WYSIWYG) & Table Segment Context Menus & Shortcuts**:
+   - Forwarded `onPaste` from [`MarkdownEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/markdown_editor.dart) to `RichEditorSurface`, `QuietSuperEditor`, and `_TextSegmentField`.
+   - In [`RichTextEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_text_editor.dart) and [`RichChecklistEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/rich_checklist_editor.dart):
+     - Added `keyV` in `CallbackShortcuts` pointing to `widget.onPaste!`.
+     - In `contextMenuBuilder`, mapped `ContextMenuButtonType.paste` to invoke `widget.onPaste!()`.
+   - In `_TextSegmentField`:
+     - Added `CallbackShortcuts` for `keyV` and context menu paste routing.
+5. **EditorScreen Central Handling**:
+   - In [`EditorScreen._handlePaste`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart):
+     - Uses `LinuxClipboardHelper` to retrieve image bytes and files on Linux.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/utils/linux_clipboard_helper.dart`: Linux Wayland (`wl-paste`), X11 (`xclip`), and GTK clipboard retrieval with mockable process runner.
+  - `test/editor/linux_clipboard_helper_test.dart`: Unit tests for Linux clipboard extraction, fallback paths, and error handling.
+- **Modified Files**:
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Added `QuietPastePlugin`, `onPaste`, `onKeyEvent`, and `Focus` wrapper.
+  - `lib/features/editor/application/quiet_super_editor_controller.dart`: Handled empty document initialization and non-text node paste positioning.
+  - `lib/features/editor/presentation/widgets/markdown_editor.dart`: Forwarded `onPaste` across all modes and segmented table fields.
+  - `lib/features/editor/presentation/widgets/rich_editor_surface.dart`: Propagated `onPaste` to child editors.
+  - `lib/features/editor/presentation/widgets/rich_text_editor.dart`: Wired `keyV` shortcut and context menu paste to `widget.onPaste`.
+  - `lib/features/editor/presentation/widgets/rich_checklist_editor.dart`: Wired `keyV` shortcut and context menu paste to `widget.onPaste`.
+  - `lib/features/editor/presentation/editor_screen.dart`: Integrated `LinuxClipboardHelper` into `_handlePaste`.
+  - `test/editor/markdown_keyboard_shortcuts_test.dart`: Added multi-mode `Ctrl+V` widget tests for SuperEditor, Visual mode, and Markdown tables.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 16.5s).
+- **Targeted Test Suites**:
+  - `flutter test test/editor/linux_clipboard_helper_test.dart`: **4/4 tests passing**.
+  - `flutter test test/editor/markdown_keyboard_shortcuts_test.dart`: **6/6 tests passing**.
+  - `flutter test test/editor/desktop_file_drop_and_paste_test.dart`: **3/3 tests passing**.
+  - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
+  - `flutter test test/editor/markdown_editor_widget_test.dart`: **41/41 tests passing**.
+  - `flutter test test/editor/rich_text_editor_formattings_test.dart`: **42/42 tests passing**.
+  - `flutter test test/editor/rich_text_checklist_editor_test.dart`: **27/27 tests passing**.
+  - `flutter test test/editor/markdown_table_widget_test.dart`: **10/10 tests passing**.

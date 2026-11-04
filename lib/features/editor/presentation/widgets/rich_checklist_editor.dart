@@ -33,6 +33,7 @@ class RichChecklistEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onChanged,
     this.onKeyEvent,
+    this.onPaste,
   });
 
   final RichDocumentController controller;
@@ -41,6 +42,7 @@ class RichChecklistEditor extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
   final FocusOnKeyEventCallback? onKeyEvent;
+  final VoidCallback? onPaste;
 
   @override
   State<RichChecklistEditor> createState() => _RichChecklistEditorState();
@@ -460,6 +462,10 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): widget.controller.redo,
                 const SingleActivator(LogicalKeyboardKey.keyY, control: true): widget.controller.redo,
                 const SingleActivator(LogicalKeyboardKey.keyY, meta: true): widget.controller.redo,
+                if (widget.onPaste != null) ...{
+                  const SingleActivator(LogicalKeyboardKey.keyV, control: true): widget.onPaste!,
+                  const SingleActivator(LogicalKeyboardKey.keyV, meta: true): widget.onPaste!,
+                },
               },
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,6 +498,26 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                       maxLines: null,
                       keyboardType: TextInputType.multiline,
                       cursorColor: colors.accent,
+                      contextMenuBuilder: (context, editableTextState) {
+                        final rawButtonItems = editableTextState.contextMenuButtonItems;
+                        final buttonItems = rawButtonItems.map((item) {
+                          if (item.type == ContextMenuButtonType.paste && widget.onPaste != null) {
+                            return ContextMenuButtonItem(
+                              type: ContextMenuButtonType.paste,
+                              label: item.label,
+                              onPressed: () {
+                                ContextMenuController.removeAny();
+                                widget.onPaste!();
+                              },
+                            );
+                          }
+                          return item;
+                        }).toList();
+                        return AdaptiveTextSelectionToolbar.buttonItems(
+                          anchors: editableTextState.contextMenuAnchors,
+                          buttonItems: buttonItems,
+                        );
+                      },
                       style: isChecked
                           ? styles.taskTextCompleted.copyWith(
                               decoration: TextDecoration.lineThrough,

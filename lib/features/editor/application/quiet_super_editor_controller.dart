@@ -1031,7 +1031,23 @@ class QuietSuperEditorController extends ChangeNotifier {
       }
     }
 
-    if (_composer?.selection == null && _editor!.document.isNotEmpty) {
+    if (_editor!.document.isEmpty) {
+      final paraId = Editor.createNodeId();
+      _editor!.execute([
+        InsertNodeAtIndexRequest(
+          nodeIndex: 0,
+          newNode: ParagraphNode(id: paraId, text: AttributedText()),
+        ),
+      ]);
+      _composer?.setSelectionWithReason(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: paraId,
+            nodePosition: const TextNodePosition(offset: 0),
+          ),
+        ),
+      );
+    } else if (_composer?.selection == null) {
       final lastNode = _editor!.document.last;
       if (lastNode is TextNode) {
         _composer!.setSelectionWithReason(
@@ -1042,10 +1058,47 @@ class QuietSuperEditorController extends ChangeNotifier {
             ),
           ),
         );
+      } else {
+        final paraId = Editor.createNodeId();
+        _editor!.execute([
+          InsertNodeAfterNodeRequest(
+            existingNodeId: lastNode.id,
+            newNode: ParagraphNode(id: paraId, text: AttributedText()),
+          ),
+        ]);
+        _composer!.setSelectionWithReason(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: paraId,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ),
+        );
       }
     }
 
     if (_composer?.selection != null) {
+      // Ensure the paste anchor node is a TextNode so SuperEditor structured paste succeeds
+      final currentPos = _composer!.selection!.extent;
+      final targetNode = _editor!.document.getNodeById(currentPos.nodeId);
+      if (targetNode is! TextNode) {
+        final paraId = Editor.createNodeId();
+        _editor!.execute([
+          InsertNodeAfterNodeRequest(
+            existingNodeId: targetNode?.id ?? _editor!.document.last.id,
+            newNode: ParagraphNode(id: paraId, text: AttributedText()),
+          ),
+        ]);
+        _composer!.setSelectionWithReason(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: paraId,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ),
+        );
+      }
+
       final trimmed = snippet.trim();
       final hasBlockImage = trimmed.contains(RegExp(r'!\[.*?\]\(.*?\)'));
       final hasBlockTable = trimmed.startsWith('|') && trimmed.contains('\n|');

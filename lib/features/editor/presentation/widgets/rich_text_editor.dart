@@ -31,6 +31,7 @@ class RichTextEditor extends StatefulWidget {
     this.onActiveTargetChanged,
     this.onChanged,
     this.onKeyEvent,
+    this.onPaste,
   });
 
   final RichDocumentController controller;
@@ -45,6 +46,7 @@ class RichTextEditor extends StatefulWidget {
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
   final FocusOnKeyEventCallback? onKeyEvent;
+  final VoidCallback? onPaste;
 
   @override
   State<RichTextEditor> createState() => _RichTextEditorState();
@@ -255,6 +257,10 @@ class _RichTextEditorState extends State<RichTextEditor> {
           const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): widget.controller.redo,
           const SingleActivator(LogicalKeyboardKey.keyY, control: true): widget.controller.redo,
           const SingleActivator(LogicalKeyboardKey.keyY, meta: true): widget.controller.redo,
+          if (widget.onPaste != null) ...{
+            const SingleActivator(LogicalKeyboardKey.keyV, control: true): widget.onPaste!,
+            const SingleActivator(LogicalKeyboardKey.keyV, meta: true): widget.onPaste!,
+          },
         },
         child: TextField(
           controller: _textController,
@@ -270,8 +276,23 @@ class _RichTextEditorState extends State<RichTextEditor> {
             widget.onActiveTargetChanged?.call(_textController, widget.focusNode);
           },
           contextMenuBuilder: (context, editableTextState) {
-            return AdaptiveTextSelectionToolbar.editableText(
-              editableTextState: editableTextState,
+            final rawButtonItems = editableTextState.contextMenuButtonItems;
+            final buttonItems = rawButtonItems.map((item) {
+              if (item.type == ContextMenuButtonType.paste && widget.onPaste != null) {
+                return ContextMenuButtonItem(
+                  type: ContextMenuButtonType.paste,
+                  label: item.label,
+                  onPressed: () {
+                    ContextMenuController.removeAny();
+                    widget.onPaste!();
+                  },
+                );
+              }
+              return item;
+            }).toList();
+            return AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: editableTextState.contextMenuAnchors,
+              buttonItems: buttonItems,
             );
           },
           decoration: InputDecoration(
