@@ -595,6 +595,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final builders = <String, MarkdownElementBuilder>{
       'mark': HighlightElementBuilder(colors),
       'math': QuietMathElementBuilder(),
+      'mathblock': QuietMathBlockElementBuilder(),
       'quietdoc': QuietDocumentElementBuilder(
         onDocumentRenamed: widget.onDocumentRenamed,
       ),

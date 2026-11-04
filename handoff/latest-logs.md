@@ -5362,3 +5362,55 @@ This update redesigns `QuietMathBlockComponent` into a clean, compact textbook-s
 - **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 13.0s).
 - **Targeted Test Suite**: `flutter test test/editor/quiet_math_test.dart`: **18/18 tests passing**.
 - **Full Test Suite**: `flutter test`: all tests passing with 0 failures.
+
+---
+
+## 257. Markdown Preview: Fix Null Check Operator Crash on Block Math (November 2026)
+
+### 1. Overview & Bug Analysis
+When opening Markdown Preview (`QuietMarkdownPreview`) on notes containing display math blocks (`\[ ... \]` or `$$ ... $$`), Flutter threw a fatal red error screen:
+```text
+Null check operator used on a null value
+MarkdownBuilder._addParentInlineIfNeeded (package:flutter_markdown/src/builder.dart:789:37)
+MarkdownBuilder.visitElementBefore (package:flutter_markdown/src/builder.dart:334:7)
+```
+**Root Cause**:
+In `flutter_markdown` (`MarkdownBuilder.build`), custom element builders are inspected:
+```dart
+builders.forEach((String key, MarkdownElementBuilder value) {
+  if (value.isBlockElement()) {
+    _kBlockTags.add(key);
+  }
+});
+```
+`MarkdownElementBuilder.isBlockElement()` defaults to `false`. Previously:
+1. `MathBlockSyntax` produced elements with tag `'math'`, identical to inline math.
+2. `QuietMathElementBuilder` did not override `isBlockElement()`, defaulting to `false`.
+3. Consequently, `flutter_markdown` treated root-level block math elements as inline elements.
+4. When encountering an inline element at document root level (where `_blocks.last.tag` is `null`), `MarkdownBuilder` called `_addParentInlineIfNeeded(_blocks.last.tag)`, which executed `styleSheet.styles[tag!]`. With `tag == null`, this threw `Null check operator used on a null value`.
+
+### 2. Fix Implementation
+1. **Separated Block Math Tag (`mathblock`) & Empty Element Generator**:
+   - In [`MathBlockSyntax`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_math_markdown_extension.dart):
+     - Emits `md.Element.empty('mathblock')` with `attributes['latex'] = latex` and `attributes['display'] = 'true'`.
+     - Using `md.Element.empty` prevents any child inline text traversal, avoiding inline assertion issues.
+2. **Dedicated Block Math Builder with `isBlockElement() => true`**:
+   - Created [`QuietMathBlockElementBuilder`](file:///home/dog/git/quitepaper/lib/core/markdown/quiet_math_markdown_extension.dart):
+     - Overrides `bool isBlockElement() => true;` so `flutter_markdown` adds `'mathblock'` to `_kBlockTags`.
+     - Renders display equations using `Math.tex(latex, mathStyle: MathStyle.display)` centered in the scroll container.
+3. **Registration in Preview Builders**:
+   - In [`QuietMarkdownPreview`](file:///home/dog/git/quitepaper/lib/core/markdown/markdown_preview.dart):
+     - Registered `'mathblock': QuietMathBlockElementBuilder()` alongside `'math': QuietMathElementBuilder()`.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/core/markdown/quiet_math_markdown_extension.dart`: Updated `MathBlockSyntax` to emit `md.Element.empty('mathblock')`, and added `QuietMathBlockElementBuilder` with `isBlockElement() => true`.
+  - `lib/core/markdown/markdown_preview.dart`: Registered `'mathblock'` builder in preview `builders` map.
+  - `test/markdown/markdown_preview_test.dart`: Added widget test `renders LaTeX display math and inline math without error` asserting math widgets and text display.
+  - `handoff/latest-logs.md`: Added Section 257.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 19.3s).
+- **Targeted Test Suites**:
+  - `flutter test test/markdown/markdown_preview_test.dart`: **15/15 tests passing**.
+  - `flutter test test/editor/quiet_math_test.dart`: **18/18 tests passing**.

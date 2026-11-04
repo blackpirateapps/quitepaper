@@ -53,9 +53,11 @@ class MathBlockSyntax extends md.BlockSyntax {
     if (singleBracketMatch != null) {
       parser.advance();
       final latex = singleBracketMatch.group(1)?.trim() ?? '';
-      final el = md.Element('math', [md.Text(latex)]);
-      el.attributes['display'] = 'true';
-      return el;
+      // Use md.Element.empty with tag 'mathblock' so no inlines are generated,
+      // avoiding flutter_markdown's null parent inline assertion crashes.
+      return md.Element.empty('mathblock')
+        ..attributes['latex'] = latex
+        ..attributes['display'] = 'true';
     }
 
     // Single-line dollar `$$ ... $$`
@@ -63,9 +65,9 @@ class MathBlockSyntax extends md.BlockSyntax {
     if (singleDollarMatch != null) {
       parser.advance();
       final latex = singleDollarMatch.group(1)?.trim() ?? '';
-      final el = md.Element('math', [md.Text(latex)]);
-      el.attributes['display'] = 'true';
-      return el;
+      return md.Element.empty('mathblock')
+        ..attributes['latex'] = latex
+        ..attributes['display'] = 'true';
     }
 
     // Multi-line block
@@ -99,9 +101,55 @@ class MathBlockSyntax extends md.BlockSyntax {
     }
 
     final latex = lines.join('\n').trim();
-    final el = md.Element('math', [md.Text(latex)]);
-    el.attributes['display'] = 'true';
-    return el;
+    return md.Element.empty('mathblock')
+      ..attributes['latex'] = latex
+      ..attributes['display'] = 'true';
+  }
+}
+
+/// Custom [MarkdownElementBuilder] for display math blocks (`<mathblock>`).
+/// Explicitly marks [isBlockElement] as true so [MarkdownBuilder] in flutter_markdown
+/// properly manages block containers without invoking `_addParentInlineIfNeeded`.
+class QuietMathBlockElementBuilder extends MarkdownElementBuilder {
+  QuietMathBlockElementBuilder({this.textStyle});
+
+  final TextStyle? textStyle;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final latex = (element.attributes['latex'] ?? element.textContent).trim();
+    final effectiveStyle = textStyle ?? preferredStyle;
+
+    return Center(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+          child: Math.tex(
+            latex,
+            mathStyle: MathStyle.display,
+            textStyle: effectiveStyle,
+            onErrorFallback: (err) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                latex,
+                style: (effectiveStyle ?? const TextStyle()).copyWith(
+                  color: Colors.red,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -113,7 +161,7 @@ class QuietMathElementBuilder extends MarkdownElementBuilder {
 
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final latex = element.textContent.trim();
+    final latex = (element.attributes['latex'] ?? element.textContent).trim();
     final isDisplay = element.attributes['display'] == 'true';
     final effectiveStyle = textStyle ?? preferredStyle;
 

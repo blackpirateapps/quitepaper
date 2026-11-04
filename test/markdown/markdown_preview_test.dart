@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
@@ -398,6 +399,37 @@ Reflecting on the day.
       expect(find.text('Links'), findsOneWidget);
       expect(find.text('Ways of Seeing'), findsOneWidget);
       expect(find.text('Nanolathe'), findsOneWidget);
+    });
+
+    testWidgets('renders LaTeX display math and inline math without error',
+        (tester) async {
+      const mathMarkdown = r'''Step 1: Find the sum of the first 50 positive odd integers
+
+The first 50 positive odd integers are:
+
+\[ 1, 3, 5, 7, 9, \dots, 99 \]
+
+We use the formula:
+
+\[ S_n = n^2 \]
+
+This formula gives the sum of the first $n$ positive odd integers.
+Here, $n = 50$.
+''';
+
+      await tester.pumpWidget(
+        buildWrapper(
+          const QuietMarkdownPreview(
+            markdownData: mathMarkdown,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Math blocks and inline math render properly with Math widgets
+      expect(find.byType(Math), findsNWidgets(4));
+      expect(find.textContaining('The first 50 positive odd integers are:'), findsOneWidget);
+      expect(find.textContaining('We use the formula:'), findsOneWidget);
     });
   });
 }
