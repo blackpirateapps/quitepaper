@@ -64,6 +64,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late MutableDocumentComposer _composer;
   late SmartTaskController _smartTaskController;
   late final QuietDividerPlugin _dividerPlugin;
+  late final QuietMathBlockPlugin _mathBlockPlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
   bool _isInternalUpdate = false;
@@ -72,6 +73,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   void initState() {
     super.initState();
     _dividerPlugin = QuietDividerPlugin();
+    _mathBlockPlugin = QuietMathBlockPlugin();
     _smartTaskController = SmartTaskController()..addListener(_onSmartTaskChanged);
     _initEditor();
   }
@@ -426,11 +428,16 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               focusNode: widget.focusNode,
               shrinkWrap: true,
               stylesheet: stylesheet,
+              selectionPolicies: const SuperEditorSelectionPolicies(
+                placeCaretAtEndOfDocumentOnGainFocus: false,
+              ),
               plugins: {
                 _dividerPlugin,
+                _mathBlockPlugin,
               },
               contentTapDelegateFactories: const [
                 superEditorLaunchLinkTapHandlerFactory,
+                quietMathBlockTapHandlerFactory,
                 quietDividerTapHandlerFactory,
                 superEditorAddEmptyParagraphTapHandlerFactory,
               ],

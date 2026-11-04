@@ -53,11 +53,15 @@ class QuietMathBlockComponentBuilder implements ComponentBuilder {
       return null;
     }
 
-    return QuietMathBlockComponent(
+    return BoxComponent(
       key: componentContext.componentKey,
-      viewModel: componentViewModel,
-      editor: _editor,
-      node: node,
+      isVisuallySelectable: true,
+      child: QuietMathBlockComponent(
+        key: ValueKey('quiet_math_${componentViewModel.nodeId}'),
+        viewModel: componentViewModel,
+        editor: _editor,
+        node: node,
+      ),
     );
   }
 }
@@ -162,6 +166,7 @@ class _QuietMathBlockComponentState
   }
 
   void _startEditing() {
+    widget.editor.execute([const ClearSelectionRequest()]);
     setState(() {
       _isEditing = true;
       _textController.text = widget.node.latex;
@@ -407,18 +412,11 @@ class _QuietMathBlockComponentState
             const SizedBox(height: 10),
 
             // TeX Input field
-            KeyboardListener(
-              focusNode: FocusNode(),
-              onKeyEvent: (event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.enter &&
-                    (HardwareKeyboard.instance.isControlPressed ||
-                        HardwareKeyboard.instance.isMetaPressed)) {
-                  _commitEditing();
-                } else if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.escape) {
-                  _cancelEditing();
-                }
+            CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.enter, control: true): _commitEditing,
+                const SingleActivator(LogicalKeyboardKey.enter, meta: true): _commitEditing,
+                const SingleActivator(LogicalKeyboardKey.escape): _cancelEditing,
               },
               child: TextField(
                 controller: _textController,
@@ -553,7 +551,10 @@ class _QuietMathBlockComponentState
     required AppColors colors,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        onTap();
+        _focusNode.requestFocus();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
@@ -601,4 +602,176 @@ class _QuietMathBlockComponentState
       ),
     );
   }
+}
+
+/// Content tap delegate that catches taps on a [QuietMathBlockNode]
+/// and halts SuperEditor tap processing so the document selection does not jump
+/// to the end of the page or steal focus from the math formula editor.
+class QuietMathBlockTapHandler extends ContentTapDelegate {
+  QuietMathBlockTapHandler({required this.editContext});
+
+  final SuperEditorContext editContext;
+
+  bool _isInsideMathBlock(DocumentTapDetails details) {
+    final docLayout = details.documentLayout;
+    final document = editContext.document;
+
+    // 1. Direct document position lookup
+    final tapPosition = docLayout.getDocumentPositionNearestToOffset(
+      details.layoutOffset,
+    );
+    if (tapPosition != null) {
+      final node = document.getNodeById(tapPosition.nodeId);
+      if (node is QuietMathBlockNode) {
+        final component = docLayout.getComponentByNodeId(node.id);
+        if (component != null) {
+          final box = component.context.findRenderObject() as RenderBox?;
+          if (box != null && box.hasSize) {
+            final localPos = box.globalToLocal(details.globalOffset);
+            if (localPos.dy >= 0 && localPos.dy <= box.size.height) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Spatial hit test across any QuietMathBlockNode RenderBox
+    for (final node in document) {
+      if (node is QuietMathBlockNode) {
+        final component = docLayout.getComponentByNodeId(node.id);
+        if (component != null) {
+          final box = component.context.findRenderObject() as RenderBox?;
+          if (box != null && box.hasSize) {
+            final localPos = box.globalToLocal(details.globalOffset);
+            if (localPos.dx >= 0 &&
+                localPos.dx <= box.size.width &&
+                localPos.dy >= 0 &&
+                localPos.dy <= box.size.height) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  @override
+  TapHandlingInstruction onTap(DocumentTapDetails details) {
+    if (_isInsideMathBlock(details)) {
+      return TapHandlingInstruction.halt;
+    }
+    return TapHandlingInstruction.continueHandling;
+  }
+
+  @override
+  TapHandlingInstruction onDoubleTap(DocumentTapDetails details) {
+    if (_isInsideMathBlock(details)) {
+      return TapHandlingInstruction.halt;
+    }
+    return TapHandlingInstruction.continueHandling;
+  }
+
+  @override
+  TapHandlingInstruction onTripleTap(DocumentTapDetails details) {
+    if (_isInsideMathBlock(details)) {
+      return TapHandlingInstruction.halt;
+    }
+    return TapHandlingInstruction.continueHandling;
+  }
+}
+
+QuietMathBlockTapHandler quietMathBlockTapHandlerFactory(SuperEditorContext editContext) =>
+    QuietMathBlockTapHandler(editContext: editContext);
+
+/// [SuperEditorKeyboardAction] that handles navigating past math blocks, pressing
+/// Enter on math blocks, and typing immediately after math blocks.
+ExecutionInstruction handleMathBlockKeyboardActions({
+  required SuperEditorContext editContext,
+  required KeyEvent keyEvent,
+}) {
+  if (keyEvent is! KeyDownEvent && keyEvent is! KeyRepeatEvent) {
+    return ExecutionInstruction.continueExecution;
+  }
+
+  final selection = editContext.composer.selection;
+  if (selection == null) {
+    return ExecutionInstruction.continueExecution;
+  }
+
+  final document = editContext.document;
+  final editor = editContext.editor;
+
+  final selectedNode = document.getNodeById(selection.extent.nodeId);
+  if (selectedNode is QuietMathBlockNode) {
+    final nextNode = document.getNodeAfterById(selectedNode.id);
+
+    // 1. Enter pressed on math block -> insert empty paragraph after and move caret there.
+    if (keyEvent.logicalKey == LogicalKeyboardKey.enter ||
+        keyEvent.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final newParagraphId = Editor.createNodeId();
+      editor.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: selectedNode.id,
+          newNode: ParagraphNode(
+            id: newParagraphId,
+            text: AttributedText(),
+          ),
+        ),
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: newParagraphId,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ),
+          SelectionChangeType.insertContent,
+          SelectionReason.userInteraction,
+        ),
+        const ClearComposingRegionRequest(),
+      ]);
+      return ExecutionInstruction.haltExecution;
+    }
+
+    // 2. ArrowDown pressed on terminal math block -> insert empty paragraph after and move caret there.
+    if (keyEvent.logicalKey == LogicalKeyboardKey.arrowDown && nextNode == null) {
+      final newParagraphId = Editor.createNodeId();
+      editor.execute([
+        InsertNodeAfterNodeRequest(
+          existingNodeId: selectedNode.id,
+          newNode: ParagraphNode(
+            id: newParagraphId,
+            text: AttributedText(),
+          ),
+        ),
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(
+            position: DocumentPosition(
+              nodeId: newParagraphId,
+              nodePosition: const TextNodePosition(offset: 0),
+            ),
+          ),
+          SelectionChangeType.placeCaret,
+          SelectionReason.userInteraction,
+        ),
+        const ClearComposingRegionRequest(),
+      ]);
+      return ExecutionInstruction.haltExecution;
+    }
+  }
+
+  return ExecutionInstruction.continueExecution;
+}
+
+/// [SuperEditorPlugin] that registers keyboard interaction handling for
+/// [QuietMathBlockNode]s.
+class QuietMathBlockPlugin extends SuperEditorPlugin {
+  QuietMathBlockPlugin();
+
+  @override
+  List<SuperEditorKeyboardAction> get keyboardActions => [
+    handleMathBlockKeyboardActions,
+  ];
 }

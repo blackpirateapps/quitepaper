@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart';
@@ -312,6 +313,105 @@ void main() {
 
       // Editor should render with QuietMathBlockComponent
       expect(find.byType(QuietMathBlockComponent), findsOneWidget);
+    });
+
+    testWidgets('tapping math block inside QuietSuperEditor opens inline edit mode without cursor jumping to end of document', (tester) async {
+      const markdown = '''Paragraph before
+
+\\[ S_{17}=\\frac{17}{2}(3+99) \\]
+
+Paragraph after''';
+
+      final controller = QuietSuperEditorController();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: QuietSuperEditor(
+                controller: controller,
+                initialMarkdown: markdown,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Find math block component
+      final mathBlockFinder = find.byType(QuietMathBlockComponent);
+      expect(mathBlockFinder, findsOneWidget);
+
+      // Tap math block to enter edit mode
+      await tester.tap(mathBlockFinder);
+      await tester.pumpAndSettle();
+
+      // Should open inline TeX TextField inside the math block
+      final textFieldFinder = find.descendant(
+        of: mathBlockFinder,
+        matching: find.byType(TextField),
+      );
+      expect(textFieldFinder, findsOneWidget);
+
+      // SuperEditor document selection should NOT have jumped to 'Paragraph after'
+      final selection = controller.composer?.selection;
+      if (selection != null) {
+        final selectedNode = controller.editor!.document.getNodeById(selection.extent.nodeId);
+        // If selection is set, it must NOT be the paragraph after the math block
+        if (selectedNode is ParagraphNode) {
+          expect(selectedNode.text.toPlainText(), isNot(equals('Paragraph after')));
+        }
+      }
+
+      // Enter new LaTeX formula and commit
+      await tester.enterText(textFieldFinder, r'E=mc^2');
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+
+      // Verify node updated
+      final mathNode = controller.editor!.document.firstWhere((n) => n is QuietMathBlockNode) as QuietMathBlockNode;
+      expect(mathNode.latex, equals(r'E=mc^2'));
+    });
+
+    testWidgets('terminal math block at end of document can be edited cleanly', (tester) async {
+      const markdown = '''- \\(n=17\\)
+- \\(a=3\\)
+
+\\[ \\boxed{867} \\]''';
+
+      final controller = QuietSuperEditorController();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: QuietSuperEditor(
+                controller: controller,
+                initialMarkdown: markdown,
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap math block at the end of the note
+      final mathBlockFinder = find.byType(QuietMathBlockComponent);
+      expect(mathBlockFinder, findsOneWidget);
+
+      await tester.tap(mathBlockFinder);
+      await tester.pumpAndSettle();
+
+      // Verify edit mode TextField appears
+      final textFieldFinder = find.descendant(
+        of: mathBlockFinder,
+        matching: find.byType(TextField),
+      );
+      expect(textFieldFinder, findsOneWidget);
     });
   });
 }

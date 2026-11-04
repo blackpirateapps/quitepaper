@@ -5202,6 +5202,51 @@ To provide an editorial writing experience on par with Bear and Obsidian, full L
 - **Full Test Suite**:
   - `flutter test`: **2,455/2,455 tests passing** (ran in 04:46).
 
+---
+
+## 254. SuperEditor: Math Block Edit Cursor Jump Fix & Focus Isolation (November 2026)
+
+### 1. Overview & Bug Analysis
+When tapping a math block card or its edit button to edit an equation, the document cursor jumped to the end of the page and stole focus from the TeX input field.
+Root cause investigation revealed a dual-factor interaction within SuperEditor:
+1. **Missing DocumentComponent Contract on Node Component**: `QuietMathBlockComponentBuilder.createComponent` returned `QuietMathBlockComponent` directly without wrapping it in `BoxComponent(key: componentContext.componentKey, ...)`. SuperEditor's `SingleColumnDocumentLayout` requires component keys to have a state implementing `DocumentComponent`. Because `_QuietMathBlockComponentState` did not implement `DocumentComponent`, `_findComponentClosestToOffset` skipped the math block, causing the layout engine to classify taps on or around the math block as outside valid content and falling back to `findLastSelectablePosition()` (the end of the document).
+2. **Focus Policy Bubbling (`placeCaretAtEndOfDocumentOnGainFocus`)**: In Flutter's focus tree, SuperEditor wraps the document in a root `FocusNode`. When the math block expanded its inline `TextField` and called `_focusNode.requestFocus()`, the ancestor SuperEditor `FocusNode` received `hasFocus: true`. SuperEditor's default `EditorSelectionAndFocusPolicy` (`placeCaretAtEndOfDocumentOnGainFocus: true`) interpreted this as the editor gaining focus from an unfocused state with no selection, automatically triggering `ChangeSelectionRequest(DocumentSelection.collapsed(position: findLastSelectablePosition()))`.
+3. **Gesture Arena Competition**: SuperEditor's gesture interactors (`DocumentMouseInteractor`, `AndroidDocumentTouchInteractor`, `IosDocumentTouchInteractor`) processed document-level taps without a halting delegate, calling `_moveToNearestSelectableComponent` whenever a block node was tapped.
+
+### 2. Architectural Design & Fix Implementation
+1. **`BoxComponent` Wrapping**:
+   - In [`QuietMathBlockComponentBuilder.createComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart), wrapped `QuietMathBlockComponent` in `BoxComponent(key: componentContext.componentKey, isVisuallySelectable: true, child: ...)`.
+   - Now `SingleColumnDocumentLayout` accurately resolves the math block's bounding box and geometry without fallback errors.
+2. **Content Tap Delegate (`QuietMathBlockTapHandler`)**:
+   - Implemented [`QuietMathBlockTapHandler`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart) implementing `ContentTapDelegate`.
+   - Performs position and spatial hit-testing across math block RenderBoxes. When a tap occurs inside a `QuietMathBlockNode`, returns `TapHandlingInstruction.halt` for `onTap`, `onDoubleTap`, and `onTripleTap`.
+   - When tapping empty space below a terminal math block, returns `continueHandling` so the user can still tap below the formula to create an empty paragraph.
+   - Registered `quietMathBlockTapHandlerFactory` in `QuietSuperEditor.contentTapDelegateFactories`.
+3. **Selection Policies Configuration**:
+   - In [`QuietSuperEditor`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/quiet_super_editor.dart), configured `selectionPolicies: const SuperEditorSelectionPolicies(placeCaretAtEndOfDocumentOnGainFocus: false)`.
+   - Prevents SuperEditor from automatically placing a caret at the end of the document when child inputs (like the math TeX TextField) request focus.
+4. **Keyboard Shortcuts & Delimiter Focus Retention**:
+   - Replaced fragile `KeyboardListener(focusNode: FocusNode(), ...)` in `_buildEditMode` with clean `CallbackShortcuts` bound to `Ctrl/Cmd+Enter` (`_commitEditing`) and `Escape` (`_cancelEditing`).
+   - Updated delimiter pills to retain focus on `_focusNode` when toggling delimiters.
+   - Added `QuietMathBlockPlugin` with `handleMathBlockKeyboardActions` for `Enter` and `ArrowDown` navigation past terminal math blocks.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart`: Wrapped in `BoxComponent`, implemented `QuietMathBlockTapHandler`, `QuietMathBlockPlugin`, and `CallbackShortcuts`.
+  - `lib/features/editor/presentation/widgets/quiet_super_editor.dart`: Registered `quietMathBlockTapHandlerFactory`, `_mathBlockPlugin`, and set `placeCaretAtEndOfDocumentOnGainFocus: false`.
+  - `test/editor/quiet_math_test.dart`: Added widget tests for in-editor math block editing, focus isolation, and terminal math block editing.
+  - `handoff/editor-and-typography.md`: Documented tap handling, focus isolation, and keyboard navigation.
+  - `handoff/latest-logs.md`: Appended Section 254.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 13.6s).
+- **Targeted Test Suites**:
+  - `flutter test test/editor/quiet_math_test.dart`: **17/17 tests passing**.
+  - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
+  - `flutter test test/editor/quiet_code_block_test.dart`: **10/10 tests passing**.
+  - `flutter test test/editor/quiet_divider_test.dart`: **9/9 tests passing**.
+
+
 
 
 
