@@ -15,6 +15,7 @@ import 'super_editor/math/quiet_math_block_component.dart';
 import 'super_editor/math/quiet_math_block_node.dart';
 import 'super_editor/math/quiet_math_parser.dart';
 import 'super_editor/quiet_attachment_component.dart';
+import 'super_editor/quiet_blockquote_component.dart';
 import 'super_editor/quiet_code_block_component.dart';
 import 'super_editor/quiet_horizontal_rule_component.dart';
 import 'super_editor/quiet_image_component.dart';
@@ -71,6 +72,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late final QuietDividerPlugin _dividerPlugin;
   late final QuietMathBlockPlugin _mathBlockPlugin;
   late final QuietPastePlugin _pastePlugin;
+  late final QuietBlockquotePlugin _blockquotePlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
   bool _isInternalUpdate = false;
@@ -81,6 +83,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     _dividerPlugin = QuietDividerPlugin();
     _mathBlockPlugin = QuietMathBlockPlugin();
     _pastePlugin = QuietPastePlugin(onPaste: widget.onPaste);
+    _blockquotePlugin = QuietBlockquotePlugin();
     _smartTaskController = SmartTaskController()..addListener(_onSmartTaskChanged);
     _initEditor();
   }
@@ -361,7 +364,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         StyleRule(
           const BlockSelector('blockquote'),
           (doc, docNode) => {
-            Styles.padding: const CascadingPadding.only(top: 8, bottom: 8, left: 16),
+            Styles.padding: const CascadingPadding.symmetric(horizontal: 0, vertical: 0),
             Styles.textStyle: TextStyle(
               color: colors.textSecondary,
               fontFamily: typography.bodyFontFamily,
@@ -440,6 +443,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             _dividerPlugin,
             _mathBlockPlugin,
             _pastePlugin,
+            _blockquotePlugin,
           },
           contentTapDelegateFactories: const [
             superEditorLaunchLinkTapHandlerFactory,
@@ -452,6 +456,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             QuietMathParagraphComponentBuilder(_editor),
             QuietMathListItemComponentBuilder(_editor),
             QuietCodeBlockComponentBuilder(_editor),
+            const QuietBlockquoteComponentBuilder(),
             QuietTaskComponentBuilder(
               _editor,
               smartTaskController: _smartTaskController,

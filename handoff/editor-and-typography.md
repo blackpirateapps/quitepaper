@@ -65,6 +65,14 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
   - Divider keyboard actions: [`QuietDividerPlugin`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_horizontal_rule_component.dart) registers handlers for `Enter`, `ArrowDown`, `ArrowRight`, and printable typing when a divider is selected to automatically create a paragraph and continue writing seamlessly.
   - Trailing divider invariant: documents ending with `---` automatically load with an editable trailing paragraph.
 
+### Editorial Blockquotes Subsystem
+- **Component**: [`QuietBlockquoteComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_blockquote_component.dart) and `QuietBlockquoteComponentBuilder`.
+- **Plugin**: [`QuietBlockquotePlugin`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/quiet_blockquote_component.dart) (`InsertNewlineInBlockquoteAtCaretCommand`).
+- **Features**:
+  - **Editorial 3.5px Accent Bar**: Rendered via `_BlockquoteBarPainter` in `colors.accent` with 2px rounded corners at block boundaries.
+  - **Compact Inter-Line Spacing**: Collapses the previous 48dp double padding down to 4dp between contiguous quote lines and 8dp outer margins, with balanced 15.5dp total indentation.
+  - **Enter Key Auto-Continuation**: Pressing Enter on non-empty quotes continues with another blockquote paragraph; pressing Enter on an empty quote cleanly exits to a regular paragraph across both hardware keyboards and mobile IMEs.
+
 ### Typewriter Scrolling
 - Automatically keeps the active cursor centered vertically in the viewport during typing.
 - Operates across both mobile and desktop screens to prevent the cursor from dropping below the keyboard or viewport edge.
@@ -96,6 +104,7 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 ---
 
 ## Key References & Logs
+- SuperEditor Blockquotes Redesign: [Latest Logs, Section 259](latest-logs.md#259-supereditor-blockquotes-redesign-editorial-35px-accent-bar-compact-spacing--enter-auto-continuation-november-2026)
 - LaTeX Math Syntax Support (Block & Bear-Style Inline Folding): [Latest Logs, Section 253](latest-logs.md#253-supereditor-comprehensive-math-syntax-support-latex-block--inline-math-bear-style-folding)
 - Left-Aligned Note Title & Full-Width SuperEditor Code Blocks: [Latest Logs, Section 251](latest-logs.md#251-ui-polish-left-aligned-note-titles--full-width-supereditor-code-blocks-november-2026)
 - Smart Todolist & Task Boundary Isolation: [Latest Logs, Section 242 & 243](latest-logs.md#242-architecture-smart-todolist-in-supereditor-with-optical-alignment-placeholders-auto-sorting--collapsible-done-items-october-2026)
