@@ -33,7 +33,7 @@ class QuietMathBlockComponentBuilder implements ComponentBuilder {
     return QuietMathBlockComponentViewModel(
       nodeId: node.id,
       createdAt: node.metadata[NodeMetadata.createdAt],
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       latex: node.latex,
       delimiterType: node.delimiterType,
     );
@@ -73,7 +73,7 @@ class QuietMathBlockComponentViewModel
     required super.nodeId,
     super.createdAt,
     super.maxWidth,
-    super.padding = const EdgeInsets.symmetric(vertical: 8),
+    super.padding = const EdgeInsets.symmetric(vertical: 4),
     required this.latex,
     required this.delimiterType,
   });
@@ -131,6 +131,7 @@ class QuietMathBlockComponent extends ConsumerStatefulWidget {
 
 class _QuietMathBlockComponentState
     extends ConsumerState<QuietMathBlockComponent> {
+  bool _isHovered = false;
   bool _isEditing = false;
   late TextEditingController _textController;
   late FocusNode _focusNode;
@@ -168,6 +169,7 @@ class _QuietMathBlockComponentState
   void _startEditing() {
     widget.editor.execute([const ClearSelectionRequest()]);
     setState(() {
+      _isHovered = false;
       _isEditing = true;
       _textController.text = widget.node.latex;
       _delimiterType = widget.node.delimiterType;
@@ -181,6 +183,7 @@ class _QuietMathBlockComponentState
 
   void _cancelEditing() {
     setState(() {
+      _isHovered = false;
       _isEditing = false;
       _textController.text = widget.node.latex;
       _delimiterType = widget.node.delimiterType;
@@ -218,6 +221,7 @@ class _QuietMathBlockComponentState
     }
 
     setState(() {
+      _isHovered = false;
       _isEditing = false;
     });
   }
@@ -261,79 +265,50 @@ class _QuietMathBlockComponentState
     final latex = widget.node.latex.trim();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
         child: GestureDetector(
           onTap: _startEditing,
           behavior: HitTestBehavior.opaque,
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: colors.surfaceSecondary,
+              color: _isHovered
+                  ? colors.surfaceSecondary.withValues(alpha: 0.45)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(AppRadii.md),
               border: Border.all(
-                color: colors.divider.withValues(alpha: 0.35),
+                color: _isHovered
+                    ? colors.divider.withValues(alpha: 0.3)
+                    : Colors.transparent,
                 width: 1,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                // Header bar with delimiter label and action buttons
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colors.textSecondary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
-                      ),
-                      child: Text(
-                        widget.node.delimiterType.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    QuietIconButton(
-                      icon: _copied ? PhosphorIconsRegular.check : PhosphorIconsRegular.copy,
-                      size: 16,
-                      isActive: _copied,
-                      padding: const EdgeInsets.all(6),
-                      tooltip: _copied ? 'Copied' : 'Copy LaTeX',
-                      onPressed: _copyLatex,
-                    ),
-                    const SizedBox(width: 4),
-                    QuietIconButton(
-                      icon: PhosphorIconsRegular.pencilSimple,
-                      size: 16,
-                      padding: const EdgeInsets.all(6),
-                      tooltip: 'Edit Formula',
-                      onPressed: _startEditing,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Formula body
+                // Formula body centered
                 Center(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 32,
+                      ),
                       child: latex.isEmpty
                           ? Text(
                               'Empty formula (tap to edit)',
                               style: TextStyle(
                                 fontSize: baseFontSize,
                                 fontStyle: FontStyle.italic,
-                                color: colors.textSecondary,
+                                color: colors.textSecondary.withValues(alpha: 0.7),
                               ),
                             )
                           : Math.tex(
@@ -349,6 +324,56 @@ class _QuietMathBlockComponentState
                                 baseFontSize,
                               ),
                             ),
+                    ),
+                  ),
+                ),
+
+                // Floating actions pill (Copy & Edit)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: AnimatedOpacity(
+                    opacity: _isHovered ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: IgnorePointer(
+                      ignoring: !_isHovered,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          border: Border.all(
+                            color: colors.divider.withValues(alpha: 0.4),
+                            width: 0.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.textPrimary.withValues(alpha: 0.06),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _MathHoverIconButton(
+                              icon: _copied
+                                  ? PhosphorIconsRegular.check
+                                  : PhosphorIconsRegular.copy,
+                              tooltip: _copied ? 'Copied' : 'Copy LaTeX',
+                              isActive: _copied,
+                              onPressed: _copyLatex,
+                            ),
+                            const SizedBox(width: 2),
+                            _MathHoverIconButton(
+                              icon: PhosphorIconsRegular.pencilSimple,
+                              tooltip: 'Edit Formula',
+                              onPressed: _startEditing,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -774,4 +799,45 @@ class QuietMathBlockPlugin extends SuperEditorPlugin {
   List<SuperEditorKeyboardAction> get keyboardActions => [
     handleMathBlockKeyboardActions,
   ];
+}
+
+/// Compact action icon button used in the floating hover toolbar of math blocks.
+class _MathHoverIconButton extends StatelessWidget {
+  const _MathHoverIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.isActive = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final color = isActive ? colors.accent : colors.textSecondary;
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderSm),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(5),
+            child: Icon(
+              icon,
+              size: 15,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -266,14 +267,16 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Default state shows delimiter label
-      expect(find.text(r'\[ \]'), findsOneWidget);
+      // Default state renders clean formula without intrusive syntax badge
+      expect(find.byType(QuietMathBlockComponent), findsOneWidget);
+      expect(find.text(r'\[ \]'), findsNothing);
 
-      // Tapping the card opens Edit Mode
+      // Tapping the math block opens Edit Mode
       await tester.tap(find.byType(QuietMathBlockComponent));
       await tester.pumpAndSettle();
 
-      // Edit Mode displays the TextField and Done button
+      // Edit Mode displays the delimiter switcher pills, TextField, and action buttons
+      expect(find.text(r'\[ \]'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Done'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
@@ -286,6 +289,58 @@ void main() {
       // Node in editor document updated
       final updatedNode = doc.getNodeAt(0) as QuietMathBlockNode;
       expect(updatedNode.latex, r'\boxed{867}');
+    });
+
+    testWidgets('hovering over math block reveals floating copy and edit action buttons', (tester) async {
+      final doc = MutableDocument(nodes: [
+        QuietMathBlockNode(
+          id: 'math1',
+          latex: r'S_n = n^2',
+          delimiterType: MathDelimiterType.brackets,
+        ),
+      ]);
+      final composer = MutableDocumentComposer();
+      final editor = createDefaultDocumentEditor(document: doc, composer: composer);
+
+      final viewModel = QuietMathBlockComponentViewModel(
+        nodeId: 'math1',
+        latex: r'S_n = n^2',
+        delimiterType: MathDelimiterType.brackets,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: QuietMathBlockComponent(
+                key: const ValueKey('component_key'),
+                viewModel: viewModel,
+                editor: editor,
+                node: doc.getNodeAt(0) as QuietMathBlockNode,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Initially floating actions have opacity 0.0
+      final opacityFinder = find.byType(AnimatedOpacity);
+      expect(opacityFinder, findsOneWidget);
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0.0);
+
+      // Simulate mouse hover
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(QuietMathBlockComponent)));
+      await tester.pumpAndSettle();
+
+      // After hover, opacity is 1.0 and copy button is available
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1.0);
+      expect(find.byTooltip('Copy LaTeX'), findsOneWidget);
+      expect(find.byTooltip('Edit Formula'), findsOneWidget);
     });
   });
 

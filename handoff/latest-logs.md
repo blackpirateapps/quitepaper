@@ -5317,3 +5317,48 @@ Image pasting into notes on Linux desktop environments stopped working across se
   - `flutter test test/editor/rich_text_editor_formattings_test.dart`: **42/42 tests passing**.
   - `flutter test test/editor/rich_text_checklist_editor_test.dart`: **27/27 tests passing**.
   - `flutter test test/editor/markdown_table_widget_test.dart`: **10/10 tests passing**.
+
+---
+
+## 256. LaTeX Display Math: Compact Textbook-Style Typographic Redesign & Floating Hover Actions (November 2026)
+
+### 1. Overview & Motivation
+In notes containing multiple display math equations (e.g. `\[ 1, 3, 5, 7, 9, \dots, 99 \]` and `\[ S_n = n^2 \]`), equations previously occupied ~110–130px of vertical height each. Roughly 70% of that space was consumed by heavy card boundaries (`surfaceSecondary` fill, outer border, thick padding) and a dedicated header row permanently displaying the delimiter badge (`\[ \]`) and copy/edit action buttons. In notes with several sequential formulas, this broke reading flow and felt like bulky developer code cards rather than fluid mathematical prose.
+
+This update redesigns `QuietMathBlockComponent` into a clean, compact textbook-style typographic block (Option 1):
+1. **Textbook Typographic Presentation**: Formulas are centered cleanly within the text flow with transparent idle backgrounds, matching academic papers, LaTeX publications, and modern note apps like Obsidian, Bear, and Notion.
+2. **Hidden Syntax Badge in Rendered Mode**: Delimiter tokens (`\[ \]`, `$$`) are hidden during reading. When tapping into edit mode, the delimiter switcher pills (`\[ \]`, `$$`, ````math````) remain fully available for choosing or converting delimiters.
+3. **Floating Zero-Height Action Toolbar**: Copy and edit actions appear on desktop hover as a subtle floating mini-pill (`_MathHoverIconButton`) in the top-right corner. By using an absolute `Stack`/`Positioned` overlay, the toolbar consumes 0px of vertical document layout height.
+4. **Direct Tap-to-Edit**: Tapping anywhere on the formula opens inline editing. On touch/mobile devices, tapping opens the editor directly with full controls and delete actions.
+5. **Drastic Vertical Footprint Reduction**: Vertical height per formula block dropped from ~120px to ~42–48px (~60% height reduction), integrating seamlessly with paragraph text.
+
+### 2. Architectural Design & Implementation Details
+1. **Compact Component View Model & Layout**:
+   - In [`QuietMathBlockComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart):
+     - Reduced default component padding from `const EdgeInsets.symmetric(vertical: 8)` to `const EdgeInsets.symmetric(vertical: 4)`.
+   - In [`QuietMathBlockComponentViewModel`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart):
+     - Updated default `padding` parameter to `const EdgeInsets.symmetric(vertical: 4)`.
+2. **Hover State Tracking & Animated Container**:
+   - In `_QuietMathBlockComponentState`:
+     - Added `bool _isHovered = false;`.
+     - Wrapped the rendered block in a `MouseRegion` with `onEnter` and `onExit` updating `_isHovered`.
+     - Replaced the heavy static container with an `AnimatedContainer` (150ms `Curves.easeOutCubic`) that stays transparent in idle state and transitions to a subtle wash (`surfaceSecondary` with alpha 0.45 and soft border) on mouse hover.
+3. **Zero-Height Floating Hover Actions**:
+   - Replaced the dedicated header `Row` with a `Positioned(top: 0, right: 0)` floating pill in a `Stack`.
+   - Actions fade in smoothly via `AnimatedOpacity` and ignore pointer hits when not hovered (`IgnorePointer(ignoring: !_isHovered)`).
+   - Created private `_MathHoverIconButton` widget providing compact 26x26px hit targets with tooltips and copied feedback checkmarks.
+4. **Edit Mode & Document Invariant Preservation**:
+   - Preserved `BoxComponent(isVisuallySelectable: true)` wrapper ensuring SuperEditor selection routing and cursor navigation remain fully intact.
+   - Retained full delimiter switching pills (`\[ \]`, `$$`, ````math````), live LaTeX preview, and keyboard shortcuts (`Ctrl+Enter` / `Cmd+Enter` to save, `Escape` to cancel) in edit mode.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart`: Redesigned `QuietMathBlockComponentBuilder`, view model padding, `_buildRenderedMode` layout, floating hover actions, and added `_MathHoverIconButton`.
+  - `test/editor/quiet_math_test.dart`: Updated rendered view expectations to verify clean syntax-free display, and added widget test `hovering over math block reveals floating copy and edit action buttons`.
+  - `handoff/editor-and-typography.md`: Documented compact textbook typographic styling and zero-height floating hover actions.
+  - `handoff/latest-logs.md`: Added Section 256.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors** (ran in 13.0s).
+- **Targeted Test Suite**: `flutter test test/editor/quiet_math_test.dart`: **18/18 tests passing**.
+- **Full Test Suite**: `flutter test`: all tests passing with 0 failures.
