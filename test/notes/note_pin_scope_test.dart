@@ -1,10 +1,15 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/application/notes_query_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/domain/notes_filter.dart';
 import 'package:quitepaper/features/notes/domain/notes_query.dart';
 import 'package:quitepaper/features/notes/domain/notes_sort.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Covers the global-vs-per-tag pin model:
 ///  - Global pins float everywhere and appear in the Pinned view.
@@ -145,6 +150,55 @@ void main() {
       final ids = pinned.notes.map((n) => n.id).toSet();
       expect(ids, {'global', 'tagpinned'});
       expect(ids.contains('unpinned'), isFalse);
+    });
+
+    test('watchNotes(isPinned: true) aggregates global and per-tag pins', () async {
+      await addNote('global', 'g #work');
+      await addNote('tagpinned', 'tp #home');
+      await addNote('unpinned', 'u #misc');
+
+      await repository.setPinned('global', true);
+      await repository.setPinnedInTag('tagpinned', 'home', true);
+
+      final pinnedNotes = await repository.watchNotes(isPinned: true).first;
+      final ids = pinnedNotes.map((n) => n.id).toSet();
+      expect(ids, {'global', 'tagpinned'});
+      expect(ids.contains('unpinned'), isFalse);
+    });
+
+    test('NotesQueryNotifier preserves pinnedOnly when clearAllFilters is called in Pinned destination', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          currentDestinationProvider.overrideWith((ref) => AppDestination.pinned),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initialQuery = container.read(notesQueryProvider);
+      expect(initialQuery.filter.pinnedOnly, isTrue);
+
+      // Calling clearAllFilters() must NOT clear pinnedOnly when in Pinned destination
+      container.read(notesQueryProvider.notifier).clearAllFilters();
+      final afterClearAll = container.read(notesQueryProvider);
+      expect(afterClearAll.filter.pinnedOnly, isTrue);
+
+      // Calling clearAdvancedFilters() must NOT clear pinnedOnly when in Pinned destination
+      container.read(notesQueryProvider.notifier).clearAdvancedFilters();
+      final afterClearAdvanced = container.read(notesQueryProvider);
+      expect(afterClearAdvanced.filter.pinnedOnly, isTrue);
+
+      // Switching to allNotes clears pinnedOnly
+      container.read(currentDestinationProvider.notifier).state = AppDestination.allNotes;
+      final allNotesQuery = container.read(notesQueryProvider);
+      expect(allNotesQuery.filter.pinnedOnly, isFalse);
+
+      // Switching back to Pinned sets pinnedOnly back to true
+      container.read(currentDestinationProvider.notifier).state = AppDestination.pinned;
+      final pinnedQuery = container.read(notesQueryProvider);
+      expect(pinnedQuery.filter.pinnedOnly, isTrue);
     });
   });
 }

@@ -371,6 +371,18 @@ class NotesFilter {
       attachmentFilters.isNotEmpty ||
       securityFilter != SecurityFilter.all;
 
+  /// Whether any advanced filter predicate is active, optionally treating [pinnedOnly]
+  /// as the baseline view destination invariant (e.g. in the Pinned smart view)
+  bool hasAdvancedFiltersExcluding({bool ignorePinned = false}) =>
+      tags.length > 1 ||
+      untaggedOnly ||
+      (!ignorePinned && pinnedOnly) ||
+      createdRange != null ||
+      modifiedRange != null ||
+      contentFilters.isNotEmpty ||
+      attachmentFilters.isNotEmpty ||
+      securityFilter != SecurityFilter.all;
+
   /// Count of active advanced filter categories (excluding standard single tag-bar selection)
   int get advancedFilterCount {
     var count = 0;
@@ -399,13 +411,14 @@ class NotesFilter {
     return count;
   }
 
-  /// Returns a copy with all advanced predicates cleared, preserving tag selection if requested
-  NotesFilter clearAdvancedFilters({bool keepTags = false}) {
+  /// Returns a copy with all advanced predicates cleared, preserving tag selection if requested,
+  /// and preserving pinnedOnly when [keepPinned] is true.
+  NotesFilter clearAdvancedFilters({bool keepTags = false, bool keepPinned = false}) {
     return NotesFilter(
       tags: keepTags ? tags : const {},
       tagMatchMode: TagMatchMode.all,
       untaggedOnly: false,
-      pinnedOnly: false,
+      pinnedOnly: keepPinned ? pinnedOnly : false,
       createdRange: null,
       modifiedRange: null,
       contentFilters: const {},

@@ -539,11 +539,24 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final scopedTag = pinInTag ? tagFilter : null;
     final shouldPin = scopedTag != null
         ? notes.any((n) => !n.isPinnedInTag(scopedTag))
-        : notes.any((n) => !n.isPinned);
+        : (destination == AppDestination.pinned
+            ? notes.any((n) => !n.isPinned && n.pinnedTags.isEmpty)
+            : notes.any((n) => !n.isPinned));
 
     for (final note in notes) {
       if (scopedTag != null) {
         await repository.setPinnedInTag(note.id, scopedTag, shouldPin);
+      } else if (destination == AppDestination.pinned) {
+        if (!shouldPin) {
+          if (note.isPinned) {
+            await repository.setPinned(note.id, false);
+          }
+          for (final tag in note.pinnedTags) {
+            await repository.setPinnedInTag(note.id, tag, false);
+          }
+        } else {
+          await repository.setPinned(note.id, true);
+        }
       } else {
         await repository.setPinned(note.id, shouldPin);
       }
@@ -742,7 +755,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         }
       }
     } else if (destination == AppDestination.pinned) {
-      if (!note.isPinned || note.isArchived || note.isTrashed) {
+      final isPinnedAnywhere = note.isPinned || note.pinnedTags.isNotEmpty;
+      if (!isPinnedAnywhere || note.isArchived || note.isTrashed) {
         setState(() => _selectedNoteIdForTablet = null);
       }
     } else if (destination == AppDestination.archive) {
@@ -1371,7 +1385,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                 tagFilter: selectedTag,
                                                 hasActiveFilters: query
                                                     .filter
-                                                    .hasAdvancedFilters,
+                                                    .hasAdvancedFiltersExcluding(
+                                                      ignorePinned:
+                                                          destination ==
+                                                              AppDestination
+                                                                  .pinned,
+                                                    ),
                                                 onClearFilters: () => ref
                                                     .read(
                                                       notesQueryProvider
@@ -2717,7 +2736,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                                 hasActiveFilters:
                                                                     query
                                                                         .filter
-                                                                        .hasAdvancedFilters,
+                                                                        .hasAdvancedFiltersExcluding(
+                                                                          ignorePinned:
+                                                                              destination ==
+                                                                                  AppDestination
+                                                                                      .pinned,
+                                                                        ),
                                                                 onClearFilters: () => ref
                                                                     .read(
                                                                       notesQueryProvider
@@ -3089,6 +3113,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     tagFilter,
                     !note.isPinnedInTag(tagFilter),
                   );
+                } else if (destination == AppDestination.pinned) {
+                  // In Pinned view: unpin from both global pin and all tag pins
+                  if (note.isPinned) {
+                    repository.setPinned(note.id, false);
+                  }
+                  for (final tag in note.pinnedTags) {
+                    repository.setPinnedInTag(note.id, tag, false);
+                  }
                 } else {
                   repository.setPinned(note.id, !note.isPinned);
                 }
@@ -3119,6 +3151,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   ref.read(currentDestinationProvider) == AppDestination.tag
                   ? ref.read(selectedTagFilterProvider)
                   : null,
+              isPinnedView:
+                  ref.read(currentDestinationProvider) == AppDestination.pinned,
             ),
           ),
         );
@@ -3158,6 +3192,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     const uuid = Uuid();
     final now = DateTime.now();
     final selectedFilter = ref.read(selectedTagFilterProvider);
+    final destination = ref.read(currentDestinationProvider);
 
     final initialTags = selectedFilter != null && selectedFilter.isNotEmpty
         ? [selectedFilter]
@@ -3170,6 +3205,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       createdAt: now,
       updatedAt: now,
       tags: initialTags,
+      isPinned: destination == AppDestination.pinned,
     );
 
     await ref.read(notesRepositoryProvider).saveNote(newNote);
@@ -3193,6 +3229,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     const uuid = Uuid();
     final now = DateTime.now();
     final selectedFilter = ref.read(selectedTagFilterProvider);
+    final destination = ref.read(currentDestinationProvider);
 
     final initialTags = selectedFilter != null && selectedFilter.isNotEmpty
         ? [selectedFilter]
@@ -3205,6 +3242,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       createdAt: now,
       updatedAt: now,
       tags: initialTags,
+      isPinned: destination == AppDestination.pinned,
     );
 
     await ref.read(notesRepositoryProvider).saveNote(newNote);

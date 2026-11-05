@@ -4,6 +4,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../application/notes_provider.dart';
 import '../../application/notes_query_provider.dart';
 import '../../domain/notes_filter.dart';
 import 'notes_filter_sheet.dart';
@@ -27,9 +28,11 @@ class ActiveFilterChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final query = ref.watch(notesQueryProvider);
+    final destination = ref.watch(currentDestinationProvider);
+    final isPinnedDestination = destination == AppDestination.pinned;
     final filter = query.filter;
 
-    if (!filter.hasAdvancedFilters) {
+    if (!filter.hasAdvancedFiltersExcluding(ignorePinned: isPinnedDestination)) {
       return const SizedBox.shrink();
     }
 
@@ -61,7 +64,7 @@ class ActiveFilterChips extends ConsumerWidget {
     }
 
     // Pinned
-    if (filter.pinnedOnly) {
+    if (filter.pinnedOnly && !isPinnedDestination) {
       chips.add(
         _FilterChipData(
           label: 'Pinned only',

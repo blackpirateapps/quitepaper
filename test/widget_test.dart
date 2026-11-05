@@ -276,6 +276,82 @@ void main() {
     await finishTest(tester);
   });
 
+  testWidgets(
+      'Sidebar drawer navigation to Pinned shows only pinned notes (global and per-tag)',
+      (tester) async {
+    setPhoneSize(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+
+    await repository.saveNote(
+      Note(
+        id: 'global-pin',
+        title: 'Global Pinned Note',
+        content: 'Pinned everywhere #work',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: true,
+      ),
+    );
+
+    await repository.saveNote(
+      Note(
+        id: 'tag-pin',
+        title: 'Tag Pinned Note',
+        content: 'Pinned only in tag #personal',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      ),
+    );
+    await repository.setPinnedInTag('tag-pin', 'personal', true);
+
+    await repository.saveNote(
+      Note(
+        id: 'unpinned-note',
+        title: 'Unpinned Regular Note',
+        content: 'Not pinned anywhere #misc',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+      ),
+    );
+
+    await tester.pumpWidget(buildTestApp(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    // In All Notes, all three notes are present
+    expect(find.text('Global Pinned Note'), findsOneWidget);
+    expect(find.text('Tag Pinned Note'), findsOneWidget);
+    expect(find.text('Unpinned Regular Note'), findsOneWidget);
+
+    // Open drawer
+    await tester.tap(find.byIcon(PhosphorIconsRegular.list));
+    await tester.pumpAndSettle();
+
+    // Verify Pinned item exists in SidebarView
+    final sidebarPinnedFinder = find.descendant(
+      of: find.byType(SidebarView),
+      matching: find.text('Pinned'),
+    );
+    expect(sidebarPinnedFinder, findsOneWidget);
+
+    // Navigate to Pinned
+    await tester.tap(sidebarPinnedFinder);
+    await tester.pumpAndSettle();
+
+    // Verify Pinned view header
+    expect(find.text('Pinned'), findsWidgets);
+
+    // Verify ONLY pinned notes (global and tag pinned) are visible; unpinned is absent
+    expect(find.text('Global Pinned Note'), findsOneWidget);
+    expect(find.text('Tag Pinned Note'), findsOneWidget);
+    expect(find.text('Unpinned Regular Note'), findsNothing);
+
+    await finishTest(tester);
+  });
+
   testWidgets('Archive and Unarchive note flow via multi-select', (
     tester,
   ) async {

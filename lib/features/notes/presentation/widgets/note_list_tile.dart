@@ -44,6 +44,7 @@ class NoteListTile extends StatefulWidget {
     this.onEnterMultiSelect,
     this.onModifierSelect,
     this.pinContextTag,
+    this.isPinnedView = false,
   });
 
   final Note note;
@@ -81,9 +82,16 @@ class NoteListTile extends StatefulWidget {
   /// All Notes and other contexts (pin action is global there).
   final String? pinContextTag;
 
-  /// Whether the note is "pinned" in this tile's context: a global pin always
-  /// counts; inside a tag view a pin within that tag counts too.
-  bool get isPinnedHere => note.isPinnedInContext(pinContextTag);
+  /// Whether this tile is rendered inside the dedicated Pinned smart view.
+  final bool isPinnedView;
+
+  /// Whether the note is "pinned" in this tile's context: in the Pinned smart
+  /// view, any pinned note (global or per-tag) reads as pinned; elsewhere, a
+  /// global pin always counts, and inside a tag view a pin within that tag counts too.
+  bool get isPinnedHere =>
+      isPinnedView
+          ? (note.isPinned || note.pinnedTags.isNotEmpty)
+          : note.isPinnedInContext(pinContextTag);
 
   /// Whether toggling the pin here will govern this tag's pin (vs the global
   /// pin). True only inside a tag view.

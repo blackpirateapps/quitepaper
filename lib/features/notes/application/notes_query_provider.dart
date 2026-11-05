@@ -179,12 +179,16 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
   }
 
   void setFilters(NotesFilter filter) {
-    if (filter.tags.length == 1) {
-      _ref.read(selectedTagFilterProvider.notifier).state = filter.tags.first;
-    } else if (filter.tags.isEmpty) {
+    final destination = _ref.read(currentDestinationProvider);
+    final effectiveFilter = destination == AppDestination.pinned
+        ? filter.copyWith(pinnedOnly: true)
+        : filter;
+    if (effectiveFilter.tags.length == 1) {
+      _ref.read(selectedTagFilterProvider.notifier).state = effectiveFilter.tags.first;
+    } else if (effectiveFilter.tags.isEmpty) {
       _ref.read(selectedTagFilterProvider.notifier).state = null;
     }
-    state = state.copyWith(filter: filter).resetPagination();
+    state = state.copyWith(filter: effectiveFilter).resetPagination();
   }
 
   void setContext(NotesContext context) {
@@ -210,18 +214,27 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
   }
 
   void clearAdvancedFilters({bool keepTags = true}) {
+    final destination = _ref.read(currentDestinationProvider);
+    final isPinnedDestination = destination == AppDestination.pinned;
     state = state
         .copyWith(
-          filter: state.filter.clearAdvancedFilters(keepTags: keepTags),
+          filter: state.filter.clearAdvancedFilters(
+            keepTags: keepTags,
+            keepPinned: isPinnedDestination,
+          ),
         )
         .resetPagination();
   }
 
   void clearAllFilters() {
+    final destination = _ref.read(currentDestinationProvider);
+    final isPinnedDestination = destination == AppDestination.pinned;
     _ref.read(selectedTagFilterProvider.notifier).state = null;
     state = state
         .copyWith(
-          filter: NotesFilter.empty,
+          filter: isPinnedDestination
+              ? const NotesFilter(pinnedOnly: true)
+              : NotesFilter.empty,
         )
         .resetPagination();
   }

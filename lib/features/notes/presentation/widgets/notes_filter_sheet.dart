@@ -57,8 +57,11 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
   }
 
   void _clearAll() {
+    final destination = ref.read(currentDestinationProvider);
     setState(() {
-      _draftFilter = NotesFilter.empty;
+      _draftFilter = destination == AppDestination.pinned
+          ? const NotesFilter(pinnedOnly: true)
+          : NotesFilter.empty;
     });
   }
 
@@ -413,7 +416,10 @@ class _NotesFilterSheetState extends ConsumerState<NotesFilterSheet> {
                   const SizedBox(height: AppSpacing.lg),
 
                   // 2. STATE (PINNED) SECTION
-                  if (!isTrash && query.context == NotesContext.active) ...[
+                  if (!isTrash &&
+                      query.context == NotesContext.active &&
+                      ref.watch(currentDestinationProvider) !=
+                          AppDestination.pinned) ...[
                     _buildSectionHeader(colors, 'STATE'),
                     _FilterContainer(
                       child: _FilterToggleRow(

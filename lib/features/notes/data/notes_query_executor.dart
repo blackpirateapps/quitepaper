@@ -105,6 +105,7 @@ class NotesQueryExecutor {
         query.cursor!,
         query.context,
         contextTag,
+        isPinnedOnly: query.filter.pinnedOnly,
       );
       fullPredicate = fullPredicate & cursorPredicate;
     }
@@ -112,7 +113,12 @@ class NotesQueryExecutor {
     // 3. Build ordered query
     final selectQuery = _db.select(_db.notesTable)
       ..where((_) => fullPredicate)
-      ..orderBy(_buildOrderingTerms(query.sort, query.context, contextTag))
+      ..orderBy(_buildOrderingTerms(
+        query.sort,
+        query.context,
+        contextTag,
+        isPinnedOnly: query.filter.pinnedOnly,
+      ))
       ..limit(query.limit);
 
     final noteEntities = await selectQuery.get();
@@ -433,8 +439,9 @@ class NotesQueryExecutor {
   List<OrderingTerm Function($NotesTableTable)> _buildOrderingTerms(
     NotesSort sort,
     NotesContext context,
-    String? contextTag,
-  ) {
+    String? contextTag, {
+    bool isPinnedOnly = false,
+  }) {
     if (context == NotesContext.trash) {
       return [
         (n) => OrderingTerm(expression: n.deletedAt, mode: OrderingMode.desc),
@@ -446,8 +453,9 @@ class NotesQueryExecutor {
     final terms = <OrderingTerm Function($NotesTableTable)>[];
 
     // 1. Pinned first in active context (global pins everywhere; per-tag pins
-    //    float only within their own tag view).
-    if (sort.pinnedFirst && context == NotesContext.active) {
+    //    float only within their own tag view). In the dedicated Pinned smart
+    //    view, all notes are already pinned so they sort directly by the sort field.
+    if (sort.pinnedFirst && context == NotesContext.active && !isPinnedOnly) {
       final pinnedExpr = _pinnedInContextExpr(contextTag);
       terms.add(
         (_) => OrderingTerm(expression: pinnedExpr, mode: OrderingMode.desc),
@@ -495,12 +503,14 @@ class NotesQueryExecutor {
     NotesSort sort,
     NotesCursor cursor,
     NotesContext context,
-    String? contextTag,
-  ) {
+    String? contextTag, {
+    bool isPinnedOnly = false,
+  }) {
     final sortCondition = _buildSortFieldCursorPredicate(sort, cursor);
 
     if (sort.pinnedFirst &&
         context == NotesContext.active &&
+        !isPinnedOnly &&
         cursor.lastIsPinned != null) {
       final pinnedExpr = _pinnedInContextExpr(contextTag);
       if (cursor.lastIsPinned == true) {

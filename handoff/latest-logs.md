@@ -5537,3 +5537,58 @@ During list scrolling across Android and Desktop platforms, subtle frame drops a
   - `flutter test test/notes/notes_scroll_performance_test.dart`: **2/2 tests passing**.
   - `flutter test test/notes/`: **107/107 tests passing**.
   - `flutter test`: All tests passing.
+
+---
+
+## 261. Fix Pinned Smart View Navigation & Filtering (November 2026)
+
+### 1. Problem & Root Cause
+In the navigation sidebar, tapping the "Pinned" destination (located directly below "All Notes") displayed the correct note count in its badge, but opening the view erroneously displayed all active notes instead of only pinned notes.
+
+The root cause was traced to a filter-clearing race in [`lib/features/sidebar/presentation/sidebar_view.dart`](file:///home/dog/git/quitepaper/lib/features/sidebar/presentation/sidebar_view.dart):
+1. Tapping "Pinned" set `currentDestinationProvider` to `AppDestination.pinned`, which triggered `NotesQueryNotifier._onDestinationChanged` to set `pinnedOnly = true`.
+2. Immediately afterwards, `sidebar_view.dart` called `ref.read(notesQueryProvider.notifier).clearAllFilters()`.
+3. In [`lib/features/notes/application/notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart), `clearAllFilters()` unconditionally set `filter: NotesFilter.empty` (where `pinnedOnly == false`), clearing the pinned filter and reverting the active query to all non-archived, non-trashed notes.
+
+Additionally:
+- `watchNotes(isPinned: true)` in [`lib/core/database/app_database.dart`](file:///home/dog/git/quitepaper/lib/core/database/app_database.dart) only checked `notesTable.isPinned == true` rather than the aggregated condition `(notes.is_pinned OR EXISTS(note_tags.is_pinned))`, causing stream divergence with `watchPinnedNotesCount()`.
+- Active filter chips rendered a redundant "Pinned only [x]" chip inside the dedicated Pinned smart view.
+- Empty states inside the Pinned destination showed "No notes match these filters" rather than "No pinned notes" when zero pinned notes existed.
+- Notes pinned only across tags did not display the pushpin icon in the Pinned view or allow one-tap unpinning.
+
+### 2. Architecture & Implementation
+1. **Query & State Management (`notes_query_provider.dart` & `notes_filter.dart`)**:
+   - In `NotesQueryNotifier.clearAllFilters()`: inspects `currentDestinationProvider`. If destination is `AppDestination.pinned`, resets to `const NotesFilter(pinnedOnly: true)` instead of `NotesFilter.empty`.
+   - In `NotesQueryNotifier.clearAdvancedFilters()`: preserves `pinnedOnly: true` when viewing `AppDestination.pinned`.
+   - In `NotesQueryNotifier.setFilters()`: enforces `filter.copyWith(pinnedOnly: true)` when destination is `AppDestination.pinned`.
+   - In `NotesFilter`: added `hasAdvancedFiltersExcluding({bool ignorePinned = false})` and `clearAdvancedFilters({bool keepTags = false, bool keepPinned = false})` to treat `pinnedOnly` as the baseline view invariant rather than an active filter chip in Pinned view.
+2. **Database & Stream Parity (`app_database.dart`)**:
+   - In `AppDatabase.watchNotes(isPinned: true)`: aligned with `watchPinnedNotesCount()` and `notes_query_executor.dart` by checking `(notesTable.isPinned.equals(true) | existsQuery(tagPinnedSub))`.
+3. **Query Executor Ordering (`notes_query_executor.dart`)**:
+   - In `_buildOrderingTerms` and `_buildCursorPredicate`: omitted redundant pinned partitioning when `query.filter.pinnedOnly` is `true`, sorting notes directly by the active sort field (e.g. updated date).
+4. **UI Refinements (`notes_screen.dart`, `note_list_tile.dart`, `active_filter_chips.dart`, `notes_filter_sheet.dart`)**:
+   - `NoteListTile`: added `isPinnedView` property; `isPinnedHere` resolves `true` for all notes in Pinned view (`note.isPinned || note.pinnedTags.isNotEmpty`). Pin actions in context menu and bottom sheet display "Unpin note".
+   - `notes_screen.dart`: `onTogglePin` cleanly unpins both global and per-tag pins when in Pinned view. `_togglePinSelected` unpins both scopes on multi-select. `_createAndOpenNote` and `_createAndOpenNoteTablet` set `isPinned: true` when created from Pinned destination. `_validateOpenNoteForNewContext` checks `isPinned || pinnedTags.isNotEmpty`.
+   - `ActiveFilterChips`: omits "Pinned only" chip when in `AppDestination.pinned`.
+   - `NotesFilterSheet`: hides the "Pinned Only" toggle when in `AppDestination.pinned`, and `_clearAll()` preserves `pinnedOnly: true`.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `lib/core/database/app_database.dart`: Aggregated pin query in `watchNotes(isPinned: true)`.
+  - `lib/features/notes/application/notes_query_provider.dart`: Preserved `pinnedOnly: true` in `clearAllFilters`, `clearAdvancedFilters`, and `setFilters`.
+  - `lib/features/notes/data/notes_query_executor.dart`: Clean sort order for `pinnedOnly` queries without redundant partition.
+  - `lib/features/notes/domain/notes_filter.dart`: Added `hasAdvancedFiltersExcluding` and `clearAdvancedFilters(keepPinned: ...)`.
+  - `lib/features/notes/presentation/notes_screen.dart`: Context-aware pin toggle, note creation, tablet validation, and empty state in Pinned destination.
+  - `lib/features/notes/presentation/widgets/active_filter_chips.dart`: Suppressed Pinned chip in Pinned view.
+  - `lib/features/notes/presentation/widgets/note_list_tile.dart`: Added `isPinnedView` property and context-aware pin glyphs/actions.
+  - `lib/features/notes/presentation/widgets/notes_filter_sheet.dart`: Preserved `pinnedOnly` in Pinned view filter sheet reset.
+  - `test/notes/note_pin_scope_test.dart`: Added unit tests for `watchNotes(isPinned: true)` and `NotesQueryNotifier` filter clearing in Pinned destination.
+  - `test/widget_test.dart`: Added widget test verifying sidebar drawer navigation to Pinned filters down to only pinned notes.
+  - `handoff/latest-logs.md`: Appended Section 261.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Relevant Test Suites**:
+  - `flutter test test/notes/note_pin_scope_test.dart`: **9/9 tests passing**.
+  - `flutter test test/database/app_database_test.dart`: **30/30 tests passing**.
+  - `flutter test test/widget_test.dart`: **20/20 tests passing**.

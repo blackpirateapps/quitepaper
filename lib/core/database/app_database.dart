@@ -941,7 +941,19 @@ class AppDatabase extends _$AppDatabase {
     );
 
     if (isPinned != null) {
-      notesQuery.where((n) => n.isPinned.equals(isPinned));
+      if (isPinned) {
+        final tagPinnedSub = selectOnly(noteTagsTable)
+          ..addColumns([noteTagsTable.noteId])
+          ..where(
+            noteTagsTable.noteId.equalsExp(notesTable.id) &
+                noteTagsTable.isPinned.equals(true),
+          );
+        notesQuery.where(
+          (n) => n.isPinned.equals(true) | existsQuery(tagPinnedSub),
+        );
+      } else {
+        notesQuery.where((n) => n.isPinned.equals(false));
+      }
     }
 
     if (filterTag != null && filterTag.trim().isNotEmpty) {
