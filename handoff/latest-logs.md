@@ -5592,3 +5592,55 @@ Additionally:
   - `flutter test test/notes/note_pin_scope_test.dart`: **9/9 tests passing**.
   - `flutter test test/database/app_database_test.dart`: **30/30 tests passing**.
   - `flutter test test/widget_test.dart`: **20/20 tests passing**.
+
+---
+
+## 262. Linux Desktop File Sharing Implementation: XDG Desktop Portal OpenURI & Multi-Tier Fallbacks (November 2026)
+
+### 1. Overview & Bug Analysis
+Upstream `package:share_plus` has an official platform gap on Linux: `shareXFiles()` is completely unimplemented and throws `UnimplementedError('shareXFiles() has not been implemented on Linux.')` (and `shareUri()` similarly throws `UnimplementedError`).
+
+In Quiet Paper, this caused critical failures across desktop Linux environments:
+1. **Generic & Media Attachments** ([`AttachmentShareService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_share_service.dart)): Sharing audio voice memos, camera snapshots, PDFs, spreadsheets, and arbitrary files from `AttachmentDetailsSheet`, `AttachmentViewerScreen`, and `ImageViewerModal` invoked `Share.shareXFiles` and failed.
+2. **Exported Notes & Packages** ([`ExportService`](file:///home/dog/git/quitepaper/lib/features/export/application/export_service.dart)): Exporting notes as Markdown, Plain Text, HTML, PDF, or `.qpnote` with `shareAfterExport: true` crashed with an unhandled `UnimplementedError`.
+3. **External Open Fallback** ([`AttachmentOpenService`](file:///home/dog/git/quitepaper/lib/core/attachments/attachment_open_service.dart)): The fallback to `Share.shareXFiles` failed on Linux if native platform channels and direct URI launches were not supported.
+
+### 2. Architecture & Implementation
+A production-grade Linux share plugin ([`QuietPaperLinuxSharePlugin`](file:///home/dog/git/quitepaper/lib/core/sharing/quiet_paper_linux_share.dart)) extending `SharePlatform` was implemented and registered at app startup (`lib/main.dart`):
+
+1. **XDG Desktop Portal OpenURI with Interactive Chooser (`ask: true`)**:
+   - Primary sharing strategy for single files invokes Freedesktop D-Bus session service:
+     `gdbus call --session --dest org.freedesktop.portal.Desktop --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.OpenURI.OpenURI '' '<fileUri>' '{"ask": <true>}'`
+   - Commands the desktop compositor (GNOME Shell, KDE Plasma, COSMIC, XFCE, Wayland, and X11) to render the native application chooser ("Open With..." modal), presenting an authentic OS share-sheet experience without external dependencies.
+2. **Multi-Tiered Fallbacks**:
+   - **Tier 2 (System Default App Launcher)**: If the portal fails or returns non-zero, executes `gio open <filePath>`, followed by `xdg-open <filePath>`.
+   - **Tier 3 (Email Share with Attachment)**: If `subject` or `text` is provided, invokes `xdg-email --attach <filePath> [--subject <subject>] [--body <text>]`.
+   - **Tier 4 (File Manager Reveal)**: Reveals the item in the native file manager (Nautilus, Dolphin, Thunar) via `org.freedesktop.FileManager1.ShowItems` or opens the parent directory.
+3. **Multiple Files Support**:
+   - For batch sharing ($>1$ files), directly invokes `org.freedesktop.FileManager1.ShowItems` with the complete array of file URIs so the user can drag, inspect, or hand off all files simultaneously, falling back to sequential portal opening.
+4. **In-Memory `XFile` & Override Resolution**:
+   - Automatically writes memory-backed `XFile.fromData` bytes to a dedicated cache folder (`quitepaper_shares/`).
+   - Strictly respects `fileNameOverrides` by cloning/naming the temporary file according to the override name before OS handoff.
+5. **Deterministic Testing Abstraction**:
+   - Implemented `ProcessRunner` and `UriLauncher` interfaces for 100% test coverage with zero OS side effects during automated test runs.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/sharing/quiet_paper_linux_share.dart`: `ProcessRunner`, `DefaultProcessRunner`, and `QuietPaperLinuxSharePlugin extends SharePlatform`.
+  - `test/sharing/quiet_paper_linux_share_test.dart`: Dedicated 18-test suite covering XDG portal execution, fallbacks, multi-file reveal, in-memory writing, filename overrides, `shareUri`, and `share`.
+- **Modified Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Promoted `share_plus_platform_interface: ^5.0.2` to direct dependency.
+  - `lib/main.dart`: Registered `QuietPaperLinuxSharePlugin.register()` on Linux startup.
+  - `test/attachments/attachment_open_and_share_test.dart`: Added test verifying `AttachmentShareService` and `AttachmentOpenService` share via `QuietPaperLinuxSharePlugin`.
+  - `test/features/export/export_service_test.dart`: Added test verifying `ExportService` note export with `shareAfterExport: true` completes cleanly.
+  - `handoff/platform-and-builds.md`: Documented Linux native file sharing architecture.
+  - `handoff/latest-logs.md`: Appended Section 262.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Relevant Test Suites**:
+  - `flutter test test/sharing/quiet_paper_linux_share_test.dart`: **18/18 tests passing**.
+  - `flutter test test/attachments/attachment_open_and_share_test.dart`: **5/5 tests passing**.
+  - `flutter test test/features/export/export_service_test.dart`: **6/6 tests passing**.
+  - `flutter test test/share/share_service_test.dart`: **6/6 tests passing**.
+  - Full sharing & attachment domain tests: **210/210 passing**.

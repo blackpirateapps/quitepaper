@@ -11,7 +11,25 @@ import 'package:quitepaper/features/export/domain/export_models.dart';
 import 'package:quitepaper/features/notes/application/note_security_service.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/core/sharing/quiet_paper_linux_share.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class MockExportProcessRunner implements ProcessRunner {
+  final List<List<String>> commands = [];
+
+  @override
+  Future<ProcessResult> run(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    bool includeParentEnvironment = true,
+    bool runInShell = false,
+  }) async {
+    commands.add([executable, ...arguments]);
+    return ProcessResult(101, 0, 'ok', '');
+  }
+}
 
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -304,6 +322,36 @@ void main() => print("Ready");
       expect(observedPhases, contains(ExportPhase.resolvingAttachments));
       expect(observedPhases, contains(ExportPhase.renderingDocument));
       expect(observedPhases, contains(ExportPhase.complete));
+    });
+
+    test('shares export result via QuietPaperLinuxSharePlugin without throwing UnimplementedError', () async {
+      final runner = MockExportProcessRunner();
+      QuietPaperLinuxSharePlugin.register(processRunner: runner);
+
+      final noteId = 'share-export-note-1';
+      final now = DateTime.utc(2026, 1, 1);
+      final note = Note(
+        id: noteId,
+        title: 'Share Export Test',
+        content: '# Test Share',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repository.saveNote(note);
+
+      // Export with shareAfterExport: true
+      final result = await exportService.exportNote(
+        ExportRequest(
+          noteId: noteId,
+          format: ExportFormat.markdown,
+          shareAfterExport: true,
+        ),
+      );
+
+      expect(result.file.existsSync(), isTrue);
+      expect(runner.commands.isNotEmpty, isTrue);
+      expect(runner.commands.last[0], 'gdbus');
+      expect(runner.commands.last, contains('org.freedesktop.portal.Desktop'));
     });
   });
 

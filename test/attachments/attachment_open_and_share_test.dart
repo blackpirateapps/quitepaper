@@ -10,6 +10,24 @@ import 'package:quitepaper/core/attachments/attachment_temp_storage.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/sharing/quiet_paper_linux_share.dart';
+
+class MockShareProcessRunner implements ProcessRunner {
+  final List<List<String>> commands = [];
+
+  @override
+  Future<ProcessResult> run(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    bool includeParentEnvironment = true,
+    bool runInShell = false,
+  }) async {
+    commands.add([executable, ...arguments]);
+    return ProcessResult(100, 0, 'ok', '');
+  }
+}
 
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -154,6 +172,43 @@ void main() {
 
       final success = await shareService.shareAttachment(res.attachment.id);
       expect(success, isTrue);
+    });
+
+    test('shares attachment, raw image bytes, and files via QuietPaperLinuxSharePlugin', () async {
+      final runner = MockShareProcessRunner();
+      QuietPaperLinuxSharePlugin.register(processRunner: runner);
+
+      final bytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final res = await attachmentService.importGenericFileFromBytes(
+        bytes,
+        fileName: 'report.pdf',
+      );
+
+      final shareService = AttachmentShareService(
+        attachmentService: attachmentService,
+        tempStorage: tempStorage,
+      );
+
+      // 1. Share attachment by ID
+      final shareAttachmentResult = await shareService.shareAttachment(res.attachment.id);
+      expect(shareAttachmentResult, isTrue);
+      expect(runner.commands.isNotEmpty, isTrue);
+      expect(runner.commands.last[0], 'gdbus');
+      expect(runner.commands.last, contains('org.freedesktop.portal.Desktop'));
+
+      // 2. Share raw image bytes
+      final shareBytesResult = await shareService.shareImageBytes(
+        Uint8List.fromList([255, 216, 255]),
+        fileName: 'snapshot.png',
+      );
+      expect(shareBytesResult, isTrue);
+
+      // 3. Share direct file path
+      final tempDir = await tempStorage.getTempDecryptedDirectory();
+      final directFile = File('${tempDir.path}/direct.txt')
+        ..writeAsStringSync('direct test');
+      final shareDirectResult = await shareService.shareFileDirectly(directFile.path);
+      expect(shareDirectResult, isTrue);
     });
   });
 }

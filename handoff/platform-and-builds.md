@@ -21,6 +21,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
   - **Flatpak** (Sandboxed distribution)
 - **GStreamer Dependencies**: Audio playback and voice recording depend on `gstreamer1.0-plugins-base` and `gstreamer1.0-plugins-good`.
 - **Headless & Keyring Resiliency**: If SecretService / KDE Wallet is unavailable or headless, [`LinuxSecureStorageFallback`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart) provides an encrypted local key vault without crashing.
+- **Native File Sharing (`shareXFiles`)**: Resolves upstream `share_plus` Linux limitation (`UnimplementedError`) via [`QuietPaperLinuxSharePlugin`](file:///home/dog/git/quitepaper/lib/core/sharing/quiet_paper_linux_share.dart), using XDG Desktop Portal `OpenURI` (`ask: true`), `gio open`, `xdg-open`, `FileManager1.ShowItems`, `xdg-email`, and `mailto:` fallbacks.
 
 ### Desktop Adaptive UI
 - **Spotlight Command Palette**: `Cmd/Ctrl + K` triggers an adaptive modal palette for jumping between notes, tags, and commands.
@@ -58,6 +59,7 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 ---
 
 ## Key References & Logs
+- Linux Native File Sharing (`shareXFiles`): [Latest Logs, Section 262](latest-logs.md#262-linux-desktop-file-sharing-implementation-xdg-desktop-portal-openuri--multi-tier-fallbacks-november-2026)
 - Linux Packaging (DEB, RPM, AppImage, Flatpak): [Latest Logs, Section 233](latest-logs.md#233-multi-platform-github-release-workflow-linux-packages-rpm-deb-appimage-flatpak-october-2026)
 - Linux GStreamer Resolution: [Latest Logs, Section 224](latest-logs.md#224-linux-app-build-pipeline--gstreamer-dependency-resolution-october-2026)
 - Android Quick Capture Widget: [Latest Logs, Section 221](latest-logs.md#221-android-quick-capture--home-screen-widget-october-2026)
