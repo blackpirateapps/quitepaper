@@ -1384,9 +1384,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                         : DesktopSmoothScroll(
                                             child: ListView.builder(
                                               scrollCacheExtent:
-                                                  const ScrollCacheExtent.pixels(
-                                                    1200.0,
-                                                  ),
+                                                  PlatformLayoutHelper
+                                                          .isDesktopPlatform
+                                                      ? const ScrollCacheExtent
+                                                          .pixels(500.0)
+                                                      : const ScrollCacheExtent
+                                                          .pixels(350.0),
+                                              addRepaintBoundaries: true,
+                                              addAutomaticKeepAlives: false,
                                               padding: const EdgeInsets.only(
                                                 bottom: 96,
                                               ),
@@ -2725,9 +2730,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                         : DesktopSmoothScroll(
                                                             child: ListView.builder(
                                                               scrollCacheExtent:
-                                                                  const ScrollCacheExtent.pixels(
-                                                                    1200.0,
-                                                                  ),
+                                                                  PlatformLayoutHelper
+                                                                          .isDesktopPlatform
+                                                                      ? const ScrollCacheExtent
+                                                                          .pixels(500.0)
+                                                                      : const ScrollCacheExtent
+                                                                          .pixels(350.0),
+                                                              addRepaintBoundaries: true,
+                                                              addAutomaticKeepAlives: false,
                                                               physics:
                                                                   PlatformLayoutHelper
                                                                       .isDesktopPlatform
@@ -2942,10 +2952,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       final group = groups[i];
       if (index == accumulated) {
         final isPinnedTransition = i > 0 && groups[i - 1].header == 'Pinned';
-        return NoteDateHeader(
-          title: group.header,
-          isFirst: i == 0,
-          showTopDivider: isPinnedTransition,
+        return RepaintBoundary(
+          key: ValueKey('header_${group.header}_$i'),
+          child: NoteDateHeader(
+            title: group.header,
+            isFirst: i == 0,
+            showTopDivider: isPinnedTransition,
+          ),
         );
       }
       accumulated++;
@@ -3010,100 +3023,103 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           );
         }
 
-        return Dismissible(
-          key: ValueKey('dismiss_${note.id}'),
-          direction: _isMultiSelecting
-              ? DismissDirection.none
-              : dismissDirection,
-          background: background,
-          secondaryBackground: secondaryBackground,
-          onDismissed: (direction) {
-            if (destination == AppDestination.trash) {
-              _restoreNoteWithUndo(note);
-            } else if (destination == AppDestination.archive) {
-              if (direction == DismissDirection.startToEnd) {
-                _unarchiveNoteWithUndo(note);
+        return RepaintBoundary(
+          key: ValueKey('rb_${note.id}'),
+          child: Dismissible(
+            key: ValueKey('dismiss_${note.id}'),
+            direction: _isMultiSelecting
+                ? DismissDirection.none
+                : dismissDirection,
+            background: background,
+            secondaryBackground: secondaryBackground,
+            onDismissed: (direction) {
+              if (destination == AppDestination.trash) {
+                _restoreNoteWithUndo(note);
+              } else if (destination == AppDestination.archive) {
+                if (direction == DismissDirection.startToEnd) {
+                  _unarchiveNoteWithUndo(note);
+                } else {
+                  _trashNoteWithUndo(note);
+                }
               } else {
-                _trashNoteWithUndo(note);
+                if (direction == DismissDirection.startToEnd) {
+                  _archiveNoteWithUndo(note);
+                } else {
+                  _trashNoteWithUndo(note);
+                }
               }
-            } else {
-              if (direction == DismissDirection.startToEnd) {
+            },
+            child: NoteListTile(
+              note: note,
+              isSelected: isSelected,
+              isMultiSelecting: _isMultiSelecting,
+              isItemMultiSelected: isItemMultiSelected,
+              onItemMultiSelectToggle: () => _toggleNoteMultiSelect(note.id),
+              onEnterMultiSelect: () => _enterMultiSelect(note.id),
+              onModifierSelect: ({required bool ctrl, required bool shift}) {
+                _handleModifierSelect(note.id, ctrl: ctrl, shift: shift);
+              },
+              onTap: () {
+                if (isTablet) {
+                  setState(() {
+                    _selectedNoteIdForTablet = note.id;
+                    _shouldAutoFocusTablet = false;
+                    _showFirstNoteTipsForTablet = false;
+                  });
+                } else {
+                  _openNote(context, note);
+                }
+              },
+              onTagTap: (tag) {
+                ref.read(currentDestinationProvider.notifier).state =
+                    AppDestination.tag;
+                ref.read(selectedTagFilterProvider.notifier).state = tag;
+                ref.read(notesQueryProvider.notifier).setTag(tag);
+              },
+              onTogglePin: () {
+                final destination = ref.read(currentDestinationProvider);
+                final tagFilter = ref.read(selectedTagFilterProvider);
+                if (destination == AppDestination.tag &&
+                    tagFilter != null &&
+                    tagFilter.isNotEmpty) {
+                  // Inside a tag view: toggle this tag's pin only (global pins
+                  // are managed from All Notes).
+                  repository.setPinnedInTag(
+                    note.id,
+                    tagFilter,
+                    !note.isPinnedInTag(tagFilter),
+                  );
+                } else {
+                  repository.setPinned(note.id, !note.isPinned);
+                }
+                ref.read(notesCollectionProvider.notifier).refresh();
+              },
+              onArchive: () {
                 _archiveNoteWithUndo(note);
-              } else {
+              },
+              onUnarchive: () {
+                _unarchiveNoteWithUndo(note);
+              },
+              onTrash: () {
                 _trashNoteWithUndo(note);
-              }
-            }
-          },
-          child: NoteListTile(
-            note: note,
-            isSelected: isSelected,
-            isMultiSelecting: _isMultiSelecting,
-            isItemMultiSelected: isItemMultiSelected,
-            onItemMultiSelectToggle: () => _toggleNoteMultiSelect(note.id),
-            onEnterMultiSelect: () => _enterMultiSelect(note.id),
-            onModifierSelect: ({required bool ctrl, required bool shift}) {
-              _handleModifierSelect(note.id, ctrl: ctrl, shift: shift);
-            },
-            onTap: () {
-              if (isTablet) {
-                setState(() {
-                  _selectedNoteIdForTablet = note.id;
-                  _shouldAutoFocusTablet = false;
-                  _showFirstNoteTipsForTablet = false;
-                });
-              } else {
-                _openNote(context, note);
-              }
-            },
-            onTagTap: (tag) {
-              ref.read(currentDestinationProvider.notifier).state =
-                  AppDestination.tag;
-              ref.read(selectedTagFilterProvider.notifier).state = tag;
-              ref.read(notesQueryProvider.notifier).setTag(tag);
-            },
-            onTogglePin: () {
-              final destination = ref.read(currentDestinationProvider);
-              final tagFilter = ref.read(selectedTagFilterProvider);
-              if (destination == AppDestination.tag &&
-                  tagFilter != null &&
-                  tagFilter.isNotEmpty) {
-                // Inside a tag view: toggle this tag's pin only (global pins
-                // are managed from All Notes).
-                repository.setPinnedInTag(
-                  note.id,
-                  tagFilter,
-                  !note.isPinnedInTag(tagFilter),
-                );
-              } else {
-                repository.setPinned(note.id, !note.isPinned);
-              }
-              ref.read(notesCollectionProvider.notifier).refresh();
-            },
-            onArchive: () {
-              _archiveNoteWithUndo(note);
-            },
-            onUnarchive: () {
-              _unarchiveNoteWithUndo(note);
-            },
-            onTrash: () {
-              _trashNoteWithUndo(note);
-            },
-            onRestore: () {
-              _restoreNoteWithUndo(note);
-            },
-            onDeletePermanently: () {
-              _deletePermanently(note);
-            },
-            onDelete: () {
-              _trashNoteWithUndo(note);
-            },
-            onDuplicate: () {
-              _duplicateNote(note);
-            },
-            pinContextTag:
-                ref.read(currentDestinationProvider) == AppDestination.tag
-                ? ref.read(selectedTagFilterProvider)
-                : null,
+              },
+              onRestore: () {
+                _restoreNoteWithUndo(note);
+              },
+              onDeletePermanently: () {
+                _deletePermanently(note);
+              },
+              onDelete: () {
+                _trashNoteWithUndo(note);
+              },
+              onDuplicate: () {
+                _duplicateNote(note);
+              },
+              pinContextTag:
+                  ref.read(currentDestinationProvider) == AppDestination.tag
+                  ? ref.read(selectedTagFilterProvider)
+                  : null,
+            ),
           ),
         );
       }

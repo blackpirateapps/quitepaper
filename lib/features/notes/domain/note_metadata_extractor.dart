@@ -170,6 +170,17 @@ abstract final class NoteMetadataExtractor {
   @visibleForTesting
   static int get cacheSize => _cache.length;
 
+  /// Pre-warms the metadata cache for a collection of notes, avoiding synchronous
+  /// parsing, regex matching, and frontmatter resolution during scroll builds.
+  static void prewarmAll(
+    Iterable<Note> notes, {
+    String? searchQuery,
+  }) {
+    for (final note in notes) {
+      extract(note, searchQuery: searchQuery);
+    }
+  }
+
   /// Extracts comprehensive presentation metadata from a [Note] with LRU caching.
   static NoteMetadata extract(
     Note note, {

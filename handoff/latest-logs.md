@@ -5490,3 +5490,50 @@ In SuperEditor mode, blockquotes previously appeared naked, ungrounded, and affl
 - **Targeted Test Suites**:
   - `flutter test test/editor/quiet_super_editor_quotes_test.dart`: **6/6 tests passing**.
   - `flutter test test/editor/quiet_super_editor_test.dart`: **28/28 tests passing**.
+
+
+---
+
+## 260. Notes List Scroll Performance Optimizations: Metadata Pre-warming, RepaintBoundary Isolation & Localized Hover (November 2026)
+
+### 1. Overview & Root Cause Analysis
+During list scrolling across Android and Desktop platforms, subtle frame drops and micro-stutters were identified due to multiple bottlenecks on Flutter's UI and GPU rasterization threads:
+1. **Synchronous Regex & AST Extraction during Scroll Frames**: `NoteListTile.build()` invoked `NoteMetadataExtractor.extract()`, which on cache misses synchronously executed multiple regular expressions (`_imageRegex`, `_documentRegex`, `_tableSeparatorRegex`), YAML frontmatter parsing, JSON AST decodes for rich notes, and table preview generation. During rapid fling scrolling, dozens of notes instantiated in a single frame, blowing past the 16.6ms / 8.3ms frame budget.
+2. **Full-Tile `setState()` on Hover Events**: `NoteListTile` called `setState(() => _isHovered = ...)` on pointer enter and exit. When scrolling with the mouse cursor stationary over the list on Desktop, every tile crossing the pointer triggered rapid-fire rebuilds of the entire tile tree (title, subtitle, dates, tag chips, and thumbnails).
+3. **Missing Layer Isolation (`RepaintBoundary`)**: Neither `NoteListTile` nor `NoteDateHeader` was wrapped in a `RepaintBoundary`. Ripple effects, hover color transitions, and viewport scrolling dirtied the whole raster layer, preventing GPU layer texture caching.
+4. **Oversized Static `scrollCacheExtent: 1200.0`**: A fixed 1200dp cache extent forced Flutter to pre-build 14–18 offscreen tiles above and below the viewport at once, causing layout spikes during touch fling gestures on Android.
+
+### 2. Architecture & Implementation
+1. **Metadata Pre-warming (`NoteMetadataExtractor.prewarmAll`)**:
+   - In [`lib/features/notes/domain/note_metadata_extractor.dart`](file:///home/dog/git/quitepaper/lib/features/notes/domain/note_metadata_extractor.dart), added `prewarmAll(Iterable<Note> notes, {String? searchQuery})`.
+   - Wired `prewarmAll` into `groupedNotesCollectionProvider` in [`lib/features/notes/application/notes_query_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_query_provider.dart) and `groupedNotesStreamProvider` in [`lib/features/notes/application/notes_provider.dart`](file:///home/dog/git/quitepaper/lib/features/notes/application/notes_provider.dart).
+   - Pre-populates the LRU cache asynchronously when notes are loaded/grouped by Drift, guaranteeing $O(1)$ memory hits when `ListView.builder` renders tiles.
+2. **Localized Hover Management (`ValueNotifier<bool>`)**:
+   - In [`lib/features/notes/presentation/widgets/note_list_tile.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_list_tile.dart), replaced `setState` with `ValueNotifier<bool> _isHoveredNotifier` and `ValueListenableBuilder<bool>`.
+   - On pointer enter/exit, only the `Material` background color resolves and repaints; the entire `InkWell` child subtree (title, snippet, date, tag chips, and thumbnails) is reused with zero rebuilding.
+3. **RepaintBoundary Layer Isolation**:
+   - In `NoteListTile.build()`, wrapped the tile contents in a `RepaintBoundary` to isolate the tile's raster layer.
+   - In [`lib/features/notes/presentation/notes_screen.dart`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/notes_screen.dart), wrapped both `NoteDateHeader` and `Dismissible` in explicit `RepaintBoundary(key: ValueKey(...))` widgets.
+4. **Platform-Adaptive `scrollCacheExtent` & Viewport Flags**:
+   - In `notes_screen.dart`, replaced `const ScrollCacheExtent.pixels(1200.0)` with:
+     - **Android & Mobile**: `const ScrollCacheExtent.pixels(350.0)` (~3–4 tiles ahead, eliminating batch-build frame drops on touch flings).
+     - **Desktop**: `const ScrollCacheExtent.pixels(500.0)` for smooth wheel/trackpad scrolling.
+   - Set `addRepaintBoundaries: true` and `addAutomaticKeepAlives: false`.
+
+### 3. File Inventory
+- **New Files**:
+  - `test/notes/notes_scroll_performance_test.dart`: Dedicated unit and widget tests verifying `prewarmAll` cache population, localized hover notifier execution, and `RepaintBoundary` isolation.
+- **Modified Files**:
+  - `lib/features/notes/domain/note_metadata_extractor.dart`: Added `prewarmAll` helper.
+  - `lib/features/notes/application/notes_query_provider.dart`: Hooked `prewarmAll` into `groupedNotesCollectionProvider`.
+  - `lib/features/notes/application/notes_provider.dart`: Hooked `prewarmAll` into `groupedNotesStreamProvider`.
+  - `lib/features/notes/presentation/widgets/note_list_tile.dart`: Localized hover management with `ValueNotifier<bool>` and wrapped in `RepaintBoundary`.
+  - `lib/features/notes/presentation/notes_screen.dart`: Applied platform-adaptive `scrollCacheExtent` (350dp mobile / 500dp desktop) and wrapped items in `RepaintBoundary`.
+  - `handoff/latest-logs.md`: Appended Section 260.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Test Suites**:
+  - `flutter test test/notes/notes_scroll_performance_test.dart`: **2/2 tests passing**.
+  - `flutter test test/notes/`: **107/107 tests passing**.
+  - `flutter test`: All tests passing.

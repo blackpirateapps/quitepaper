@@ -94,7 +94,13 @@ class NoteListTile extends StatefulWidget {
 }
 
 class _NoteListTileState extends State<NoteListTile> {
-  bool _isHovered = false;
+  late final ValueNotifier<bool> _isHoveredNotifier = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _isHoveredNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,13 +121,15 @@ class _NoteListTileState extends State<NoteListTile> {
 
     final isHighlighted = widget.isSelected || widget.isItemMultiSelected;
 
-    final backgroundColor = isHighlighted
-        ? (isDark
-            ? colors.surfaceSubtle
-            : colors.selection.withValues(alpha: 0.5))
-        : (_isHovered
-            ? colors.surfaceSubtle.withValues(alpha: 0.45)
-            : Colors.transparent);
+    Color resolveBackgroundColor(bool isHovered) {
+      return isHighlighted
+          ? (isDark
+              ? colors.surfaceSubtle
+              : colors.selection.withValues(alpha: 0.5))
+          : (isHovered
+              ? colors.surfaceSubtle.withValues(alpha: 0.45)
+              : Colors.transparent);
+    }
 
     final semanticLabel = [
       metadata.displayTitle,
@@ -137,13 +145,20 @@ class _NoteListTileState extends State<NoteListTile> {
       label: semanticLabel,
       selected: isHighlighted,
       button: true,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: Material(
-          color: backgroundColor,
-          child: InkWell(
-            onTap: _handleTap,
+      child: RepaintBoundary(
+        child: MouseRegion(
+          onEnter: (_) => _isHoveredNotifier.value = true,
+          onExit: (_) => _isHoveredNotifier.value = false,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isHoveredNotifier,
+            builder: (context, isHovered, child) {
+              return Material(
+                color: resolveBackgroundColor(isHovered),
+                child: child,
+              );
+            },
+            child: InkWell(
+              onTap: _handleTap,
             onSecondaryTapUp: widget.isMultiSelecting
                 ? null
                 : (details) =>
@@ -407,7 +422,8 @@ class _NoteListTileState extends State<NoteListTile> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildHighlightedText({

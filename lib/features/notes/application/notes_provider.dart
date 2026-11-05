@@ -4,6 +4,7 @@ import '../../../core/ocr/ocr_provider.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
+import '../domain/note_metadata_extractor.dart';
 import '../domain/note_model.dart';
 
 enum AppDestination {
@@ -181,6 +182,7 @@ final groupedNotesStreamProvider = Provider<AsyncValue<List<NoteGroup>>>((ref) {
   final destination = ref.watch(currentDestinationProvider);
 
   return notesAsync.whenData((notes) {
+    NoteMetadataExtractor.prewarmAll(notes);
     final contextTag = destination == AppDestination.tag
         ? ref.watch(selectedTagFilterProvider)
         : null;
