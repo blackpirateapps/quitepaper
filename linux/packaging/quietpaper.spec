@@ -49,8 +49,13 @@ fi
 # Symlink executable
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
 
-# Install CLI binary if present
+# Install CLI binary if present (or build on demand from bin/qp.dart)
 if [ -f "%{_sourcedir}/build/cli/bundle/bin/qp" ]; then
+  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/qp
+  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/qp
+  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/quietpaper-cli
+elif [ -f "%{_sourcedir}/bin/qp.dart" ]; then
+  dart build cli -t "%{_sourcedir}/bin/qp.dart" -o "%{_sourcedir}/build/cli"
   install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/qp
   ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/qp
   ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/quietpaper-cli
@@ -85,6 +90,8 @@ fi
 %files
 /opt/quitepaper
 %{_bindir}/quitepaper
+%{_bindir}/qp
+%{_bindir}/quietpaper-cli
 %{_datadir}/applications/com.blackpiratex.quietpaper.desktop
 %{_datadir}/metainfo/com.blackpiratex.quietpaper.metainfo.xml
 %{_datadir}/icons/hicolor/256x256/apps/com.blackpiratex.quietpaper.png

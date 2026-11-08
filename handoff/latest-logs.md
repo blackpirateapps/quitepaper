@@ -5738,9 +5738,11 @@ A dedicated, snappy command-line interface (`qp`) was implemented for Quiet Pape
   - `test/cli/external_editor_runner_test.dart`: Unit tests for editor resolution and markdown title extraction.
 - **Modified Files**:
   - `pubspec.yaml` & `pubspec.lock`: Promoted `args: ^2.7.0` and `sqlite3: ^3.5.1` to direct dependencies.
+  - `linux/packaging/quietpaper.spec`: Added `qp` and `quietpaper-cli` to RPM installation and `%files` manifest with fallback on-demand build.
   - `linux/packaging/build_deb.sh`: Bundled native `qp` binary into `/usr/bin/qp` and `/usr/bin/quietpaper-cli`.
   - `linux/packaging/build_appimage.sh`: Added `qp` compilation and packaging to AppDir.
-  - `linux/packaging/quietpaper.spec`: Added `qp` and `quietpaper-cli` to RPM installation.
+  - `.github/workflows/build_linux.yml`: Added `Build Quiet Paper CLI Binary (qp)` step and bundled `qp` into the tarball and RPM build pipelines.
+  - `.github/workflows/release.yml`: Added `Build Quiet Paper CLI Binary (qp)` step and bundled `qp` into GitHub release artifacts.
   - `handoff/platform-and-builds.md`: Documented native CLI binary in multi-platform guide.
   - `handoff/latest-logs.md`: Appended Section 264.
 

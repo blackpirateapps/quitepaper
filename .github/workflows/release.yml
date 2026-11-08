@@ -191,11 +191,18 @@ jobs:
             --build-name="${{ needs.prepare.outputs.version }}" \
             --build-number="${{ needs.prepare.outputs.build_number }}"
 
+      - name: Build Quiet Paper CLI Binary (qp)
+        run: |
+          dart build cli -t bin/qp.dart -o build/cli
+
       - name: Package Linux Release Tarball
         run: |
           V="${{ needs.prepare.outputs.version }}"
           mkdir -p dist/tarball/quitepaper
           cp -a build/linux/x64/release/bundle/* dist/tarball/quitepaper/
+          if [ -f build/cli/bundle/bin/qp ]; then
+            cp -a build/cli/bundle/bin/qp dist/tarball/quitepaper/qp
+          fi
           mkdir -p dist/tarball/quitepaper/share/applications
           mkdir -p dist/tarball/quitepaper/share/metainfo
           mkdir -p dist/tarball/quitepaper/share/icons/hicolor/256x256/apps
