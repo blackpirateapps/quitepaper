@@ -6,7 +6,6 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:printing/printing.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/attachments/attachment_provider.dart';
@@ -198,13 +197,17 @@ abstract final class NoteThumbnailCache {
   ) async {
     try {
       if (kind == ThumbnailKind.pdf) {
-        Uint8List? pdfBytes;
         if (uri.startsWith('qp://document/')) {
           final docId = uri.replaceFirst('qp://document/', '').trim();
           final docService = ref.read(documentServiceProvider);
           final res = await docService.resolveDocument(docId);
           if (res.isAvailable && res.data != null) {
-            pdfBytes = res.data!.pdfBytes;
+            final thumbService = ref.read(pdfThumbnailServiceProvider);
+            return await thumbService.getPageThumbnail(
+              documentId: docId,
+              pageIndex: 0,
+              pdfBytes: res.data!.pdfBytes,
+            );
           }
         } else if (uri.startsWith('qp://asset/')) {
           final assetId = uri.replaceFirst('qp://asset/', '').trim();
@@ -214,17 +217,13 @@ abstract final class NoteThumbnailCache {
             variant: 'original',
           );
           if (res.isAvailable && res.data != null) {
-            pdfBytes = res.data;
-          }
-        }
-
-        if (pdfBytes != null && pdfBytes.isNotEmpty) {
-          await for (final page in Printing.raster(
-            pdfBytes,
-            pages: const [0],
-            dpi: PdfRasterPolicy.safeDpi(pdfBytes, 72.0),
-          )) {
-            return await page.toPng();
+            final renderer = ref.read(pdfPageRendererProvider);
+            final page = await renderer.renderSinglePage(
+              res.data!,
+              0,
+              dpi: PdfRasterPolicy.safeDpi(res.data!, 72.0),
+            );
+            return page?.imageBytes;
           }
         }
         return null;
@@ -413,13 +412,17 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView>
 
       final pngBytes = await NoteThumbnailCache.resolve(uri, () async {
         try {
-          Uint8List? pdfBytes;
           if (uri.startsWith('qp://document/')) {
             final docId = uri.replaceFirst('qp://document/', '').trim();
             final docService = ref.read(documentServiceProvider);
             final res = await docService.resolveDocument(docId);
             if (res.isAvailable && res.data != null) {
-              pdfBytes = res.data!.pdfBytes;
+              final thumbService = ref.read(pdfThumbnailServiceProvider);
+              return await thumbService.getPageThumbnail(
+                documentId: docId,
+                pageIndex: 0,
+                pdfBytes: res.data!.pdfBytes,
+              );
             }
           } else if (uri.startsWith('qp://asset/')) {
             final assetId = uri.replaceFirst('qp://asset/', '').trim();
@@ -429,17 +432,13 @@ class _NoteThumbnailViewState extends ConsumerState<NoteThumbnailView>
               variant: 'original',
             );
             if (res.isAvailable && res.data != null) {
-              pdfBytes = res.data;
-            }
-          }
-
-          if (pdfBytes != null && pdfBytes.isNotEmpty) {
-            await for (final page in Printing.raster(
-              pdfBytes,
-              pages: const [0],
-              dpi: PdfRasterPolicy.safeDpi(pdfBytes, 72.0),
-            )) {
-              return await page.toPng();
+              final renderer = ref.read(pdfPageRendererProvider);
+              final page = await renderer.renderSinglePage(
+                res.data!,
+                0,
+                dpi: PdfRasterPolicy.safeDpi(res.data!, 72.0),
+              );
+              return page?.imageBytes;
             }
           }
         } catch (_) {}

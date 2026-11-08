@@ -10,6 +10,8 @@ import 'pdf_thumbnail_service.dart';
 
 import '../ocr/ocr_provider.dart';
 
+export '../ocr/ocr_provider.dart' show pdfPageRendererProvider;
+
 final documentCryptoProvider = Provider<DocumentCrypto>((ref) {
   final cryptoService = ref.watch(cryptoServiceProvider);
   return DocumentCrypto(cryptoService: cryptoService);

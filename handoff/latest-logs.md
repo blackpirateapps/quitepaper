@@ -5644,3 +5644,55 @@ A production-grade Linux share plugin ([`QuietPaperLinuxSharePlugin`](file:///ho
   - `flutter test test/features/export/export_service_test.dart`: **6/6 tests passing**.
   - `flutter test test/share/share_service_test.dart`: **6/6 tests passing**.
   - Full sharing & attachment domain tests: **210/210 passing**.
+
+---
+
+## 263. Linux PDF Document Viewer Freeze Resolution: Syncfusion Native Platform Interface & PDFium Lifecycle Isolation (November 2026)
+
+### 1. Issue Description & Diagnostic Findings
+When opening a newly synced note containing an encrypted PDF on Linux desktop, the application froze completely on the GTK main loop, requiring a manual force close (`kill -9`). Upon reopening the app, the exact same PDF opened cleanly without freezing.
+
+**Root Cause**:
+- On Linux, `printing` (via `printing_plugin`) and `syncfusion_flutter_pdfviewer` (via `syncfusion_pdfviewer_linux`) dynamically link to the **same** shared native library: [`libpdfium.so`](file:///home/dog/git/quitepaper/build/linux/x64/debug/bundle/lib/libpdfium.so).
+- In `printing`'s Linux C++ implementation (`print_job.cc`), `raster_pdf` calls `FPDF_InitLibraryWithConfig` and unconditionally concludes with `FPDF_DestroyLibrary()`.
+- PDFium is a non-reentrant process-wide singleton; calling `FPDF_DestroyLibrary()` tears down global memory, font caches, and engine state across the entire process.
+- When a note is newly synced, no thumbnail exists on disk in `.qpthumb`. When the user opens the document, [DocumentViewerScreen](file:///home/dog/git/quitepaper/lib/core/documents/presentation/document_viewer_screen.dart) opens with the thumbnail sidebar active on desktop ($\ge 900\text{px}$).
+- The sidebar immediately requests page 0's thumbnail via `PdfThumbnailService`, which called `Printing.raster`.
+- Concurrently, `SfPdfViewer` loaded the PDF document and began rendering vector tiles.
+- `Printing.raster` finished page 0 and called `FPDF_DestroyLibrary()`, tearing down PDFium while `SfPdfViewer` was in the middle of native calls (`FPDF_LoadPage`, `FPDF_RenderPageBitmapWithMatrix`, `GetPagesHeight`).
+- Calling PDFium methods on a destroyed instance caused a deadlocking mutex hang on the GTK main UI thread, freezing the app.
+- On app restart, the thumbnail was already saved to disk during the first attempt, so the disk cache hit, `Printing.raster` was never invoked, and the PDF opened fine.
+
+### 2. Architecture & Implementation
+1. **Desktop PDF Page Renderer ([`SyncfusionPdfPageRenderer`](file:///home/dog/git/quitepaper/lib/core/pdf/syncfusion_pdf_page_renderer.dart))**:
+   - Implemented `PdfPageRenderer` utilizing `PdfViewerPlatform.instance` (from `syncfusion_pdfviewer_platform_interface`).
+   - Loads the PDF file into Syncfusion's native document repository (`documentRepo`), retrieves page heights/widths, renders 32-bit RGBA pixel buffers via `getPage(...)`, and encodes to PNG using `package:image` (`img.Image.fromBytes` + `img.encodePng`).
+   - Cleanly closes the document via `closeDocument(docId)`. Because `syncfusion_pdfviewer_linux` checks `if (documentRepo.empty())`, closing a thumbnail document while `SfPdfViewer` is open will **never** call `FPDF_DestroyLibrary()`.
+2. **Platform Delegation in [`DefaultPdfPageRenderer`](file:///home/dog/git/quitepaper/lib/core/pdf/pdf_page_renderer.dart)**:
+   - On desktop platforms (`Platform.isLinux || Platform.isWindows`), automatically delegates to `SyncfusionPdfPageRenderer`.
+   - On mobile/web (Android, iOS, macOS, Web), retains the existing `Printing.raster` fallback where no PDFium symbol collision exists.
+3. **Card & Thumbnail View Optimization**:
+   - Refactored [`QuietDocumentCard`](file:///home/dog/git/quitepaper/lib/core/documents/presentation/quiet_document_card.dart) to request thumbnails through `pdfThumbnailServiceProvider.getPageThumbnail`, utilizing the 3-tier encrypted cache (`.qpthumb`) and eliminating direct `Printing.raster` calls.
+   - Refactored [`NoteThumbnailView`](file:///home/dog/git/quitepaper/lib/features/notes/presentation/widgets/note_thumbnail_view.dart) to resolve document thumbnails via `pdfThumbnailServiceProvider` and generic PDF assets via `pdfPageRendererProvider`.
+
+### 3. File Inventory
+- **New Files**:
+  - `lib/core/pdf/syncfusion_pdf_page_renderer.dart`: Native desktop PDF page renderer using `syncfusion_pdfviewer_platform_interface`.
+  - `test/pdf/syncfusion_pdf_page_renderer_test.dart`: Unit test suite verifying page loading, dimension calculation, RGBA-to-PNG encoding, clean resource disposal, and `DefaultPdfPageRenderer` delegation.
+- **Modified Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Promoted `syncfusion_pdfviewer_platform_interface: ^33.2.13` to direct dependency.
+  - `lib/core/pdf/pdf_page_renderer.dart`: Updated `DefaultPdfPageRenderer` to delegate to `SyncfusionPdfPageRenderer` on Linux and Windows.
+  - `lib/core/documents/document_provider.dart`: Exported `pdfPageRendererProvider`.
+  - `lib/core/documents/presentation/quiet_document_card.dart`: Removed `Printing.raster` in favor of `pdfThumbnailServiceProvider.getPageThumbnail`.
+  - `lib/features/notes/presentation/widgets/note_thumbnail_view.dart`: Removed direct `Printing.raster` calls.
+  - `handoff/ocr-and-documents.md`: Updated architecture documentation with PDFium lifecycle isolation.
+  - `handoff/latest-logs.md`: Appended Section 263.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Targeted Test Suites**:
+  - `flutter test test/pdf/syncfusion_pdf_page_renderer_test.dart`: **5/5 tests passing**.
+  - `flutter test test/documents/pdf_raster_policy_test.dart test/documents/pdf_thumbnail_service_test.dart`: **9/9 tests passing**.
+  - `flutter test test/documents/document_service_test.dart test/documents/document_viewer_thumbnail_test.dart`: **13/13 tests passing**.
+  - `flutter test test/documents/document_rename_sync_test.dart test/documents/document_sync_service_test.dart`: **8/8 tests passing**.
+

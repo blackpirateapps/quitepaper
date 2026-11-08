@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:printing/printing.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -13,7 +12,6 @@ import '../../uri/resource_resolver.dart';
 import '../../../features/web_clipper/presentation/web_snapshot_viewer_screen.dart';
 import '../document_provider.dart';
 import '../document_service.dart';
-import '../../pdf/pdf_page_renderer.dart';
 import 'document_viewer_screen.dart';
 
 /// Embedded interactive card widget for scanned Quiet Paper PDF documents (`qp://document/<UUID>`).
@@ -88,29 +86,27 @@ class _QuietDocumentCardState extends ConsumerState<QuietDocumentCard> {
 
       if (res.isAvailable && res.data != null) {
         if (!_isWebSnapshotDoc(res.data)) {
-          _rasterizeFirstPage(res.data!.pdfBytes);
+          _loadFirstPageThumbnail(res.data!.pdfBytes);
         }
       }
     }
   }
 
-  Future<void> _rasterizeFirstPage(Uint8List pdfBytes) async {
+  Future<void> _loadFirstPageThumbnail(Uint8List pdfBytes) async {
     try {
-      await for (final page in Printing.raster(
-        pdfBytes,
-        pages: const [0],
-        dpi: PdfRasterPolicy.safeDpi(pdfBytes, 72.0),
-      )) {
-        final png = await page.toPng();
-        if (mounted) {
-          setState(() {
-            _firstPageThumbnail = png;
-          });
-        }
-        break;
+      final thumbService = ref.read(pdfThumbnailServiceProvider);
+      final png = await thumbService.getPageThumbnail(
+        documentId: widget.documentId,
+        pageIndex: 0,
+        pdfBytes: pdfBytes,
+      );
+      if (mounted && png != null && png.isNotEmpty) {
+        setState(() {
+          _firstPageThumbnail = png;
+        });
       }
     } catch (e) {
-      debugPrint('Unable to rasterize first page thumbnail: $e');
+      debugPrint('Unable to load first page thumbnail: $e');
     }
   }
 

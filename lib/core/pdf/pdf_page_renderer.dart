@@ -1,6 +1,8 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:printing/printing.dart';
+import 'syncfusion_pdf_page_renderer.dart';
 
 /// Bounds PDF raster work for documents whose declared page size is unusually
 /// large. PDF dimensions are expressed in points (72 points per inch).
@@ -103,9 +105,63 @@ abstract class PdfPageRenderer {
   });
 }
 
-/// Default PDF page renderer using Flutter `printing` raster engine.
+/// Default PDF page renderer.
+///
+/// On desktop platforms (Linux and Windows), delegates to [SyncfusionPdfPageRenderer]
+/// to prevent `Printing.raster` from prematurely tearing down the shared PDFium
+/// process singleton via `FPDF_DestroyLibrary()`.
+/// On other platforms (iOS, Android, Web), uses the Flutter `printing` raster engine.
 class DefaultPdfPageRenderer implements PdfPageRenderer {
-  const DefaultPdfPageRenderer();
+  const DefaultPdfPageRenderer({
+    this.desktopRenderer,
+    this.fallbackRenderer,
+  });
+
+  final PdfPageRenderer? desktopRenderer;
+  final PdfPageRenderer? fallbackRenderer;
+
+  bool get _isDesktopPlatform {
+    if (kIsWeb) return false;
+    return Platform.isLinux || Platform.isWindows;
+  }
+
+  PdfPageRenderer get _effectiveRenderer {
+    if (_isDesktopPlatform) {
+      return desktopRenderer ?? const SyncfusionPdfPageRenderer();
+    }
+    return fallbackRenderer ?? const _PrintingPdfPageRenderer();
+  }
+
+  @override
+  Future<List<RenderedPage>> renderPages(
+    Uint8List pdfBytes, {
+    List<int>? pageIndices,
+    double dpi = 150.0,
+  }) {
+    return _effectiveRenderer.renderPages(
+      pdfBytes,
+      pageIndices: pageIndices,
+      dpi: dpi,
+    );
+  }
+
+  @override
+  Future<RenderedPage?> renderSinglePage(
+    Uint8List pdfBytes,
+    int pageIndex, {
+    double dpi = 150.0,
+  }) {
+    return _effectiveRenderer.renderSinglePage(
+      pdfBytes,
+      pageIndex,
+      dpi: dpi,
+    );
+  }
+}
+
+/// Fallback PDF page renderer using Flutter `printing` raster engine.
+class _PrintingPdfPageRenderer implements PdfPageRenderer {
+  const _PrintingPdfPageRenderer();
 
   @override
   Future<List<RenderedPage>> renderPages(
