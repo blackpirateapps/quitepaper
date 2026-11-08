@@ -31,6 +31,15 @@ mkdir -p "${OUTPUT_DIR}"
 # Copy release bundle
 cp -a "${BUNDLE_DIR}"/* "${APPDIR}/usr/bin/"
 
+# Build & include native CLI binary if bin/qp.dart exists
+if [ -f "${PROJECT_ROOT}/bin/qp.dart" ]; then
+  echo "==> Building native Quiet Paper CLI binary (qp)..."
+  dart build cli -t "${PROJECT_ROOT}/bin/qp.dart" -o "${PROJECT_ROOT}/build/cli"
+  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${APPDIR}/usr/bin/qp"
+  chmod +x "${APPDIR}/usr/bin/qp"
+  ln -sf qp "${APPDIR}/usr/bin/quietpaper-cli"
+fi
+
 # Copy metadata & desktop entries
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.desktop" "${APPDIR}/usr/share/applications/"
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.desktop" "${APPDIR}/"

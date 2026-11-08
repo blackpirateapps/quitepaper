@@ -5696,3 +5696,58 @@ When opening a newly synced note containing an encrypted PDF on Linux desktop, t
   - `flutter test test/documents/document_service_test.dart test/documents/document_viewer_thumbnail_test.dart`: **13/13 tests passing**.
   - `flutter test test/documents/document_rename_sync_test.dart test/documents/document_sync_service_test.dart`: **8/8 tests passing**.
 
+---
+
+## 264. Linux Command-Line Interface (CLI): High-Performance Native AOT Tool (`qp`) (November 2026)
+
+### 1. Overview & Motivation
+A dedicated, snappy command-line interface (`qp`) was implemented for Quiet Paper on Linux. Operating directly against the local SQLite database (`~/.local/share/quitepaper/quiet_paper.sqlite`), the CLI satisfies three core terminal workflows:
+1. **Note Listing (`qp list` / `qp ls`)**: High-readability terminal table display with short 8-char ID prefixes, title truncation, tag styling, pinned indicators, and relative timestamps, supporting tag filtering (`-t`), search queries (`-s`), and JSON export (`--json`).
+2. **Note Creation (`qp new`)**: Allows composing notes interactively in an external terminal editor (e.g. `nvim`, `vim`, `nano`, `$EDITOR`) or piping content via stdin (`cat file.md | qp new`). Auto-extracts titles from `# Title` headings and auto-parses hashtags (`#tag`).
+3. **Note Modification (`qp edit`)**: Resolves notes by short 8-character ID prefix, full UUID, or title query. When invoked without arguments, launches an interactive fuzzy selector (`fzf` if installed, with a clean numbered terminal list fallback). Opens the note in `$EDITOR`, computes SHA-256 hashes to detect changes, generates version history snapshots, and sets `is_dirty = 1`.
+
+### 2. Architecture & Design Principles
+- **AOT Native Binary Execution**: Compiled via `dart build cli -t bin/qp.dart -o build/cli`, generating an ELF binary that starts in under 15ms. Unlike running via Flutter/GTK runner, the CLI requires no display server (`DISPLAY`/Wayland), enabling execution over headless SSH, tmux, and pure TTYs.
+- **SQLite WAL Concurrency**: Accesses `quiet_paper.sqlite` directly using `package:sqlite3` in WAL mode (`PRAGMA journal_mode = WAL;`). Both the Flutter desktop GUI and the `qp` CLI can read and write concurrently without database locking conflicts.
+- **Sync & Search Invariants**:
+  - Any note created or updated via CLI automatically inserts an `upsert` mutation into `sync_queue` and sets `is_dirty = 1`. When the GUI runs or sync fires, the changes are client-side encrypted and synced to Turso edge cloud.
+  - Automatically maintains `tags` and `note_tags` relationships.
+  - Updates FTS5 search indexes (`note_search_prefix` and `note_search_trigram`).
+- **Interactive TTY Inheritance**: Uses `ProcessStartMode.inheritStdio` for external editor execution, giving curses-based editors (`nvim`, `vim`, `nano`, `helix`, `micro`) complete control over terminal raw mode, keyboard signals, and window sizing.
+- **Linux Packaging Integration**:
+  - `linux/packaging/build_deb.sh`: Compiles and bundles `/usr/bin/qp` and `/usr/bin/quietpaper-cli` symlinks.
+  - `linux/packaging/build_appimage.sh`: Bundles `qp` into the AppDir binary path.
+  - `linux/packaging/quietpaper.spec`: Installs `qp` and `quietpaper-cli` symlinks into RPM packages.
+
+### 3. File Inventory
+- **New Files**:
+  - `bin/qp.dart`: Executable entrypoint for the CLI application.
+  - `lib/core/cli/cli_database.dart`: Direct SQLite access layer with tag extraction, sync queue insertion, FTS maintenance, and version snapshots.
+  - `lib/core/cli/external_editor_runner.dart`: External editor runner managing secure temporary files (`0600`), hash modification checks, and title extraction.
+  - `lib/core/cli/interactive_picker.dart`: Interactive note selector with `fzf` detection and numbered terminal prompt fallback.
+  - `lib/core/cli/cli_formatters.dart`: Terminal formatting utilities (ANSI colors, relative timestamps, text truncation).
+  - `lib/core/cli/cli_runner.dart`: Top-level `CommandRunner` wiring commands, global flags, and database lifecycle.
+  - `lib/core/cli/commands/list_command.dart`: `list` / `ls` subcommand.
+  - `lib/core/cli/commands/new_command.dart`: `new` / `create` / `add` subcommand.
+  - `lib/core/cli/commands/edit_command.dart`: `edit` / `e` / `modify` subcommand.
+  - `lib/core/cli/commands/show_command.dart`: `show` / `cat` / `view` subcommand.
+  - `lib/core/cli/commands/tags_command.dart`: `tags` / `t` subcommand.
+  - `lib/core/cli/commands/delete_command.dart`: `delete` / `rm` / `del` subcommand.
+  - `test/cli/cli_database_test.dart`: Unit tests for CLI database operations, tags, versioning, search, and trash lifecycle.
+  - `test/cli/cli_runner_test.dart`: Unit tests for command parsing, formatting, JSON output, and deletion.
+  - `test/cli/external_editor_runner_test.dart`: Unit tests for editor resolution and markdown title extraction.
+- **Modified Files**:
+  - `pubspec.yaml` & `pubspec.lock`: Promoted `args: ^2.7.0` and `sqlite3: ^3.5.1` to direct dependencies.
+  - `linux/packaging/build_deb.sh`: Bundled native `qp` binary into `/usr/bin/qp` and `/usr/bin/quietpaper-cli`.
+  - `linux/packaging/build_appimage.sh`: Added `qp` compilation and packaging to AppDir.
+  - `linux/packaging/quietpaper.spec`: Added `qp` and `quietpaper-cli` to RPM installation.
+  - `handoff/platform-and-builds.md`: Documented native CLI binary in multi-platform guide.
+  - `handoff/latest-logs.md`: Appended Section 264.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **CLI Test Suite**: `flutter test test/cli/` passed all **20/20 tests**.
+- **Database Test Suite**: `flutter test test/database/app_database_test.dart` passed all **30/30 tests**.
+- **Native AOT Binary Performance**: Native `qp` binary built with `dart build cli -t bin/qp.dart -o build/cli`, benchmarked at **10ms startup time**. Manual verification confirmed note creation, editing with mock external editor, title derivation, tag indexing, and listing.
+
+

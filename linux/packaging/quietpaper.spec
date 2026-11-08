@@ -49,6 +49,13 @@ fi
 # Symlink executable
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
 
+# Install CLI binary if present
+if [ -f "%{_sourcedir}/build/cli/bundle/bin/qp" ]; then
+  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/qp
+  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/qp
+  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/quietpaper-cli
+fi
+
 # Desktop & metainfo files
 install -m 0644 %{_sourcedir}/linux/com.blackpiratex.quietpaper.desktop %{buildroot}%{_datadir}/applications/com.blackpiratex.quietpaper.desktop
 install -m 0644 %{_sourcedir}/linux/com.blackpiratex.quietpaper.metainfo.xml %{buildroot}%{_datadir}/metainfo/com.blackpiratex.quietpaper.metainfo.xml
