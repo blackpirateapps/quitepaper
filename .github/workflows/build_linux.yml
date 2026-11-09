@@ -64,8 +64,13 @@ jobs:
         run: |
           mkdir -p dist/tarball/quitepaper
           cp -a build/linux/x64/release/bundle/* dist/tarball/quitepaper/
-          if [ -f build/cli/bundle/bin/qp ]; then
-            cp -a build/cli/bundle/bin/qp dist/tarball/quitepaper/qp
+          if [ -d build/cli/bundle ]; then
+            mkdir -p dist/tarball/quitepaper/bin
+            cp -a build/cli/bundle/bin/qp dist/tarball/quitepaper/bin/qp
+            if [ -d build/cli/bundle/lib ]; then
+              cp -a build/cli/bundle/lib/* dist/tarball/quitepaper/lib/ 2>/dev/null || :
+            fi
+            ln -sf bin/qp dist/tarball/quitepaper/qp
           fi
           mkdir -p dist/tarball/quitepaper/share/applications
           mkdir -p dist/tarball/quitepaper/share/metainfo
@@ -83,7 +88,9 @@ jobs:
           rpmbuild -bb linux/packaging/quietpaper.spec \
             --define "_topdir $PWD/rpmbuild" \
             --define "_sourcedir $PWD" \
-            --define "app_version ${{ steps.version.outputs.version }}"
+            --define "app_version ${{ steps.version.outputs.version }}" \
+            --define "__strip /bin/true" \
+            --define "__os_install_post %{nil}"
           find rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
 
       - name: Build DEB Package

@@ -5752,4 +5752,60 @@ A dedicated, snappy command-line interface (`qp`) was implemented for Quiet Pape
 - **Database Test Suite**: `flutter test test/database/app_database_test.dart` passed all **30/30 tests**.
 - **Native AOT Binary Performance**: Native `qp` binary built with `dart build cli -t bin/qp.dart -o build/cli`, benchmarked at **10ms startup time**. Manual verification confirmed note creation, editing with mock external editor, title derivation, tag indexing, and listing.
 
+---
+
+## 265. RPM & Linux Packaging Fix for Dart AOT CLI Binary (`qp`) (November 2026)
+
+### 1. Root Cause Analysis
+- **Error**: `list is not an AOT snapshot, it cannot be run with 'dartaotruntime'` when executing installed RPM binary `qp list`.
+- **Mechanism**:
+  1. Standalone Dart AOT executables (produced by `dart build cli` or `dart compile exe`) consist of an ELF `dartaotruntime` stub executable concatenated with a serialized Dart AOT snapshot payload at the end of the file.
+  2. During RPM builds, standard RPM build root policies (`brp-strip`, `find-debuginfo.sh`) automatically run `strip` on all ELF binaries under `%{buildroot}`.
+  3. Running `strip` treats data appended beyond ELF segment/section boundaries as extraneous and discards the Dart snapshot (reducing binary size from ~7.1MB to ~5.5MB).
+  4. The stripped binary reverts to bare `dartaotruntime`. When executed as `qp list`, `dartaotruntime` interprets the first argument `list` as a filesystem path to an AOT snapshot file, emitting the error: `list is not an AOT snapshot, it cannot be run with 'dartaotruntime'`.
+- **Dynamic Library Path Resolution**:
+  - Dart native code assets (`package:sqlite3`) load native libraries via a relative path from the canonical binary: `'../lib/libsqlite3.so'`.
+  - Installing `qp` directly at `/opt/quitepaper/qp` caused `Platform.resolvedExecutable` to look for `/opt/lib/libsqlite3.so` instead of `/opt/quitepaper/lib/libsqlite3.so`. Placing the binary in `/opt/quitepaper/bin/qp` satisfies standard Unix bundle layouts (`<prefix>/bin` and `<prefix>/lib`) and allows `../lib/` to cleanly resolve to `/opt/quitepaper/lib/`.
+
+### 2. Solution & Architectural Changes
+- **RPM Spec Configuration (`linux/packaging/quietpaper.spec`)**:
+  - Disabled ELF binary stripping macros:
+    ```spec
+    %global __strip /bin/true
+    %global __brp_strip %{nil}
+    %global __brp_strip_comment_note %{nil}
+    %global __brp_strip_static_archive %{nil}
+    %global __os_install_post %{nil}
+    ```
+  - Updated installation directory structure:
+    - Installed binary into `%{buildroot}/opt/quitepaper/bin/qp`.
+    - Bundled native CLI dependencies (`build/cli/bundle/lib/*` -> `%{buildroot}/opt/quitepaper/lib/`).
+    - Added compatibility symlink `/opt/quitepaper/qp -> /opt/quitepaper/bin/qp`.
+    - Updated `/usr/bin/qp` and `/usr/bin/quietpaper-cli` to point to `/opt/quitepaper/bin/qp`.
+- **Debian Packaging (`linux/packaging/build_deb.sh`)**:
+  - Updated staging layout to `${STAGING_DIR}/opt/quitepaper/bin/qp`.
+  - Copied `build/cli/bundle/lib/*` to `${STAGING_DIR}/opt/quitepaper/lib/`.
+  - Added symlinks for `/opt/quitepaper/qp`, `/usr/bin/qp`, and `/usr/bin/quietpaper-cli`.
+- **AppImage Packaging (`linux/packaging/build_appimage.sh`)**:
+  - Copied CLI native assets (`build/cli/bundle/lib/*`) to `${APPDIR}/usr/lib/` and `${APPDIR}/usr/bin/lib/` ensuring `../lib/libsqlite3.so` resolves correctly.
+- **CI/CD Pipelines (`.github/workflows/build_linux.yml`, `.github/workflows/release.yml`)**:
+  - Added `--define "__strip /bin/true"` and `--define "__os_install_post %{nil}"` to `rpmbuild` invocations.
+  - Updated release tarball packaging to preserve `dist/tarball/quitepaper/bin/qp`, bundle libraries, and `qp -> bin/qp` symlink.
+
+### 3. File Inventory
+- **Modified Files**:
+  - `linux/packaging/quietpaper.spec`: Added strip prevention macros and restructured installation paths to `opt/quitepaper/bin/qp`.
+  - `linux/packaging/build_deb.sh`: Restructured staging paths to `/opt/quitepaper/bin/qp` and copied CLI libraries.
+  - `linux/packaging/build_appimage.sh`: Copied native CLI libraries to `/usr/lib/` and `/usr/bin/lib/`.
+  - `.github/workflows/build_linux.yml`: Added strip prevention defines to `rpmbuild` and updated tarball structure.
+  - `.github/workflows/release.yml`: Added strip prevention defines to `rpmbuild` and updated tarball structure.
+  - `handoff/latest-logs.md`: Appended Section 265.
+  - `HANDOFF.md`: Updated Section 1 table of latest logs.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **CLI Test Suite**: `flutter test test/cli/` passed all **20/20 tests**.
+- **AOT Snapshot Integrity**: Verified that unstripped binary retains full 7.1MB payload and executes subcommands without runtime failure. Verified that `Platform.resolvedExecutable` from `/opt/quitepaper/bin/qp` correctly resolves `../lib/libsqlite3.so` to `/opt/quitepaper/lib/libsqlite3.so`.
+
+
 

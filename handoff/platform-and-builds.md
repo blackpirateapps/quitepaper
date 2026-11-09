@@ -22,7 +22,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 - **GStreamer Dependencies**: Audio playback and voice recording depend on `gstreamer1.0-plugins-base` and `gstreamer1.0-plugins-good`.
 - **Headless & Keyring Resiliency**: If SecretService / KDE Wallet is unavailable or headless, [`LinuxSecureStorageFallback`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart) provides an encrypted local key vault without crashing.
 - **Native File Sharing (`shareXFiles`)**: Resolves upstream `share_plus` Linux limitation (`UnimplementedError`) via [`QuietPaperLinuxSharePlugin`](file:///home/dog/git/quitepaper/lib/core/sharing/quiet_paper_linux_share.dart), using XDG Desktop Portal `OpenURI` (`ask: true`), `gio open`, `xdg-open`, `FileManager1.ShowItems`, `xdg-email`, and `mailto:` fallbacks.
-- **Native Command-Line Interface (`qp`)**: Standalone, AOT-compiled native CLI binary (`bin/qp.dart` $\rightarrow$ `/usr/bin/qp`) providing sub-15ms terminal interaction for note listing, creation, and modification with external editors (`nvim`, `vim`, `nano`, `$EDITOR`), full-text search, and SQLite WAL concurrent access. Installed alongside the desktop GUI in DEB, RPM, and AppImage packages.
+- **Native Command-Line Interface (`qp`)**: Standalone, AOT-compiled native CLI binary (`bin/qp.dart` $\rightarrow$ `/usr/bin/qp`) providing sub-15ms terminal interaction for note listing, creation, and modification with external editors (`nvim`, `vim`, `nano`, `$EDITOR`), full-text search, and SQLite WAL concurrent access. Installed alongside the desktop GUI in DEB, RPM, and AppImage packages (under `/opt/quitepaper/bin/qp` with stripping disabled to protect the Dart AOT snapshot payload).
 
 ### Desktop Adaptive UI
 - **Spotlight Command Palette**: `Cmd/Ctrl + K` triggers an adaptive modal palette for jumping between notes, tags, and commands.
@@ -60,6 +60,8 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 ---
 
 ## Key References & Logs
+- Dart AOT CLI Binary & Packaging: [Latest Logs, Section 264](latest-logs.md#264-native-linux-cli-implementation-qp--offline-first-terminal-notes-external-editor-integration-and-sqlite-wal-concurrency-november-2026)
+- Dart AOT CLI RPM & Packaging Fix: [Latest Logs, Section 265](latest-logs.md#265-rpm--linux-packaging-fix-for-dart-aot-cli-binary-qp-november-2026)
 - Linux Native File Sharing (`shareXFiles`): [Latest Logs, Section 262](latest-logs.md#262-linux-desktop-file-sharing-implementation-xdg-desktop-portal-openuri--multi-tier-fallbacks-november-2026)
 - Linux Packaging (DEB, RPM, AppImage, Flatpak): [Latest Logs, Section 233](latest-logs.md#233-multi-platform-github-release-workflow-linux-packages-rpm-deb-appimage-flatpak-october-2026)
 - Linux GStreamer Resolution: [Latest Logs, Section 224](latest-logs.md#224-linux-app-build-pipeline--gstreamer-dependency-resolution-october-2026)

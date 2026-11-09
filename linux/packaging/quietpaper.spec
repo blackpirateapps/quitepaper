@@ -12,6 +12,15 @@ BuildArch:      x86_64
 # Turn off debuginfo generation since Flutter binaries are stripped
 %global debug_package %{nil}
 
+# Disable binary stripping so Dart AOT snapshot appended to ELF executable is preserved.
+# Dart AOT standalone executables concatenate serialized snapshot data after the ELF header;
+# standard brp-strip truncates this payload and causes "not an AOT snapshot" runtime errors.
+%global __strip /bin/true
+%global __brp_strip %{nil}
+%global __brp_strip_comment_note %{nil}
+%global __brp_strip_static_archive %{nil}
+%global __os_install_post %{nil}
+
 # Disable automatic dependency generation to avoid unresolved dependencies on internal bundled libraries
 AutoReqProv:    no
 
@@ -50,15 +59,27 @@ fi
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
 
 # Install CLI binary if present (or build on demand from bin/qp.dart)
+# Note: qp is installed to /opt/quitepaper/bin/qp because Dart native code assets resolve
+# dynamic libraries (e.g. libsqlite3.so) relative to the binary path ('../lib/libsqlite3.so').
 if [ -f "%{_sourcedir}/build/cli/bundle/bin/qp" ]; then
-  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/qp
-  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/qp
-  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/quietpaper-cli
+  mkdir -p %{buildroot}/opt/quitepaper/bin
+  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/bin/qp
+  if [ -d "%{_sourcedir}/build/cli/bundle/lib" ]; then
+    cp -a %{_sourcedir}/build/cli/bundle/lib/* %{buildroot}/opt/quitepaper/lib/ 2>/dev/null || :
+  fi
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}/opt/quitepaper/qp
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/qp
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/quietpaper-cli
 elif [ -f "%{_sourcedir}/bin/qp.dart" ]; then
   dart build cli -t "%{_sourcedir}/bin/qp.dart" -o "%{_sourcedir}/build/cli"
-  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/qp
-  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/qp
-  ln -sf /opt/quitepaper/qp %{buildroot}%{_bindir}/quietpaper-cli
+  mkdir -p %{buildroot}/opt/quitepaper/bin
+  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/bin/qp
+  if [ -d "%{_sourcedir}/build/cli/bundle/lib" ]; then
+    cp -a %{_sourcedir}/build/cli/bundle/lib/* %{buildroot}/opt/quitepaper/lib/ 2>/dev/null || :
+  fi
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}/opt/quitepaper/qp
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/qp
+  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/quietpaper-cli
 fi
 
 # Desktop & metainfo files

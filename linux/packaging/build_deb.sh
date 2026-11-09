@@ -40,10 +40,15 @@ ln -sf /opt/quitepaper/quitepaper "${STAGING_DIR}/usr/bin/quitepaper"
 if [ -f "${PROJECT_ROOT}/bin/qp.dart" ]; then
   echo "==> Building native Quiet Paper CLI binary (qp)..."
   dart build cli -t "${PROJECT_ROOT}/bin/qp.dart" -o "${PROJECT_ROOT}/build/cli"
-  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${STAGING_DIR}/opt/quitepaper/qp"
-  chmod +x "${STAGING_DIR}/opt/quitepaper/qp"
-  ln -sf /opt/quitepaper/qp "${STAGING_DIR}/usr/bin/qp"
-  ln -sf /opt/quitepaper/qp "${STAGING_DIR}/usr/bin/quietpaper-cli"
+  mkdir -p "${STAGING_DIR}/opt/quitepaper/bin"
+  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${STAGING_DIR}/opt/quitepaper/bin/qp"
+  if [ -d "${PROJECT_ROOT}/build/cli/bundle/lib" ]; then
+    cp -a "${PROJECT_ROOT}/build/cli/bundle/lib"/* "${STAGING_DIR}/opt/quitepaper/lib/" 2>/dev/null || :
+  fi
+  chmod +x "${STAGING_DIR}/opt/quitepaper/bin/qp"
+  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/opt/quitepaper/qp"
+  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/qp"
+  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/quietpaper-cli"
 fi
 
 # Copy desktop and metainfo

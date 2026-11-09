@@ -36,6 +36,10 @@ if [ -f "${PROJECT_ROOT}/bin/qp.dart" ]; then
   echo "==> Building native Quiet Paper CLI binary (qp)..."
   dart build cli -t "${PROJECT_ROOT}/bin/qp.dart" -o "${PROJECT_ROOT}/build/cli"
   cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${APPDIR}/usr/bin/qp"
+  if [ -d "${PROJECT_ROOT}/build/cli/bundle/lib" ]; then
+    cp -a "${PROJECT_ROOT}/build/cli/bundle/lib"/* "${APPDIR}/usr/lib/" 2>/dev/null || :
+    cp -a "${PROJECT_ROOT}/build/cli/bundle/lib"/* "${APPDIR}/usr/bin/lib/" 2>/dev/null || :
+  fi
   chmod +x "${APPDIR}/usr/bin/qp"
   ln -sf qp "${APPDIR}/usr/bin/quietpaper-cli"
 fi
