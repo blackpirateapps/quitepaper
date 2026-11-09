@@ -124,13 +124,35 @@ class CliDatabase {
   final Database _db;
 
   /// Resolves canonical database path conforming to XDG specification on Linux.
+  /// Prioritizes the Flutter desktop GUI path (`~/.local/share/com.blackpiratex.quietpaper/quiet_paper.sqlite`),
+  /// followed by `~/.local/share/quitepaper/quiet_paper.sqlite`, and falls back to
+  /// the canonical path for fresh installs.
   static String resolveDefaultDbPath() {
+    final qpDbEnv = Platform.environment['QP_DB'];
+    if (qpDbEnv != null && qpDbEnv.trim().isNotEmpty) {
+      return qpDbEnv.trim();
+    }
+
     final xdgData = Platform.environment['XDG_DATA_HOME'];
     final home = Platform.environment['HOME'] ?? '';
-    final dir = (xdgData != null && xdgData.trim().isNotEmpty)
-        ? '$xdgData/quitepaper'
-        : '$home/.local/share/quitepaper';
-    return '$dir/quiet_paper.sqlite';
+    final dataHome = (xdgData != null && xdgData.trim().isNotEmpty)
+        ? xdgData
+        : '$home/.local/share';
+
+    // 1. Canonical Flutter application support directory (used by GTK desktop app)
+    final canonicalPath = '$dataHome/com.blackpiratex.quietpaper/quiet_paper.sqlite';
+    if (File(canonicalPath).existsSync()) {
+      return canonicalPath;
+    }
+
+    // 2. Alternative/legacy directory
+    final altPath = '$dataHome/quitepaper/quiet_paper.sqlite';
+    if (File(altPath).existsSync()) {
+      return altPath;
+    }
+
+    // 3. Fallback to canonical path for fresh installations
+    return canonicalPath;
   }
 
   /// Opens the database from a given file path (or default Linux path).

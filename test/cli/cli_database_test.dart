@@ -143,5 +143,14 @@ void main() {
       expect(flutterTag.noteCount, 1);
       expect(designTag.noteCount, 1);
     });
+
+    test('resolveDefaultDbPath resolves to canonical com.blackpiratex.quietpaper path', () {
+      final path = CliDatabase.resolveDefaultDbPath();
+      expect(path, endsWith('quiet_paper.sqlite'));
+      expect(
+        path.contains('com.blackpiratex.quietpaper') || path.contains('quitepaper'),
+        isTrue,
+      );
+    });
   });
 }

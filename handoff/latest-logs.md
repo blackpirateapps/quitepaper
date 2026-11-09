@@ -5807,5 +5807,34 @@ A dedicated, snappy command-line interface (`qp`) was implemented for Quiet Pape
 - **CLI Test Suite**: `flutter test test/cli/` passed all **20/20 tests**.
 - **AOT Snapshot Integrity**: Verified that unstripped binary retains full 7.1MB payload and executes subcommands without runtime failure. Verified that `Platform.resolvedExecutable` from `/opt/quitepaper/bin/qp` correctly resolves `../lib/libsqlite3.so` to `/opt/quitepaper/lib/libsqlite3.so`.
 
+---
+
+## 266. Linux CLI Database Path Alignment with Desktop GUI (November 2026)
+
+### 1. Root Cause Analysis
+- **Problem**: Running `qp list` showed an empty database ("No notes found in vault"), while opening the Flutter graphical desktop app displayed all 894 notes.
+- **Root Cause**:
+  - Flutter's `path_provider_linux` evaluates `getApplicationSupportDirectory()` using the GLib application ID (`APPLICATION_ID` set in `linux/CMakeLists.txt` and `linux/runner/my_application.cc` as `com.blackpiratex.quietpaper`).
+  - Thus, the desktop app stores its canonical SQLite vault at `${XDG_DATA_HOME:-~/.local/share}/com.blackpiratex.quietpaper/quiet_paper.sqlite`.
+  - In `lib/core/cli/cli_database.dart`, `resolveDefaultDbPath()` previously looked only at `${XDG_DATA_HOME:-~/.local/share}/quitepaper/quiet_paper.sqlite`. On first run, `qp` created an empty 96KB database at that location, missing the active 32.7MB database containing the user's 894 notes.
+
+### 2. Implementation & Fix
+- **Path Resolution Hierarchy ([`lib/core/cli/cli_database.dart`](file:///home/dog/git/quitepaper/lib/core/cli/cli_database.dart))**:
+  - Updated `CliDatabase.resolveDefaultDbPath()` with tiered lookup:
+    1. `$QP_DB`: Environment variable for user-specified paths.
+    2. `$dataHome/com.blackpiratex.quietpaper/quiet_paper.sqlite`: Canonical Flutter Linux path matching the desktop GUI.
+    3. `$dataHome/quitepaper/quiet_paper.sqlite`: Fallback/legacy path.
+    4. Defaults to canonical `$dataHome/com.blackpiratex.quietpaper/quiet_paper.sqlite` on fresh installs.
+- **Filesystem Migration & Compatibility**:
+  - Replaced the empty `~/.local/share/quitepaper` folder on disk with a symbolic link to `~/.local/share/com.blackpiratex.quietpaper` to guarantee bi-directional compatibility.
+- **Unit Testing ([`test/cli/cli_database_test.dart`](file:///home/dog/git/quitepaper/test/cli/cli_database_test.dart))**:
+  - Added test validating `resolveDefaultDbPath()` resolution to the canonical path.
+
+### 3. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **CLI Test Suite**: `flutter test test/cli/` passed all **21/21 tests**.
+- **Real-World Vault Test**: Executed `./build/cli/bundle/bin/qp list` and `./build/cli/bundle/bin/qp tags`, successfully listing all **894 notes** and **32 tags** directly from the live encrypted vault.
+
+
 
 
