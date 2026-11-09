@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/tag_parser.dart';
+import 'cli_frontmatter.dart';
 
 /// Lightweight representation of a note for CLI operations.
 class CliNote {
@@ -33,34 +34,57 @@ class CliNote {
   /// Short 8-character hexadecimal identifier prefix (like git commit short hash).
   String get shortId => id.length >= 8 ? id.substring(0, 8) : id;
 
+  /// Cleans title by removing any leading `title:` marker and trimming outer quotes.
+  static String cleanTitle(String rawTitle) {
+    var clean = rawTitle.trim();
+    if (clean.toLowerCase().startsWith('title:')) {
+      clean = clean.substring(6).trim();
+    }
+    if ((clean.startsWith('"') && clean.endsWith('"')) ||
+        (clean.startsWith("'") && clean.endsWith("'"))) {
+      if (clean.length >= 2) {
+        clean = clean.substring(1, clean.length - 1).trim();
+      }
+    }
+    return clean;
+  }
+
   /// Clean display title.
   String get displayTitle {
-    final t = title.trim();
+    final t = cleanTitle(title);
     if (t.isNotEmpty) return t;
     final derived = deriveTitle(content);
     return derived.isNotEmpty ? derived : 'Untitled';
   }
 
-  /// Derives title from Markdown content (e.g. first # Heading or first non-empty line).
+  /// Derives title from Markdown content (e.g. YAML frontmatter title, first # Heading or first non-empty line).
   static String deriveTitle(String content) {
     if (content.trim().isEmpty) return '';
-    final lines = const LineSplitter().convert(content);
+    final parsed = CliFrontmatter.parse(content);
+    if (parsed.hasFrontmatter && parsed.title != null && parsed.title!.trim().isNotEmpty) {
+      return cleanTitle(parsed.title!);
+    }
+    final body = parsed.hasFrontmatter ? parsed.contentBody : content;
+    final lines = const LineSplitter().convert(body);
     for (final line in lines) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;
       if (trimmed.startsWith('#')) {
         final clean = trimmed.replaceFirst(RegExp(r'^#+\s*'), '').trim();
-        if (clean.isNotEmpty) return clean;
+        if (clean.isNotEmpty) return cleanTitle(clean);
       } else {
-        return trimmed.length > 80 ? '${trimmed.substring(0, 77)}...' : trimmed;
+        final clean = trimmed.length > 80 ? '${trimmed.substring(0, 77)}...' : trimmed;
+        return cleanTitle(clean);
       }
     }
     return '';
   }
 
-  /// Extracts a 1-line preview snippet.
+  /// Extracts a 1-line preview snippet from note body (ignoring YAML frontmatter).
   String get previewSnippet {
-    final lines = const LineSplitter().convert(content);
+    final parsed = CliFrontmatter.parse(content);
+    final body = parsed.hasFrontmatter ? parsed.contentBody : content;
+    final lines = const LineSplitter().convert(body);
     for (final line in lines) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;
@@ -166,6 +190,7 @@ class CliDatabase {
     final cliDb = CliDatabase(db);
     cliDb._configurePragmas();
     cliDb.ensureTables();
+    cliDb.autoRepairCorruptedTitles();
     return cliDb;
   }
 
@@ -175,7 +200,19 @@ class CliDatabase {
     final cliDb = CliDatabase(db);
     cliDb._configurePragmas();
     cliDb.ensureTables();
+    cliDb.autoRepairCorruptedTitles();
     return cliDb;
+  }
+
+  /// Automatically repairs notes with corrupted 'title: ...' titles caused by earlier CLI versions.
+  void autoRepairCorruptedTitles() {
+    try {
+      _db.execute('''
+        UPDATE notes
+        SET title = TRIM(SUBSTR(title, 7))
+        WHERE title LIKE 'title:%';
+      ''');
+    } catch (_) {}
   }
 
   void _configurePragmas() {
@@ -425,11 +462,14 @@ class CliDatabase {
     final now = DateTime.now();
     final nowEpoch = (now.millisecondsSinceEpoch / 1000).round();
 
-    final effectiveTitle = title.trim().isNotEmpty
-        ? title.trim()
+    final clean = CliNote.cleanTitle(title);
+    final effectiveTitle = clean.isNotEmpty
+        ? clean
         : CliNote.deriveTitle(content);
 
-    // Auto-extract tags from content + title + explicit tags
+    final parsedFm = CliFrontmatter.parse(content);
+
+    // Auto-extract tags from content + title + explicit tags + frontmatter
     final extractedTags = <String>{};
     if (tags != null) {
       for (final t in tags) {
@@ -440,6 +480,14 @@ class CliDatabase {
     for (final t in TagParser.extractTags('$effectiveTitle\n$content')) {
       extractedTags.add(t);
     }
+    for (final t in parsedFm.tags) {
+      final norm = TagParser.normalizeTag(t);
+      if (TagParser.isValidTag(norm)) extractedTags.add(norm);
+    }
+
+    final journalDate = parsedFm.isJournal && parsedFm.journalDate != null
+        ? parsedFm.journalDate
+        : null;
 
     _db.execute('BEGIN TRANSACTION;');
     try {
@@ -447,10 +495,10 @@ class CliDatabase {
         '''
         INSERT INTO notes (
           id, title, content, created_at, updated_at, is_pinned, is_archived,
-          is_trashed, is_dirty, server_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 1, 0);
+          is_trashed, is_dirty, server_revision, journal_date
+        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 1, 0, ?);
         ''',
-        [id, effectiveTitle, content, nowEpoch, nowEpoch, isPinned ? 1 : 0],
+        [id, effectiveTitle, content, nowEpoch, nowEpoch, isPinned ? 1 : 0, journalDate],
       );
 
       _syncTagsForNote(id, extractedTags.toList(), nowEpoch);
@@ -468,6 +516,7 @@ class CliDatabase {
         updatedAt: now,
         isPinned: isPinned,
         tags: extractedTags.toList()..sort(),
+        journalDate: journalDate,
       );
     } catch (e) {
       _db.execute('ROLLBACK;');
@@ -491,9 +540,12 @@ class CliDatabase {
     final now = DateTime.now();
     final nowEpoch = (now.millisecondsSinceEpoch / 1000).round();
 
-    final effectiveTitle = title.trim().isNotEmpty
-        ? title.trim()
+    final clean = CliNote.cleanTitle(title);
+    final effectiveTitle = clean.isNotEmpty
+        ? clean
         : CliNote.deriveTitle(content);
+
+    final parsedFm = CliFrontmatter.parse(content);
 
     final extractedTags = <String>{};
     if (tags != null) {
@@ -505,18 +557,25 @@ class CliDatabase {
     for (final t in TagParser.extractTags('$effectiveTitle\n$content')) {
       extractedTags.add(t);
     }
+    for (final t in parsedFm.tags) {
+      final norm = TagParser.normalizeTag(t);
+      if (TagParser.isValidTag(norm)) extractedTags.add(norm);
+    }
 
     final effectivePinned = isPinned ?? existing.isPinned;
+    final journalDate = parsedFm.isJournal && parsedFm.journalDate != null
+        ? parsedFm.journalDate
+        : existing.journalDate;
 
     _db.execute('BEGIN TRANSACTION;');
     try {
       _db.execute(
         '''
         UPDATE notes
-        SET title = ?, content = ?, updated_at = ?, is_pinned = ?, is_dirty = 1
+        SET title = ?, content = ?, updated_at = ?, is_pinned = ?, is_dirty = 1, journal_date = ?
         WHERE id = ?;
         ''',
-        [effectiveTitle, content, nowEpoch, effectivePinned ? 1 : 0, existing.id],
+        [effectiveTitle, content, nowEpoch, effectivePinned ? 1 : 0, journalDate, existing.id],
       );
 
       _syncTagsForNote(existing.id, extractedTags.toList(), nowEpoch);
@@ -535,8 +594,8 @@ class CliDatabase {
         isPinned: effectivePinned,
         isArchived: existing.isArchived,
         isTrashed: existing.isTrashed,
-        journalDate: existing.journalDate,
         tags: extractedTags.toList()..sort(),
+        journalDate: journalDate,
       );
     } catch (e) {
       _db.execute('ROLLBACK;');

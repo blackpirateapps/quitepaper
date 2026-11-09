@@ -5835,6 +5835,54 @@ A dedicated, snappy command-line interface (`qp`) was implemented for Quiet Pape
 - **CLI Test Suite**: `flutter test test/cli/` passed all **21/21 tests**.
 - **Real-World Vault Test**: Executed `./build/cli/bundle/bin/qp list` and `./build/cli/bundle/bin/qp tags`, successfully listing all **894 notes** and **32 tags** directly from the live encrypted vault.
 
+---
+
+## 267. Linux CLI (`qp edit`) Frontmatter & Note Title Parsing Fix (November 2026)
+
+### 1. Overview & Problem Description
+When running `qp edit` on an existing note with YAML frontmatter (such as daily journal entries), editing and saving the note caused the note title in the SQLite database to be overwritten with `"title: November 10, 2026"` rather than `"November 10, 2026"`. Additionally, during save inside Neovim, Neovim alerted with `[conform.nvim] Formatters unavailable for markdown file` on initial write attempts.
+
+### 2. Root Cause Analysis
+1. **Neovim Formatter Warning**:
+   In `~/.config/nvim/lua/plugins/formatting.lua`, `conform.nvim` had `format_on_save` configured for markdown using `prettierd` and `prettier`. Because neither formatter binary was installed in the system PATH, conform emitted a warning notification (`Formatters unavailable for markdown file`, misread as frontmatter), temporarily pausing the first save buffer write.
+2. **Naive Line-by-Line Title Extraction in CLI**:
+   `ExternalEditorRunner.parseTitleAndContent` and `CliNote.deriveTitle` previously iterated through lines checking only `if (!trimmed.startsWith('---'))`. On line 0 (`---`), it skipped; but on line 1 (`title: November 10, 2026`), it treated the YAML property as plain body text, extracting `'title: November 10, 2026'` as the note's title. Furthermore, if a frontmatter block had no title (e.g. `journal: true`), line 1 would become the title (`'journal: true'`).
+3. **Preview Snippets & Frontmatter Tag Extraction**:
+   `CliNote.previewSnippet` also leaked frontmatter key-value pairs into preview listings, while `CliDatabase.createNote` and `CliDatabase.updateNote` only extracted inline `#hashtag` tags, failing to index tags declared in frontmatter (`tags: [journal/2026]`).
+4. **Pure Dart CLI Architecture Invariant**:
+   `bin/qp.dart` is designed as a pure standalone Dart executable (AOT native ELF). Any imports of Flutter UI or `dart:ui` breaks native CLI compilation.
+
+### 3. Implementation Details
+- **`lib/core/cli/cli_frontmatter.dart` (New Pure Dart Utility)**:
+  - Implemented `CliFrontmatter` with zero dependencies on `package:flutter` or `dart:ui`.
+  - Parses `hasFrontmatter`, `title`, `isJournal`, `journalDate`, `tags` (both `[tag1, tag2]` inline list and `- tag` multiline formats), and `contentBody`.
+  - Implemented `CliFrontmatter.updateTitle(...)` to surgically update or inject `title: ...` in the YAML block while preserving the rest of the document.
+- **`lib/core/cli/external_editor_runner.dart`**:
+  - In `openInEditor`: Injects `title: <title>` into frontmatter when opening notes with YAML frontmatter that lack a `title:` key, ensuring editors like Neovim display the title clearly at the top.
+  - In `parseTitleAndContent`: Uses `CliFrontmatter.parse(rawText)`. Extracts clean title from frontmatter `title:` if present; otherwise inspects `contentBody` for `# Heading`, falling back to `fallbackTitle`.
+  - Added `cleanTitle(String rawTitle)` to strip leading `title:` and surrounding quotes.
+- **`lib/core/cli/cli_database.dart`**:
+  - `CliNote.cleanTitle`: Sanitizes titles by stripping `^title:\s*` and outer quotes.
+  - `CliNote.displayTitle`: Ensures clean title is displayed.
+  - `CliNote.deriveTitle`: Parses frontmatter via `CliFrontmatter.parse` before body scanning.
+  - `CliNote.previewSnippet`: Strips frontmatter and scans the real Markdown body.
+  - `createNote` & `updateNote`: Merges tags from `parsedFm.tags` and updates `journal_date` when journal frontmatter is present.
+  - `CliDatabase.autoRepairCorruptedTitles()`: Automatically fixes existing corrupted notes on database open:
+    ```sql
+    UPDATE notes SET title = TRIM(SUBSTR(title, 7)) WHERE title LIKE 'title:%';
+    ```
+- **Test Suite Enhancements**:
+  - Added [`test/cli/cli_frontmatter_test.dart`](file:///home/dog/git/quitepaper/test/cli/cli_frontmatter_test.dart) testing YAML frontmatter parsing, multiline tags, and title injection.
+  - Added tests in [`test/cli/external_editor_runner_test.dart`](file:///home/dog/git/quitepaper/test/cli/external_editor_runner_test.dart) and [`test/cli/cli_database_test.dart`](file:///home/dog/git/quitepaper/test/cli/cli_database_test.dart) verifying title derivation, tag extraction, and auto-repair.
+
+### 4. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **CLI Test Suite**: `flutter test test/cli/` passed all **34/34 tests**.
+- **Live Vault Verification**:
+  - Running `dart bin/qp.dart list` verified that note `a8f7e4be` was automatically healed from `"title: November 10, 2026"` to `"November 10, 2026"`.
+  - Running `dart bin/qp.dart edit a8f7e4be` verified that saving preserves the clean title `"November 10, 2026"` and indexes `#journal/2026`.
+
+
 
 
 

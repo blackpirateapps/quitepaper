@@ -152,5 +152,53 @@ void main() {
         isTrue,
       );
     });
+
+    test('deriveTitle and previewSnippet handle YAML frontmatter correctly', () {
+      const journalNoteContent = '''---
+title: November 10, 2026
+journal: true
+date: 2026-11-10
+tags: [journal/2026]
+mood: 5
+moment: ordinary
+---
+I am finally getting back on track about studying.
+I am writing this note from my terminal.
+''';
+
+      expect(CliNote.deriveTitle(journalNoteContent), 'November 10, 2026');
+
+      final note = db.createNote(
+        title: '',
+        content: journalNoteContent,
+      );
+
+      expect(note.displayTitle, 'November 10, 2026');
+      expect(note.previewSnippet, 'I am finally getting back on track about studying.');
+      expect(note.tags, contains('journal/2026'));
+      expect(note.journalDate, '2026-11-10');
+    });
+
+    test('cleanTitle cleans accidental title: prefix and surrounding quotes', () {
+      expect(CliNote.cleanTitle('title: November 10, 2026'), 'November 10, 2026');
+      expect(CliNote.cleanTitle('title:   "Important Plan"  '), 'Important Plan');
+      expect(CliNote.cleanTitle('Clean Title'), 'Clean Title');
+    });
+
+    test('autoRepairCorruptedTitles fixes notes with leading title: on open', () {
+      // Intentionally insert corrupted note directly into db
+      db.createNote(
+        title: 'title: November 10, 2026',
+        content: 'Sample content',
+      );
+
+      // Verify cleanTitle & autoRepair
+      db.autoRepairCorruptedTitles();
+
+      final notes = db.listNotes();
+      final repaired = notes.firstWhere((n) => n.content == 'Sample content');
+      expect(repaired.title, 'November 10, 2026');
+      expect(repaired.displayTitle, 'November 10, 2026');
+    });
   });
 }

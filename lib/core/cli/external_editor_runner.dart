@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
+import 'cli_frontmatter.dart';
 
 /// Result from an external editor session.
 class EditorResult {
@@ -52,6 +53,21 @@ class ExternalEditorRunner {
     }
   }
 
+  /// Cleans title by removing any leading `title:` marker and trimming outer quotes.
+  static String cleanTitle(String rawTitle) {
+    var clean = rawTitle.trim();
+    if (clean.toLowerCase().startsWith('title:')) {
+      clean = clean.substring(6).trim();
+    }
+    if ((clean.startsWith('"') && clean.endsWith('"')) ||
+        (clean.startsWith("'") && clean.endsWith("'"))) {
+      if (clean.length >= 2) {
+        clean = clean.substring(1, clean.length - 1).trim();
+      }
+    }
+    return clean;
+  }
+
   /// Opens an editor with initial markdown content and returns the updated result.
   ///
   /// Returns `null` if the editor exited without any changes or if the user cleared the file.
@@ -76,15 +92,28 @@ class ExternalEditorRunner {
       final startsWithHeading = trimmedContent.startsWith('#');
       final startsWithFrontmatter = trimmedContent.startsWith('---');
 
-      if (hasTitle && !startsWithHeading && !startsWithFrontmatter) {
-        sb.writeln('# $initialTitle');
+      if (startsWithFrontmatter) {
+        // If frontmatter is present, check if frontmatter already specifies a title.
+        // If it lacks a title key and hasTitle is true, inject title into frontmatter.
+        final parsedFm = CliFrontmatter.parse(initialContent);
+        if (hasTitle && (parsedFm.title == null || parsedFm.title!.trim().isEmpty)) {
+          final updated = CliFrontmatter.updateTitle(
+            documentText: initialContent,
+            newTitle: cleanTitle(initialTitle),
+          );
+          sb.write(updated);
+        } else {
+          sb.write(initialContent);
+        }
+      } else if (hasTitle && !startsWithHeading) {
+        sb.writeln('# ${cleanTitle(initialTitle)}');
         sb.writeln();
         sb.writeln(initialContent);
       } else {
         sb.write(initialContent);
       }
     } else if (hasTitle) {
-      sb.writeln('# $initialTitle');
+      sb.writeln('# ${cleanTitle(initialTitle)}');
       sb.writeln();
       sb.writeln('Start writing note content...');
     } else {
@@ -155,33 +184,55 @@ class ExternalEditorRunner {
     }
   }
 
-  /// Parses title from the first Markdown H1 heading or non-empty line.
+  /// Parses title from YAML frontmatter `title:` property, first Markdown H1 heading,
+  /// or first non-empty line of content body (skipping YAML frontmatter blocks).
   (String, String) parseTitleAndContent(String rawText, {String? fallbackTitle}) {
-    final lines = const LineSplitter().convert(rawText);
+    if (rawText.trim().isEmpty) {
+      final fb = fallbackTitle != null ? cleanTitle(fallbackTitle) : '';
+      return (fb.isNotEmpty ? fb : 'Untitled', rawText);
+    }
+
+    final parsedFm = CliFrontmatter.parse(rawText);
     String extractedTitle = '';
 
-    for (int i = 0; i < lines.length; i++) {
-      final trimmed = lines[i].trim();
-      if (trimmed.isEmpty) continue;
+    if (parsedFm.hasFrontmatter && parsedFm.title != null && parsedFm.title!.trim().isNotEmpty) {
+      extractedTitle = cleanTitle(parsedFm.title!);
+    }
 
-      if (trimmed.startsWith('# ')) {
-        extractedTitle = trimmed.substring(2).trim();
-        break;
-      } else if (trimmed.startsWith('#')) {
-        extractedTitle = trimmed.replaceFirst(RegExp(r'^#+\s*'), '').trim();
-        break;
-      } else if (!trimmed.startsWith('---')) {
-        extractedTitle = trimmed.length > 80 ? '${trimmed.substring(0, 77)}...' : trimmed;
-        break;
+    if (extractedTitle.isEmpty) {
+      final bodyText = parsedFm.hasFrontmatter ? parsedFm.contentBody : rawText;
+      final lines = const LineSplitter().convert(bodyText);
+
+      for (int i = 0; i < lines.length; i++) {
+        final trimmed = lines[i].trim();
+        if (trimmed.isEmpty) continue;
+
+        if (trimmed.startsWith('# ')) {
+          extractedTitle = trimmed.substring(2).trim();
+          break;
+        } else if (trimmed.startsWith('#')) {
+          extractedTitle = trimmed.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+          break;
+        } else {
+          // If the note has a fallback title (e.g. from journal date or existing title),
+          // prefer that over an arbitrary plain body sentence.
+          if (fallbackTitle != null && fallbackTitle.trim().isNotEmpty) {
+            extractedTitle = cleanTitle(fallbackTitle);
+          } else {
+            extractedTitle = trimmed.length > 80 ? '${trimmed.substring(0, 77)}...' : trimmed;
+          }
+          break;
+        }
       }
     }
 
     final effectiveTitle = extractedTitle.isNotEmpty
         ? extractedTitle
         : (fallbackTitle != null && fallbackTitle.trim().isNotEmpty
-            ? fallbackTitle.trim()
+            ? cleanTitle(fallbackTitle)
             : 'Untitled');
 
-    return (effectiveTitle, rawText);
+    final finalClean = cleanTitle(effectiveTitle);
+    return (finalClean.isNotEmpty ? finalClean : 'Untitled', rawText);
   }
 }

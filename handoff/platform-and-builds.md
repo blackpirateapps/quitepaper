@@ -62,6 +62,8 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 ## Key References & Logs
 - Dart AOT CLI Binary & Packaging: [Latest Logs, Section 264](latest-logs.md#264-native-linux-cli-implementation-qp--offline-first-terminal-notes-external-editor-integration-and-sqlite-wal-concurrency-november-2026)
 - Dart AOT CLI RPM & Packaging Fix: [Latest Logs, Section 265](latest-logs.md#265-rpm--linux-packaging-fix-for-dart-aot-cli-binary-qp-november-2026)
+- Dart AOT CLI Database Path Alignment: [Latest Logs, Section 266](latest-logs.md#266-linux-cli-database-path-alignment-with-desktop-gui-november-2026)
+- Dart AOT CLI Frontmatter & Title Fix: [Latest Logs, Section 267](latest-logs.md#267-linux-cli-qp-edit-frontmatter--note-title-parsing-fix-november-2026)
 - Linux Native File Sharing (`shareXFiles`): [Latest Logs, Section 262](latest-logs.md#262-linux-desktop-file-sharing-implementation-xdg-desktop-portal-openuri--multi-tier-fallbacks-november-2026)
 - Linux Packaging (DEB, RPM, AppImage, Flatpak): [Latest Logs, Section 233](latest-logs.md#233-multi-platform-github-release-workflow-linux-packages-rpm-deb-appimage-flatpak-october-2026)
 - Linux GStreamer Resolution: [Latest Logs, Section 224](latest-logs.md#224-linux-app-build-pipeline--gstreamer-dependency-resolution-october-2026)
