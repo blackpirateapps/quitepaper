@@ -187,6 +187,51 @@ void main() {
       // 700 - 450 = 250
       expect(scrollController.offset, 250.0);
     });
+
+    testWidgets('updateCaretPosition caches caret without triggering scroll animation', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              key: viewportKey,
+              height: 1000,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: const SizedBox(height: 3000),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final coordinator = TypewriterScrollCoordinator(
+        scrollController: scrollController,
+        viewportKey: viewportKey,
+        targetFraction: 0.45,
+      );
+
+      expect(scrollController.offset, 0.0);
+
+      // Updating caret position should NOT scroll
+      coordinator.updateCaretPosition(const Offset(50, 750));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(scrollController.offset, 0.0);
+
+      // Now active typing activity uses the cached caret position
+      coordinator.onTypingActivity();
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // 750 - 450 = 300
+      expect(scrollController.offset, 300.0);
+    });
   });
 
   group('TextField RenderEditable Caret Detection', () {
@@ -389,6 +434,90 @@ void main() {
       expect(controller.offset, greaterThan(100.0));
 
       // Clean up before test completion
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('moving cursor without typing does NOT scroll editor or recenter cursor line', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final now = DateTime.now();
+      // Generate 25 lines of content
+      final content = List.generate(25, (i) => 'Line $i of content for testing cursor movement.').join('\n');
+      final note = Note(
+        id: 'test-note-cursor',
+        title: 'Cursor Move Test',
+        content: content,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(createEditorApp(note, initialStyle: EditorEditingStyle.markdown));
+      await tester.pumpAndSettle();
+
+      final scrollable = tester.widget<SingleChildScrollView>(
+        find.byWidgetPredicate((w) => w is SingleChildScrollView && w.scrollDirection == Axis.vertical),
+      );
+      final controller = scrollable.controller!;
+
+      // Initially at 0.0
+      expect(controller.offset, 0.0);
+
+      // Find the TextField and move cursor to the very end of the document
+      final textField = find.byType(TextField).last;
+      await tester.tap(textField, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      final textEditable = tester.widget<TextField>(textField);
+      // Move cursor to the end without changing text
+      textEditable.controller!.selection = TextSelection.collapsed(offset: content.length);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Viewport must NOT have scrolled or centered the last line
+      expect(controller.offset, 0.0);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('moving cursor to the end of a document does NOT overscroll to center the last line', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final now = DateTime.now();
+      final content = List.generate(30, (i) => 'Paragraph $i text with sufficient length.').join('\n\n');
+      final note = Note(
+        id: 'test-note-end',
+        title: 'End Clamping Test',
+        content: content,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(createEditorApp(note, initialStyle: EditorEditingStyle.markdown));
+      await tester.pumpAndSettle();
+
+      final scrollable = tester.widget<SingleChildScrollView>(
+        find.byWidgetPredicate((w) => w is SingleChildScrollView && w.scrollDirection == Axis.vertical),
+      );
+      final controller = scrollable.controller!;
+
+      // Move cursor to the last paragraph
+      final textField = find.byType(TextField).last;
+      final textEditable = tester.widget<TextField>(textField);
+      textEditable.controller!.selection = TextSelection.collapsed(offset: content.length);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // No typing occurred, offset remains 0
+      expect(controller.offset, 0.0);
+
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 500));
     });

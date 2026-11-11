@@ -5882,6 +5882,41 @@ When running `qp edit` on an existing note with YAML frontmatter (such as daily 
   - Running `dart bin/qp.dart list` verified that note `a8f7e4be` was automatically healed from `"title: November 10, 2026"` to `"November 10, 2026"`.
   - Running `dart bin/qp.dart edit a8f7e4be` verified that saving preserves the clean title `"November 10, 2026"` and indexes `#journal/2026`.
 
+---
+
+## 268. Typewriter Scrolling: Cursor Navigation Decoupling & Natural End-of-Document Clamping (November 2026)
+
+### 1. Problem Statement & Root Cause
+In earlier iterations (Section 223), typewriter scrolling was introduced to keep the active cursor centered at ~45% from the top of the viewport. However, users reported that moving the cursor to a line near or at the very end of the document abruptly yanked that line into the vertical center of the screen, causing disorientation, hiding top content, and creating an unnecessary 55% empty gap beneath the final line.
+
+Analysis revealed two root causes:
+1. **Cursor Navigation Mistaken for Typing Activity**:
+   - `TypewriterDocumentLayer` (SuperEditor) and `_onTargetChanged` / `_onContentChanged` (Markdown mode) triggered `onTypingActivity` on every caret movement (mouse clicks, finger taps, arrow keys, and selection range updates), even when no text was altered.
+2. **Artificial 55% Bottom Viewport Overscroll**:
+   - In `editor_screen.dart`, `bottomScrollPadding` was dynamically sized to `max(isDesktop ? 220.0 : 300.0, viewportHeight * 0.55)`. This artificial overscroll space allowed and forced lines at the very end of notes to scroll to the 45% centerline.
+
+### 2. Architectural Design & Implementation
+- **Decoupled Caret Tracking in `TypewriterScrollCoordinator` ([`lib/features/editor/application/typewriter_scroll_coordinator.dart`](file:///home/dog/git/quitepaper/lib/features/editor/application/typewriter_scroll_coordinator.dart))**:
+  - Added `updateCaretPosition(Offset globalCaretPos)` to allow layers like `TypewriterDocumentLayer` to cache the current caret position during navigation without triggering scroll animations.
+  - Ensured `onTypingActivity` schedules a frame via `WidgetsBinding.instance.scheduleFrame()` and uses `_pendingCustomCaretPos ?? _latestCaretPos ?? _findActiveCaretGlobalY(activeFocusNode)` to align scroll only when text is actively modified.
+- **Content Change Guarding in `EditorScreen` ([`lib/features/editor/presentation/editor_screen.dart`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/editor_screen.dart))**:
+  - Added `_lastContentText` tracking. `_onContentChanged()` now returns early if `_contentController.text == _lastContentText`, avoiding unnecessary undo snapshots and preventing cursor movements from invoking `onTypingActivity`.
+  - Removed rogue `_typewriterCoordinator.onTypingActivity` from `_onTargetChanged()`.
+  - Wired `MarkdownEditor.onCaretPositionChanged` to `_typewriterCoordinator.updateCaretPosition(pos)`.
+- **Natural Bottom Clamping**:
+  - Replaced the 55% overscroll spacer with fixed ergonomic padding (`isDesktop ? 120.0 : 280.0`), guaranteeing comfortable keyboard and bottom toolbar clearance without allowing the end of the document to overscroll into the middle of the screen.
+
+### 3. Verification & Quality Gates
+- **Static Analysis**: `flutter analyze` reported **0 issues found, 0 warnings, 0 errors**.
+- **Automated Tests**:
+  - `test/editor/typewriter_scrolling_test.dart` (10/10 tests passing):
+    - `updateCaretPosition caches caret without triggering scroll animation`.
+    - `moving cursor without typing does NOT scroll editor or recenter cursor line`.
+    - `moving cursor to the end of a document does NOT overscroll to center the last line`.
+    - Viewport waterline math, deadband tolerance, and typing in the middle of long notes.
+  - `test/editor/` full test suite (657/657 tests passing with 0 regressions).
+
+
 
 
 

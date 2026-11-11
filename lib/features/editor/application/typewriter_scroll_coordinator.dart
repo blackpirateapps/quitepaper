@@ -24,6 +24,17 @@ class TypewriterScrollCoordinator {
   bool _isScheduled = false;
   Offset? _pendingCustomCaretPos;
   FocusNode? _pendingActiveFocusNode;
+  Offset? _latestCaretPos;
+
+  /// Updates the cached caret position without triggering any scroll adjustment.
+  ///
+  /// This allows cursor tracking overlays (e.g., [TypewriterDocumentLayer]) to
+  /// report position updates continuously during navigation so the coordinator
+  /// has accurate coordinates when typing occurs, without erroneously auto-scrolling
+  /// on simple cursor movement or click.
+  void updateCaretPosition(Offset globalCaretPos) {
+    _latestCaretPos = globalCaretPos;
+  }
 
   /// Notifies the coordinator of typing or editing activity.
   ///
@@ -34,15 +45,19 @@ class TypewriterScrollCoordinator {
     FocusNode? activeFocusNode,
   }) {
     if (!isEnabled()) return;
-    if (customGlobalCaretPos != null) _pendingCustomCaretPos = customGlobalCaretPos;
+    if (customGlobalCaretPos != null) {
+      _latestCaretPos = customGlobalCaretPos;
+      _pendingCustomCaretPos = customGlobalCaretPos;
+    }
     if (activeFocusNode != null) _pendingActiveFocusNode = activeFocusNode;
 
     if (_isScheduled) return;
 
     _isScheduled = true;
+    WidgetsBinding.instance.scheduleFrame();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _isScheduled = false;
-      final pos = _pendingCustomCaretPos;
+      final pos = _pendingCustomCaretPos ?? _latestCaretPos;
       final fn = _pendingActiveFocusNode;
       _pendingCustomCaretPos = null;
       _pendingActiveFocusNode = null;
@@ -79,7 +94,9 @@ class TypewriterScrollCoordinator {
     if (viewportHeight <= 0) return;
 
     final targetGlobalY = viewportTop + (viewportHeight * targetFraction);
-    final caretGlobalY = customGlobalCaretPos?.dy ?? _findActiveCaretGlobalY(activeFocusNode);
+    final caretGlobalY = customGlobalCaretPos?.dy ??
+        _latestCaretPos?.dy ??
+        _findActiveCaretGlobalY(activeFocusNode);
     if (caretGlobalY == null) return;
 
     final dy = caretGlobalY - targetGlobalY;

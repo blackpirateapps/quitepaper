@@ -158,6 +158,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   bool _isTitleManuallySet = false;
   String _lastAutoDerivedTitle = '';
+  String _lastContentText = '';
 
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
@@ -196,6 +197,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     _titleController = TextEditingController(text: initialTitle);
     _contentController = MarkdownEditingController(text: widget.note.content);
+    _lastContentText = widget.note.content;
     _titleFocusNode = FocusNode();
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
@@ -294,6 +296,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
       _titleController.text = newTitle;
       _contentController.text = widget.note.content;
+      _lastContentText = widget.note.content;
       // Re-bake link previews for the newly opened note (Smart web links ON).
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _maybeBakeLinkPreviews());
@@ -367,9 +370,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
     }
     _checkAutocompleteTrigger();
-    _typewriterCoordinator.onTypingActivity(
-      activeFocusNode: _activeTargetFocusNode ?? _contentFocusNode,
-    );
   }
 
   KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
@@ -555,6 +555,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void _onContentChanged() {
     if (!mounted || _isDeactivated) return;
     final newContent = _contentController.text;
+    final isContentChanged = newContent != _lastContentText;
+    _lastContentText = newContent;
+
+    if (!isContentChanged) {
+      // Caret position or selection range changed without textual edits.
+      // Do not record undo/redo history or trigger typewriter auto-scrolling.
+      return;
+    }
+
     _undoRedoManager.registerEdit(_contentController.value);
 
     try {
@@ -2003,13 +2012,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         },
                         child: LayoutBuilder(
                           builder: (context, constraints) {
-                            final viewportHeight = constraints.maxHeight.isFinite
-                                ? constraints.maxHeight
-                                : (isDesktop ? 700.0 : 500.0);
-                            final bottomScrollPadding = max(
-                              isDesktop ? 220.0 : 300.0,
-                              viewportHeight * 0.55,
-                            );
+                            final bottomScrollPadding = isDesktop ? 120.0 : 280.0;
 
                             return editorState.isPreviewMode
                                 ? QuietMarkdownPreview(
@@ -2192,9 +2195,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     onKeyEvent: _handleEditorKeyEvent,
                                     onPaste: _handlePaste,
                                     onCaretPositionChanged: (pos) {
-                                      _typewriterCoordinator.onTypingActivity(
-                                        customGlobalCaretPos: pos,
-                                      );
+                                      _typewriterCoordinator.updateCaretPosition(pos);
                                     },
                                   ),
 
