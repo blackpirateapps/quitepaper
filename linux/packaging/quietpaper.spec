@@ -27,6 +27,9 @@ AutoReqProv:    no
 Requires:       gtk3 >= 3.24
 Requires:       glib2 >= 2.64
 Requires:       libsecret
+Recommends:     wl-clipboard
+Recommends:     xclip
+Recommends:     xdg-utils
 Requires:       hicolor-icon-theme
 Requires:       gstreamer1 >= 1.16
 Requires:       gstreamer1-plugins-base >= 1.16

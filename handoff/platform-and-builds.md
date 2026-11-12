@@ -71,3 +71,61 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 - First-Run Onboarding & Coach Marks: [Latest Logs, Section 236](latest-logs.md#236-first-run-onboarding-interactive-coach-marks--settings-replay-october-2026)
 - Automated CI Build Numbers: [Latest Logs, Section 133](latest-logs.md#133-automated-ci-build-numbers-git-commit-count--dynamic-runtime-version-resolution)
 - App Version Bump Checklist: [Historical Logs v1.0–v1.4, Section 17](archive/logs-v1.0-v1.4.md#17-app-version-bump-checklist)
+
+## Linux CLI image attachments
+
+`qp` can import images without launching Flutter or GTK:
+
+```bash
+qp attach <note-id-or-title> photo.png screenshot.jpg
+qp attach <note> --clipboard
+qp new "Meeting" --attach whiteboard.jpg
+qp edit <note> --base-dir ~/Pictures
+qp attachments <note>
+qp attachments <note> open <attachment-id>
+qp sync                    # retry pending local note/image uploads
+qp sync <note>             # retry a particular note
+```
+
+`new` and `edit` automatically import local Markdown image destinations, including
+angle-bracket paths with spaces, balanced parentheses and image reference
+definitions. Relative paths use the invocation directory unless `--base-dir` is
+specified. Code examples, frontmatter and remote URLs are excluded. Imported paths
+become `qp://asset/<UUID>` references. `--attach` is repeatable; `--clipboard` and
+`--compress` also work with `new` and `edit`. Binary stdin and URL downloads are
+not import sources; piped Markdown remains supported.
+
+Original PNG/JPEG/GIF/WebP/AVIF bytes are preserved by default (10 MiB limit).
+Explicit `--compress` converts supported still images to JPEG at quality 85 with
+a maximum dimension of 2560 pixels; animation/unsupported decoding is rejected
+rather than silently flattened. Compression input is capped at 100 MiB.
+
+The CLI uses the desktop app's QPA1 encryption format and attachment table. It
+reads existing credentials through `secret-tool` (Linux Secret Service) or the
+app's encrypted fallback store next to the database. It never exports keys or
+rewrites the desktop credential store. When only wrapped key data is available,
+an interactive invocation prompts for the encryption password; scripts fail
+clearly. Initial account/notebook setup still happens in the desktop app. A
+headless session needs access to that user's keyring or encrypted fallback files.
+Custom databases use credentials beside the selected database; keyring access is
+limited to the configured default database.
+
+After saves, CLI sync attempts to upload encrypted images and the encrypted note,
+then records attachment references. Offline/authentication/quota failures retain
+local data for `qp sync` or desktop sync. Remote conflicts remain pending for the
+desktop merge UI. CLI sync is an **upload/retry operation**, not a replacement for
+the desktop pull/merge engine; it does not advance the desktop pull cursor.
+OCR remains queued for the desktop app. `QP_API_URL` can override the backend.
+A successful local save exits 0 even if upload is pending; explicit `qp sync`
+exits 1 when any requested note cannot upload.
+
+Image imports and note/history/search/queue changes commit together. Failed
+imports roll back the database and remove staged ciphertext, preserving the
+original edited Markdown in `<database-directory>/cli-drafts/` (directory 0700,
+files 0600). Concurrent edits detected before saving also produce recovery drafts.
+
+Clipboard images require `wl-clipboard` on Wayland or `xclip` on X11 and use the
+clipboard of the machine running `qp`. Keyring access requires `secret-tool`
+(`libsecret-tools` on Debian/Ubuntu). Opening an image uses `xdg-open`, requires a
+locally downloaded image and an interactive terminal, and removes its private
+temporary plaintext copy when you press Enter after closing the viewer.

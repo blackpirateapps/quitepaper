@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as standard_crypto;
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/foundation.dart';
+import '../utils/portable_foundation.dart';
 import '../crypto/crypto_service.dart';
 
 /// Thrown when attachment decryption or MAC authentication fails.

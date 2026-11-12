@@ -61,7 +61,9 @@ class CliNote {
   static String deriveTitle(String content) {
     if (content.trim().isEmpty) return '';
     final parsed = CliFrontmatter.parse(content);
-    if (parsed.hasFrontmatter && parsed.title != null && parsed.title!.trim().isNotEmpty) {
+    if (parsed.hasFrontmatter &&
+        parsed.title != null &&
+        parsed.title!.trim().isNotEmpty) {
       return cleanTitle(parsed.title!);
     }
     final body = parsed.hasFrontmatter ? parsed.contentBody : content;
@@ -73,7 +75,9 @@ class CliNote {
         final clean = trimmed.replaceFirst(RegExp(r'^#+\s*'), '').trim();
         if (clean.isNotEmpty) return cleanTitle(clean);
       } else {
-        final clean = trimmed.length > 80 ? '${trimmed.substring(0, 77)}...' : trimmed;
+        final clean = trimmed.length > 80
+            ? '${trimmed.substring(0, 77)}...'
+            : trimmed;
         return cleanTitle(clean);
       }
     }
@@ -95,18 +99,18 @@ class CliNote {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'shortId': shortId,
-        'title': displayTitle,
-        'content': content,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'isPinned': isPinned,
-        'isArchived': isArchived,
-        'isTrashed': isTrashed,
-        'tags': tags,
-        'journalDate': journalDate,
-      };
+    'id': id,
+    'shortId': shortId,
+    'title': displayTitle,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'isPinned': isPinned,
+    'isArchived': isArchived,
+    'isTrashed': isTrashed,
+    'tags': tags,
+    'journalDate': journalDate,
+  };
 }
 
 /// Tag with note count for CLI display.
@@ -128,13 +132,13 @@ class CliTag {
   final bool isPinned;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'noteCount': noteCount,
-        'color': color,
-        'icon': icon,
-        'isPinned': isPinned,
-      };
+    'id': id,
+    'name': name,
+    'noteCount': noteCount,
+    'color': color,
+    'icon': icon,
+    'isPinned': isPinned,
+  };
 }
 
 /// Direct SQLite database service for the Quiet Paper CLI (`qp`).
@@ -146,6 +150,23 @@ class CliDatabase {
   CliDatabase(this._db);
 
   final Database _db;
+
+  Database get connection => _db;
+  String get path =>
+      _db.select('PRAGMA database_list;').first['file'] as String;
+
+  T transaction<T>(T Function() action) {
+    _db.execute('SAVEPOINT cli_write;');
+    try {
+      final result = action();
+      _db.execute('RELEASE cli_write;');
+      return result;
+    } catch (_) {
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
+      rethrow;
+    }
+  }
 
   /// Resolves canonical database path conforming to XDG specification on Linux.
   /// Prioritizes the Flutter desktop GUI path (`~/.local/share/com.blackpiratex.quietpaper/quiet_paper.sqlite`),
@@ -164,7 +185,8 @@ class CliDatabase {
         : '$home/.local/share';
 
     // 1. Canonical Flutter application support directory (used by GTK desktop app)
-    final canonicalPath = '$dataHome/com.blackpiratex.quietpaper/quiet_paper.sqlite';
+    final canonicalPath =
+        '$dataHome/com.blackpiratex.quietpaper/quiet_paper.sqlite';
     if (File(canonicalPath).existsSync()) {
       return canonicalPath;
     }
@@ -350,7 +372,9 @@ class CliDatabase {
     }
 
     if (tag != null && tag.trim().isNotEmpty) {
-      final cleanTag = TagParser.normalizeTag(tag.trim().replaceFirst(RegExp(r'^#'), ''));
+      final cleanTag = TagParser.normalizeTag(
+        tag.trim().replaceFirst(RegExp(r'^#'), ''),
+      );
       conditions.add('''
         n.id IN (
           SELECT nt.note_id FROM note_tags nt
@@ -369,10 +393,13 @@ class CliDatabase {
       params.add(cleanQuery);
     }
 
-    final whereClause = conditions.isNotEmpty ? 'WHERE ${conditions.join(' AND ')}' : '';
+    final whereClause = conditions.isNotEmpty
+        ? 'WHERE ${conditions.join(' AND ')}'
+        : '';
     final limitClause = (limit != null && limit > 0) ? 'LIMIT $limit' : '';
 
-    final sql = '''
+    final sql =
+        '''
       SELECT n.id, n.title, n.content, n.created_at, n.updated_at,
              n.is_pinned, n.is_archived, n.is_trashed, n.journal_date
       FROM notes n
@@ -388,18 +415,24 @@ class CliDatabase {
       for (final row in rows) {
         final noteId = row['id'] as String;
         final tags = _getTagsForNote(noteId);
-        notes.add(CliNote(
-          id: noteId,
-          title: (row['title'] as String?) ?? '',
-          content: (row['content'] as String?) ?? '',
-          createdAt: DateTime.fromMillisecondsSinceEpoch((row['created_at'] as int) * 1000),
-          updatedAt: DateTime.fromMillisecondsSinceEpoch((row['updated_at'] as int) * 1000),
-          isPinned: (row['is_pinned'] as int? ?? 0) == 1,
-          isArchived: (row['is_archived'] as int? ?? 0) == 1,
-          isTrashed: (row['is_trashed'] as int? ?? 0) == 1,
-          journalDate: row['journal_date'] as String?,
-          tags: tags,
-        ));
+        notes.add(
+          CliNote(
+            id: noteId,
+            title: (row['title'] as String?) ?? '',
+            content: (row['content'] as String?) ?? '',
+            createdAt: DateTime.fromMillisecondsSinceEpoch(
+              (row['created_at'] as int) * 1000,
+            ),
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(
+              (row['updated_at'] as int) * 1000,
+            ),
+            isPinned: (row['is_pinned'] as int? ?? 0) == 1,
+            isArchived: (row['is_archived'] as int? ?? 0) == 1,
+            isTrashed: (row['is_trashed'] as int? ?? 0) == 1,
+            journalDate: row['journal_date'] as String?,
+            tags: tags,
+          ),
+        );
       }
       return notes;
     } finally {
@@ -430,8 +463,12 @@ class CliDatabase {
         id: noteId,
         title: (row['title'] as String?) ?? '',
         content: (row['content'] as String?) ?? '',
-        createdAt: DateTime.fromMillisecondsSinceEpoch((row['created_at'] as int) * 1000),
-        updatedAt: DateTime.fromMillisecondsSinceEpoch((row['updated_at'] as int) * 1000),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+          (row['created_at'] as int) * 1000,
+        ),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          (row['updated_at'] as int) * 1000,
+        ),
         isPinned: (row['is_pinned'] as int? ?? 0) == 1,
         isArchived: (row['is_archived'] as int? ?? 0) == 1,
         isTrashed: (row['is_trashed'] as int? ?? 0) == 1,
@@ -452,13 +489,14 @@ class CliDatabase {
 
   /// Creates a new note, extracting tags, updating FTS, and registering a sync mutation.
   CliNote createNote({
+    String? noteId,
     required String title,
     required String content,
     List<String>? tags,
     bool isPinned = false,
   }) {
     const uuid = Uuid();
-    final id = uuid.v4();
+    final id = noteId ?? uuid.v4();
     final now = DateTime.now();
     final nowEpoch = (now.millisecondsSinceEpoch / 1000).round();
 
@@ -489,7 +527,7 @@ class CliDatabase {
         ? parsedFm.journalDate
         : null;
 
-    _db.execute('BEGIN TRANSACTION;');
+    _db.execute('SAVEPOINT cli_write;');
     try {
       _db.execute(
         '''
@@ -498,15 +536,29 @@ class CliDatabase {
           is_trashed, is_dirty, server_revision, journal_date
         ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 1, 0, ?);
         ''',
-        [id, effectiveTitle, content, nowEpoch, nowEpoch, isPinned ? 1 : 0, journalDate],
+        [
+          id,
+          effectiveTitle,
+          content,
+          nowEpoch,
+          nowEpoch,
+          isPinned ? 1 : 0,
+          journalDate,
+        ],
       );
 
       _syncTagsForNote(id, extractedTags.toList(), nowEpoch);
-      _createVersionSnapshot(id, effectiveTitle, content, extractedTags.toList(), nowEpoch);
+      _createVersionSnapshot(
+        id,
+        effectiveTitle,
+        content,
+        extractedTags.toList(),
+        nowEpoch,
+      );
       _queueSyncMutation(id, 'upsert', nowEpoch);
       _updateSearchIndex(id, effectiveTitle, content, extractedTags.toList());
 
-      _db.execute('COMMIT;');
+      _db.execute('RELEASE cli_write;');
 
       return CliNote(
         id: id,
@@ -519,7 +571,8 @@ class CliDatabase {
         journalDate: journalDate,
       );
     } catch (e) {
-      _db.execute('ROLLBACK;');
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
       rethrow;
     }
   }
@@ -567,7 +620,7 @@ class CliDatabase {
         ? parsedFm.journalDate
         : existing.journalDate;
 
-    _db.execute('BEGIN TRANSACTION;');
+    _db.execute('SAVEPOINT cli_write;');
     try {
       _db.execute(
         '''
@@ -575,15 +628,33 @@ class CliDatabase {
         SET title = ?, content = ?, updated_at = ?, is_pinned = ?, is_dirty = 1, journal_date = ?
         WHERE id = ?;
         ''',
-        [effectiveTitle, content, nowEpoch, effectivePinned ? 1 : 0, journalDate, existing.id],
+        [
+          effectiveTitle,
+          content,
+          nowEpoch,
+          effectivePinned ? 1 : 0,
+          journalDate,
+          existing.id,
+        ],
       );
 
       _syncTagsForNote(existing.id, extractedTags.toList(), nowEpoch);
-      _createVersionSnapshot(existing.id, effectiveTitle, content, extractedTags.toList(), nowEpoch);
+      _createVersionSnapshot(
+        existing.id,
+        effectiveTitle,
+        content,
+        extractedTags.toList(),
+        nowEpoch,
+      );
       _queueSyncMutation(existing.id, 'upsert', nowEpoch);
-      _updateSearchIndex(existing.id, effectiveTitle, content, extractedTags.toList());
+      _updateSearchIndex(
+        existing.id,
+        effectiveTitle,
+        content,
+        extractedTags.toList(),
+      );
 
-      _db.execute('COMMIT;');
+      _db.execute('RELEASE cli_write;');
 
       return CliNote(
         id: existing.id,
@@ -598,7 +669,8 @@ class CliDatabase {
         journalDate: journalDate,
       );
     } catch (e) {
-      _db.execute('ROLLBACK;');
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
       rethrow;
     }
   }
@@ -609,7 +681,7 @@ class CliDatabase {
     if (existing == null) throw ArgumentError('Note not found: $id');
     final now = (DateTime.now().millisecondsSinceEpoch / 1000).round();
 
-    _db.execute('BEGIN TRANSACTION;');
+    _db.execute('SAVEPOINT cli_write;');
     try {
       _db.execute(
         'UPDATE notes SET is_trashed = 1, deleted_at = ?, is_dirty = 1, updated_at = ? WHERE id = ?;',
@@ -617,9 +689,10 @@ class CliDatabase {
       );
       _deleteSearchIndex(existing.id);
       _queueSyncMutation(existing.id, 'upsert', now);
-      _db.execute('COMMIT;');
+      _db.execute('RELEASE cli_write;');
     } catch (e) {
-      _db.execute('ROLLBACK;');
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
       rethrow;
     }
   }
@@ -630,17 +703,23 @@ class CliDatabase {
     if (existing == null) throw ArgumentError('Note not found: $id');
     final now = (DateTime.now().millisecondsSinceEpoch / 1000).round();
 
-    _db.execute('BEGIN TRANSACTION;');
+    _db.execute('SAVEPOINT cli_write;');
     try {
       _db.execute(
         'UPDATE notes SET is_trashed = 0, deleted_at = NULL, is_dirty = 1, updated_at = ? WHERE id = ?;',
         [now, existing.id],
       );
-      _updateSearchIndex(existing.id, existing.title, existing.content, existing.tags);
+      _updateSearchIndex(
+        existing.id,
+        existing.title,
+        existing.content,
+        existing.tags,
+      );
       _queueSyncMutation(existing.id, 'upsert', now);
-      _db.execute('COMMIT;');
+      _db.execute('RELEASE cli_write;');
     } catch (e) {
-      _db.execute('ROLLBACK;');
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
       rethrow;
     }
   }
@@ -651,14 +730,15 @@ class CliDatabase {
     if (existing == null) throw ArgumentError('Note not found: $id');
     final now = (DateTime.now().millisecondsSinceEpoch / 1000).round();
 
-    _db.execute('BEGIN TRANSACTION;');
+    _db.execute('SAVEPOINT cli_write;');
     try {
       _db.execute('DELETE FROM notes WHERE id = ?;', [existing.id]);
       _deleteSearchIndex(existing.id);
       _queueSyncMutation(existing.id, 'delete', now);
-      _db.execute('COMMIT;');
+      _db.execute('RELEASE cli_write;');
     } catch (e) {
-      _db.execute('ROLLBACK;');
+      _db.execute('ROLLBACK TO cli_write;');
+      _db.execute('RELEASE cli_write;');
       rethrow;
     }
   }
@@ -675,23 +755,30 @@ class CliDatabase {
       ORDER BY t.is_pinned DESC, t.name ASC;
     ''');
 
-    return rows.map((r) => CliTag(
-      id: r['id'] as String,
-      name: r['name'] as String,
-      noteCount: (r['note_count'] as int?) ?? 0,
-      color: r['color'] as String?,
-      icon: r['icon'] as String?,
-      isPinned: (r['is_pinned'] as int? ?? 0) == 1,
-    )).toList();
+    return rows
+        .map(
+          (r) => CliTag(
+            id: r['id'] as String,
+            name: r['name'] as String,
+            noteCount: (r['note_count'] as int?) ?? 0,
+            color: r['color'] as String?,
+            icon: r['icon'] as String?,
+            isPinned: (r['is_pinned'] as int? ?? 0) == 1,
+          ),
+        )
+        .toList();
   }
 
   List<String> _getTagsForNote(String noteId) {
-    final rows = _db.select('''
+    final rows = _db.select(
+      '''
       SELECT t.name FROM tags t
       INNER JOIN note_tags nt ON nt.tag_id = t.id
       WHERE nt.note_id = ? AND t.is_deleted = 0
       ORDER BY t.name ASC;
-    ''', [noteId]);
+    ''',
+      [noteId],
+    );
     return rows.map((r) => r['name'] as String).toList();
   }
 
@@ -703,7 +790,10 @@ class CliDatabase {
       final normalized = TagParser.normalizeTag(name);
       if (!TagParser.isValidTag(normalized)) continue;
 
-      final existing = _db.select('SELECT id FROM tags WHERE name = ? LIMIT 1;', [normalized]);
+      final existing = _db.select(
+        'SELECT id FROM tags WHERE name = ? LIMIT 1;',
+        [normalized],
+      );
       final String tagId;
       if (existing.isNotEmpty) {
         tagId = existing.first['id'] as String;
@@ -739,7 +829,9 @@ class CliDatabase {
       );
       final nextNumber = ((last.first['max_v'] as int?) ?? 0) + 1;
       const uuid = Uuid();
-      final words = content.trim().isEmpty ? 0 : content.trim().split(RegExp(r'\s+')).length;
+      final words = content.trim().isEmpty
+          ? 0
+          : content.trim().split(RegExp(r'\s+')).length;
 
       _db.execute(
         '''
@@ -776,7 +868,12 @@ class CliDatabase {
     } catch (_) {}
   }
 
-  void _updateSearchIndex(String noteId, String title, String content, List<String> tags) {
+  void _updateSearchIndex(
+    String noteId,
+    String title,
+    String content,
+    List<String> tags,
+  ) {
     _deleteSearchIndex(noteId);
     final tagsText = tags.map((t) => '#$t').join(' ');
     try {
@@ -793,8 +890,12 @@ class CliDatabase {
 
   void _deleteSearchIndex(String noteId) {
     try {
-      _db.execute('DELETE FROM note_search_prefix WHERE note_id = ?;', [noteId]);
-      _db.execute('DELETE FROM note_search_trigram WHERE note_id = ?;', [noteId]);
+      _db.execute('DELETE FROM note_search_prefix WHERE note_id = ?;', [
+        noteId,
+      ]);
+      _db.execute('DELETE FROM note_search_trigram WHERE note_id = ?;', [
+        noteId,
+      ]);
     } catch (_) {}
   }
 

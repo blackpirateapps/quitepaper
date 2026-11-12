@@ -5921,3 +5921,61 @@ Analysis revealed two root causes:
 
 
 
+
+## 269. Linux CLI encrypted image attachments and standalone uploads (November 12, 2026)
+
+### Motivation and behavior
+
+Terminal users can now attach local files and clipboard screenshots, create notes
+with `--attach`, and automatically import Markdown image paths during `new`/`edit`.
+`attachments` lists metadata or opens a local image in an external viewer; `sync`
+retries pending local note/image uploads. Original bytes are the default; explicit
+compression converts still images to bounded JPEGs. Relative paths resolve from
+the shell working directory with an optional `--base-dir` override.
+
+### Architecture
+
+- Shared crypto now imports a conditional portable foundation shim: Flutter keeps
+  its existing compute behavior while the standalone CLI uses `Isolate.run`.
+  Encryption envelopes, AAD and key derivation are unchanged.
+- `CliCredentials` reads the same Secret Service JSON entry or machine/user-bound
+  AES-GCM fallback as the app, supports interactive password unwrapping, and never
+  persists plaintext keys or modifies account credentials.
+- `CliAttachments` stages QPA1 ciphertext and commits attachment records with the
+  note, version, search entries and sync queue using nested SQLite savepoints.
+  Import failures and concurrent note edits preserve private recovery drafts.
+- `CliImagePath` preserves Markdown positions and excludes code/frontmatter/remote
+  images; inline and image reference destinations become permanent asset URIs.
+- `CliSync` refreshes the existing Firebase session when needed, verifies remote
+  key compatibility, uploads ciphertext via signed Cloudinary requests, confirms
+  metadata, pushes encrypted notes and projects resource references. It uses
+  optimistic revisions and snapshot comparisons to keep concurrent edits dirty.
+  Network/authentication failures and remote conflicts retain pending local data.
+- Sync intentionally uploads local work only. Desktop login/bootstrap, remote
+  pull/merge/conflict resolution, cloud-only image downloads and OCR remain with
+  the desktop application. No live account data was modified during validation.
+- Packaging recommends Linux clipboard/viewer helpers; Debian also recommends
+  `libsecret-tools` for Secret Service access.
+
+### Files
+
+New CLI modules: `cli_attachments.dart`, `cli_credentials.dart`,
+`cli_image_paths.dart`, `cli_sync.dart`, `cli_workspace.dart`, and
+`commands/attach_command.dart`. Updated CLI runner/new/edit/database, shared
+attachment/note crypto imports, portable foundation helpers, package metadata,
+Linux packaging, and the platform guide. New tests cover encrypted imports,
+rollback/recovery, concurrent edits, compression, Markdown parsing, credential
+compatibility, note upload failure/conflict handling and full attachment uploads.
+
+### Validation
+
+- `flutter analyze`: no issues.
+- `flutter test`: all 2,558 tests passed across the application.
+- Final `flutter test test/cli/`: all 50 tests passed, including the additional
+  desktop-schema compatibility and explicit-tag preservation checks.
+- `dart build cli -t bin/qp.dart -o build/cli`: standalone native binary built.
+- Native smoke tests with temporary databases and test-only encrypted credentials:
+  piped Markdown import, file attachment, simulated Wayland clipboard import,
+  metadata listing and rewritten Markdown display passed.
+- `git diff --check`: clean. No live cloud account, real clipboard or user notes
+  were used for smoke tests; HTTP upload/auth behavior uses mocked responses.

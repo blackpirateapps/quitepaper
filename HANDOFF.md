@@ -29,6 +29,14 @@ All documentation is partitioned for fast, targeted access by engineers and AI a
 
 ---
 
+## Latest Linux CLI Work
+
+The CLI supports encrypted image attachment, automatic Markdown image imports,
+clipboard screenshots, attachment listing/opening, and independent note/image
+upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-image-attachments)
+and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
+for commands, credential prerequisites, failure recovery and sync boundaries.
+
 ## 2. Quick Architectural Reference
 
 ### Core Principles

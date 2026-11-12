@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart' as standard_crypto;
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import 'package:meta/meta.dart';
+import '../utils/portable_foundation.dart';
 
 /// Versioned envelope for encrypted note content
 @immutable

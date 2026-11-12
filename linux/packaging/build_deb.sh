@@ -72,6 +72,7 @@ Architecture: amd64
 Maintainer: Black Pirate <dev@quitepaper.app>
 Installed-Size: ${INSTALLED_SIZE}
 Homepage: https://github.com/blackpirateapps/quitepaper
+Recommends: libsecret-tools, wl-clipboard, xclip, xdg-utils
 Depends: libc6 (>= 2.31), libgtk-3-0 (>= 3.24.0), libglib2.0-0 (>= 2.64.0), libsecret-1-0, liblzma5, libsqlite3-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good
 Description: Privacy-first, local-first encrypted notes and markdown journal
  Quiet Paper is an elegant, distraction-free markdown note-taking app and daily
