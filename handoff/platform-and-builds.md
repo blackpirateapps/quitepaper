@@ -32,6 +32,14 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 
 ## 2. CI/CD Workflows & Release Pipelines
 
+All seven `subosito/flutter-action` setup steps across the six workflows pin
+**Flutter 3.47.2** (Dart 3.13.2), matching local analysis and test validation.
+Keep these `flutter-version` values aligned when upgrading. An SDK upgrade must
+pass analysis, code generation and the full test suite before changing the pins.
+The moving `stable` channel selected Flutter 3.50.0 on November 12, 2026, which
+introduced Material library deprecation diagnostics across existing app/tests.
+Migration to the extracted Material package is future SDK upgrade work.
+
 Workflows are defined in [`.github/workflows/`](file:///home/dog/git/quitepaper/.github/workflows/):
 - **Android APK Pipeline** (`build_apk.yml`): Builds signed production APKs for all architectures with ProGuard rules applied.
 - **Linux Release Pipeline**: Compiles native Linux binaries and packages them into DEB, RPM, AppImage, and Flatpak formats.

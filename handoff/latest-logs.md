@@ -5979,3 +5979,33 @@ compatibility, note upload failure/conflict handling and full attachment uploads
   metadata listing and rewritten Markdown display passed.
 - `git diff --check`: clean. No live cloud account, real clipboard or user notes
   were used for smoke tests; HTTP upload/auth behavior uses mocked responses.
+
+## 270. Pin the CI Flutter SDK after analyzer drift (November 13, 2026)
+
+### Cause and fix
+
+The Test & Analyze run for commit `1f88a52` installed Flutter 3.50.0 through the
+unpinned `stable` channel. Its analyzer reported 396 informational diagnostics:
+395 deprecated Material imports and one rendering import made redundant by the
+newer SDK. The same source passes analysis on local Flutter 3.47.2 / Dart 3.13.2.
+
+Pin all seven Flutter setup steps in the six GitHub Actions workflows to
+`flutter-version: '3.47.2'` so analysis, Android builds, Linux builds and release
+jobs use the tested baseline. Retain analyzer strictness. SDK upgrades and the
+Material package migration should be validated explicitly before updating all
+pins together. No application, CLI, database or encryption behavior changes.
+
+### Files and verification
+
+Updated `.github/workflows/{test,build_linux,build_apk,build_aab,
+build_apk_pdf_annotation,release}.yml`, `HANDOFF.md` and the platform/build guide.
+
+- `flutter analyze`: no issues on Flutter 3.47.2 before code generation.
+- Targeted `dart analyze` of CLI, shared crypto and portable foundation: no issues.
+- `flutter test`: all 2,558 tests passed.
+- CI's `dart run build_runner build --delete-conflicting-outputs`: succeeded;
+  no tracked generated files changed. The generator warns that this existing
+  flag has been removed and is ignored.
+- All six workflow files parse as YAML; all seven Flutter setups pin 3.47.2.
+- Post-generation `flutter analyze`: no issues.
+- `git diff --check`: clean.

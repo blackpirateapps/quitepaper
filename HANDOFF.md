@@ -29,6 +29,14 @@ All documentation is partitioned for fast, targeted access by engineers and AI a
 
 ---
 
+## CI Flutter SDK baseline
+
+All Flutter workflows pin **Flutter 3.47.2** (Dart 3.13.2), matching the SDK used
+for local validation. Following the unpinned `stable` channel installed Flutter
+3.50.0 in CI and caused 396 analyzer diagnostics, primarily Material library
+deprecations. Keep the workflow pins aligned when deliberately upgrading the SDK;
+see [engineering log 270](handoff/latest-logs.md#270-pin-the-ci-flutter-sdk-after-analyzer-drift-november-13-2026).
+
 ## Latest Linux CLI Work
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
