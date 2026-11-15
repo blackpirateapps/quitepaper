@@ -5,145 +5,114 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../application/search_provider.dart';
 
-/// Segmented control for selecting the active Global Search category.
-///
-/// A single rounded track holds four equal segments; the selected segment is
-/// marked by an elevated "thumb" that slides smoothly between positions. This
-/// replaces the earlier row of four separately-bordered pills.
-class SearchFilterBar extends ConsumerWidget {
-  const SearchFilterBar({
-    super.key,
-    required this.results,
-  });
+/// Content-width category tabs shared by phone, tablet, and desktop search.
+class SearchFilterBar extends ConsumerStatefulWidget {
+  const SearchFilterBar({super.key, required this.results});
 
   final GlobalSearchResults results;
 
-  /// Index order of segments, used to position the sliding thumb.
-  static const List<SearchFilter> _order = [
+  @override
+  ConsumerState<SearchFilterBar> createState() => _SearchFilterBarState();
+}
+
+class _SearchFilterBarState extends ConsumerState<SearchFilterBar>
+    with SingleTickerProviderStateMixin {
+  static const _order = [
     SearchFilter.all,
     SearchFilter.notes,
     SearchFilter.documents,
     SearchFilter.tags,
   ];
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.appColors;
-    final activeFilter = ref.watch(searchFilterProvider);
-    final selectedIndex =
-        _order.indexOf(activeFilter).clamp(0, _order.length - 1);
+  late final TabController _controller;
 
-    final segments = <_SegmentData>[
-      _SegmentData(SearchFilter.all, 'All', results.totalCount, 'search_filter_all'),
-      _SegmentData(SearchFilter.notes, 'Notes', results.notesCount, 'search_filter_notes'),
-      _SegmentData(SearchFilter.documents, 'Docs', results.documentsCount, 'search_filter_documents'),
-      _SegmentData(SearchFilter.tags, 'Tags', results.tagsCount, 'search_filter_tags'),
+  @override
+  void initState() {
+    super.initState();
+    _controller = TabController(
+      length: _order.length,
+      initialIndex: _order.indexOf(ref.read(searchFilterProvider)),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    ref.listen(searchFilterProvider, (_, filter) {
+      final index = _order.indexOf(filter);
+      if (_controller.index != index) _controller.animateTo(index);
+    });
+    final results = widget.results;
+    final tabs = [
+      ('All', results.totalCount, 'search_filter_all'),
+      ('Notes', results.notesCount, 'search_filter_notes'),
+      ('Docs', results.documentsCount, 'search_filter_documents'),
+      ('Tags', results.tagsCount, 'search_filter_tags'),
     ];
 
-    return Container(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
-      color: colors.background,
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: colors.surfaceSubtle,
-          borderRadius: BorderRadius.circular(12),
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: TabBar(
+        controller: _controller,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        indicatorSize: TabBarIndicatorSize.label,
+        indicatorColor: colors.accent,
+        indicatorWeight: 2,
+        dividerColor: colors.divider,
+        dividerHeight: 1,
+        labelColor: colors.textPrimary,
+        unselectedLabelColor: colors.textSecondary,
+        labelStyle: AppTypography.caption.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final segmentWidth = constraints.maxWidth / segments.length;
-            return Stack(
-              children: [
-                // Sliding selection thumb.
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  left: selectedIndex * segmentWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: segmentWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(
-                        color: colors.divider.withValues(alpha: 0.6),
-                        width: 0.8,
+        unselectedLabelStyle: AppTypography.caption.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        labelPadding: const EdgeInsetsDirectional.only(end: AppSpacing.lg),
+        onTap: (index) =>
+            ref.read(searchFilterProvider.notifier).state = _order[index],
+        tabs: [
+          for (final (label, count, keyId) in tabs)
+            Tab(
+              key: ValueKey(keyId),
+              height: 44,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(label),
+                  if (count > 0) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      '$count',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w400,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black
-                              .withValues(alpha: colors.isDark ? 0.28 : 0.07),
-                          blurRadius: 6,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
                     ),
-                  ),
-                ),
-                // Segment labels (drawn above the thumb).
-                Row(
-                  children: segments.map((seg) {
-                    final isSelected = seg.filter == activeFilter;
-                    return Expanded(
-                      child: InkWell(
-                        key: ValueKey(seg.keyId),
-                        onTap: () => ref
-                            .read(searchFilterProvider.notifier)
-                            .state = seg.filter,
-                        borderRadius: BorderRadius.circular(9),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                seg.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.caption.copyWith(
-                                  color: isSelected
-                                      ? colors.textPrimary
-                                      : colors.textSecondary,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ),
-                            if (seg.count > 0) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                '${seg.count}',
-                                style: AppTypography.caption.copyWith(
-                                  color: colors.textTertiary,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 10.5,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            );
-          },
-        ),
+                  ],
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
-}
-
-class _SegmentData {
-  const _SegmentData(this.filter, this.label, this.count, this.keyId);
-
-  final SearchFilter filter;
-  final String label;
-  final int count;
-  final String keyId;
 }

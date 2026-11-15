@@ -6144,3 +6144,38 @@ explicitly use phone dimensions to continue covering the original mobile flow.
   portrait-tablet (768×1024) screenshots with real fonts and the app's dark theme;
   both were visually inspected. The capture harness passed.
 - `git diff --check`: clean.
+
+## 274. Search category underline tabs on all screen sizes (November 15, 2026)
+
+### Approved design and implementation
+
+The user selected underline tabs with result counts for desktop, tablet, and
+mobile after reviewing category-control mockups. The previous filled rounded
+track and equal-width selection thumb made the category row look heavy.
+
+- `SearchFilterBar` now uses a native scrollable `TabBar` with content-width
+  labels, a themed accent underline, and a thin divider. It has no segmented
+  background, selected surface, outline, or shadow.
+- Labels and positive result counts share an alphabetic baseline; counts remain
+  secondary text beside their categories. The existing All/Notes/Docs/Tags counts,
+  category keys, and filtering semantics are preserved.
+- A locally owned/disposed `TabController` starts with the provider's active
+  category and follows external category changes. Tapping a tab updates the
+  provider. Native tab scrolling keeps labels/counts accessible in narrow result
+  panes without squeezing or truncating them.
+- The shared component supplies the same design in the split search workspace
+  and the mobile single-column search page. No search-engine changes were needed.
+
+### Files and validation
+
+Updated `search_filter_bar.dart`, `HANDOFF.md`, and the tags/search guide.
+
+- `flutter analyze`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test test/search/search_workspace_test.dart test/search/ocr_global_search_test.dart test/features/notes/gestures_test.dart`
+  — all **39 passed**, covering filtering/selection, provider changes, desktop and
+  portrait-tablet layouts, the mobile OCR flow, and search navigation.
+- A temporary capture harness outside the repository passed and rendered the
+  updated control with real fonts at desktop (1440×900), tablet (768×1024), and
+  phone (390×844) sizes. Tablet and phone screenshots were visually inspected.
+- `git diff --check`: clean.

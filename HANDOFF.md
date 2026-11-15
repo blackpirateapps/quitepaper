@@ -60,6 +60,10 @@ the results pane; a draggable divider resizes the panes. The first result previe
 automatically, and Open/Edit actions open the selected item separately. See
 [engineering log 273](handoff/latest-logs.md#273-desktop-and-tablet-search-results-and-preview-workspace-november-15-2026).
 
+Search categories now use content-width underline tabs with result counts on
+desktop, tablet, and mobile. See
+[engineering log 274](handoff/latest-logs.md#274-search-category-underline-tabs-on-all-screen-sizes-november-15-2026).
+
 Desktop toolbar and keyboard search now open immediately. The split pane retains
 its height when the notes list is hidden, and disabling swipe-to-search no longer
 disables explicit search actions. See
