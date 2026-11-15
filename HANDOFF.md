@@ -52,7 +52,13 @@ the title places a visible caret at the beginning of the body, and empty editabl
 bodies display `Start writing...` until text is entered. See
 [engineering log 271](handoff/latest-logs.md#271-super-editor-title-to-body-caret-divider-and-placeholder-november-15-2026).
 
-## Latest Desktop Search Fix
+## Latest Desktop and Tablet Search Workspace
+
+Search now uses compact results beside a read-only preview at widths of 600dp
+and above, including portrait tablets. Search and category filters stay above
+the results pane; a draggable divider resizes the panes. The first result previews
+automatically, and Open/Edit actions open the selected item separately. See
+[engineering log 273](handoff/latest-logs.md#273-desktop-and-tablet-search-results-and-preview-workspace-november-15-2026).
 
 Desktop toolbar and keyboard search now open immediately. The split pane retains
 its height when the notes list is hidden, and disabling swipe-to-search no longer

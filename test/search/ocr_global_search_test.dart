@@ -384,6 +384,11 @@ void main() {
 
   group('Global Search Provider & Screen UI Integration', () {
     testWidgets('Renders SearchFilterBar, fuzzy highlights, DocumentSearchTile, and surfaces parent note in Notes', (tester) async {
+      // This integration exercises the existing phone search and viewer flow.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       // Setup Note and Document in DB
       await db.saveNote(
         id: 'note-ui-1',
@@ -477,6 +482,11 @@ void main() {
     });
 
     testWidgets('Surfaces Image Attachment OCR match and opens ImageViewerModal on tap', (tester) async {
+      // This integration exercises the existing phone search and viewer flow.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await db.saveNote(
         id: 'note-img-test',
         title: 'Hardware Receipts',

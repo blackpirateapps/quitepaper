@@ -6089,3 +6089,58 @@ Updated the reveal widget, notes screen, search route, gesture tests,
 - Before the fixes, the five initial Linux regressions failed; the new tablet
   hit-test assertion also guards against the previously invisible search pane.
 - `git diff --check`: clean.
+
+## 273. Desktop and tablet search results and preview workspace (November 15, 2026)
+
+### Approved layout and behavior
+
+The previous search page stretched its field, category control, and note rows
+across the entire window. The user chose a results-and-preview split: read-only
+preview with optional Open/Edit, automatic first-result selection, a draggable
+divider, controls above the results pane, compact rows, and the same layout on
+tablets, including portrait.
+
+### Implementation
+
+- `SearchScreen` switches to `SearchWorkspace` at 600dp of available width.
+  Phone-sized views keep their existing list and pull-to-search presentation.
+  NotesScreen opens the full-window workspace from wide-screen toolbar/keyboard
+  actions and tablet pulls so it has room outside the 320dp notes pane. Desktop
+  routes retain immediate opening; the tablet pull threshold remains 120dp.
+- The workspace uses a 40% initial results width, constrained minimum pane sizes,
+  and a draggable divider with a resize cursor and accessibility adjustments.
+  Search/category controls remain above compact, lazily built result rows.
+- Result selection previews the first visible item automatically, resets for a
+  changed query/category, and retains explicit selections during progressive
+  updates. Old-query values retained by Riverpod are excluded from the preview.
+  Notes-before-documents ordering in All and existing category semantics remain.
+- `SearchResultRow` keeps highlighted titles and one-line snippets together with
+  compact dates/tags/attachment metadata. It does not change shared note tiles.
+- `SearchResultPreview` renders Markdown/RichDocument notes through the existing
+  preview renderer without mutation callbacks, editable tags, interactive
+  checklists, or an editor/autosave session. Password-protected notes require
+  opening to unlock. PDFs preview the matching page without annotation controls;
+  attachment images are passive previews accompanied by OCR text. Unavailable
+  documents retain their match snippet; web snapshots open separately.
+- Open and Edit launch the selected note separately in the corresponding mode;
+  returning refreshes search results while preserving the query. Document and
+  image Open actions retain the existing viewers and matching-page navigation.
+
+### Files and validation
+
+Updated `search_screen.dart`, `notes_screen.dart`, the new `search_workspace.dart`,
+`search_result_row.dart`, and `search_result_preview.dart`, the search/navigation
+tests, `HANDOFF.md`, and the tags/search guide. Existing OCR integration tests
+explicitly use phone dimensions to continue covering the original mobile flow.
+
+- `flutter analyze`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test test/search/search_workspace_test.dart test/search/ocr_global_search_test.dart test/features/notes/gestures_test.dart`
+  — all **39 passed**, including 13 new workspace tests. Coverage includes
+  1920/1024/768/600dp layouts, portrait tablets, compact rows, selection/filter
+  changes, progressive updates, stale queries, protected notes, document fallback,
+  divider limits/window resizing, read-only callbacks, and Open/Edit navigation.
+- A temporary harness outside the repository rendered desktop (1440×900) and
+  portrait-tablet (768×1024) screenshots with real fonts and the app's dark theme;
+  both were visually inspected. The capture harness passed.
+- `git diff --check`: clean.

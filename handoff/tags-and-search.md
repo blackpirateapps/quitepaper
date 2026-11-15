@@ -42,23 +42,45 @@ The search subsystem resides in [`lib/features/search/`](file:///home/dog/git/qu
 - **Multi-Token Relevance Ranking**: Queries with multiple keywords match against note titles, decrypted note bodies, tag names, document names, and OCR text.
 - Results are ranked by relevance (title match > tag match > body match > OCR match).
 
-### Category Filter Chips
+### Category Filters
 - Quick filters allow users to narrow results instantly:
   - **All**: Unfiltered search across all entities.
   - **Notes**: Standard markdown and visual notes.
-  - **Documents**: Scanned documents and attached PDFs.
-  - **OCR**: Matches specifically within extracted document text.
-  - **Journal**: Entries originating from the daily journal.
+  - **Docs**: Documents and image attachments, including OCR matches.
+  - **Tags**: Notes whose tags match the query.
+
+### Desktop and Tablet Search Workspace
+
+- At an available width of **600dp or greater**, `SearchScreen` shows compact
+  results on the left and a read-only preview on the right. Portrait tablets use
+  this same arrangement. Narrower windows retain the single-column phone view.
+- `SearchWorkspace` keeps search/category controls above the results and provides
+  a draggable divider with minimum pane widths. The initial split is 40% results;
+  resizing respects each pane's minimum and adapts to window changes.
+- The first visible result previews automatically. Clicking a row selects it;
+  explicit selections survive progressive result updates. A changed query or
+  category selects the first new result, and previous-query results are hidden
+  while the search provider refreshes. All preserves the existing notes-then-docs
+  ordering; other categories use the model's filtered lists.
+- `SearchResultPreview` uses `QuietMarkdownPreview` for Markdown and RichDocument
+  notes without mutation callbacks or interactive checklists. Protected notes
+  require opening/unlocking. PDF results show their matching page in a viewer
+  without annotation controls; images show a passive image and OCR snippet.
+  Unavailable documents show their match text, and web snapshots open separately.
+- **Open** launches the existing note/document/image viewer; **Edit** opens a note
+  in editing mode. Returning from a note refreshes search results. No editor or
+  autosave session starts merely from selecting a search result.
+- Toolbar/keyboard actions open a full-window search route on desktop/tablet;
+  the tablet list's pull gesture opens the same route instead of confining it to
+  the 320dp notes pane. Phone pull-to-search retains its in-place reveal.
 
 ### Visual Highlighting & Navigation
 - Search matches highlight matching terms within note snippets in real time.
 - Clicking an OCR match jumps directly to the matching page in the PDF / Scanned Document Viewer.
 - **In-Place Pull-Down to Search**: Pulling down on the note list smoothly unveils the search input without jarring screen transitions or layout pops.
-- **Desktop Search Opening**: Toolbar and keyboard actions reveal search on the
-  next frame without the touch slide animation. The search stack fills the pane
-  even when the notes list is offstage, preserving height under the desktop
-  AnimatedSwitcher's loose constraints. The swipe preference gates only scroll
-  gestures; explicit search actions remain available when it is disabled.
+- **Desktop Search Opening**: Toolbar and keyboard actions open search on the
+  next frame without the touch slide animation. The swipe preference gates only
+  scroll gestures; explicit search actions remain available when it is disabled.
 - **In-Note Search & Replace**: In-editor search bar supporting next/previous navigation and batch text replacement.
 
 ---

@@ -91,6 +91,8 @@ void main() {
             );
             expect(field.hitTestable(), findsOneWidget,
                 reason: 'Search must accept input on the first frame');
+            expect(find.byKey(const ValueKey('search_pane_divider')), findsOneWidget);
+            expect(tester.getSize(find.byType(SearchScreen)).width, width);
             await tester.pump();
             expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
             await tester.tap(find.byTooltip('Back'));
@@ -323,8 +325,10 @@ void main() {
       // SearchScreen should be opened
       expect(find.byType(SearchScreen), findsOneWidget);
 
-      // The pane must retain its height after the notes list goes offstage.
+      // Tablet pull opens the full workspace, including the preview pane.
       expect(find.byType(TextField).hitTestable(), findsOneWidget);
+      expect(find.byKey(const ValueKey('search_pane_divider')), findsOneWidget);
+      expect(tester.getSize(find.byType(SearchScreen)).width, 1024);
 
       await finishTest(tester);
     });

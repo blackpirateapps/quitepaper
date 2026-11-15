@@ -19,6 +19,7 @@ import '../../tags/domain/tag_icon_registry.dart';
 import '../application/search_provider.dart';
 import 'widgets/document_search_tile.dart';
 import 'widgets/search_filter_bar.dart';
+import 'widgets/search_workspace.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({
@@ -100,54 +101,93 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final activeFilter = ref.watch(searchFilterProvider);
     final hasQuery = query.trim().isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: QuietIconButton(
-          icon: Icons.arrow_back_rounded,
-          tooltip: 'Back',
-          onPressed: () {
-            ref.read(searchQueryProvider.notifier).state = '';
-            if (widget.onClose != null) {
-              widget.onClose!();
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-        actions: [
-          QuietIconButton(
-            icon: Icons.add_rounded,
-            tooltip: 'New note',
-            onPressed: () => _createAndOpenNote(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 600;
+        final toolbar = AppBar(
+          backgroundColor: colors.background,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: QuietIconButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
+            onPressed: () {
+              ref.read(searchQueryProvider.notifier).state = '';
+              if (widget.onClose != null) {
+                widget.onClose!();
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
           ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(colors, hasQuery),
-            Expanded(
-              child: hasQuery
-                  ? _buildResultsArea(
-                      context, colors, query, searchResultsAsync, activeFilter)
-                  : _buildInitialState(colors),
+          actions: [
+            QuietIconButton(
+              icon: Icons.add_rounded,
+              tooltip: 'New note',
+              onPressed: () => _createAndOpenNote(context),
             ),
+            const SizedBox(width: AppSpacing.xs),
           ],
-        ),
-      ),
+        );
+        return Scaffold(
+          backgroundColor: colors.background,
+          appBar: isWide ? null : toolbar,
+          body: SafeArea(
+            child: isWide
+                ? SearchWorkspace(
+                    header: Column(
+                      children: [
+                        SizedBox(height: kToolbarHeight, child: toolbar),
+                        _buildHeader(colors, hasQuery),
+                      ],
+                    ),
+                    initialState: hasQuery
+                        ? const SizedBox.shrink()
+                        : _buildInitialState(colors),
+                    query: query,
+                    results: searchResultsAsync,
+                    filter: activeFilter,
+                    onOpen: (result) {
+                      if (result is NoteSearchMatch) {
+                        _openNoteInEditor(context, result.note);
+                      } else if (result is DocumentSearchMatch) {
+                        _openDocument(context, result);
+                      }
+                    },
+                    onEdit: (result) =>
+                        _openNoteInEditor(context, result.note, preview: false),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(colors, hasQuery),
+                      Expanded(
+                        child: hasQuery
+                            ? _buildResultsArea(
+                                context,
+                                colors,
+                                query,
+                                searchResultsAsync,
+                                activeFilter,
+                              )
+                            : _buildInitialState(colors),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildHeader(AppColors colors, bool hasQuery) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.sm),
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -212,12 +252,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               autofocus: widget.autoFocus && widget.initialQuery.isEmpty,
               cursorColor: colors.accent,
               textInputAction: TextInputAction.search,
-              style: AppTypography.body
-                  .copyWith(color: colors.textPrimary, fontSize: 16.5),
+              style: AppTypography.body.copyWith(
+                color: colors.textPrimary,
+                fontSize: 16.5,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search notes, documents, OCR, tags...',
-                hintStyle: AppTypography.body
-                    .copyWith(color: colors.textTertiary, fontSize: 16.5),
+                hintStyle: AppTypography.body.copyWith(
+                  color: colors.textTertiary,
+                  fontSize: 16.5,
+                ),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
@@ -236,8 +280,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 radius: 20,
                 child: Padding(
                   padding: const EdgeInsets.all(6),
-                  child: Icon(Icons.close_rounded,
-                      size: 18, color: colors.textTertiary),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: colors.textTertiary,
+                  ),
                 ),
               );
             },
@@ -274,8 +321,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ? _buildEmptyResultsState(
                     colors,
                     query,
-                    isSearching:
-                        results.searchPhase != SearchPhase.complete,
+                    isSearching: results.searchPhase != SearchPhase.complete,
                   )
                 : _buildResultsList(
                     context: context,
@@ -333,19 +379,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
       case SearchFilter.documents:
         if (results.documentMatches.isEmpty) {
-          return _buildEmptyCategoryState(colors, 'No matching documents or OCR text found');
+          return _buildEmptyCategoryState(
+            colors,
+            'No matching documents or OCR text found',
+          );
         }
         return ListView.builder(
           itemCount: results.documentMatches.length,
           itemBuilder: (context, index) {
-            return _buildDocumentTile(context, results.documentMatches[index], query);
+            return _buildDocumentTile(
+              context,
+              results.documentMatches[index],
+              query,
+            );
           },
         );
 
       case SearchFilter.tags:
-        final tagNotes = results.noteMatches.where((n) => n.matchedInTags).toList();
+        final tagNotes = results.noteMatches
+            .where((n) => n.matchedInTags)
+            .toList();
         if (tagNotes.isEmpty) {
-          return _buildEmptyCategoryState(colors, 'No notes found matching tag query');
+          return _buildEmptyCategoryState(
+            colors,
+            'No notes found matching tag query',
+          );
         }
         return ListView.builder(
           itemCount: tagNotes.length,
@@ -364,7 +422,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
       case SearchFilter.all:
         final showSectionHeaders =
-            results.noteMatches.isNotEmpty && results.documentMatches.isNotEmpty;
+            results.noteMatches.isNotEmpty &&
+            results.documentMatches.isNotEmpty;
 
         return ListView(
           children: [
@@ -387,7 +446,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             // Documents & OCR Section
             if (results.documentMatches.isNotEmpty) ...[
               if (showSectionHeaders)
-                _buildSectionHeader(colors, 'DOCUMENTS & SCANNED OCR', results.documentsCount),
+                _buildSectionHeader(
+                  colors,
+                  'DOCUMENTS & SCANNED OCR',
+                  results.documentsCount,
+                ),
               ...results.documentMatches.map((docMatch) {
                 return _buildDocumentTile(context, docMatch, query);
               }),
@@ -399,7 +462,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildSectionHeader(AppColors colors, String title, int count) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
       color: colors.background,
       child: Row(
         children: [
@@ -481,8 +549,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             persist: false,
             action: SnackBarAction(
               label: 'Undo',
-              onPressed: () =>
-                  repo.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt),
+              onPressed: () => repo.restoreFromTrash(
+                note.id,
+                restoreUpdatedAt: note.updatedAt,
+              ),
             ),
             duration: const Duration(seconds: 4),
           ),
@@ -500,8 +570,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             persist: false,
             action: SnackBarAction(
               label: 'Undo',
-              onPressed: () =>
-                  repo.restoreFromTrash(note.id, restoreUpdatedAt: note.updatedAt),
+              onPressed: () => repo.restoreFromTrash(
+                note.id,
+                restoreUpdatedAt: note.updatedAt,
+              ),
             ),
             duration: const Duration(seconds: 4),
           ),
@@ -510,27 +582,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildDocumentTile(BuildContext context, DocumentSearchMatch match, String query) {
+  Widget _buildDocumentTile(
+    BuildContext context,
+    DocumentSearchMatch match,
+    String query,
+  ) {
     return DocumentSearchTile(
       match: match,
       searchQuery: query,
-      onTap: () {
-        if (match.isAttachment && match.attachment != null) {
-          ImageViewerModal.open(
-            context,
-            assetId: match.attachment!.id,
-            altText: match.title,
-          );
-        } else if (match.document != null) {
-          DocumentViewerScreen.open(
-            context,
-            documentId: match.document!.id,
-            title: match.document!.title,
-            initialPageIndex: match.matchedPageNumber > 0 ? match.matchedPageNumber - 1 : 0,
-          );
-        }
-      },
+      onTap: () => _openDocument(context, match),
     );
+  }
+
+  void _openDocument(BuildContext context, DocumentSearchMatch match) {
+    if (match.isAttachment && match.attachment != null) {
+      ImageViewerModal.open(
+        context,
+        assetId: match.attachment!.id,
+        altText: match.title,
+      );
+    } else if (match.document != null) {
+      DocumentViewerScreen.open(
+        context,
+        documentId: match.document!.id,
+        title: match.document!.title,
+        initialPageIndex: match.matchedPageNumber > 0
+            ? match.matchedPageNumber - 1
+            : 0,
+      );
+    }
   }
 
   Widget _buildInitialState(AppColors colors) {
@@ -585,7 +665,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
               return ActionChip(
                 avatar: Icon(
-                  TagIconRegistry.getIconData(tag.icon, fallback: Icons.tag_rounded),
+                  TagIconRegistry.getIconData(
+                    tag.icon,
+                    fallback: Icons.tag_rounded,
+                  ),
                   size: 14,
                   color: customColor ?? colors.accent,
                 ),
@@ -635,7 +718,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 },
                 borderRadius: BorderRadius.circular(4),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
                   child: Text(
                     'Browse all →',
                     style: AppTypography.caption.copyWith(
@@ -658,7 +744,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
               return ActionChip(
                 avatar: Icon(
-                  TagIconRegistry.getIconData(tag.icon, fallback: Icons.tag_rounded),
+                  TagIconRegistry.getIconData(
+                    tag.icon,
+                    fallback: Icons.tag_rounded,
+                  ),
                   size: 14,
                   color: customColor ?? colors.textSecondary,
                 ),
@@ -699,7 +788,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildEmptyResultsState(AppColors colors, String query, {bool isSearching = false}) {
+  Widget _buildEmptyResultsState(
+    AppColors colors,
+    String query, {
+    bool isSearching = false,
+  }) {
     if (isSearching) {
       return Center(
         child: Padding(
@@ -764,14 +857,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       widget.onNoteSelected!(note);
       return;
     }
-    Navigator.of(context).push(
+    _openNoteInEditor(context, note);
+  }
+
+  Future<void> _openNoteInEditor(
+    BuildContext context,
+    Note note, {
+    bool preview = true,
+  }) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditorScreen(
-          note: note,
-          initialPreviewMode: true,
-        ),
+        builder: (_) => EditorScreen(note: note, initialPreviewMode: preview),
       ),
     );
+    if (mounted) ref.invalidate(globalSearchResultsProvider);
   }
 
   void _createAndOpenNote(BuildContext context) async {
@@ -812,29 +911,31 @@ class SearchPageRoute<T> extends PageRouteBuilder<T> {
     required WidgetBuilder builder,
     bool animate = true,
     super.settings,
-  })
-      : super(
-          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
-          transitionDuration:
-              animate ? const Duration(milliseconds: 260) : Duration.zero,
-          reverseTransitionDuration:
-              animate ? const Duration(milliseconds: 220) : Duration.zero,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curved = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-              reverseCurve: Curves.easeInCubic,
-            );
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, -0.06),
-                end: Offset.zero,
-              ).animate(curved),
-              child: FadeTransition(
-                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
-                child: child,
-              ),
-            );
-          },
-        );
+  }) : super(
+         pageBuilder: (context, animation, secondaryAnimation) =>
+             builder(context),
+         transitionDuration: animate
+             ? const Duration(milliseconds: 260)
+             : Duration.zero,
+         reverseTransitionDuration: animate
+             ? const Duration(milliseconds: 220)
+             : Duration.zero,
+         transitionsBuilder: (context, animation, secondaryAnimation, child) {
+           final curved = CurvedAnimation(
+             parent: animation,
+             curve: Curves.easeOutCubic,
+             reverseCurve: Curves.easeInCubic,
+           );
+           return SlideTransition(
+             position: Tween<Offset>(
+               begin: const Offset(0.0, -0.06),
+               end: Offset.zero,
+             ).animate(curved),
+             child: FadeTransition(
+               opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+               child: child,
+             ),
+           );
+         },
+       );
 }

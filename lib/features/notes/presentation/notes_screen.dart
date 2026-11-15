@@ -2189,33 +2189,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             'tablet_notes_list',
                                           ),
                                           isTabletPane: true,
+                                          threshold: 120,
                                           enabled: defaultSettings
                                               .swipeDownToSearchNotes,
-                                          onOpenSearch: () {},
+                                          onOpenSearch: () =>
+                                              _openWideSearch(context),
                                           onStateCreated: (state) =>
                                               _tabletPullDownState = state,
-                                          searchViewBuilder:
-                                              (
-                                                context,
-                                                isPastThreshold,
-                                                onClose,
-                                              ) {
-                                                return SearchScreen(
-                                                  onClose: onClose,
-                                                  isPastThreshold:
-                                                      isPastThreshold,
-                                                  autoFocus:
-                                                      _tabletPullDownState
-                                                          ?.isSearchActive ??
-                                                      false,
-                                                  onNoteSelected: (note) {
-                                                    setState(() {
-                                                      _selectedNoteIdForTablet =
-                                                          note.id;
-                                                    });
-                                                  },
-                                                );
-                                              },
                                           child: GestureDetector(
                                             behavior:
                                                 HitTestBehavior.translucent,
@@ -3165,9 +3145,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   void _openSearchScreen(BuildContext context) {
     HapticFeedback.lightImpact();
-    final isTablet = MediaQuery.sizeOf(context).width >= 900.0;
-    final searchState =
-        isTablet ? _tabletPullDownState : _phonePullDownKey.currentState;
+    if (MediaQuery.sizeOf(context).width >= 600) {
+      _openWideSearch(context);
+      return;
+    }
+    final searchState = _phonePullDownKey.currentState;
     final animate = !PlatformLayoutHelper.isDesktop(context);
     if (searchState != null && searchState.mounted) {
       searchState.openSearch(animate: animate);
@@ -3179,6 +3161,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         animate: animate,
       ));
     }
+  }
+
+  void _openWideSearch(BuildContext context) {
+    Navigator.of(context).push(SearchPageRoute(
+      builder: (_) => const SearchScreen(),
+      animate: !PlatformLayoutHelper.isDesktop(context),
+    ));
   }
 
   void _openNote(BuildContext context, Note note) {
