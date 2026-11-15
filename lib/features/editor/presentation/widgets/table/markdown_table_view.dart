@@ -1,3 +1,8 @@
+import '../../../application/markdown_table_parser.dart';
+import '../../../application/smart_table_display.dart';
+import '../../../application/smart_table_edits.dart';
+import '../../../application/smart_table_markdown.dart';
+import '../../../domain/smart_tables/formula_engine.dart';
 import 'package:flutter/material.dart';
 import '../../../../../app/theme/app_colors.dart';
 import '../../../../../app/theme/app_radii.dart';
@@ -11,7 +16,7 @@ import '../../../domain/markdown_table_position.dart';
 
 /// Renders a lightweight, visually styled Markdown table.
 /// Used for inactive tables and read-only preview mode.
-class MarkdownTableView extends StatelessWidget {
+class MarkdownTableView extends StatefulWidget {
   const MarkdownTableView({
     super.key,
     required this.table,
@@ -19,13 +24,51 @@ class MarkdownTableView extends StatelessWidget {
     this.onCellTap,
     this.readOnly = false,
     this.searchQuery,
+    this.sourceMarkdown,
   });
 
   final MarkdownTable table;
+  final String? sourceMarkdown;
   final MarkdownStyles? styles;
   final ValueChanged<TablePosition>? onCellTap;
   final bool readOnly;
   final String? searchQuery;
+
+  @override
+  State<MarkdownTableView> createState() => _MarkdownTableViewState();
+}
+
+class _MarkdownTableViewState extends State<MarkdownTableView> {
+  MarkdownTable get table => widget.table;
+  MarkdownStyles? get styles => widget.styles;
+  ValueChanged<TablePosition>? get onCellTap => widget.onCellTap;
+  bool get readOnly => widget.readOnly;
+  String? get searchQuery => widget.searchQuery;
+  late FormulaEngine _engine;
+  Map<String, dynamic> _formats = {};
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  @override
+  void didUpdateWidget(MarkdownTableView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.table != widget.table ||
+        oldWidget.sourceMarkdown != widget.sourceMarkdown) {
+      _refresh();
+    }
+  }
+
+  void _refresh() {
+    _engine = FormulaEngine(tableRawCells(table));
+    final source = widget.sourceMarkdown ?? table.rawMarkdown;
+    final projection = widget.sourceMarkdown == null
+        ? const MarkdownTableParser().findTables(source).first
+        : table;
+    _formats = SmartTableMetadata.read(source, projection).section('formats');
+  }
 
   static const double _columnWidth = 140.0;
 
@@ -33,6 +76,7 @@ class MarkdownTableView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final effectiveStyles = styles ?? MarkdownStyles.fromColors(colors);
+    final engine = _engine;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -60,6 +104,7 @@ class MarkdownTableView extends StatelessWidget {
                 isHeader: true,
                 colors: colors,
                 styles: effectiveStyles,
+                engine: engine,
               ),
 
               // Body Rows
@@ -76,6 +121,7 @@ class MarkdownTableView extends StatelessWidget {
                   isHeader: false,
                   colors: colors,
                   styles: effectiveStyles,
+                  engine: engine,
                 ),
               ],
             ],
@@ -92,11 +138,14 @@ class MarkdownTableView extends StatelessWidget {
     required bool isHeader,
     required AppColors colors,
     required MarkdownStyles styles,
+    required FormulaEngine engine,
   }) {
     final cells = row.cells as List<MarkdownTableCell>;
 
     return Container(
-      color: isHeader ? colors.tagBackground.withValues(alpha: 0.35) : Colors.transparent,
+      color: isHeader
+          ? colors.tagBackground.withValues(alpha: 0.35)
+          : Colors.transparent,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -114,6 +163,7 @@ class MarkdownTableView extends StatelessWidget {
               isHeader: isHeader,
               colors: colors,
               styles: styles,
+              engine: engine,
             ),
           ],
         ],
@@ -129,8 +179,18 @@ class MarkdownTableView extends StatelessWidget {
     required bool isHeader,
     required AppColors colors,
     required MarkdownStyles styles,
+    required FormulaEngine engine,
   }) {
-    final cellText = cell?.trimmedText ?? '';
+    final raw = cell?.trimmedText ?? '';
+    final config = _formats['$columnIndex'];
+    final cellText =
+        config != null || raw.startsWith('=') || raw.startsWith("'=")
+        ? SmartTableDisplay.format(
+            engine.value(rowIndex, columnIndex),
+            config,
+            locale: Localizations.localeOf(context).toString(),
+          )
+        : raw;
     final alignment = table.getAlignment(columnIndex);
     final pos = TablePosition(row: rowIndex, column: columnIndex);
 
@@ -165,7 +225,11 @@ class MarkdownTableView extends StatelessWidget {
     );
 
     if (readOnly || onCellTap == null) {
-      return contentWidget;
+      return Semantics(
+        label:
+            'Row ${rowIndex + 1}, column ${columnIndex + 1}, $cellText${raw.startsWith('=') ? ', formula $raw' : ''}',
+        child: contentWidget,
+      );
     }
 
     return InkWell(

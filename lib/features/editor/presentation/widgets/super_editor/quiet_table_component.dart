@@ -1,3 +1,4 @@
+import '../../../application/smart_table_markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_radii.dart';
@@ -16,7 +17,9 @@ import 'package:super_editor/super_editor.dart';
 /// using Quiet Paper's [MarkdownTableView] and provides tap-to-edit
 /// via [MarkdownTableEditor].
 class QuietTableComponentBuilder implements ComponentBuilder {
-  QuietTableComponentBuilder({required this.editor});
+  QuietTableComponentBuilder({required this.editor, this.readOnly = false});
+
+  final bool readOnly;
 
   final Editor editor;
 
@@ -74,6 +77,7 @@ class QuietTableComponentBuilder implements ComponentBuilder {
       componentKey: componentContext.componentKey,
       node: node,
       editor: editor,
+      readOnly: readOnly,
     );
   }
 }
@@ -86,11 +90,13 @@ class QuietTableComponent extends StatefulWidget {
     required this.componentKey,
     required this.node,
     required this.editor,
+    this.readOnly = false,
   });
 
   final GlobalKey componentKey;
   final TableBlockNode node;
   final Editor editor;
+  final bool readOnly;
 
   @override
   State<QuietTableComponent> createState() => _QuietTableComponentState();
@@ -109,7 +115,22 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(QuietTableComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isEditing) {
+      final incoming = _serializeTableNode(widget.node);
+      if (incoming != _workingMarkdown) {
+        _workingMarkdown = incoming;
+        _editController!.clearHistory();
+        _editController!.reloadFrom(TextEditingValue(text: incoming));
+      }
+    }
+  }
+
   String _serializeTableNode(TableBlockNode node) {
+    final raw = node.metadata[quietTableSourceKey];
+    if (raw is String) return raw;
     try {
       final doc = MutableDocument(nodes: [node]);
       final md = serializeDocumentToMarkdown(doc);
@@ -149,8 +170,9 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
   }
 
   /// Enters inline tap-to-activate editing, seeding a controller from the
-  /// node's current Markdown. Edits stay local until [_commitEdit].
+  /// node's current Markdown. Committed input publishes through document history.
   void _startInlineEdit([TablePosition? initialPos]) {
+    if (widget.readOnly) return;
     if (_isEditing) {
       if (initialPos != null) _editController!.setActivePosition(initialPos);
       return;
@@ -162,7 +184,10 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     _editController = MarkdownTableController(
       table: tables.first,
       getDocumentValue: () => TextEditingValue(text: _workingMarkdown),
-      onUpdateDocument: (newVal) => _workingMarkdown = newVal.text,
+      onUpdateDocument: (newVal) {
+        _workingMarkdown = newVal.text;
+        _applyMarkdownToNode(newVal.text);
+      },
       initialPosition: initialPos,
     );
     setState(() {});
@@ -174,9 +199,8 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     }
   }
 
-  /// Commits the working Markdown back into the document node and leaves edit
-  /// mode. Mirrors the §155 frontmatter lesson: we only rewrite the node when
-  /// the user is done, so typing never tears down the live component.
+  /// Flushes the current source and leaves edit mode. Stable node/component IDs
+  /// keep the active cell mounted while committed input updates the document.
   void _commitEdit() {
     final original = _serializeTableNode(widget.node);
     final working = _workingMarkdown;
@@ -190,28 +214,25 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
 
   void _applyMarkdownToNode(String markdown) {
     if (!mounted) return;
+    final current = widget.editor.document.getNodeById(widget.node.id);
+    if (current is TableBlockNode && _serializeTableNode(current) == markdown) {
+      return;
+    }
     try {
-      final doc = deserializeMarkdownToDocument(markdown);
-      if (doc.isEmpty) return;
-      final newTableNode = doc.firstWhere(
-        (n) => n is TableBlockNode,
-        orElse: () => doc.first,
-      );
-      if (newTableNode is TableBlockNode) {
-        widget.editor.execute([
-          ReplaceNodeRequest(
-            existingNodeId: widget.node.id,
-            newNode: newTableNode,
-          ),
-        ]);
-      }
+      widget.editor.execute([
+        ReplaceNodeRequest(
+          existingNodeId: widget.node.id,
+          newNode: quietTableNode(markdown, id: widget.node.id),
+        ),
+      ]);
     } catch (_) {}
   }
 
   /// Opens the full-screen enhanced table editor as a new page (not a popup).
   Future<void> _openFullScreen() async {
-    final current =
-        _isEditing ? _workingMarkdown : _serializeTableNode(widget.node);
+    final current = _isEditing
+        ? _workingMarkdown
+        : _serializeTableNode(widget.node);
     final result = await TableEditorScreen.open(
       context,
       initialTableMarkdown: current,
@@ -226,18 +247,15 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     }
 
     if (_isEditing) {
-      _workingMarkdown = result;
-      _editController?.reloadFrom(TextEditingValue(text: result));
+      _editController!.applyDocumentValue(TextEditingValue(text: result));
+    } else {
+      _applyMarkdownToNode(result);
     }
-    _applyMarkdownToNode(result);
     if (mounted) setState(() {});
   }
 
-
   void _deleteTable() {
-    widget.editor.execute([
-      DeleteNodeRequest(nodeId: widget.node.id),
-    ]);
+    widget.editor.execute([DeleteNodeRequest(nodeId: widget.node.id)]);
   }
 
   @override
@@ -247,19 +265,25 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     final markdownTable = _parseMarkdownTable(tableMarkdown);
     final editing = _isEditing && _editController != null;
 
-    final rowCount = editing ? _editController!.table.rowCount : widget.node.rowCount;
-    final colCount =
-        editing ? _editController!.table.columnCount : widget.node.columnCount;
+    final rowCount = editing
+        ? _editController!.table.rowCount
+        : widget.node.rowCount;
+    final colCount = editing
+        ? _editController!.table.columnCount
+        : widget.node.columnCount;
 
     return BoxComponent(
       key: widget.componentKey,
+      isVisuallySelectable: true,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: AppRadii.borderMd,
           border: Border.all(
-            color: editing ? colors.accent.withValues(alpha: 0.6) : colors.divider,
+            color: editing
+                ? colors.accent.withValues(alpha: 0.6)
+                : colors.divider,
           ),
         ),
         child: Column(
@@ -268,14 +292,23 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
           children: [
             // Header bar
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4.0,
+              ),
               decoration: BoxDecoration(
                 color: colors.surfaceSecondary.withValues(alpha: 0.5),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8),
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(PhosphorIconsRegular.table, size: 14, color: colors.textSecondary),
+                  Icon(
+                    PhosphorIconsRegular.table,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Table ($rowCount × $colCount)',
@@ -286,30 +319,32 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                     ),
                   ),
                   const Spacer(),
-                  if (editing)
+                  if (!widget.readOnly) ...[
+                    if (editing)
+                      _HeaderAction(
+                        icon: PhosphorIconsRegular.check,
+                        label: 'Done',
+                        color: colors.accent,
+                        onTap: _commitEdit,
+                      ),
                     _HeaderAction(
-                      icon: PhosphorIconsRegular.check,
-                      label: 'Done',
-                      color: colors.accent,
-                      onTap: _commitEdit,
+                      icon: PhosphorIconsRegular.arrowsOut,
+                      tooltip: 'Open full screen',
+                      color: colors.textSecondary,
+                      onTap: _openFullScreen,
                     ),
-                  _HeaderAction(
-                    icon: PhosphorIconsRegular.arrowsOut,
-                    tooltip: 'Open full screen',
-                    color: colors.textSecondary,
-                    onTap: _openFullScreen,
-                  ),
-                  const SizedBox(width: 4),
-                  _HeaderAction(
-                    icon: PhosphorIconsRegular.trash,
-                    tooltip: 'Delete table',
-                    color: colors.textTertiary,
-                    onTap: () {
-                      _editController?.dispose();
-                      _editController = null;
-                      _deleteTable();
-                    },
-                  ),
+                    const SizedBox(width: 4),
+                    _HeaderAction(
+                      icon: PhosphorIconsRegular.trash,
+                      tooltip: 'Delete table',
+                      color: colors.textTertiary,
+                      onTap: () {
+                        _editController?.dispose();
+                        _editController = null;
+                        _deleteTable();
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -327,8 +362,9 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 child: MarkdownTableView(
                   table: markdownTable,
-                  readOnly: false,
-                  onCellTap: _startInlineEdit,
+                  sourceMarkdown: tableMarkdown,
+                  readOnly: widget.readOnly,
+                  onCellTap: widget.readOnly ? null : _startInlineEdit,
                 ),
               )
             else
@@ -398,7 +434,8 @@ class _HeaderAction extends StatelessWidget {
 
 /// A specialized [DocumentNodeMarkdownSerializer] that serializes [TableBlockNode]
 /// to Markdown and guarantees a blank line before following nodes.
-class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<TableBlockNode> {
+class QuietTableBlockNodeSerializer
+    extends NodeTypedDocumentNodeMarkdownSerializer<TableBlockNode> {
   const QuietTableBlockNodeSerializer();
 
   @override
@@ -407,8 +444,22 @@ class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSeriali
     TableBlockNode node, {
     NodeSelection? selection,
   }) {
+    final raw = node.metadata[quietTableSourceKey];
+    if (raw is String) {
+      if (selection is UpstreamDownstreamNodeSelection &&
+          selection.isCollapsed) {
+        return '';
+      }
+      return document.getNodeIndexById(node.id) == document.nodeCount - 1
+          ? raw
+          : '$raw\n';
+    }
     const defaultSerializer = TableBlockNodeSerializer();
-    final serialized = defaultSerializer.serialize(document, node, selection: selection);
+    final serialized = defaultSerializer.serialize(
+      document,
+      node,
+      selection: selection,
+    );
     if (serialized == null || serialized.isEmpty) return serialized ?? '';
 
     final buffer = StringBuffer(serialized);
@@ -419,4 +470,3 @@ class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSeriali
     return buffer.toString();
   }
 }
-

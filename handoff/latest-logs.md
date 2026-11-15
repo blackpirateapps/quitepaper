@@ -6287,3 +6287,74 @@ math entry as 276. Updated the corresponding `HANDOFF.md` link.
 - The full `flutter test` run was stopped at the user's request; no full-suite result is claimed.
 - Existing PR checks passed before this documentation conflict resolution.
 - `git diff --check`: clean.
+
+## 277. Smart Tables (November 15, 2026)
+
+### Motivation and architecture
+
+Implemented the six-phase Smart Tables plan on `feat/smart-tables`, with an audit
+and baseline commit before the formula engine and separate phase commits.
+Extended the existing `TableBlockNode`/MarkdownTableController/grid rather than
+replacing document, persistence or sync systems. Raw Markdown and an ignorable
+versioned table-adjacent annotation are canonical; computed values and dependency
+caches are ephemeral and local. Custom Markdown table syntax and serialization
+preserve formulas, alignment, escaped pipes, unknown metadata and source fidelity.
+Prose normalization bypasses table regions; legacy AST paths retain annotations.
+
+### Working features and files
+
+- `domain/smart_tables/formula_engine.dart`: bounded Pratt parser, BigInt decimals,
+  A1 references/anchors, arithmetic, aggregates, dependency invalidation and errors.
+- `application/smart_table_{markdown,edits,display}.dart`: source/node bridge,
+  reference-aware atomic row/column edits, summary/auto-fill intent, metadata
+  safety and locale display without double precision loss.
+- Existing table controller, view, inline/expanded editors and SuperEditor
+  component: immediate committed-cell publication to autosave, raw formula input,
+  result display, range summaries/copy/insertion, maintained summary rows,
+  calculated columns, formatting, TSV clipboard, navigation and shared history.
+- Markdown parser and legacy RichDocument paths: annotation retention and
+  matching code-fence safety. Markdown preview projects results without changing
+  its source. Read-only tables suppress mutation controls.
+- `test/editor/smart_tables/`: baseline, engine, bridge, planner, formats,
+  keyboard/IME/autosave/read-only, hostile/large-input and encrypted sync tests.
+- Updated `HANDOFF.md`, editor guide and detailed `handoff/smart-tables.md`.
+
+### Validation and limits
+
+The first full run passed 2,603 tests and failed one journal test when a concurrent
+Flutter test build replaced the SQLite native asset. Subsequent verification is
+serial. Focused hardening and two-client encrypted-sync tests passed. No database,
+backend, encryption protocol or dependency changes. Device QA and concurrent
+structural-table merge guarantees remain explicitly limited as documented in the
+Smart Tables guide.
+
+- Serial `flutter test --no-pub`: **2,615 tests passed**.
+- After final expanded-return and deleted-template-row fixes, the focused table /
+  SuperEditor / expanded-editor suite: **72 tests passed**, including 32 new
+  Smart Tables tests. Source→visual→source, real document undo/redo, composition,
+  Next, large/malicious input, encrypted two-client sync and version restore are
+  covered. Expanded results join inline history as one transaction; unchanged Done
+  commits do not create duplicate node replacements.
+- `git diff --check`: clean.
+- Final `flutter analyze --no-pub`: **no issues** (10.9 seconds).
+
+### PR #4 conflict resolution
+
+Integrated current `main` into `feat/smart-tables` without merging the PR.
+Resolved the controller/widget deserializer conflicts by registering both table
+and math block syntax/converters plus math inline syntax in
+`deserializeQuietMarkdown`. Loading, controller paste and native-menu math paste
+use that combined parser and protect table source/annotations from prose
+normalization. Existing selection replacement transactions and math promotion
+remain intact. Preserved both engineering entries, renumbered Smart Tables to
+277 and corrected its `HANDOFF.md` link. Updated the editor and Smart Tables guides.
+
+Added three mixed-document regressions covering load, controller paste and native
+paste, followed by an edit, save and reload. They verify exact multiline TeX,
+inline math, raw table formulas and an opaque table annotation survive together.
+
+- `flutter analyze`: no issues on the final analysis run.
+- Focused math, Smart Tables, SuperEditor and table-editor/widget tests:
+  **112 passed**, including the three mixed-document regressions.
+- Full-suite execution omitted in accordance with the user's preference.
+- `git diff --check`: clean.

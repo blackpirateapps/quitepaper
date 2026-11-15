@@ -204,6 +204,10 @@ class RichDocumentSerializer {
         sb.writeln();
       }
     }
+    if (table.annotation.isNotEmpty) {
+      if (!sb.toString().endsWith('\n')) sb.writeln();
+      sb.write(table.annotation);
+    }
     return sb.toString();
   }
 }

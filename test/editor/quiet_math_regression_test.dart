@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
+import 'package:quitepaper/features/editor/application/smart_table_markdown.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart';
@@ -72,6 +73,72 @@ void selectText(
 }
 
 void main() {
+  for (final path in ['load', 'controller paste', 'native paste']) {
+    testWidgets('math and raw smart tables survive $path together', (
+      tester,
+    ) async {
+      const table =
+          '| A | B |\n| --- | --- |\n| 2 | =A2*3 |\n'
+          '<!-- quiet-paper-table:v99 {"unknown":true} -->';
+      const latex =
+          r'a_i &= b_i * c_i'
+          '\n\n'
+          r'd_j &= \{x_j\}';
+      const inline = r'Inline \(a_i * b_i\) after.';
+      const source = 'Before\n\n\\[\n$latex\n\\]\n\n$table\n\n$inline\n\nTail';
+      final controller = QuietSuperEditorController();
+      var saved = '';
+      await mountEditor(
+        tester,
+        controller,
+        markdown: path == 'load' ? source : '',
+        onChanged: (value) => saved = value,
+      );
+      if (path != 'load') {
+        final first = controller.editor!.document.first as TextNode;
+        selectText(controller, first, 0);
+        if (path == 'controller paste') {
+          controller.insertSnippet(source);
+        } else {
+          controller.editor!.execute([
+            PasteEditorRequest(
+              content: source,
+              pastePosition: controller.composer!.selection!.extent,
+            ),
+          ]);
+        }
+        await tester.pumpAndSettle();
+      }
+      void expectContent() {
+        final document = controller.editor!.document;
+        expect(formulas(controller).single.latex, latex);
+        expect(
+          document
+              .whereType<TableBlockNode>()
+              .single
+              .metadata[quietTableSourceKey],
+          table,
+        );
+        expect(
+          document.whereType<TextNode>().map((node) => node.text.toPlainText()),
+          contains(inline),
+        );
+      }
+
+      expectContent();
+      final tail = controller.editor!.document.last as TextNode;
+      selectText(controller, tail, tail.text.length);
+      controller.insertSnippet(' edited');
+      await tester.pumpAndSettle();
+      expect(saved, contains(table));
+      expect(saved, contains(latex));
+      await tester.pumpWidget(const SizedBox());
+      await mountEditor(tester, controller, markdown: saved);
+      expectContent();
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test(
     'folding multiple inline formulas preserves offsets and surrounding styles',
     () {

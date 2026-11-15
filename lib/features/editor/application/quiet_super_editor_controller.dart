@@ -11,6 +11,7 @@ import '../presentation/widgets/super_editor/quiet_link_preview_component.dart';
 import '../presentation/widgets/super_editor/math/quiet_math_block_node.dart';
 import '../presentation/widgets/super_editor/math/quiet_math_parser.dart';
 import '../presentation/widgets/super_editor/quiet_code_block_component.dart';
+import 'smart_table_markdown.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
@@ -1185,8 +1186,12 @@ class QuietSuperEditorController extends ChangeNotifier {
           hasBlockAttachment ||
           hasBlockLinkPreview ||
           hasMath) {
-        final normalized = normalizeMarkdownForSuperEditor(trimmed);
-        final structuredDoc = deserializeQuietMathDocument(normalized);
+        final normalized = transformOutsideQuietTables(
+          trimmed,
+          normalizeMarkdownForSuperEditor,
+          isolate: true,
+        );
+        final structuredDoc = deserializeQuietMarkdown(normalized);
         promoteQuietAttachmentNodes(structuredDoc);
         promoteLinkPreviewNodes(structuredDoc);
         promoteQuietCodeBlockNodes(structuredDoc, trimmed);

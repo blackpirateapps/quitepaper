@@ -1,3 +1,5 @@
+import '../../../application/table_clipboard_parser.dart';
+import 'smart_table_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../app/theme/app_colors.dart';
@@ -37,6 +39,7 @@ class MarkdownTableEditor extends StatefulWidget {
 }
 
 class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
+  final FocusNode _tableFocusNode = FocusNode(debugLabel: 'table_navigation');
   final ScrollController _horizontalScrollController = ScrollController();
   static const double _columnWidth = 140.0;
 
@@ -59,16 +62,24 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
     _horizontalScrollController.dispose();
+    _tableFocusNode.dispose();
     super.dispose();
   }
 
   void _onControllerChanged() {
     if (mounted) {
       setState(() {});
+      if (widget.controller.navigationMode) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _tableFocusNode.requestFocus();
+        });
+      }
     }
   }
 
-  void _applyFormat(TextEditingValue Function({required TextEditingValue value}) action) {
+  void _applyFormat(
+    TextEditingValue Function({required TextEditingValue value}) action,
+  ) {
     final cellCtrl = widget.controller.cellController;
     final updated = action(value: cellCtrl.value);
     cellCtrl.value = updated;
@@ -106,6 +117,24 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     }
   }
 
+  Future<void> _pasteClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted || widget.controller.isDisposed || data?.text == null) return;
+    final text = data!.text!;
+    if (text.contains('\t') || text.contains('\n')) {
+      widget.controller.pasteCells(TableClipboardParser.parse(text));
+    } else {
+      final field = widget.controller.cellController;
+      final selection = field.selection;
+      final start = selection.isValid ? selection.start : field.text.length;
+      final end = selection.isValid ? selection.end : start;
+      field.value = TextEditingValue(
+        text: field.text.replaceRange(start, end, text),
+        selection: TextSelection.collapsed(offset: start + text.length),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
@@ -113,9 +142,73 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     final effectiveStyles = widget.styles ?? MarkdownStyles.fromColors(colors);
 
     return Focus(
+      focusNode: _tableFocusNode,
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+        final controller = widget.controller;
+        final command =
+            HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed;
+        if (command && event.logicalKey == LogicalKeyboardKey.keyZ) {
+          if (HardwareKeyboard.instance.isShiftPressed) {
+            controller.redo();
+          } else {
+            controller.undo();
+          }
+          return KeyEventResult.handled;
+        }
+        if (command && event.logicalKey == LogicalKeyboardKey.keyY) {
+          controller.redo();
+          return KeyEventResult.handled;
+        }
+        if (command &&
+            event.logicalKey == LogicalKeyboardKey.keyC &&
+            (controller.hasRangeSelection || controller.navigationMode)) {
+          Clipboard.setData(ClipboardData(text: controller.selectionTsv()));
+          return KeyEventResult.handled;
+        }
+        if (command && event.logicalKey == LogicalKeyboardKey.keyV) {
+          _pasteClipboard();
+          return KeyEventResult.handled;
+        }
+        if (controller.navigationMode) {
+          final pos = controller.activePosition;
+          final next = switch (event.logicalKey) {
+            LogicalKeyboardKey.arrowUp => pos.copyWith(
+              row: (pos.row - 1).clamp(0, controller.table.rowCount - 1),
+            ),
+            LogicalKeyboardKey.arrowDown => pos.copyWith(
+              row: (pos.row + 1).clamp(0, controller.table.rowCount - 1),
+            ),
+            LogicalKeyboardKey.arrowLeft => pos.copyWith(
+              column: (pos.column - 1).clamp(
+                0,
+                controller.table.columnCount - 1,
+              ),
+            ),
+            LogicalKeyboardKey.arrowRight => pos.copyWith(
+              column: (pos.column + 1).clamp(
+                0,
+                controller.table.columnCount - 1,
+              ),
+            ),
+            _ => null,
+          };
+          if (next != null) {
+            if (HardwareKeyboard.instance.isShiftPressed) {
+              controller.selectThrough(next);
+            } else {
+              controller.setActivePosition(next);
+            }
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.f2) {
+            controller.startEditing();
+            return KeyEventResult.handled;
+          }
+        }
         // Tab -> Next Cell (or create row at last cell)
         if (event.logicalKey == LogicalKeyboardKey.tab) {
           final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
@@ -137,9 +230,14 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
           }
         }
 
-        // Escape -> Close table editor
+        // Escape cancels the current edit, then returns to table navigation.
         if (event.logicalKey == LogicalKeyboardKey.escape) {
-          widget.onClose?.call();
+          if (controller.navigationMode) {
+            widget.onClose?.call();
+          } else {
+            controller.cancelCellEdit();
+            controller.stopEditing();
+          }
           return KeyEventResult.handled;
         }
 
@@ -160,13 +258,24 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
               _applyFormat(MarkdownFormatter.toggleItalic),
 
           // Strikethrough: Ctrl+Shift+X / Cmd+Shift+X
-          const SingleActivator(LogicalKeyboardKey.keyX, control: true, shift: true): () =>
+          const SingleActivator(
+            LogicalKeyboardKey.keyX,
+            control: true,
+            shift: true,
+          ): () =>
               _applyFormat(MarkdownFormatter.toggleStrikethrough),
-          const SingleActivator(LogicalKeyboardKey.keyX, meta: true, shift: true): () =>
+          const SingleActivator(
+            LogicalKeyboardKey.keyX,
+            meta: true,
+            shift: true,
+          ): () =>
               _applyFormat(MarkdownFormatter.toggleStrikethrough),
 
           // Code: Ctrl+` / Cmd+`
-          const SingleActivator(LogicalKeyboardKey.backquote, control: true): () =>
+          const SingleActivator(
+            LogicalKeyboardKey.backquote,
+            control: true,
+          ): () =>
               _applyFormat(MarkdownFormatter.toggleInlineCode),
           const SingleActivator(LogicalKeyboardKey.backquote, meta: true): () =>
               _applyFormat(MarkdownFormatter.toggleInlineCode),
@@ -189,6 +298,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
                 onCloseTable: widget.onClose,
               ),
 
+              SmartTableControls(controller: widget.controller),
               // Spreadsheet Container
               Container(
                 decoration: BoxDecoration(
@@ -267,7 +377,9 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     final cells = row.cells as List<MarkdownTableCell>;
 
     return Container(
-      color: isHeader ? colors.tagBackground.withValues(alpha: 0.35) : Colors.transparent,
+      color: isHeader
+          ? colors.tagBackground.withValues(alpha: 0.35)
+          : Colors.transparent,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -301,21 +413,19 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     required AppColors colors,
     required MarkdownStyles styles,
   }) {
-    final isActive = widget.controller.activePosition.row == rowIndex &&
+    final isActive =
+        widget.controller.activePosition.row == rowIndex &&
         widget.controller.activePosition.column == columnIndex;
     final alignment = widget.controller.table.getAlignment(columnIndex);
     final pos = TablePosition(row: rowIndex, column: columnIndex);
 
-    if (isActive) {
+    if (isActive && !widget.controller.navigationMode) {
       // Active Editable Field
       return Container(
         width: _columnWidth,
         decoration: BoxDecoration(
           color: colors.accent.withValues(alpha: 0.08),
-          border: Border.all(
-            color: colors.accent,
-            width: 1.5,
-          ),
+          border: Border.all(color: colors.accent, width: 1.5),
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
@@ -333,6 +443,12 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
             fontWeight: isHeader ? FontWeight.w700 : FontWeight.w400,
           ),
           textAlign: alignment.textAlign,
+          enableSuggestions: !widget.controller.cellController.text
+              .trimLeft()
+              .startsWith('='),
+          autocorrect: !widget.controller.cellController.text
+              .trimLeft()
+              .startsWith('='),
           decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
@@ -340,13 +456,22 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
             focusedBorder: InputBorder.none,
             contentPadding: EdgeInsets.zero,
             hintText: isHeader ? 'Header ${columnIndex + 1}' : 'Cell',
+            semanticCounterText:
+                'Row ${rowIndex + 1}, column ${columnIndex + 1}, formula ${cell?.trimmedText ?? ''}',
             hintStyle: AppTypography.caption.copyWith(
               color: colors.textTertiary.withValues(alpha: 0.4),
             ),
           ),
           inputFormatters: [
             FilteringTextInputFormatter.deny(RegExp(r'[\r\n]')),
-            const MarkdownTextInputFormatter(),
+            TextInputFormatter.withFunction(
+              (oldValue, newValue) => newValue.text.trimLeft().startsWith('=')
+                  ? newValue
+                  : const MarkdownTextInputFormatter().formatEditUpdate(
+                      oldValue,
+                      newValue,
+                    ),
+            ),
           ],
           contextMenuBuilder: (context, editableTextState) {
             final buttonItems = editableTextState.contextMenuButtonItems;
@@ -394,10 +519,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
 
               return AdaptiveTextSelectionToolbar.buttonItems(
                 anchors: editableTextState.contextMenuAnchors,
-                buttonItems: [
-                  ...formattingButtons,
-                  ...buttonItems,
-                ],
+                buttonItems: [...formattingButtons, ...buttonItems],
               );
             }
 
@@ -409,15 +531,20 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
           maxLines: 1,
           textInputAction: TextInputAction.next,
           onEditingComplete: () {},
-          onSubmitted: (_) => widget.controller.moveToNextCell(createRowIfLast: true),
+          onSubmitted: (_) =>
+              widget.controller.moveToNextCell(createRowIfLast: true),
           keyboardType: TextInputType.text,
-          textCapitalization: TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.none,
         ),
       );
     }
 
     // Inactive Cell
-    final cellText = cell?.trimmedText ?? '';
+    final cellText = widget.controller.displayedCell(
+      rowIndex,
+      columnIndex,
+      locale: Localizations.localeOf(context).toString(),
+    );
     final textSpan = cellText.isNotEmpty
         ? MarkdownParser.buildTextSpan(
             text: cellText,
@@ -434,22 +561,48 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
                 : AppTypography.bodySmall.copyWith(color: colors.textTertiary),
           );
 
-    return InkWell(
-      canRequestFocus: false,
-      onTap: () => widget.controller.setActivePosition(pos),
-      splashColor: colors.accent.withValues(alpha: 0.1),
-      highlightColor: colors.accent.withValues(alpha: 0.05),
-      child: Container(
-        width: _columnWidth,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        alignment: alignment.alignment,
-        child: RichText(
-          text: textSpan,
-          textAlign: alignment.textAlign,
-          overflow: TextOverflow.clip,
+    return Semantics(
+      label:
+          'Row ${rowIndex + 1}, column ${columnIndex + 1}, $cellText${cell?.trimmedText.startsWith('=') == true ? ', formula ${cell!.trimmedText}' : ''}',
+      selected: widget.controller.selectedRange.contains(rowIndex, columnIndex),
+      child: InkWell(
+        canRequestFocus: false,
+        onTap: () {
+          if (HardwareKeyboard.instance.isShiftPressed) {
+            widget.controller.selectThrough(pos);
+          } else {
+            widget.controller.setActivePosition(pos);
+            widget.controller.startEditing();
+          }
+        },
+        onLongPress: () => widget.controller.selectThrough(pos),
+        splashColor: colors.accent.withValues(alpha: 0.1),
+        highlightColor: colors.accent.withValues(alpha: 0.05),
+        child: Container(
+          width: _columnWidth,
+          decoration: BoxDecoration(
+            border: isActive
+                ? Border.all(color: colors.accent, width: 1.5)
+                : null,
+            color:
+                widget.controller.hasRangeSelection &&
+                    widget.controller.selectedRange.contains(
+                      rowIndex,
+                      columnIndex,
+                    )
+                ? colors.accent.withValues(alpha: 0.12)
+                : null,
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          alignment: alignment.alignment,
+          child: RichText(
+            text: textSpan,
+            textAlign: alignment.textAlign,
+            overflow: TextOverflow.clip,
+          ),
         ),
       ),
     );

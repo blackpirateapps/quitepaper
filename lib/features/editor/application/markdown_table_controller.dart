@@ -1,3 +1,7 @@
+import 'smart_table_display.dart';
+import '../domain/smart_tables/formula_engine.dart';
+import 'smart_table_markdown.dart';
+import 'smart_table_edits.dart';
 import 'package:flutter/material.dart';
 import '../domain/markdown_styles.dart';
 import '../domain/markdown_table.dart';
@@ -17,13 +21,234 @@ class MarkdownTableController extends ChangeNotifier {
     required this.onUpdateDocument,
     TablePosition? initialPosition,
     this.styles,
-  })  : _activePosition = initialPosition ?? const TablePosition(row: 0, column: 0) {
+  }) : _activePosition =
+           initialPosition ?? const TablePosition(row: 0, column: 0) {
     _initCellController();
+    _editStartText = _cellController.text;
+    calculations = FormulaEngine(tableRawCells(table));
+    _refreshFormats();
   }
 
   static const _parser = MarkdownTableParser();
 
   MarkdownTable table;
+  late final FormulaEngine calculations;
+  Map<String, dynamic> _formats = {};
+  void _refreshFormats() {
+    _formats = smartMetadata.section('formats');
+  }
+
+  TablePosition? _selectionAnchor;
+  TableRange get selectedRange =>
+      TableRange(_selectionAnchor ?? _activePosition, _activePosition);
+  bool get hasRangeSelection =>
+      _selectionAnchor != null && (_selectionAnchor != _activePosition);
+  TableQuickSummary get quickSummary =>
+      TableQuickSummary(calculations, selectedRange);
+  final List<TextEditingValue> _undo = [], _redo = [];
+  bool get canUndo => _undo.isNotEmpty;
+  bool get canRedo => _redo.isNotEmpty;
+  String _editStartText = '';
+
+  SmartTableMetadata get smartMetadata =>
+      SmartTableMetadata.read(getDocumentValue().text, table);
+  bool get hasSummary =>
+      SmartTableEdits.hasSummary(tableRawCells(table), smartMetadata);
+
+  String? operationError;
+  TextEditingValue _plan(TextEditingValue Function() operation) {
+    try {
+      operationError = null;
+      return operation();
+    } on FormulaFailure catch (error) {
+      operationError = error.code;
+      notifyListeners();
+      return getDocumentValue();
+    }
+  }
+
+  void _publish(TextEditingValue value, {bool syncCell = false}) {
+    final old = getDocumentValue();
+    if (old.text == value.text) return;
+    _undo.add(old);
+    if (_undo.length > 100) _undo.removeAt(0);
+    _redo.clear();
+    table = _parser.findTableAtOffset(value.text, table.sourceStart) ?? table;
+    calculations.update(tableRawCells(table));
+    onUpdateDocument(value);
+    _refreshFormats();
+    if (syncCell) reloadFrom(value);
+    notifyListeners();
+  }
+
+  void clearHistory() {
+    _undo.clear();
+    _redo.clear();
+  }
+
+  void undo() {
+    if (_undo.isEmpty) return;
+    _redo.add(getDocumentValue());
+    final value = _undo.removeLast();
+    onUpdateDocument(value);
+    reloadFrom(value);
+  }
+
+  void redo() {
+    if (_redo.isEmpty) return;
+    _undo.add(getDocumentValue());
+    final value = _redo.removeLast();
+    onUpdateDocument(value);
+    reloadFrom(value);
+  }
+
+  void selectThrough(TablePosition position) {
+    final anchor = _selectionAnchor ?? _activePosition;
+    setActivePosition(position);
+    _selectionAnchor = anchor;
+    navigationMode = true;
+    notifyListeners();
+  }
+
+  void selectRange(TablePosition start, TablePosition end) {
+    setActivePosition(end);
+    _selectionAnchor = TablePosition(
+      row: start.row.clamp(0, table.rowCount - 1),
+      column: start.column.clamp(0, table.columnCount - 1),
+    );
+    navigationMode = true;
+    notifyListeners();
+  }
+
+  String selectionTsv({bool displayed = false}) => [
+    for (var r = selectedRange.top; r <= selectedRange.bottom; r++)
+      [
+        for (var c = selectedRange.left; c <= selectedRange.right; c++)
+          displayed
+              ? displayedCell(r, c)
+              : table.getCell(r, c)?.trimmedText ?? '',
+      ].join('\t'),
+  ].join('\n');
+  void applyDocumentValue(TextEditingValue value) =>
+      _publish(value, syncCell: true);
+  void promoteRowToHeader() => _publish(
+    _plan(
+      () => SmartTableEdits.move(
+        getDocumentValue().text,
+        table,
+        rows: true,
+        from: _activePosition.row,
+        to: 0,
+        promote: true,
+      ),
+    ),
+    syncCell: true,
+  );
+  void pasteCells(List<List<String>> cells) => _publish(
+    _plan(
+      () => SmartTableEdits.paste(
+        getDocumentValue().text,
+        table,
+        _activePosition,
+        cells,
+      ),
+    ),
+    syncCell: true,
+  );
+  void createSummary(String operation) => _publish(
+    _plan(
+      () => SmartTableEdits.summary(
+        getDocumentValue().text,
+        table,
+        _activePosition.column,
+        operation,
+      ),
+    ),
+    syncCell: true,
+  );
+  void insertQuickFormula(String operation) {
+    final formula = '=$operation(${selectedRange.a1})';
+    final target = selectedRange.bottom + 1;
+    if (target >= table.rowCount ||
+        hasSummary && target == table.rowCount - 1) {
+      var value = _plan(
+        () => SmartTableEdits.structure(
+          getDocumentValue().text,
+          table,
+          rows: true,
+          index: table.rowCount,
+          delete: false,
+        ),
+      );
+      final projection = _parser.findTableAtOffset(
+        value.text,
+        table.sourceStart,
+      )!;
+      value = MarkdownTableFormatter.updateCell(
+        value: value,
+        table: projection,
+        row: target,
+        column: selectedRange.left,
+        newCellText: formula,
+      );
+      _publish(value, syncCell: true);
+    } else {
+      _publish(
+        MarkdownTableFormatter.updateCell(
+          value: getDocumentValue(),
+          table: table,
+          row: target,
+          column: selectedRange.left,
+          newCellText: formula,
+        ),
+        syncCell: true,
+      );
+    }
+  }
+
+  void cancelCellEdit() {
+    _cellController.text = _editStartText;
+    _cellController.selection = TextSelection.collapsed(
+      offset: _cellController.text.length,
+    );
+  }
+
+  void fillCalculatedColumn({bool reapply = false}) => _publish(
+    _plan(
+      () => SmartTableEdits.calculatedColumn(
+        getDocumentValue().text,
+        table,
+        _activePosition.row,
+        _activePosition.column,
+        reapply: reapply,
+      ),
+    ),
+    syncCell: true,
+  );
+  void setNumericFormat(Map<String, dynamic> config) => _publish(
+    _plan(
+      () => SmartTableEdits.format(
+        getDocumentValue().text,
+        table,
+        _activePosition.column,
+        config,
+      ),
+    ),
+    syncCell: true,
+  );
+
+  String displayedCell(int row, int column, {String? locale}) {
+    final raw = table.getCell(row, column)?.trimmedText ?? '';
+    final config = _formats['$column'];
+    if (config != null || raw.startsWith('=') || raw.startsWith("'=")) {
+      return SmartTableDisplay.format(
+        calculations.value(row, column),
+        config,
+        locale: locale,
+      );
+    }
+    return raw;
+  }
 
   TablePosition _activePosition;
   TablePosition get activePosition => _activePosition;
@@ -47,6 +272,20 @@ class MarkdownTableController extends ChangeNotifier {
   FocusNode get cellFocusNode => getFocusNodeFor(_activePosition);
 
   bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
+  bool navigationMode = false;
+  void startEditing() {
+    navigationMode = false;
+    notifyListeners();
+    cellFocusNode.requestFocus();
+  }
+
+  void stopEditing() {
+    navigationMode = true;
+    cellFocusNode.unfocus();
+    notifyListeners();
+  }
+
   bool _isInternalSync = false;
 
   void _initCellController() {
@@ -66,6 +305,8 @@ class MarkdownTableController extends ChangeNotifier {
     final validRow = _activePosition.row.clamp(0, table.rowCount - 1);
     final validCol = _activePosition.column.clamp(0, table.columnCount - 1);
     _activePosition = TablePosition(row: validRow, column: validCol);
+    calculations.update(tableRawCells(table));
+    _refreshFormats();
     _pruneDeadFocusNodes();
     notifyListeners();
   }
@@ -81,7 +322,12 @@ class MarkdownTableController extends ChangeNotifier {
   }
 
   void _onCellTextChanged() {
-    if (_isInternalSync || _isDisposed) return;
+    if (_isInternalSync ||
+        _isDisposed ||
+        _cellController.value.composing.isValid &&
+            !_cellController.value.composing.isCollapsed) {
+      return;
+    }
 
     final cell = table.getCell(_activePosition.row, _activePosition.column);
     if (cell == null) return;
@@ -92,12 +338,14 @@ class MarkdownTableController extends ChangeNotifier {
     if (currentCellText == newCellText) return;
 
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.updateCell(
-      value: docVal,
-      table: table,
-      row: _activePosition.row,
-      column: _activePosition.column,
-      newCellText: newCellText,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.updateCell(
+        docVal.text,
+        table,
+        _activePosition.row,
+        _activePosition.column,
+        newCellText,
+      ),
     );
 
     // Reparse the table from the updated document
@@ -110,7 +358,7 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloadedTable;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal);
   }
 
   void setActivePosition(TablePosition position) {
@@ -123,6 +371,7 @@ class MarkdownTableController extends ChangeNotifier {
       return;
     }
 
+    _selectionAnchor = null;
     // Flush any changes before switching cell
     final targetRow = position.row.clamp(0, table.rowCount - 1);
     final targetCol = position.column.clamp(0, table.columnCount - 1);
@@ -132,6 +381,7 @@ class MarkdownTableController extends ChangeNotifier {
 
     final cell = table.getCell(targetRow, targetCol);
     final cellText = cell?.trimmedText ?? '';
+    _editStartText = cellText;
 
     _isInternalSync = true;
     _cellController.text = cellText;
@@ -158,6 +408,9 @@ class MarkdownTableController extends ChangeNotifier {
 
     if (col < table.columnCount - 1) {
       setActivePosition(TablePosition(row: row, column: col + 1));
+    } else if (hasSummary && row == table.rowCount - 2 && createRowIfLast) {
+      addRowBelow();
+      setActivePosition(TablePosition(row: row + 1, column: 0));
     } else if (row < table.rowCount - 1) {
       setActivePosition(TablePosition(row: row + 1, column: 0));
     } else if (createRowIfLast) {
@@ -174,7 +427,9 @@ class MarkdownTableController extends ChangeNotifier {
     if (col > 0) {
       setActivePosition(TablePosition(row: row, column: col - 1));
     } else if (row > 0) {
-      setActivePosition(TablePosition(row: row - 1, column: table.columnCount - 1));
+      setActivePosition(
+        TablePosition(row: row - 1, column: table.columnCount - 1),
+      );
     }
   }
 
@@ -204,10 +459,18 @@ class MarkdownTableController extends ChangeNotifier {
   /// Inserts a new row below the current active row.
   void addRowBelow() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.addRow(
-      value: docVal,
-      table: table,
-      afterRowIndex: _activePosition.row,
+    final insertedRow = (_activePosition.row + 1).clamp(
+      1,
+      table.rowCount - (hasSummary ? 1 : 0),
+    );
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: true,
+        index: insertedRow,
+        delete: false,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -219,20 +482,26 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
-    final targetRow = (_activePosition.row + 1).clamp(0, table.rowCount - 1);
-    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+    final targetRow = insertedRow.clamp(0, table.rowCount - 1);
+    setActivePosition(
+      TablePosition(row: targetRow, column: _activePosition.column),
+    );
   }
 
   /// Inserts a new row above the current active row (or as first body row if header active).
   void addRowAbove() {
     final afterIndex = _activePosition.row <= 1 ? 0 : _activePosition.row - 1;
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.addRow(
-      value: docVal,
-      table: table,
-      afterRowIndex: afterIndex,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: true,
+        index: afterIndex + 1,
+        delete: false,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -244,19 +513,25 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetRow = (afterIndex + 1).clamp(0, table.rowCount - 1);
-    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+    setActivePosition(
+      TablePosition(row: targetRow, column: _activePosition.column),
+    );
   }
 
   /// Inserts a new column to the right of the current active column.
   void addColumnRight() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.addColumn(
-      value: docVal,
-      table: table,
-      afterColumnIndex: _activePosition.column,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: false,
+        index: _activePosition.column + 1,
+        delete: false,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -268,20 +543,31 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
-    final targetCol = (_activePosition.column + 1).clamp(0, table.columnCount - 1);
-    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+    final targetCol = (_activePosition.column + 1).clamp(
+      0,
+      table.columnCount - 1,
+    );
+    setActivePosition(
+      TablePosition(row: _activePosition.row, column: targetCol),
+    );
   }
 
   /// Inserts a new column to the left of the current active column.
   void addColumnLeft() {
-    final insertAfter = _activePosition.column <= 0 ? -1 : _activePosition.column - 1;
+    final insertAfter = _activePosition.column <= 0
+        ? -1
+        : _activePosition.column - 1;
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.addColumn(
-      value: docVal,
-      table: table,
-      afterColumnIndex: insertAfter,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: false,
+        index: insertAfter + 1,
+        delete: false,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -293,10 +579,12 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetCol = (insertAfter + 1).clamp(0, table.columnCount - 1);
-    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+    setActivePosition(
+      TablePosition(row: _activePosition.row, column: targetCol),
+    );
   }
 
   /// Sets column alignment for the current active column.
@@ -318,7 +606,7 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal);
     notifyListeners();
   }
 
@@ -329,10 +617,14 @@ class MarkdownTableController extends ChangeNotifier {
     }
 
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.deleteRow(
-      value: docVal,
-      table: table,
-      rowIndex: _activePosition.row,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: true,
+        index: _activePosition.row,
+        delete: true,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -344,10 +636,12 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetRow = (_activePosition.row - 1).clamp(0, table.rowCount - 1);
-    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+    setActivePosition(
+      TablePosition(row: targetRow, column: _activePosition.column),
+    );
   }
 
   /// Deletes the current active column.
@@ -357,10 +651,14 @@ class MarkdownTableController extends ChangeNotifier {
     }
 
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.deleteColumn(
-      value: docVal,
-      table: table,
-      columnIndex: _activePosition.column,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.structure(
+        docVal.text,
+        table,
+        rows: false,
+        index: _activePosition.column,
+        delete: true,
+      ),
     );
 
     final reloaded = _parser.findTableAtOffset(
@@ -372,105 +670,147 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetCol = _activePosition.column.clamp(0, table.columnCount - 1);
-    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+    setActivePosition(
+      TablePosition(row: _activePosition.row, column: targetCol),
+    );
   }
 
   /// Duplicates the current active row, inserting the copy directly below it.
   void duplicateCurrentRow() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.duplicateRow(
-      value: docVal,
-      table: table,
-      rowIndex: _activePosition.row,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.duplicate(
+        docVal.text,
+        table,
+        rows: true,
+        index: _activePosition.row,
+      ),
     );
 
-    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    final reloaded = _parser.findTableAtOffset(
+      updatedDocVal.text,
+      table.sourceStart,
+    );
     if (reloaded != null) {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetRow = (_activePosition.row < 1 ? 1 : _activePosition.row + 1)
         .clamp(0, table.rowCount - 1);
-    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+    setActivePosition(
+      TablePosition(row: targetRow, column: _activePosition.column),
+    );
   }
 
   /// Duplicates the current active column, inserting the copy to its right.
   void duplicateCurrentColumn() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.duplicateColumn(
-      value: docVal,
-      table: table,
-      columnIndex: _activePosition.column,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.duplicate(
+        docVal.text,
+        table,
+        rows: false,
+        index: _activePosition.column,
+      ),
     );
 
-    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    final reloaded = _parser.findTableAtOffset(
+      updatedDocVal.text,
+      table.sourceStart,
+    );
     if (reloaded != null) {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
-    final targetCol = (_activePosition.column + 1).clamp(0, table.columnCount - 1);
-    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+    final targetCol = (_activePosition.column + 1).clamp(
+      0,
+      table.columnCount - 1,
+    );
+    setActivePosition(
+      TablePosition(row: _activePosition.row, column: targetCol),
+    );
   }
 
   /// Moves the current active body row to visible [targetRowIndex] (1..N).
   void moveCurrentRow(int targetRowIndex) {
     if (_activePosition.row <= 0) return; // header is immovable
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.moveRow(
-      value: docVal,
-      table: table,
-      fromRowIndex: _activePosition.row,
-      toRowIndex: targetRowIndex,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.move(
+        docVal.text,
+        table,
+        rows: true,
+        from: _activePosition.row,
+        to: targetRowIndex,
+      ),
     );
 
-    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    final reloaded = _parser.findTableAtOffset(
+      updatedDocVal.text,
+      table.sourceStart,
+    );
     if (reloaded != null) {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetRow = targetRowIndex.clamp(1, table.rowCount - 1);
-    setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
+    setActivePosition(
+      TablePosition(row: targetRow, column: _activePosition.column),
+    );
   }
 
   /// Moves the current active column to [targetColumnIndex].
   void moveCurrentColumn(int targetColumnIndex) {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.moveColumn(
-      value: docVal,
-      table: table,
-      fromColumnIndex: _activePosition.column,
-      toColumnIndex: targetColumnIndex,
+    final updatedDocVal = _plan(
+      () => SmartTableEdits.move(
+        docVal.text,
+        table,
+        rows: false,
+        from: _activePosition.column,
+        to: targetColumnIndex,
+      ),
     );
 
-    final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
+    final reloaded = _parser.findTableAtOffset(
+      updatedDocVal.text,
+      table.sourceStart,
+    );
     if (reloaded != null) {
       table = reloaded;
     }
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal, syncCell: true);
 
     final targetCol = targetColumnIndex.clamp(0, table.columnCount - 1);
-    setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
+    setActivePosition(
+      TablePosition(row: _activePosition.row, column: targetCol),
+    );
   }
 
   /// Replaces the active table projection and resynchronises the active cell
   /// controller. Used after an external structural rewrite (e.g. the full-screen
   /// editor or a paste) mutates the working Markdown directly.
-  void reloadFrom(TextEditingValue docValue, {TablePosition? newActivePosition}) {
+  void reloadFrom(
+    TextEditingValue docValue, {
+    TablePosition? newActivePosition,
+  }) {
     final found = _parser.findTables(docValue.text);
-    final reloaded = _parser.findTableAtOffset(docValue.text, table.sourceStart) ??
+    final reloaded =
+        _parser.findTableAtOffset(docValue.text, table.sourceStart) ??
         (found.isNotEmpty ? found.first : null);
     if (reloaded == null) return;
     table = reloaded;
+    _selectionAnchor = null;
     final pos = newActivePosition ?? _activePosition;
     final r = pos.row.clamp(0, table.rowCount - 1);
     final c = pos.column.clamp(0, table.columnCount - 1);
@@ -478,7 +818,10 @@ class MarkdownTableController extends ChangeNotifier {
     final cell = table.getCell(r, c);
     _isInternalSync = true;
     _cellController.text = cell?.trimmedText ?? '';
+    _editStartText = _cellController.text;
     _isInternalSync = false;
+    calculations.update(tableRawCells(table));
+    _refreshFormats();
     _pruneDeadFocusNodes();
     notifyListeners();
   }
@@ -486,12 +829,12 @@ class MarkdownTableController extends ChangeNotifier {
   /// Deletes the entire table.
   void deleteTable() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.deleteTable(
-      value: docVal,
-      table: table,
+    final end = SmartTableMetadata.read(docVal.text, table).sourceEnd;
+    final updatedDocVal = TextEditingValue(
+      text: docVal.text.replaceRange(table.sourceStart, end, ''),
     );
 
-    onUpdateDocument(updatedDocVal);
+    _publish(updatedDocVal);
   }
 
   @override

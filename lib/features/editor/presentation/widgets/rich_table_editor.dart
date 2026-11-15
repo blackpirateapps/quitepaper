@@ -53,11 +53,7 @@ class _RichTableEditorState extends State<RichTableEditor> {
   }
 
   String _tableToMarkdown(MarkdownTable t) {
-    return [
-      t.headerRow.rawLine,
-      t.delimiterRow.rawLine,
-      ...t.bodyRows.map((r) => r.rawLine),
-    ].join('\n');
+    return t.rawMarkdown;
   }
 
   void _enterEdit([TablePosition? pos]) {
@@ -72,7 +68,13 @@ class _RichTableEditorState extends State<RichTableEditor> {
     _editController = MarkdownTableController(
       table: tables.first,
       getDocumentValue: () => TextEditingValue(text: _workingMarkdown),
-      onUpdateDocument: (v) => _workingMarkdown = v.text,
+      onUpdateDocument: (v) {
+        _workingMarkdown = v.text;
+        final table = _parser.findTables(v.text);
+        if (table.isNotEmpty) {
+          widget.controller.updateTable(widget.blockIndex, table.first);
+        }
+      },
       initialPosition: pos,
     );
     setState(() {});
@@ -98,8 +100,9 @@ class _RichTableEditorState extends State<RichTableEditor> {
   }
 
   Future<void> _openFullScreen() async {
-    final current =
-        _editing ? _workingMarkdown : _tableToMarkdown(widget.block.table);
+    final current = _editing
+        ? _workingMarkdown
+        : _tableToMarkdown(widget.block.table);
     final result = await TableEditorScreen.open(
       context,
       initialTableMarkdown: current,
@@ -141,7 +144,9 @@ class _RichTableEditorState extends State<RichTableEditor> {
         color: colors.surface,
         borderRadius: AppRadii.borderMd,
         border: Border.all(
-          color: editing ? colors.accent.withValues(alpha: 0.6) : colors.divider,
+          color: editing
+              ? colors.accent.withValues(alpha: 0.6)
+              : colors.divider,
         ),
       ),
       child: Column(
@@ -189,7 +194,8 @@ class _RichTableEditorState extends State<RichTableEditor> {
                       icon: PhosphorIconsRegular.pencilSimple,
                       tooltip: 'Edit inline',
                       size: 16,
-                      onPressed: () => _enterEdit(const TablePosition(row: 0, column: 0)),
+                      onPressed: () =>
+                          _enterEdit(const TablePosition(row: 0, column: 0)),
                     ),
                   const SizedBox(width: AppSpacing.xs),
                   QuietIconButton(

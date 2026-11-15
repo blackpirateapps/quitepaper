@@ -113,3 +113,15 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
    - Append detailed entries to **[`handoff/latest-logs.md`](handoff/latest-logs.md)**.
    - Include: numbered section, motivation, architectural design, modified files, and test verification results.
 3. **Keep domain guides updated**: If introducing a new architectural pattern or subsystem, update the corresponding file in [`handoff/`](handoff/).
+
+## Smart Tables implementation
+
+Smart Tables adds offline decimal formulas, live results, range summaries,
+summary rows, calculated columns, number formats and shared table history.
+Raw formulas and metadata remain in the encrypted Markdown note body. See
+[the Smart Tables guide](handoff/smart-tables.md) and
+[engineering log 277](handoff/latest-logs.md#277-smart-tables-november-15-2026)
+for architecture, verification and interoperability limits.
+
+PR #4 conflict resolution combines Smart Tables and math parsing for note loading,
+controller paste and native-menu math paste, preserving both custom block formats.

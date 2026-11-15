@@ -9,6 +9,7 @@ import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
+import '../../application/smart_table_markdown.dart';
 import 'super_editor/link_enhance_overlay.dart';
 import 'super_editor/math/quiet_inline_math.dart';
 import 'super_editor/math/quiet_math_block_component.dart';
@@ -98,11 +99,15 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final split = _splitFrontmatter(widget.initialMarkdown);
     _frontmatterPrefix = split.prefix;
 
-    final normalized = normalizeMarkdownForSuperEditor(split.body);
+    final normalized = transformOutsideQuietTables(
+      split.body,
+      normalizeMarkdownForSuperEditor,
+      isolate: true,
+    );
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
-        : deserializeQuietMathDocument(normalized);
+        : deserializeQuietMarkdown(normalized);
 
     // Promote standalone `[name](qp://document|asset/...)` link paragraphs into
     // embedded attachment card nodes before the editor takes ownership.
@@ -166,8 +171,12 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         target.metadata[NodeMetadata.blockType] == codeAttribution) {
       return null;
     }
-    final content = deserializeQuietMathDocument(
-      normalizeMarkdownForSuperEditor(request.content),
+    final content = deserializeQuietMarkdown(
+      transformOutsideQuietTables(
+        request.content,
+        normalizeMarkdownForSuperEditor,
+        isolate: true,
+      ),
     );
     promoteQuietAttachmentNodes(content);
     promoteLinkPreviewNodes(content);
@@ -261,7 +270,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietMathBlockNodeSerializer(),
         ],
       );
-      final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
+      final normalizedBody = transformOutsideQuietTables(
+        bodyMarkdown,
+        normalizeInlineMarkdownSpacing,
+      );
       final fullMarkdown = _frontmatterPrefix != null
           ? '$_frontmatterPrefix$normalizedBody'
           : normalizedBody;
@@ -498,7 +510,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               noteId: widget.noteId,
               showRemove: !widget.readOnly,
             ),
-            QuietTableComponentBuilder(editor: _editor),
+            QuietTableComponentBuilder(
+              editor: _editor,
+              readOnly: widget.readOnly,
+            ),
             QuietHorizontalRuleComponentBuilder(_editor),
             if (widget.hintText?.isNotEmpty == true && !widget.readOnly)
               _EmptyBodyHintComponentBuilder(
