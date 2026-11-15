@@ -35,29 +35,39 @@ class MarkdownTableView extends StatefulWidget {
   final String? searchQuery;
 
   @override
-  State<MarkdownTableView> createState()=>_MarkdownTableViewState();
+  State<MarkdownTableView> createState() => _MarkdownTableViewState();
 }
 
 class _MarkdownTableViewState extends State<MarkdownTableView> {
-  MarkdownTable get table=>widget.table;
-  MarkdownStyles? get styles=>widget.styles;
-  ValueChanged<TablePosition>? get onCellTap=>widget.onCellTap;
-  bool get readOnly=>widget.readOnly;
-  String? get searchQuery=>widget.searchQuery;
+  MarkdownTable get table => widget.table;
+  MarkdownStyles? get styles => widget.styles;
+  ValueChanged<TablePosition>? get onCellTap => widget.onCellTap;
+  bool get readOnly => widget.readOnly;
+  String? get searchQuery => widget.searchQuery;
   late FormulaEngine _engine;
-  Map<String,dynamic> _formats={};
+  Map<String, dynamic> _formats = {};
   @override
-  void initState() { super.initState(); _refresh(); }
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
   @override
   void didUpdateWidget(MarkdownTableView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if(oldWidget.table!=widget.table || oldWidget.sourceMarkdown!=widget.sourceMarkdown) _refresh();
+    if (oldWidget.table != widget.table ||
+        oldWidget.sourceMarkdown != widget.sourceMarkdown) {
+      _refresh();
+    }
   }
+
   void _refresh() {
-    _engine=FormulaEngine(tableRawCells(table));
-    final source=widget.sourceMarkdown ?? table.rawMarkdown;
-    final projection=widget.sourceMarkdown==null ? const MarkdownTableParser().findTables(source).first:table;
-    _formats=SmartTableMetadata.read(source,projection).section('formats');
+    _engine = FormulaEngine(tableRawCells(table));
+    final source = widget.sourceMarkdown ?? table.rawMarkdown;
+    final projection = widget.sourceMarkdown == null
+        ? const MarkdownTableParser().findTables(source).first
+        : table;
+    _formats = SmartTableMetadata.read(source, projection).section('formats');
   }
 
   static const double _columnWidth = 140.0;
@@ -111,7 +121,7 @@ class _MarkdownTableViewState extends State<MarkdownTableView> {
                   isHeader: false,
                   colors: colors,
                   styles: effectiveStyles,
-                engine: engine,
+                  engine: engine,
                 ),
               ],
             ],
@@ -133,7 +143,9 @@ class _MarkdownTableViewState extends State<MarkdownTableView> {
     final cells = row.cells as List<MarkdownTableCell>;
 
     return Container(
-      color: isHeader ? colors.tagBackground.withValues(alpha: 0.35) : Colors.transparent,
+      color: isHeader
+          ? colors.tagBackground.withValues(alpha: 0.35)
+          : Colors.transparent,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -171,8 +183,14 @@ class _MarkdownTableViewState extends State<MarkdownTableView> {
   }) {
     final raw = cell?.trimmedText ?? '';
     final config = _formats['$columnIndex'];
-    final cellText = config != null || raw.startsWith('=') || raw.startsWith("'=")
-        ? SmartTableDisplay.format(engine.value(rowIndex,columnIndex),config,locale:Localizations.localeOf(context).toString()) : raw;
+    final cellText =
+        config != null || raw.startsWith('=') || raw.startsWith("'=")
+        ? SmartTableDisplay.format(
+            engine.value(rowIndex, columnIndex),
+            config,
+            locale: Localizations.localeOf(context).toString(),
+          )
+        : raw;
     final alignment = table.getAlignment(columnIndex);
     final pos = TablePosition(row: rowIndex, column: columnIndex);
 
@@ -207,7 +225,11 @@ class _MarkdownTableViewState extends State<MarkdownTableView> {
     );
 
     if (readOnly || onCellTap == null) {
-      return Semantics(label:'Row ${rowIndex+1}, column ${columnIndex+1}, $cellText${raw.startsWith('=') ? ', formula $raw':''}',child:contentWidget);
+      return Semantics(
+        label:
+            'Row ${rowIndex + 1}, column ${columnIndex + 1}, $cellText${raw.startsWith('=') ? ', formula $raw' : ''}',
+        child: contentWidget,
+      );
     }
 
     return InkWell(

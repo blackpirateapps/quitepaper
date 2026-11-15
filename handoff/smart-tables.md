@@ -99,3 +99,95 @@ A focused widget regression caught and fixed competing parent/cell autofocus.
 Interaction regression set: 54 passed; additional hardware-key/IME/autosave and
 read-only tests: 5 passed. flutter analyze: no issues. Actual Linux/Android device
 smoke testing remains distinct from these Flutter widget simulations.
+
+## Phase 6: hardening and interoperability
+
+Metadata format is a single-line (or preserved multiline) comment directly after
+the table, with no blank line:
+
+```markdown
+<!-- quiet-paper-table:v1 {"id":"qt_…","summary":{"operations":{"3":"SUM"},"cells":["","","","=SUM(D2:D3)"]},"calculatedColumns":{"3":{"formula":"=B2*C2","row":1}},"formats":{"3":{"type":"currency","currency":"INR","digits":2}},"_layout":{"rows":4,"headers":["Item","Qty","Unit price","Total"]}} -->
+```
+
+Metadata row/column indexes are zero-based; formula A1 addresses include the
+header as row 1. Unknown fields in supported metadata survive edits. Unknown
+versions, malformed/oversized metadata and externally mismatched layout signatures
+remain opaque and are preserved verbatim. Questionable configuration is not
+applied to newly inserted cells; the active UI explains that the annotation needs
+review in Markdown. Remove that annotation in source to configure the table
+again. Formula evaluation itself never depends on the annotation.
+
+Summary-cell overrides made in-app opt that cell out of generated formulas while
+other summary cells remain maintained. Structural mutations update reference
+coordinates even for absolute anchors; anchors suppress shifts only during fill.
+Deleted range endpoints shrink the range; a fully deleted reference becomes
+#REF!. Move/duplicate operations update references, column formats and templates.
+Paste appends data before a summary, rebases formulas and restores everything
+with one undo. Exceeding edit limits leaves the source/history unchanged and
+surfaces #LIMIT! in the active controls.
+
+The parser respects matching code-fence character/length and ignores HTML
+comments. Inactive grids cache table calculations and formatting across unrelated
+rebuilds. Per-table limits: 10,000 cells, 256 columns, 2,048 formula characters,
+512 tokens, parser depth 64, dependency depth 128, range expansion 10,000 cells,
+and 100,000 evaluation work units per update. Annotation generation is bounded
+to 16,000 JSON characters. A regression evaluates and invalidates a 3,000-row
+table within a generous 10-second CI ceiling and verifies total work exhaustion
+for many expensive aggregate formulas. No telemetry or content logging was added.
+
+### Supported formula behavior
+
+- `=2+3*4`, parentheses, unary +/-, nested calls and case-insensitive functions.
+- `=B2*C2`, `=SUM(D2:D3)`, mixed absolute anchors such as `=$B$1*C2`.
+- Numeric literals use a dot and no grouping/exponents; computation is independent
+  of display locale. Plain decimal numbers and evaluated formulas are numeric.
+- Blank direct references are zero; text in direct arithmetic is #VALUE!.
+  Aggregates ignore blank/text cells but propagate referenced formula errors.
+- Stable errors: #PARSE!, #REF!, #DIV/0!, #VALUE!, #CYCLE!, #LIMIT!.
+- `'=SUM(A1:A3)` stays exactly that in source and displays `=SUM(A1:A3)` as text.
+- Percent formatting multiplies only the display by 100; currency/decimals use
+  locale symbols/grouping with exact decimal rounding, never double arithmetic.
+
+### Compatibility and remaining manual checks
+
+Automated tests exercise source/visual/source and legacy AST round trips,
+Unicode/escaped pipes/inline code, unknown annotations, cell typing before Done,
+document and table undo/redo, scoped hardware keys, IME composing/Next,
+read-only formula display, summary/auto-fill/format persistence, database saves,
+version restoration, offline edits, and two in-memory clients using the actual
+crypto/sync engine and an in-memory API. Server payload assertions verify that
+formulas and annotations remain encrypted. No backend/schema/dependency changes.
+
+The existing merge engine is line based. Conflicting edits to one table row
+retain both sources for manual resolution. Independent concurrent structural
+edits are **not** promised to merge safely by cell. Generic Markdown viewers and
+Markdown/PDF export paths retain raw formulas unless they explicitly use native
+preview; computed/static export is outside this implementation. Search indexes
+stored raw content, not ephemeral calculated values. Displayed TSV applies number
+and formula presentation; ordinary inline Markdown cell text retains its syntax.
+There are no cell format overrides, merged cells, cross-table references,
+exponents, scripts or remote functions. The specified column formats are present;
+cell-level overrides were optional in the proposal.
+
+Actual Android/Linux devices, screen-reader announcements, keyboard/IME vendor
+behavior, real multi-device networking and PDF appearance still require manual
+QA. Flutter widget simulations and local sync tests are not claims of those
+physical-device checks.
+
+### Final verification
+
+- Final `flutter analyze --no-pub`: **no issues** (10.9 seconds).
+- `flutter test --no-pub`: **2,615 passed** on the serial full-suite rerun.
+- Final focused run after expanded-return history and deleted-template-row fixes:
+  `flutter test --no-pub test/editor/smart_tables test/editor/table_editor_screen_test.dart test/editor/quiet_super_editor_test.dart test/editor/markdown_table_widget_test.dart`
+  — **72 passed**. This includes 32 Smart Tables tests.
+- The first full run's single missing SQLite native-library failure was caused
+  during concurrent Flutter test builds. The serial rerun passed that test and
+  every other repository test. Keep native-asset-building test commands serial.
+- `git diff --check`: clean. No backend tests were needed because no backend path
+  changed. Physical-device and real-network QA remain listed above.
+
+Returning from the expanded workspace is one transaction in the active inline
+history. Repeated Done commits skip unchanged node replacements. Deleting a
+calculated column's example row reanchors its template before reference deletion
+so subsequent rows retain relative formulas; both have dedicated regressions.

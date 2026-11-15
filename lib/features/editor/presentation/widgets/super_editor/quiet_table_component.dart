@@ -122,6 +122,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
       final incoming = _serializeTableNode(widget.node);
       if (incoming != _workingMarkdown) {
         _workingMarkdown = incoming;
+        _editController!.clearHistory();
         _editController!.reloadFrom(TextEditingValue(text: incoming));
       }
     }
@@ -169,7 +170,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
   }
 
   /// Enters inline tap-to-activate editing, seeding a controller from the
-  /// node's current Markdown. Edits stay local until [_commitEdit].
+  /// node's current Markdown. Committed input publishes through document history.
   void _startInlineEdit([TablePosition? initialPos]) {
     if (widget.readOnly) return;
     if (_isEditing) {
@@ -198,9 +199,8 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     }
   }
 
-  /// Commits the working Markdown back into the document node and leaves edit
-  /// mode. Mirrors the §155 frontmatter lesson: we only rewrite the node when
-  /// the user is done, so typing never tears down the live component.
+  /// Flushes the current source and leaves edit mode. Stable node/component IDs
+  /// keep the active cell mounted while committed input updates the document.
   void _commitEdit() {
     final original = _serializeTableNode(widget.node);
     final working = _workingMarkdown;
@@ -214,6 +214,10 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
 
   void _applyMarkdownToNode(String markdown) {
     if (!mounted) return;
+    final current = widget.editor.document.getNodeById(widget.node.id);
+    if (current is TableBlockNode && _serializeTableNode(current) == markdown) {
+      return;
+    }
     try {
       widget.editor.execute([
         ReplaceNodeRequest(
@@ -226,8 +230,9 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
 
   /// Opens the full-screen enhanced table editor as a new page (not a popup).
   Future<void> _openFullScreen() async {
-    final current =
-        _isEditing ? _workingMarkdown : _serializeTableNode(widget.node);
+    final current = _isEditing
+        ? _workingMarkdown
+        : _serializeTableNode(widget.node);
     final result = await TableEditorScreen.open(
       context,
       initialTableMarkdown: current,
@@ -242,18 +247,15 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     }
 
     if (_isEditing) {
-      _workingMarkdown = result;
-      _editController?.reloadFrom(TextEditingValue(text: result));
+      _editController!.applyDocumentValue(TextEditingValue(text: result));
+    } else {
+      _applyMarkdownToNode(result);
     }
-    _applyMarkdownToNode(result);
     if (mounted) setState(() {});
   }
 
-
   void _deleteTable() {
-    widget.editor.execute([
-      DeleteNodeRequest(nodeId: widget.node.id),
-    ]);
+    widget.editor.execute([DeleteNodeRequest(nodeId: widget.node.id)]);
   }
 
   @override
@@ -263,19 +265,25 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     final markdownTable = _parseMarkdownTable(tableMarkdown);
     final editing = _isEditing && _editController != null;
 
-    final rowCount = editing ? _editController!.table.rowCount : widget.node.rowCount;
-    final colCount =
-        editing ? _editController!.table.columnCount : widget.node.columnCount;
+    final rowCount = editing
+        ? _editController!.table.rowCount
+        : widget.node.rowCount;
+    final colCount = editing
+        ? _editController!.table.columnCount
+        : widget.node.columnCount;
 
     return BoxComponent(
       key: widget.componentKey,
+      isVisuallySelectable: true,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: AppRadii.borderMd,
           border: Border.all(
-            color: editing ? colors.accent.withValues(alpha: 0.6) : colors.divider,
+            color: editing
+                ? colors.accent.withValues(alpha: 0.6)
+                : colors.divider,
           ),
         ),
         child: Column(
@@ -284,14 +292,23 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
           children: [
             // Header bar
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4.0,
+              ),
               decoration: BoxDecoration(
                 color: colors.surfaceSecondary.withValues(alpha: 0.5),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8),
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(PhosphorIconsRegular.table, size: 14, color: colors.textSecondary),
+                  Icon(
+                    PhosphorIconsRegular.table,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Table ($rowCount × $colCount)',
@@ -303,30 +320,30 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                   ),
                   const Spacer(),
                   if (!widget.readOnly) ...[
-                  if (editing)
+                    if (editing)
+                      _HeaderAction(
+                        icon: PhosphorIconsRegular.check,
+                        label: 'Done',
+                        color: colors.accent,
+                        onTap: _commitEdit,
+                      ),
                     _HeaderAction(
-                      icon: PhosphorIconsRegular.check,
-                      label: 'Done',
-                      color: colors.accent,
-                      onTap: _commitEdit,
+                      icon: PhosphorIconsRegular.arrowsOut,
+                      tooltip: 'Open full screen',
+                      color: colors.textSecondary,
+                      onTap: _openFullScreen,
                     ),
-                  _HeaderAction(
-                    icon: PhosphorIconsRegular.arrowsOut,
-                    tooltip: 'Open full screen',
-                    color: colors.textSecondary,
-                    onTap: _openFullScreen,
-                  ),
-                  const SizedBox(width: 4),
-                  _HeaderAction(
-                    icon: PhosphorIconsRegular.trash,
-                    tooltip: 'Delete table',
-                    color: colors.textTertiary,
-                    onTap: () {
-                      _editController?.dispose();
-                      _editController = null;
-                      _deleteTable();
-                    },
-                  ),
+                    const SizedBox(width: 4),
+                    _HeaderAction(
+                      icon: PhosphorIconsRegular.trash,
+                      tooltip: 'Delete table',
+                      color: colors.textTertiary,
+                      onTap: () {
+                        _editController?.dispose();
+                        _editController = null;
+                        _deleteTable();
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -417,7 +434,8 @@ class _HeaderAction extends StatelessWidget {
 
 /// A specialized [DocumentNodeMarkdownSerializer] that serializes [TableBlockNode]
 /// to Markdown and guarantees a blank line before following nodes.
-class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<TableBlockNode> {
+class QuietTableBlockNodeSerializer
+    extends NodeTypedDocumentNodeMarkdownSerializer<TableBlockNode> {
   const QuietTableBlockNodeSerializer();
 
   @override
@@ -428,11 +446,20 @@ class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSeriali
   }) {
     final raw = node.metadata[quietTableSourceKey];
     if (raw is String) {
-      if (selection is UpstreamDownstreamNodeSelection && selection.isCollapsed) return '';
-      return document.getNodeIndexById(node.id) == document.nodeCount - 1 ? raw : '$raw\n';
+      if (selection is UpstreamDownstreamNodeSelection &&
+          selection.isCollapsed) {
+        return '';
+      }
+      return document.getNodeIndexById(node.id) == document.nodeCount - 1
+          ? raw
+          : '$raw\n';
     }
     const defaultSerializer = TableBlockNodeSerializer();
-    final serialized = defaultSerializer.serialize(document, node, selection: selection);
+    final serialized = defaultSerializer.serialize(
+      document,
+      node,
+      selection: selection,
+    );
     if (serialized == null || serialized.isEmpty) return serialized ?? '';
 
     final buffer = StringBuffer(serialized);
@@ -443,4 +470,3 @@ class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSeriali
     return buffer.toString();
   }
 }
-

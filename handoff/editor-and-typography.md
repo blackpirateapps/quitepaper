@@ -136,3 +136,29 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 - Typewriter Scrolling: [Latest Logs, Section 223](latest-logs.md#223-typewriter-scrolling-ambient-cursor-vertical-centering-across-all-editor-modes-october-2026)
 - RichDocument Visual Editor AST: [Latest Logs, Section 136 & 140](latest-logs.md#136-production-grade-richdocument-visual-editor-architecture)
 - iA Writer Quattro Typography Integration: [Historical Logs v1.5, Section 32](archive/logs-v1.5.md#32-ia-writer-quattro-typography-integration--cdn-font-delivery)
+
+## Smart Tables (November 15, 2026)
+
+Tables reuse SuperEditor's `TableBlockNode` and the existing Markdown table
+controller/grid. `QuietTableSyntax`/`QuietTableConverter` preserve raw table
+Markdown and an adjacent versioned annotation in node metadata;
+`QuietTableBlockNodeSerializer` restores this source exactly. Existing prose
+normalization bypasses these regions so formula multiplication and annotations
+survive visual/source conversion. Legacy RichDocument tables retain annotations.
+
+The pure Dart formula engine supports decimal arithmetic, A1 references and
+anchors, ranges, SUM/AVERAGE/MIN/MAX/COUNT, dependency invalidation, cycle/error
+propagation and bounded evaluation. Computed results are ephemeral: raw formulas
+and optional summary/calculated-column/format metadata stay in the encrypted
+note body. Markdown preview uses a display-only projection. Markdown exports
+continue to contain formulas; third-party viewers display their source text.
+
+Inline committed text updates reach document history/autosave immediately, without
+waiting for Done. Table history includes typing, structural rebasing, rectangular
+TSV paste, summary rows, calculated columns and formats. Escape cancels the active
+cell and enters table navigation; arrows move/select only outside cell editing.
+Shift-click/long-press extend ranges; the functions menu supplies touch column
+selection, quick aggregate copy/insertion, summaries and numeric formatting.
+
+See [Smart Tables architecture, grammar, metadata and limitations](smart-tables.md)
+and [engineering log 276](latest-logs.md#276-smart-tables-november-15-2026).

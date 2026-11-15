@@ -120,6 +120,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     r'^\s*(?:\*|_)([^*\n\r_]+)(?:\*|_)\s*$',
   );
 
+  String? _tableDisplayLocale;
   late ParsedMarkdown _parsedMarkdown;
   late List<String> _chunks;
   List<int> _chunkChecklistBaseIndices = const [];
@@ -130,6 +131,16 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
   void initState() {
     super.initState();
     _processMarkdown();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locale = Localizations.localeOf(context).toString();
+    if (_tableDisplayLocale != locale) {
+      _tableDisplayLocale = locale;
+      _processMarkdown();
+    }
   }
 
   @override
@@ -153,7 +164,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final previewBody = AudioTranscriptMarkdownHelper.stripTranscriptBlockquotesForPreview(
       _parsedMarkdown.contentBody,
     );
-    _chunks = MarkdownChunker.split(projectSmartTableResults(previewBody));
+    _chunks = MarkdownChunker.split(projectSmartTableResults(previewBody, locale: _tableDisplayLocale));
     _documentImages = _extractDocumentImages(previewBody);
 
     final baseIndices = <int>[];

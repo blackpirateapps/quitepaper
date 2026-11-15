@@ -5,12 +5,16 @@ import 'package:super_editor/super_editor.dart';
 
 void main() {
   test('existing source edit and reopen retain formulas and alignment', () {
-    const source = 'Before\n\n| Item | Total |\n| --- | ---: |\n| Paper | =2*125 |\n\nAfter';
+    const source =
+        'Before\n\n| Item | Total |\n| --- | ---: |\n| Paper | =2*125 |\n\nAfter';
     const parser = MarkdownTableParser();
     final table = parser.findTables(source).single;
     final edited = MarkdownTableFormatter.updateCell(
-      value: const TextEditingValue(text: source), table: table,
-      row: 1, column: 0, newCellText: 'Pens',
+      value: const TextEditingValue(text: source),
+      table: table,
+      row: 1,
+      column: 0,
+      newCellText: 'Pens',
     );
     final reopened = parser.findTables(edited.text).single;
     expect(reopened.getCell(1, 1)!.trimmedText, '=2*125');

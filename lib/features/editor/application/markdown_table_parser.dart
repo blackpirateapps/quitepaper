@@ -29,14 +29,27 @@ class MarkdownTableParser {
       final lineInfo = lines[i];
       final lineText = lineInfo.text;
 
-      final fence=RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$').firstMatch(lineText);
-      if(fenceCharacter!=null) {
-        if(fence!=null && fence[1]![0]==fenceCharacter && fence[1]!.length>=fenceLength && fence[2]!.trim().isEmpty) fenceCharacter=null;
-        i++; continue;
+      final fence = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$').firstMatch(lineText);
+      if (fenceCharacter != null) {
+        if (fence != null &&
+            fence[1]![0] == fenceCharacter &&
+            fence[1]!.length >= fenceLength &&
+            fence[2]!.trim().isEmpty) {
+          fenceCharacter = null;
+        }
+        i++;
+        continue;
       }
-      if(fence!=null) { fenceCharacter=fence[1]![0]; fenceLength=fence[1]!.length; i++; continue; }
-      if(inComment || lineText.trimLeft().startsWith('<!--')) {
-        inComment=!lineText.contains('-->'); i++; continue;
+      if (fence != null) {
+        fenceCharacter = fence[1]![0];
+        fenceLength = fence[1]!.length;
+        i++;
+        continue;
+      }
+      if (inComment || lineText.trimLeft().startsWith('<!--')) {
+        inComment = !lineText.contains('-->');
+        i++;
+        continue;
       }
 
       // 2. Table detection: Check if lineInfo (header) followed by lines[i + 1] (delimiter) forms a table
@@ -71,7 +84,9 @@ class MarkdownTableParser {
               lineEnd: lineInfo.end,
             );
 
-            final alignments = delimiterCells.map((c) => _parseAlignment(c.rawText)).toList();
+            final alignments = delimiterCells
+                .map((c) => _parseAlignment(c.rawText))
+                .toList();
 
             final headerRow = MarkdownTableRow(
               rowIndex: 0,
@@ -104,7 +119,8 @@ class MarkdownTableParser {
 
               // Break table on blank line, code fence, or non-table line
               if (bodyLineText.trim().isEmpty ||
-                  _codeFenceRegex.hasMatch(bodyLineText) || bodyLineText.trimLeft().startsWith('<!--') ||
+                  _codeFenceRegex.hasMatch(bodyLineText) ||
+                  bodyLineText.trimLeft().startsWith('<!--') ||
                   !_isPotentialTableRow(bodyLineText)) {
                 break;
               }
@@ -122,30 +138,38 @@ class MarkdownTableParser {
                 lineEnd: bodyLineInfo.end,
               );
 
-              bodyRows.add(MarkdownTableRow(
-                rowIndex: bodyRows.length + 1,
-                isHeader: false,
-                isDelimiter: false,
-                cells: normalizedBodyCells,
-                sourceStart: bodyLineInfo.start,
-                sourceEnd: bodyLineInfo.end,
-                rawLine: bodyLineText,
-              ));
+              bodyRows.add(
+                MarkdownTableRow(
+                  rowIndex: bodyRows.length + 1,
+                  isHeader: false,
+                  isDelimiter: false,
+                  cells: normalizedBodyCells,
+                  sourceStart: bodyLineInfo.start,
+                  sourceEnd: bodyLineInfo.end,
+                  rawLine: bodyLineText,
+                ),
+              );
 
               tableEndOffset = bodyLineInfo.end;
               currentLineIndex++;
             }
 
-            tables.add(MarkdownTable(
-              sourceStart: lineInfo.start,
-              annotation: RegExp(r'^\r?\n(<!-- quiet-paper-table:[\s\S]*?-->)').firstMatch(text.substring(tableEndOffset))?.group(1) ?? '',
-              sourceEnd: tableEndOffset,
-              headerRow: headerRow,
-              delimiterRow: delimiterRow,
-              bodyRows: bodyRows,
-              alignments: alignments,
-              columnCount: columnCount,
-            ));
+            tables.add(
+              MarkdownTable(
+                sourceStart: lineInfo.start,
+                annotation:
+                    RegExp(
+                      r'^\r?\n(<!-- quiet-paper-table:[\s\S]*?-->)',
+                    ).firstMatch(text.substring(tableEndOffset))?.group(1) ??
+                    '',
+                sourceEnd: tableEndOffset,
+                headerRow: headerRow,
+                delimiterRow: delimiterRow,
+                bodyRows: bodyRows,
+                alignments: alignments,
+                columnCount: columnCount,
+              ),
+            );
 
             i = currentLineIndex;
             continue;
@@ -277,9 +301,11 @@ class MarkdownTableParser {
       return const [];
     }
 
-    final hasLeadingPipe = structuralPipeIndices.first == 0 ||
+    final hasLeadingPipe =
+        structuralPipeIndices.first == 0 ||
         line.substring(0, structuralPipeIndices.first).trim().isEmpty;
-    final hasTrailingPipe = structuralPipeIndices.last == len - 1 ||
+    final hasTrailingPipe =
+        structuralPipeIndices.last == len - 1 ||
         line.substring(structuralPipeIndices.last + 1).trim().isEmpty;
 
     final segmentStarts = <int>[];
@@ -304,11 +330,9 @@ class MarkdownTableParser {
       final start = segmentStarts[s];
       final end = segmentEnds[s];
       if (end >= start) {
-        slices.add(_CellSlice(
-          start: start,
-          end: end,
-          text: line.substring(start, end),
-        ));
+        slices.add(
+          _CellSlice(start: start, end: end, text: line.substring(start, end)),
+        );
       }
     }
 
@@ -332,7 +356,8 @@ class MarkdownTableParser {
       // Compute trimmed content bounds within the slice
       var leadingWhitespace = 0;
       while (leadingWhitespace < sliceText.length &&
-          (sliceText[leadingWhitespace] == ' ' || sliceText[leadingWhitespace] == '\t')) {
+          (sliceText[leadingWhitespace] == ' ' ||
+              sliceText[leadingWhitespace] == '\t')) {
         leadingWhitespace++;
       }
 
@@ -351,15 +376,17 @@ class MarkdownTableParser {
       final contentStart = sourceStart + contentStartRel;
       final contentEnd = sourceStart + contentEndRel;
 
-      cells.add(MarkdownTableCell(
-        rowIndex: rowIndex,
-        columnIndex: col,
-        rawText: sliceText,
-        sourceStart: sourceStart,
-        sourceEnd: sourceEnd,
-        contentStart: contentStart,
-        contentEnd: contentEnd,
-      ));
+      cells.add(
+        MarkdownTableCell(
+          rowIndex: rowIndex,
+          columnIndex: col,
+          rawText: sliceText,
+          sourceStart: sourceStart,
+          sourceEnd: sourceEnd,
+          contentStart: contentStart,
+          contentEnd: contentEnd,
+        ),
+      );
     }
 
     return cells;
@@ -382,15 +409,17 @@ class MarkdownTableParser {
     // Pad missing cells with empty slots
     while (result.length < targetCount) {
       final col = result.length;
-      result.add(MarkdownTableCell(
-        rowIndex: rowIndex,
-        columnIndex: col,
-        rawText: '',
-        sourceStart: lineEnd,
-        sourceEnd: lineEnd,
-        contentStart: lineEnd,
-        contentEnd: lineEnd,
-      ));
+      result.add(
+        MarkdownTableCell(
+          rowIndex: rowIndex,
+          columnIndex: col,
+          rawText: '',
+          sourceStart: lineEnd,
+          sourceEnd: lineEnd,
+          contentStart: lineEnd,
+          contentEnd: lineEnd,
+        ),
+      );
     }
 
     return result;
@@ -419,10 +448,22 @@ class MarkdownTableParser {
     while (start <= text.length) {
       final newline = text.indexOf('\n', start);
       if (newline == -1) {
-        result.add(_LineInfo(start: start, end: text.length, text: text.substring(start)));
+        result.add(
+          _LineInfo(
+            start: start,
+            end: text.length,
+            text: text.substring(start),
+          ),
+        );
         break;
       } else {
-        result.add(_LineInfo(start: start, end: newline, text: text.substring(start, newline)));
+        result.add(
+          _LineInfo(
+            start: start,
+            end: newline,
+            text: text.substring(start, newline),
+          ),
+        );
         start = newline + 1;
       }
     }
@@ -431,11 +472,7 @@ class MarkdownTableParser {
 }
 
 class _LineInfo {
-  const _LineInfo({
-    required this.start,
-    required this.end,
-    required this.text,
-  });
+  const _LineInfo({required this.start, required this.end, required this.text});
 
   final int start;
   final int end;

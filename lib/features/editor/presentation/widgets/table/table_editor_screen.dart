@@ -86,7 +86,7 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
       onUpdateDocument: (newValue) {
         _workingMarkdown = newValue.text;
         _dirty = true;
-        if(mounted) setState(() {});
+        if (mounted) setState(() {});
       },
       initialPosition: const TablePosition(row: 0, column: 0),
     );
@@ -101,8 +101,8 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
   void _redo() => _controller?.redo();
 
   void _runControllerOp(void Function(MarkdownTableController c) op) {
-    final c=_controller;
-    if(c!=null) op(c);
+    final c = _controller;
+    if (c != null) op(c);
   }
 
   void _deleteTable() {
@@ -112,15 +112,15 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
   }
 
   void _promoteActiveRowToHeader() {
-    final c=_controller;
-    if(c!=null) c.promoteRowToHeader();
+    final c = _controller;
+    if (c != null) c.promoteRowToHeader();
   }
 
   Future<void> _pasteTabularData() async {
-    final data=await Clipboard.getData(Clipboard.kTextPlain);
-    if(!mounted || _controller==null) return;
-    final rows=TableClipboardParser.parse(data?.text ?? '');
-    if(rows.isNotEmpty) _controller!.pasteCells(rows);
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted || _controller == null) return;
+    final rows = TableClipboardParser.parse(data?.text ?? '');
+    if (rows.isNotEmpty) _controller!.pasteCells(rows);
   }
 
   String? _result() {
@@ -163,12 +163,12 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
             IconButton(
               icon: const Icon(PhosphorIconsRegular.arrowUUpLeft),
               tooltip: 'Undo',
-              onPressed: controller?.canUndo==true ? _undo:null,
+              onPressed: controller?.canUndo == true ? _undo : null,
             ),
             IconButton(
               icon: const Icon(PhosphorIconsRegular.arrowUUpRight),
               tooltip: 'Redo',
-              onPressed: controller?.canRedo==true ? _redo:null,
+              onPressed: controller?.canRedo == true ? _redo : null,
             ),
             PopupMenuButton<String>(
               icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
@@ -181,16 +181,20 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
                     _runControllerOp((c) => c.duplicateCurrentColumn());
                   case 'row_up':
                     _runControllerOp(
-                        (c) => c.moveCurrentRow(c.activePosition.row - 1));
+                      (c) => c.moveCurrentRow(c.activePosition.row - 1),
+                    );
                   case 'row_down':
                     _runControllerOp(
-                        (c) => c.moveCurrentRow(c.activePosition.row + 1));
+                      (c) => c.moveCurrentRow(c.activePosition.row + 1),
+                    );
                   case 'col_left':
                     _runControllerOp(
-                        (c) => c.moveCurrentColumn(c.activePosition.column - 1));
+                      (c) => c.moveCurrentColumn(c.activePosition.column - 1),
+                    );
                   case 'col_right':
                     _runControllerOp(
-                        (c) => c.moveCurrentColumn(c.activePosition.column + 1));
+                      (c) => c.moveCurrentColumn(c.activePosition.column + 1),
+                    );
                   case 'promote':
                     _promoteActiveRowToHeader();
                   case 'paste':
@@ -202,14 +206,46 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
                 }
               },
               itemBuilder: (_) => [
-                _menuItem('dup_row', PhosphorIconsRegular.copy, 'Duplicate row'),
-                _menuItem('dup_col', PhosphorIconsRegular.copy, 'Duplicate column'),
-                _menuItem('row_up', PhosphorIconsRegular.arrowUp, 'Move row up'),
-                _menuItem('row_down', PhosphorIconsRegular.arrowDown, 'Move row down'),
-                _menuItem('col_left', PhosphorIconsRegular.arrowLeft, 'Move column left'),
-                _menuItem('col_right', PhosphorIconsRegular.arrowRight, 'Move column right'),
-                _menuItem('promote', PhosphorIconsRegular.rows, 'Make row the header'),
-                _menuItem('paste', PhosphorIconsRegular.clipboard, 'Paste CSV / TSV'),
+                _menuItem(
+                  'dup_row',
+                  PhosphorIconsRegular.copy,
+                  'Duplicate row',
+                ),
+                _menuItem(
+                  'dup_col',
+                  PhosphorIconsRegular.copy,
+                  'Duplicate column',
+                ),
+                _menuItem(
+                  'row_up',
+                  PhosphorIconsRegular.arrowUp,
+                  'Move row up',
+                ),
+                _menuItem(
+                  'row_down',
+                  PhosphorIconsRegular.arrowDown,
+                  'Move row down',
+                ),
+                _menuItem(
+                  'col_left',
+                  PhosphorIconsRegular.arrowLeft,
+                  'Move column left',
+                ),
+                _menuItem(
+                  'col_right',
+                  PhosphorIconsRegular.arrowRight,
+                  'Move column right',
+                ),
+                _menuItem(
+                  'promote',
+                  PhosphorIconsRegular.rows,
+                  'Make row the header',
+                ),
+                _menuItem(
+                  'paste',
+                  PhosphorIconsRegular.clipboard,
+                  'Paste CSV / TSV',
+                ),
                 _menuItem(
                   'preview',
                   PhosphorIconsRegular.eye,
@@ -225,7 +261,9 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
             ? Center(
                 child: Text(
                   'This table could not be parsed.',
-                  style: AppTypography.body.copyWith(color: colors.textSecondary),
+                  style: AppTypography.body.copyWith(
+                    color: colors.textSecondary,
+                  ),
                 ),
               )
             : SafeArea(
@@ -240,7 +278,11 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
                           AppSpacing.md,
                           0,
                         ),
-                        child: MarkdownTableView(table: table, sourceMarkdown: _workingMarkdown, readOnly: true),
+                        child: MarkdownTableView(
+                          table: table,
+                          sourceMarkdown: _workingMarkdown,
+                          readOnly: true,
+                        ),
                       ),
                     Expanded(
                       child: Padding(
@@ -271,7 +313,9 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -279,5 +323,3 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
     );
   }
 }
-
-

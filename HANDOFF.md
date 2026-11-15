@@ -110,5 +110,9 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
 
 ## Smart Tables implementation
 
-Work is on `feat/smart-tables`. The implementation audit and phase results are
-recorded in [the Smart Tables guide](handoff/smart-tables.md).
+Smart Tables adds offline decimal formulas, live results, range summaries,
+summary rows, calculated columns, number formats and shared table history.
+Raw formulas and metadata remain in the encrypted Markdown note body. See
+[the Smart Tables guide](handoff/smart-tables.md) and
+[engineering log 276](handoff/latest-logs.md#276-smart-tables-november-15-2026)
+for architecture, verification and interoperability limits.
