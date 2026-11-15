@@ -43,6 +43,13 @@ The search subsystem resides in [`lib/features/search/`](file:///home/dog/git/qu
 - Results are ranked by relevance (title match > tag match > body match > OCR match).
 
 ### Category Filters
+
+`SearchFilterBar` uses content-width underline tabs on desktop, tablet, and mobile.
+A themed accent underline identifies the active category above a thin baseline;
+labels and positive result counts share a text baseline. The native scrollable
+`TabBar` keeps categories accessible in narrow panes and follows provider-driven
+category changes through its `TabController`. There is no filled segmented track.
+
 - Quick filters allow users to narrow results instantly:
   - **All**: Unfiltered search across all entities.
   - **Notes**: Standard markdown and visual notes.

@@ -6145,8 +6145,80 @@ explicitly use phone dimensions to continue covering the original mobile flow.
   both were visually inspected. The capture harness passed.
 - `git diff --check`: clean.
 
+## 274. Search category underline tabs on all screen sizes (November 15, 2026)
 
-## 274. Super Editor math parsing, paste, insertion and editing stability (November 15, 2026)
+### Approved design and implementation
+
+The user selected underline tabs with result counts for desktop, tablet, and
+mobile after reviewing category-control mockups. The previous filled rounded
+track and equal-width selection thumb made the category row look heavy.
+
+- `SearchFilterBar` now uses a native scrollable `TabBar` with content-width
+  labels, a themed accent underline, and a thin divider. It has no segmented
+  background, selected surface, outline, or shadow.
+- Labels and positive result counts share an alphabetic baseline; counts remain
+  secondary text beside their categories. The existing All/Notes/Docs/Tags counts,
+  category keys, and filtering semantics are preserved.
+- A locally owned/disposed `TabController` starts with the provider's active
+  category and follows external category changes. Tapping a tab updates the
+  provider. Native tab scrolling keeps labels/counts accessible in narrow result
+  panes without squeezing or truncating them.
+- The shared component supplies the same design in the split search workspace
+  and the mobile single-column search page. No search-engine changes were needed.
+
+### Files and validation
+
+Updated `search_filter_bar.dart`, `HANDOFF.md`, and the tags/search guide.
+
+- `flutter analyze`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test test/search/search_workspace_test.dart test/search/ocr_global_search_test.dart test/features/notes/gestures_test.dart`
+  — all **39 passed**, covering filtering/selection, provider changes, desktop and
+  portrait-tablet layouts, the mobile OCR flow, and search navigation.
+- A temporary capture harness outside the repository passed and rendered the
+  updated control with real fonts at desktop (1440×900), tablet (768×1024), and
+  phone (390×844) sizes. Tablet and phone screenshots were visually inspected.
+- `git diff --check`: clean.
+
+## 275. Visual and Markdown title Enter focus on Linux (November 15, 2026)
+
+### Behavior and implementation
+
+The user reported that submitting a new note's title with a Linux physical
+keyboard left Visual and Markdown modes unable to accept body text or another
+Enter. Title-to-body navigation relied exclusively on the native text-input
+submission callback and Flutter's default Next focus traversal.
+
+- `editor_screen.dart` handles Enter and numpad Enter on the title's focus node
+  for Visual and Markdown modes, consuming the key before native submission.
+  Active IME composition is left to the input method.
+- A shared `_focusBodyFromTitle` clears title composition, selects the beginning
+  of the active body controller, and requests body focus. The mobile Next action
+  uses the same helper. Explicit editing completion avoids default traversal
+  through toolbar controls. Read-only notes are guarded.
+- Super Editor continues to use its existing document caret API on submission;
+  its body rendering and key handling are unchanged.
+
+### Files and validation
+
+Updated `editor_screen.dart`, `test/editor/dual_mode_editor_screen_test.dart`,
+`HANDOFF.md`, and the editor guide.
+
+- `flutter analyze --no-pub`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/markdown_editor_widget_test.dart test/editor/rich_text_editor_formattings_test.dart`
+  — all **104 passed**.
+- Four new screen regressions cover Visual and Markdown on Linux and Android:
+  focused body, visible caret, input through the current connection without
+  tapping the body, a second Enter/newline, further typing, and saved title/body.
+  The Linux tests dispatch physical Enter directly; mobile tests dispatch Next.
+- The four regressions also passed after matching new-note autofocus and adding
+  numpad Enter checks against populated bodies. Input-action submission already
+  passed in the initial isolated harness; the fix adds explicit hardware-key
+  handling. These are widget tests, not a native GTK/IME smoke test.
+- `git diff --check`: clean.
+
+## 276. Super Editor math parsing, paste, insertion and editing stability (November 15, 2026)
 
 ### Bugs diagnosed
 
@@ -6203,4 +6275,15 @@ regressions.
 - Only relevant tests ran, per the user's instruction:
   `flutter test --no-pub test/editor/quiet_math_test.dart test/editor/quiet_math_regression_test.dart test/editor/quiet_super_editor_test.dart test/editor/quiet_code_block_test.dart test/editor/formatting_toolbar_test.dart test/editor/dual_mode_editor_screen_test.dart test/editor/web_link_enhancements_test.dart`
   — all **101 passed**. The full repository suite was not run.
+- `git diff --check`: clean.
+
+### PR #3 merge validation
+
+Merged current `main` into the PR branch and resolved the engineering-log
+conflict by preserving the search and title-focus entries and numbering this
+math entry as 276. Updated the corresponding `HANDOFF.md` link.
+
+- `flutter analyze`: no issues.
+- The full `flutter test` run was stopped at the user's request; no full-suite result is claimed.
+- Existing PR checks passed before this documentation conflict resolution.
 - `git diff --check`: clean.

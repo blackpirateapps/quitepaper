@@ -51,12 +51,17 @@ Super Editor math now parses display formulas before CommonMark, preserves TeX
 and internal blank lines, and recognizes math in keyboard and native-menu paste.
 The math insertion menu retains its caret anchor and opens the formula input;
 inline folding preserves document offsets and formatting during edits. See
-[engineering log 274](handoff/latest-logs.md#274-super-editor-math-parsing-paste-insertion-and-editing-stability-november-15-2026).
+[engineering log 276](handoff/latest-logs.md#276-super-editor-math-parsing-paste-insertion-and-editing-stability-november-15-2026).
 
 Super Editor now separates the title and body with a themed divider. Submitting
 the title places a visible caret at the beginning of the body, and empty editable
 bodies display `Start writing...` until text is entered. See
 [engineering log 271](handoff/latest-logs.md#271-super-editor-title-to-body-caret-divider-and-placeholder-november-15-2026).
+
+Visual and Markdown modes now handle physical Enter and numpad Enter in the
+title directly, placing the caret in the body so typing can continue immediately
+on Linux. Mobile Next uses the same focus transition. See
+[engineering log 275](handoff/latest-logs.md#275-visual-and-markdown-title-enter-focus-on-linux-november-15-2026).
 
 ## Latest Desktop and Tablet Search Workspace
 
@@ -65,6 +70,10 @@ and above, including portrait tablets. Search and category filters stay above
 the results pane; a draggable divider resizes the panes. The first result previews
 automatically, and Open/Edit actions open the selected item separately. See
 [engineering log 273](handoff/latest-logs.md#273-desktop-and-tablet-search-results-and-preview-workspace-november-15-2026).
+
+Search categories now use content-width underline tabs with result counts on
+desktop, tablet, and mobile. See
+[engineering log 274](handoff/latest-logs.md#274-search-category-underline-tabs-on-all-screen-sizes-november-15-2026).
 
 Desktop toolbar and keyboard search now open immediately. The split pane retains
 its height when the notes list is hidden, and disabling swipe-to-search no longer
