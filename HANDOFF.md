@@ -53,6 +53,18 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## Latest Visual and Markdown Editor Stability
+
+Visual mode now retains text-field focus and caret positions around mixed lists,
+resolves checklist edits by block ID, and transfers keyboard input into paragraphs
+after leaving a checklist. Source selection changes no longer roll back pending
+visual text. Markdown fields around tables retain their input connections, and
+inline links preserve editing offsets. Native title-to-body and click-to-body
+keyboard input passed on this laptop under Hyprland/Wayland in both modes. The
+installed app was **1.6.2+456**; the fixed regular Linux debug build is in
+`build/linux/x64/debug/bundle/`. See
+[engineering log 279](handoff/latest-logs.md#279-visual-and-markdown-editor-focus-caret-and-linux-input-stability-november-15-2026).
+
 ## Latest Super Editor Polish
 
 Super Editor smart checklists now preserve the Android keyboard and visible caret

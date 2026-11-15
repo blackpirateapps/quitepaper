@@ -95,10 +95,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   RichDocumentController? _richController;
   final Debouncer _autosaveDebouncer = Debouncer(duration: const Duration(milliseconds: 50));
   bool _isSyncing = false;
+  late String _lastSourceText;
 
   @override
   void initState() {
     super.initState();
+    _lastSourceText = widget.controller.text;
     _initRichController();
     widget.controller.addListener(_onSourceControllerChanged);
   }
@@ -244,6 +246,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onSourceControllerChanged);
       widget.controller.addListener(_onSourceControllerChanged);
+      _lastSourceText = widget.controller.text;
       if (_richController != null) {
         _richController!.styles = widget.controller.styles;
         _richController!.setContent(widget.controller.text);
@@ -283,7 +286,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _onSourceControllerChanged() {
-    if (_isSyncing) return;
+    final text = widget.controller.text;
+    final contentChanged = text != _lastSourceText;
+    _lastSourceText = text;
+    // Source selection/style notifications must not roll back a pending
+    // debounced visual edit or reparse the document with fresh block IDs.
+    if (_isSyncing || !contentChanged) return;
 
     if (_richController != null) {
       final currentDocStr = _richController!.hasFrontmatter
@@ -300,6 +308,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     }
 
     _syncActiveTableWithDocument();
+    if (mounted) setState(() {});
   }
 
   void _syncActiveTableWithDocument() {
@@ -636,7 +645,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
         children.add(
           _TextSegmentField(
-            key: ValueKey('seg_${segmentStart}_$segmentEnd'),
+            key: ValueKey('source_segment_$i'),
+            focusNode: children.whereType<_TextSegmentField>().isEmpty ? widget.focusNode : null,
             initialText: textBefore,
             styles: widget.controller.styles,
             readOnly: widget.readOnly,
@@ -696,7 +706,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
       children.add(
         _TextSegmentField(
-          key: ValueKey('seg_${segmentStart}_$segmentEnd'),
+          key: ValueKey('source_segment_${tables.length}'),
+          focusNode: children.whereType<_TextSegmentField>().isEmpty ? widget.focusNode : null,
           initialText: trailingText,
           styles: widget.controller.styles,
           readOnly: widget.readOnly,
@@ -719,7 +730,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     } else if (tables.isNotEmpty && currentOffset == text.length && !widget.readOnly) {
       children.add(
         _TextSegmentField(
-          key: const ValueKey('seg_bottom_empty'),
+          key: ValueKey('source_segment_${tables.length}'),
+          focusNode: children.whereType<_TextSegmentField>().isEmpty ? widget.focusNode : null,
           initialText: '',
           styles: widget.controller.styles,
           readOnly: widget.readOnly,
@@ -1005,6 +1017,7 @@ class _TextSegmentField extends StatefulWidget {
     super.key,
     required this.initialText,
     required this.styles,
+    this.focusNode,
     required this.readOnly,
     required this.hintText,
     required this.onChanged,
@@ -1017,6 +1030,7 @@ class _TextSegmentField extends StatefulWidget {
 
   final String initialText;
   final dynamic styles;
+  final FocusNode? focusNode;
   final bool readOnly;
   final String hintText;
   final ValueChanged<String> onChanged;
@@ -1032,7 +1046,7 @@ class _TextSegmentField extends StatefulWidget {
 
 class _TextSegmentFieldState extends State<_TextSegmentField> {
   late final MarkdownEditingController _sourceController;
-  late final FocusNode _focusNode;
+  late FocusNode _focusNode;
 
   @override
   void initState() {
@@ -1041,7 +1055,7 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       text: widget.initialText,
       styles: widget.styles,
     );
-    _focusNode = FocusNode();
+    _focusNode = widget.focusNode ?? FocusNode();
     _focusNode.addListener(_handleFocusChanged);
     _sourceController.addListener(_onTextChanged);
   }
@@ -1055,6 +1069,12 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
   @override
   void didUpdateWidget(_TextSegmentField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focusNode.removeListener(_handleFocusChanged);
+      if (oldWidget.focusNode == null) _focusNode.dispose();
+      _focusNode = widget.focusNode ?? FocusNode();
+      _focusNode.addListener(_handleFocusChanged);
+    }
     if (oldWidget.initialText != widget.initialText &&
         widget.initialText != _sourceController.text) {
       // Preserve cursor position when text is updated externally.
@@ -1082,7 +1102,7 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
     _focusNode.removeListener(_handleFocusChanged);
     _sourceController.removeListener(_onTextChanged);
     _sourceController.dispose();
-    _focusNode.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     super.dispose();
   }
 

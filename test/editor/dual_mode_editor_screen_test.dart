@@ -94,6 +94,14 @@ void main() {
           expect(tester.state<EditableTextState>(bodyField).renderEditable.showCursor.value, isTrue);
           expect(tester.testTextInput.hasAnyClients, isTrue);
 
+          if (platform == TargetPlatform.linux) {
+            expect(
+              await tester.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'b'),
+              isFalse,
+              reason: 'Printable keys must reach the Linux native text input',
+            );
+          }
+
           // Use the existing input connection, without tapping or refocusing the body.
           tester.testTextInput.updateEditingValue(const TextEditingValue(
             text: 'Body text',

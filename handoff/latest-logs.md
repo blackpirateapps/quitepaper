@@ -6404,3 +6404,88 @@ release entry as 277, renumbered the checklist entry to 278, and updated its
   claimed for this merge. The PR's existing CI checks passed before this
   documentation-only conflict resolution.
 - `git diff --check`: clean.
+
+## 279. Visual and Markdown editor focus, caret and Linux input stability (November 15, 2026)
+
+### Diagnosis
+
+This work targets the `wysiwyg` Visual editor and Markdown source editor, not
+Super Editor. The laptop's installed executable is `/opt/quitepaper/quitepaper`,
+whose bundled metadata reports **1.6.2+456**. It runs under Hyprland/Wayland and
+predates this checkout's title-to-body handling documented in section 275.
+
+Found and reproduced separate editing failures in the current source:
+
+- Visual text segments below checklists/widgets allocated a new `FocusNode` on
+  every rebuild. Index-based segment keys also recreated later fields after
+  insertion, and switching between the plain-document fast path and segmented
+  layout replaced the active editor subtree.
+- Checklist controller listeners captured creation-time block indices. Inserting
+  an item before an existing item could redirect subsequent edits to another
+  task. Reconciliation could dispose a focused checklist field before its new
+  paragraph destination was mounted, letting automatic sibling focus overwrite
+  the requested caret.
+- Source selection/style notifications compared an older debounced save buffer
+  against the current visual document and could reparse it over unsaved typing.
+- Checklist selection restoration ignored focused ranges and queued obsolete
+  caret requests. Up/Down always jumped to another task, even from the middle of
+  a wrapped item. Native numpad Enter was not handled like Enter in visual fields.
+- Link-enhancement `WidgetSpan`s introduced characters absent from the editing
+  buffer, shifting cursor and hit-testing offsets after links.
+- IME list continuation added canonical list markers, then interpreted raw IME
+  offsets against those new markers. Markdown table text fields used keys based
+  on changing source offsets, recreating their input connections during typing;
+  no table-segment field used the supplied body focus node.
+
+### Changes
+
+- Keep one segment layout for plain and mixed visual documents, stable block-ID
+  keys, and retained/disposed text focus nodes. Checklist-first notes attach the
+  supplied body focus node to the first actual task input.
+- Reconcile text after the surface supplies current indices. Resolve checklist
+  callbacks by stable ID, track ownership of external versus internal focus
+  nodes, and remove their listeners on replacement/disposal.
+- Restore structural destinations after mounting; suppress intermediate sibling
+  selection publication. Revalidate queued focus/selection requests, preserve
+  selected ranges and unchanged composition, and prevent inactive fields from
+  publishing selections. Preserve canonical caret positions after IME newlines.
+- Keep ordinary arrow movement within wrapped checklist items; move between
+  tasks only at visual boundaries, retaining the screen column. Leave modified
+  arrow keys to Flutter. Support numpad Enter alongside Enter.
+- Render only buffer-backed text in editable spans. Keep working text-link title
+  enhancement as a field suffix action outside the span stream; remove the
+  checklist's offset-shifting placeholder action, whose callback was a no-op.
+- Track actual source text changes, ignoring selection-only notifications.
+  Give Markdown table text segments stable ordinal keys and attach the supplied
+  body focus node to the first text segment, including a trailing empty field.
+
+Updated `markdown_editor.dart`, `rich_editor_surface.dart`, `rich_text_editor.dart`,
+`rich_checklist_editor.dart`, the screen regression tests, the new
+`visual_editor_stability_test.dart`, `HANDOFF.md`, and the editor guide.
+
+### Verification
+
+- `flutter analyze`: **no issues**.
+- Relevant tests only:
+  `flutter test --no-pub test/editor/visual_editor_stability_test.dart test/editor/markdown_editor_widget_test.dart test/editor/rich_text_checklist_editor_test.dart test/editor/rich_text_editor_formattings_test.dart test/editor/dual_mode_editor_screen_test.dart`
+  — **125 passed**. The full suite was not run.
+- Eleven stability tests were also run against the original four editor
+  source files: **10 failed**, confirming regressions for mixed-list typing,
+  shifted checklist callbacks, list exits, focused ranges, link offsets, pending
+  visual saves, checklist-first focus, IME continuation, wrapped navigation, and
+  Markdown table typing. Fixed files were restored byte for byte afterward.
+  A twelfth regression covers title editing without stale checklist refocusing.
+- Existing Linux screen tests additionally assert that printable hardware keys
+  remain unhandled by Flutter so they reach native text input.
+- Native Linux smoke tests used the actual `EditorScreen` in an isolated debug
+  window with an in-memory database and temporary preferences, separate from
+  the installed app and user notes. Hyprland dispatched normal-cadence native
+  keystrokes. Both Visual and Markdown passed title typing → Enter → body typing
+  → Enter → further typing, with focused body caret and saved content verified.
+  Separate tests clicked directly into each empty body and typed successfully.
+  These native checks cover basic input; mixed-list/IME edge cases use widget
+  regressions. Installed **1.6.2+456** was inspected but not replaced.
+- `flutter build linux --debug --no-pub -t lib/main.dart`: **passed**. The regular
+  app bundle is `build/linux/x64/debug/bundle/`; the temporary smoke harness was
+  closed, and the regular app target was rebuilt afterward.
+- `git diff --check`: clean.

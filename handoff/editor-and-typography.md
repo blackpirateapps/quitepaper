@@ -8,9 +8,10 @@
 
 Quiet Paper emphasizes an editorial, distraction-free writing environment inspired by Bear Notes and iA Writer. 
 
-The editor supports two modes:
-1. **Markdown Source Mode**: Raw markdown text editing with syntax highlighting, live formatting toolbar, cycling heading hotkeys, and inline previews.
-2. **Visual Editor (SuperEditor)**: Native Flutter document tree editor powered by `super_editor`, featuring rich AST nodes, interactive checklists, code blocks, and typewriter scrolling.
+The editor supports three editing styles:
+1. **Markdown Source Mode**: Raw Markdown editing with syntax highlighting and specialized table fields.
+2. **Visual Editor** (`wysiwyg`): `RichEditorSurface`, `RichTextEditor`, and `RichChecklistEditor` edit an authoritative `RichDocument` AST.
+3. **Super Editor**: The separate `super_editor` document editor, including smart checklists, math, native code blocks, and typewriter scrolling.
 
 ### Key Architectural Invariants
 - **Content is Canonical**: The user's text and formatting are preserved without loss.
@@ -19,6 +20,32 @@ The editor supports two modes:
 - **On-Demand Mode Conversion**: Conversion between Markdown text and the SuperEditor AST occurs only when explicitly switching modes.
 
 ---
+
+### Visual and Markdown input lifecycle
+
+- Visual text/checklist segments use stable block-ID keys. Text-segment focus
+  nodes live for the surface lifetime and are pruned after block removal. A plain
+  document uses the same segment layout as a mixed document. The supplied body
+  focus node belongs to the first text/checklist field, including checklist-first
+  notes, so title submission always targets a mounted editable field.
+- The surface rebuild supplies current segment indices before text reconciliation.
+  Checklist callbacks resolve their current index by block ID. Structural changes
+  suppress automatic sibling-focus publication until the selected destination is
+  mounted. Focus requests and checklist selections revalidate the current document
+  selection before applying; focused ranges and unchanged IME composition survive
+  synchronization. IME list continuation keeps canonical document offsets after
+  list markers are inserted.
+- Wrapped checklist Up/Down navigation stays within the current text field until
+  its first/last visual line; crossing into an adjacent task preserves the visual
+  column. Modified arrow keys retain Flutter's selection/navigation behavior.
+- Rendered editable spans must have the same UTF-16 length as the text controller.
+  Link enhancement is a field suffix action, outside the editable span stream;
+  no unbacked `WidgetSpan` may shift hit testing or caret offsets.
+- Markdown source notifications are compared with the last observed source text.
+  Selection/style-only notifications must never deserialize the older autosave
+  buffer over pending visual edits. Markdown text segments around tables use
+  ordinal keys, independent of changing character offsets, and the first text
+  segment uses the supplied body focus node.
 
 ## 2. SuperEditor Components & Smart Widgets
 

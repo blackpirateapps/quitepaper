@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -66,6 +67,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
       contextGetter: () => context,
     );
     _textController.addListener(_onTextControllerChanged);
+    _syncFromDocument();
     widget.controller.addListener(_onDocumentControllerChanged);
     widget.focusNode.addListener(_onFocusChanged);
   }
@@ -92,10 +94,12 @@ class _RichTextEditorState extends State<RichTextEditor> {
       oldWidget.focusNode.removeListener(_onFocusChanged);
       widget.focusNode.addListener(_onFocusChanged);
     }
-    if (oldWidget.blockIndices != widget.blockIndices) {
+    if (!listEquals(oldWidget.blockIndices, widget.blockIndices)) {
       _textController.blockIndices = widget.blockIndices;
-      _syncFromDocument();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncFromDocument(rebuildSpans: false);
+    });
   }
 
   @override
@@ -109,10 +113,12 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
   void _onDocumentControllerChanged() {
     if (_isInternalUpdate) return;
+    // Segmented surfaces reconcile after the parent supplies current indices.
+    if (widget.blockIndices != null) return;
     _syncFromDocument();
   }
 
-  void _syncFromDocument() {
+  void _syncFromDocument({bool rebuildSpans = true}) {
     final newText = _textController.computeSegmentText();
     _isInternalUpdate = true;
     try {
@@ -137,11 +143,14 @@ class _RichTextEditorState extends State<RichTextEditor> {
       newSelection = _textController.clampSelectionAwayFromPrefixes(newSelection);
 
       if (_textController.text != newText || _textController.selection != newSelection) {
-        _textController.value = TextEditingValue(
+        _textController.value = _textController.value.copyWith(
           text: newText,
           selection: newSelection,
+          composing: _textController.text == newText
+              ? _textController.value.composing
+              : TextRange.empty,
         );
-      } else {
+      } else if (rebuildSpans) {
         _textController.markNeedsRebuild();
       }
     } finally {
@@ -166,9 +175,17 @@ class _RichTextEditorState extends State<RichTextEditor> {
       }
     }
 
+    // Structural IME edits (e.g. Enter in a numbered list) add canonical
+    // prefixes. Their offsets differ from the raw input value; retain the
+    // mutation's document selection until the segment rebuild maps it back.
+    if (_textController.computeSegmentText() != currentText) {
+      if (widget.blockIndices == null) _syncFromDocument();
+      return;
+    }
+
     // Clamp selection away from leading prefixes if user tapped/clicked in gutter
     final sel = _textController.selection;
-    if (sel.isValid) {
+    if (sel.isValid && widget.focusNode.hasFocus) {
       final clampedSel = _textController.clampSelectionAwayFromPrefixes(sel);
       if (clampedSel != sel) {
         _isInternalUpdate = true;
@@ -202,11 +219,13 @@ class _RichTextEditorState extends State<RichTextEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final link = widget.controller.linkAtCaret;
 
     return Focus(
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
+          if (event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter) {
             // Check if Enter can be handled structurally across text blocks
             final sel = _textController.selection;
             if (sel.isValid && sel.isCollapsed) {
@@ -296,6 +315,15 @@ class _RichTextEditorState extends State<RichTextEditor> {
             );
           },
           decoration: InputDecoration(
+            suffixIcon: !widget.readOnly && widget.focusNode.hasFocus && link != null &&
+                    (link.url.startsWith('https://') || link.url.startsWith('http://'))
+                ? LinkEnhanceButton(
+                    url: link.url,
+                    onEnhanced: (title) async {
+                      widget.controller.replaceLinkDisplayText(link.url, title, force: true);
+                    },
+                  )
+                : null,
             hintText: widget.hintText,
             hintStyle: AppTypography.editorBody.copyWith(
               color: colors.textTertiary,
@@ -1019,32 +1047,6 @@ class _RichTextEditingController extends TextEditingController {
       }
 
       result.add(TextSpan(text: span.text, style: spanStyle));
-
-      // Append an editorial enhance button at the trailing edge of web links
-      if (attr.hasLink &&
-          !readOnly &&
-          attr.linkUrl != null &&
-          (attr.linkUrl!.startsWith('http://') || attr.linkUrl!.startsWith('https://'))) {
-        final isLastInRun =
-            i == spans.length - 1 || spans[i + 1].attributes.linkUrl != attr.linkUrl;
-        if (isLastInRun) {
-          result.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: LinkEnhanceButton(
-                url: attr.linkUrl!,
-                onEnhanced: (newTitle) async {
-                  editorController.replaceLinkDisplayText(
-                    attr.linkUrl!,
-                    newTitle,
-                    force: true,
-                  );
-                },
-              ),
-            ),
-          );
-        }
-      }
     }
 
     return result;
