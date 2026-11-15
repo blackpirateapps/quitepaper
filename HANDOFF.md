@@ -53,6 +53,15 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## Native Formatting Toolbar Audit
+
+A native Linux toolbar audit found four additional failures in Visual/Markdown
+modes: divider continuation focus, Visual code-block focus, a Visual undo/redo
+disposed-controller crash, and lost Markdown typing after first code insertion.
+Reproduction steps, scope limitations and sample artifacts are preserved in
+[`EDITOR_TOOLBAR_AUDIT.md`](EDITOR_TOOLBAR_AUDIT.md). These findings are recorded
+for follow-up; this audit does not fix them.
+
 ## Latest Visual and Markdown Editor Stability
 
 Visual mode now retains text-field focus and caret positions around mixed lists,

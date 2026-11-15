@@ -6489,3 +6489,31 @@ Updated `markdown_editor.dart`, `rich_editor_surface.dart`, `rich_text_editor.da
   app bundle is `build/linux/x64/debug/bundle/`; the temporary smoke harness was
   closed, and the regular app target was rebuilt afterward.
 - `git diff --check`: clean.
+
+
+## 280. Native Visual and Markdown formatting toolbar audit (November 15, 2026)
+
+Exercised the actual EditorScreen in isolated Linux/Wayland windows using native
+mouse/keyboard events and an in-memory database. Captured findings immediately in
+`EDITOR_TOOLBAR_AUDIT.md` and preserved sample Markdown/Visual AST files under
+`handoff/audits/`. No editor behavior changes are included in this audit.
+
+Four failures reproduced: Visual divider insertion retains the previous caret;
+Visual code-block insertion drops focus; Visual toolbar Undo then Redo causes a
+disposed-controller exception; first Markdown code insertion retains apparent
+focus while losing subsequent typing. See the audit for minimal reproductions,
+evidence, suspected cause boundaries, and follow-up priorities.
+
+Inline styles, highlight, heading levels 1–6, paragraph conversion, and list/quote
+controls were exercised in both modes. Insert menus, valid web-link/table
+insertion, table-cell editor opening, note-link/tag syntax, attachment entry
+points, camera fallback, recording/discard, and dictation entry were checked.
+External attachment processing, actual transcription, math rendering parity,
+complete table editing, and mode/export round trips are explicitly not certified.
+Automation timing and URL-entry mistakes are documented separately from app bugs.
+
+Validation: `flutter analyze` reported no issues; all 12 focused
+`visual_editor_stability_test.dart` tests passed. These existing regressions do
+not cover the newly discovered toolbar sequences. No full test suite was run.
+Closed the temporary window and rebuilt the regular Linux app target afterward.
+Updated HANDOFF.md to link the durable audit. Installed app/user notes unchanged.
