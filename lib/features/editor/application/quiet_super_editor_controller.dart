@@ -1,4 +1,5 @@
-import 'smart_table_markdown.dart';
+import 'dart:ui' show TextAffinity;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:super_editor/super_editor.dart';
@@ -8,6 +9,9 @@ import '../presentation/widgets/super_editor/quiet_attachment_component.dart';
 import '../presentation/widgets/super_editor/quiet_image_component.dart';
 import '../presentation/widgets/super_editor/quiet_link_preview_component.dart';
 import '../presentation/widgets/super_editor/math/quiet_math_block_node.dart';
+import '../presentation/widgets/super_editor/math/quiet_math_parser.dart';
+import '../presentation/widgets/super_editor/quiet_code_block_component.dart';
+import 'smart_table_markdown.dart';
 
 /// Controller coordinating the [SuperEditor] editing state and bridging Quiet Paper's
 /// formatting toolbar, keyboard shortcuts, and document actions.
@@ -21,6 +25,7 @@ import '../presentation/widgets/super_editor/math/quiet_math_block_node.dart';
 class QuietSuperEditorController extends ChangeNotifier {
   Editor? _editor;
   MutableDocumentComposer? _composer;
+  DocumentSelection? _lastSelection;
 
   /// Whether an [Editor] is currently attached.
   bool get isAttached => _editor != null && _composer != null;
@@ -61,6 +66,7 @@ class QuietSuperEditorController extends ChangeNotifier {
     detach();
     _editor = editor;
     _composer = composer;
+    _lastSelection = composer.selection;
 
     _editor!.document.addListener(_onDocumentChanged);
     _composer!.selectionNotifier.addListener(_onSelectionChanged);
@@ -92,6 +98,7 @@ class QuietSuperEditorController extends ChangeNotifier {
     _composer?.preferences.removeListener(_onPreferencesChanged);
     _editor = null;
     _composer = null;
+    _lastSelection = null;
     if (!_isDisposed) {
       _notifyConnectionChanged();
     }
@@ -102,6 +109,7 @@ class QuietSuperEditorController extends ChangeNotifier {
   }
 
   void _onSelectionChanged() {
+    if (_composer?.selection != null) _lastSelection = _composer!.selection;
     if (!_isDisposed) notifyListeners();
   }
 
@@ -585,32 +593,49 @@ class QuietSuperEditorController extends ChangeNotifier {
     MathDelimiterType delimiterType = MathDelimiterType.brackets,
   }) {
     if (_editor == null || _composer == null) return;
-    final sel = _composer!.selection;
-    if (sel == null) return;
-    final nodeId = sel.extent.nodeId;
-    final node = _editor!.document.getNodeById(nodeId);
-
+    final document = _editor!.document;
+    // Menus temporarily take focus and clear the composer selection. Retain a
+    // valid insertion anchor so the formula still appears where the user was.
+    final previousNode = document.getNodeById(
+      _lastSelection?.extent.nodeId ?? '',
+    );
+    final previousSelection =
+        previousNode != null &&
+            previousNode.containsPosition(_lastSelection!.extent.nodePosition)
+        ? _lastSelection
+        : null;
+    final sel = _composer!.selection ?? previousSelection;
+    final node = sel != null
+        ? document.getNodeById(sel.extent.nodeId)
+        : document.isNotEmpty
+        ? document.last
+        : null;
+    final replaceEmpty = node is ParagraphNode && node.text.isEmpty;
     final mathNode = QuietMathBlockNode(
-      id: Editor.createNodeId(),
+      id: replaceEmpty ? node.id : Editor.createNodeId(),
       latex: latex,
       delimiterType: delimiterType,
     );
 
-    if (node is ParagraphNode && node.text.toPlainText().trim().isEmpty) {
-      _editor!.execute([
-        ReplaceNodeRequest(
-          existingNodeId: nodeId,
-          newNode: mathNode,
+    _editor!.execute([
+      if (replaceEmpty)
+        ReplaceNodeRequest(existingNodeId: node.id, newNode: mathNode)
+      else if (node != null)
+        InsertNodeAfterNodeRequest(existingNodeId: node.id, newNode: mathNode)
+      else
+        InsertNodeAtIndexRequest(nodeIndex: 0, newNode: mathNode),
+      ChangeSelectionRequest(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: mathNode.id,
+            nodePosition: mathNode.endPosition,
+          ),
         ),
-      ]);
-    } else {
-      _editor!.execute([
-        InsertNodeAfterNodeRequest(
-          existingNodeId: nodeId,
-          newNode: mathNode,
-        ),
-      ]);
-    }
+        SelectionChangeType.insertContent,
+        SelectionReason.userInteraction,
+      ),
+      ChangeComposingRegionRequest(null),
+    ]);
   }
 
   /// Inserts an inline math snippet `\(...\)` at the current caret.
@@ -1052,6 +1077,15 @@ class QuietSuperEditorController extends ChangeNotifier {
   void insertSnippet(String snippet) {
     if (_editor == null) return;
 
+    final selectedNode = _editor!.document.getNodeById(
+      _composer?.selection?.extent.nodeId ?? '',
+    );
+    if (selectedNode is ParagraphNode &&
+        selectedNode.metadata[NodeMetadata.blockType] == codeAttribution) {
+      _editor!.execute([InsertPlainTextAtCaretRequest(snippet)]);
+      return;
+    }
+
     // Feature 4: pasting a lone web URL onto a non-empty single-block selection
     // wraps the selected text as a link (display = selection, href = URL)
     // instead of replacing it. Skips multi-node ranges and ranges already
@@ -1145,26 +1179,45 @@ class QuietSuperEditorController extends ChangeNotifier {
       final hasBlockLinkPreview =
           trimmed.contains('<!-- qp-link-preview:') ||
           trimmed.contains(r'\<!-- qp-link-preview:');
+      final hasMath = QuietMathParser.containsMathSyntax(trimmed);
 
-      if (hasBlockImage || hasBlockTable || hasBlockAttachment || hasBlockLinkPreview) {
-        final normalized = normalizeMarkdownForSuperEditor(trimmed);
+      if (hasBlockImage ||
+          hasBlockTable ||
+          hasBlockAttachment ||
+          hasBlockLinkPreview ||
+          hasMath) {
+        final normalized = transformOutsideQuietTables(
+          trimmed,
+          normalizeMarkdownForSuperEditor,
+          isolate: true,
+        );
         final structuredDoc = deserializeQuietMarkdown(normalized);
         promoteQuietAttachmentNodes(structuredDoc);
         promoteLinkPreviewNodes(structuredDoc);
+        promoteQuietCodeBlockNodes(structuredDoc, trimmed);
+        promoteQuietMathBlockNodes(structuredDoc);
         if (structuredDoc.isNotEmpty) {
-          _editor!.execute([
-            PasteStructuredContentEditorRequest(
-              content: structuredDoc,
-              pastePosition: _composer!.selection!.extent,
-            ),
-          ]);
+          _editor!.startTransaction();
+          try {
+            if (!_composer!.selection!.isCollapsed) {
+              _editor!.execute([
+                const DeleteSelectionRequest(TextAffinity.downstream),
+              ]);
+            }
+            _editor!.execute([
+              PasteStructuredContentEditorRequest(
+                content: structuredDoc,
+                pastePosition: _composer!.selection!.extent,
+              ),
+            ]);
+          } finally {
+            _editor!.endTransaction();
+          }
           return;
         }
       }
 
-      _editor!.execute([
-        InsertPlainTextAtCaretRequest(snippet),
-      ]);
+      _editor!.execute([InsertPlainTextAtCaretRequest(snippet)]);
     }
   }
 }

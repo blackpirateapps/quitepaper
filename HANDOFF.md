@@ -47,6 +47,12 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Latest Super Editor Polish
 
+Super Editor math now parses display formulas before CommonMark, preserves TeX
+and internal blank lines, and recognizes math in keyboard and native-menu paste.
+The math insertion menu retains its caret anchor and opens the formula input;
+inline folding preserves document offsets and formatting during edits. See
+[engineering log 276](handoff/latest-logs.md#276-super-editor-math-parsing-paste-insertion-and-editing-stability-november-15-2026).
+
 Super Editor now separates the title and body with a themed divider. Submitting
 the title places a visible caret at the beginning of the body, and empty editable
 bodies display `Start writing...` until text is entered. See
@@ -114,5 +120,8 @@ Smart Tables adds offline decimal formulas, live results, range summaries,
 summary rows, calculated columns, number formats and shared table history.
 Raw formulas and metadata remain in the encrypted Markdown note body. See
 [the Smart Tables guide](handoff/smart-tables.md) and
-[engineering log 276](handoff/latest-logs.md#276-smart-tables-november-15-2026)
+[engineering log 277](handoff/latest-logs.md#277-smart-tables-november-15-2026)
 for architecture, verification and interoperability limits.
+
+PR #4 conflict resolution combines Smart Tables and math parsing for note loading,
+controller paste and native-menu math paste, preserving both custom block formats.

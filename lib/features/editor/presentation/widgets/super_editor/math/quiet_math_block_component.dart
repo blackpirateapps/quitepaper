@@ -145,6 +145,11 @@ class _QuietMathBlockComponentState
     _delimiterType = widget.node.delimiterType;
     _textController = TextEditingController(text: widget.node.latex);
     _focusNode = FocusNode();
+    if (widget.node.latex.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startEditing();
+      });
+    }
   }
 
   @override

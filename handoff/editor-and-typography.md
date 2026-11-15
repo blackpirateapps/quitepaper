@@ -42,6 +42,19 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
 ### LaTeX Math Syntax Support (Block & Bear-Style Inline Folding)
 - **Engine**: 100% offline, pure-Dart LaTeX rendering powered by `flutter_math_fork`. Zero WebViews or external JavaScript runtimes.
 - **Block Math (`QuietMathBlockNode`)**:
+  - Loading and paste use `deserializeQuietMarkdown`, registering both math and
+    Smart Tables syntax: a custom block syntax
+    captures display math before CommonMark can consume TeX escapes, emphasis,
+    list-like lines or internal blank lines. The converter builds math nodes
+    directly; the promotion pass retains legacy bracket recovery and fenced
+    `math`/`latex`/`tex` support. Unfinished delimiters remain editable text.
+  - The normalizer preserves complete formulas and fenced code verbatim when
+    isolating blocks and collapsing surrounding blank lines. Code examples are
+    excluded from math promotion and folding.
+  - Both controller paste and native `PasteEditorRequest` recognize math.
+    Structured selection replacement is one undoable transaction. Inserting
+    math retains the last valid caret when a menu takes focus, falls back to the
+    document end, and opens empty formulas for editing automatically.
   - Implemented in [`QuietMathBlockNode`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_node.dart) and rendered via [`QuietMathBlockComponent`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart).
   - Delimiters supported: `\[ ... \]`, `$$ ... $$`, and ````math ... ````.
   - Interactive UX: displays rendered mathematical formulas in a clean, compact textbook-style typographic block (~45px height) with transparent idle background and zero-height floating hover actions (Copy LaTeX, Edit). Delimiter switching pills (`\[ \]`, `$$`, ````math````) remain available in edit mode. Tapping expands an inline TeX editor card with live real-time formula preview, delimiter switcher, `Ctrl/Cmd+Enter` to save, and `Escape` to cancel.
@@ -49,6 +62,11 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
   - Keyboard navigation: [`QuietMathBlockPlugin`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_math_block_component.dart) equips math blocks with `Enter` and `ArrowDown` handlers to cleanly continue writing below terminal math blocks.
   - Shortcut creation: typing `$$` or `\[` on an empty line and pressing `Enter` automatically transforms the paragraph into a `QuietMathBlockNode` via `handleMathBlockFenceNewlineRequest`.
 - **Inline Math (`QuietInlineMath`)**:
+  - Folding retains the original UTF-16 length and attribution spans: each
+    rendered formula occupies its canonical start offset, followed by invisible
+    padding in the display text only. This preserves hit testing, caret movement,
+    selection and edits after multiple formulas. Padding never enters persisted
+    Markdown or the canonical document.
   - Delimiters supported: `\( ... \)` and `$...$`.
   - Seamless Bear/Typora-style folding: when the user's cursor is outside the formula, it folds into an inline rendered LaTeX equation pill via `AttributedText` placeholders. When the cursor moves inside the equation, it unfolds immediately into the raw LaTeX source for direct editing.
   - Component builders: custom [`QuietMathParagraphComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart) and [`QuietMathListItemComponentBuilder`](file:///home/dog/git/quitepaper/lib/features/editor/presentation/widgets/super_editor/math/quiet_inline_math.dart) seamlessly fold formulas in both body paragraphs and bullet/task lists.

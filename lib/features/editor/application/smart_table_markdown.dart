@@ -1,7 +1,10 @@
 import 'smart_table_edits.dart';
 import 'smart_table_display.dart';
+
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_editor/super_editor.dart';
+
+import '../presentation/widgets/super_editor/math/quiet_math_parser.dart';
 import '../domain/markdown_table.dart';
 import '../domain/smart_tables/formula_engine.dart';
 import 'markdown_table_parser.dart';
@@ -89,8 +92,15 @@ TableBlockNode quietTableNode(String source, {String? id}) {
 MutableDocument deserializeQuietMarkdown(String source) =>
     deserializeMarkdownToDocument(
       source,
-      customBlockSyntax: const [QuietTableSyntax()],
-      customElementToNodeConverters: const [QuietTableConverter()],
+      customBlockSyntax: const [QuietMathBlockSyntax(), QuietTableSyntax()],
+      customElementToNodeConverters: const [
+        QuietMathElementToNodeConverter(),
+        QuietTableConverter(),
+      ],
+      inlineMarkdownSyntaxes: [
+        QuietMathInlineSyntax(),
+        ...defaultSuperEditorInlineSyntaxes,
+      ],
     );
 
 /// A display-only projection for native Markdown preview. Never use this as a

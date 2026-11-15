@@ -1,4 +1,3 @@
-import '../../application/smart_table_markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import '../../../settings/application/typography_provider.dart';
 import '../../../settings/domain/typography_settings.dart';
 import '../../application/frontmatter_editor_helper.dart';
 import '../../application/quiet_super_editor_controller.dart';
+import '../../application/smart_table_markdown.dart';
 import 'super_editor/link_enhance_overlay.dart';
 import 'super_editor/math/quiet_inline_math.dart';
 import 'super_editor/math/quiet_math_block_component.dart';
@@ -99,7 +99,11 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final split = _splitFrontmatter(widget.initialMarkdown);
     _frontmatterPrefix = split.prefix;
 
-    final normalized = transformOutsideQuietTables(split.body, normalizeMarkdownForSuperEditor, isolate: true);
+    final normalized = transformOutsideQuietTables(
+      split.body,
+      normalizeMarkdownForSuperEditor,
+      isolate: true,
+    );
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
@@ -141,6 +145,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     _editor.reactionPipeline.insert(0, const CodeBlockConversionReaction());
     _editor.requestHandlers.insert(0, handleCodeBlockFenceNewlineRequest);
     _editor.requestHandlers.insert(0, handleMathBlockFenceNewlineRequest);
+    _editor.requestHandlers.insert(0, _handleMathPasteRequest);
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
@@ -152,6 +157,35 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  // Native selection-toolbar paste uses PasteEditorRequest instead of the app's
+  // keyboard paste callback. Give it the same math parsing as controller paste.
+  EditCommand? _handleMathPasteRequest(Editor editor, EditRequest request) {
+    if (request is! PasteEditorRequest ||
+        !QuietMathParser.containsMathSyntax(request.content)) {
+      return null;
+    }
+    final target = editor.document.getNodeById(request.pastePosition.nodeId);
+    if (target is ParagraphNode &&
+        target.metadata[NodeMetadata.blockType] == codeAttribution) {
+      return null;
+    }
+    final content = deserializeQuietMarkdown(
+      transformOutsideQuietTables(
+        request.content,
+        normalizeMarkdownForSuperEditor,
+        isolate: true,
+      ),
+    );
+    promoteQuietAttachmentNodes(content);
+    promoteLinkPreviewNodes(content);
+    promoteQuietCodeBlockNodes(content, request.content);
+    promoteQuietMathBlockNodes(content);
+    return PasteStructuredContentEditorCommand(
+      content: content,
+      pastePosition: request.pastePosition,
+    );
   }
 
   /// Splits [markdown] into its preserved frontmatter prefix and the editable
@@ -236,7 +270,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietMathBlockNodeSerializer(),
         ],
       );
-      final normalizedBody = transformOutsideQuietTables(bodyMarkdown, normalizeInlineMarkdownSpacing);
+      final normalizedBody = transformOutsideQuietTables(
+        bodyMarkdown,
+        normalizeInlineMarkdownSpacing,
+      );
       final fullMarkdown = _frontmatterPrefix != null
           ? '$_frontmatterPrefix$normalizedBody'
           : normalizedBody;
@@ -473,7 +510,10 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               noteId: widget.noteId,
               showRemove: !widget.readOnly,
             ),
-            QuietTableComponentBuilder(editor: _editor, readOnly: widget.readOnly),
+            QuietTableComponentBuilder(
+              editor: _editor,
+              readOnly: widget.readOnly,
+            ),
             QuietHorizontalRuleComponentBuilder(_editor),
             if (widget.hintText?.isNotEmpty == true && !widget.readOnly)
               _EmptyBodyHintComponentBuilder(

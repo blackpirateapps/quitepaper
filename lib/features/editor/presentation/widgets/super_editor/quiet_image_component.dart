@@ -7,6 +7,22 @@ import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
 import 'package:quitepaper/features/editor/application/link_preview_metadata.dart';
 import 'package:super_editor/super_editor.dart';
 
+import 'math/quiet_math_parser.dart';
+
+// Preserve code verbatim, including incomplete fences while the user types.
+int? _codeFenceLineCount(List<String> lines, int start) {
+  final opening = RegExp(r'^ {0,3}(`{3,}|~{3,})').firstMatch(lines[start]);
+  if (opening == null) return null;
+  final marker = opening.group(1)!;
+  final closing = RegExp(
+    '^ {0,3}${RegExp.escape(marker[0])}{${marker.length},}\\s*\$',
+  );
+  for (var i = start + 1; i < lines.length; i++) {
+    if (closing.hasMatch(lines[i])) return i - start + 1;
+  }
+  return lines.length - start;
+}
+
 /// Custom [ComponentBuilder] for SuperEditor that renders both encrypted
 /// local note attachments (`attachment:<UUID>`, `qp://asset/<UUID>`) and
 /// web images using Quiet Paper's [QuietAssetImageView] and [QuietDocumentCard].
@@ -46,8 +62,9 @@ class QuietImageComponentBuilder implements ComponentBuilder {
       componentKey: componentContext.componentKey,
       imageUrl: componentViewModel.imageUrl,
       expectedSize: componentViewModel.expectedSize,
-      selection: componentViewModel.selection?.nodeSelection
-          as UpstreamDownstreamNodeSelection?,
+      selection:
+          componentViewModel.selection?.nodeSelection
+              as UpstreamDownstreamNodeSelection?,
       selectionColor: componentViewModel.selectionColor,
       opacity: componentViewModel.opacity,
       imageBuilder: (context, imageUrl) {
@@ -81,19 +98,13 @@ class QuietImageComponentBuilder implements ComponentBuilder {
     if (qpUri != null && qpUri.isAsset) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: QuietAssetImageView(
-          assetId: qpUri.resourceId,
-          noteId: noteId,
-        ),
+        child: QuietAssetImageView(assetId: qpUri.resourceId, noteId: noteId),
       );
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: QuietAssetImageView(
-        url: uriString,
-        noteId: noteId,
-      ),
+      child: QuietAssetImageView(url: uriString, noteId: noteId),
     );
   }
 }
@@ -106,24 +117,34 @@ String normalizeInlineMarkdownSpacing(String markdown) {
   if (markdown.isEmpty) return markdown;
   final lines = markdown.split('\n');
   final result = <String>[];
-  bool inFencedCode = false;
-
-  for (final line in lines) {
-    final trimmed = line.trim();
-    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      inFencedCode = !inFencedCode;
-      result.add(line);
-      continue;
-    }
-    if (inFencedCode) {
-      result.add(line);
+  for (var index = 0; index < lines.length; index++) {
+    final protectedCount =
+        _codeFenceLineCount(lines, index) ??
+        QuietMathParser.blockLineCount(
+          (offset) =>
+              index + offset < lines.length ? lines[index + offset] : null,
+        );
+    if (protectedCount != null) {
+      result.addAll(lines.sublist(index, index + protectedCount));
+      index += protectedCount - 1;
       continue;
     }
 
     // Protect inline code backticks: odd parts are inside inline code
-    final parts = line.split('`');
+    final parts = lines[index].split('`');
     for (int i = 0; i < parts.length; i += 2) {
-      parts[i] = _normalizeInlineSegment(parts[i]);
+      final text = parts[i];
+      final buffer = StringBuffer();
+      var cursor = 0;
+      for (final match in QuietMathParser.findInlineMathMatches(text)) {
+        buffer.write(
+          _normalizeInlineSegment(text.substring(cursor, match.start)),
+        );
+        buffer.write(match.rawMatch);
+        cursor = match.end;
+      }
+      buffer.write(_normalizeInlineSegment(text.substring(cursor)));
+      parts[i] = buffer.toString();
     }
     result.add(parts.join('`'));
   }
@@ -176,47 +197,46 @@ String normalizeMarkdownForSuperEditor(String markdown) {
 
   final inlineNormalized = normalizeInlineMarkdownSpacing(markdown);
 
-  // Protect inline LaTeX delimiters: CommonMark parses \( as an escaped parenthesis `(`.
-  // Escaping to \\( ensures CommonMark parses it into a literal `\(` in the Document AST.
-  final protectedMath = inlineNormalized.replaceAllMapped(
-    RegExp(r'(?<!\\)\\{1,2}\(([\s\S]+?)(?<!\\)\\{1,2}\)'),
-    (m) => r'\\(' + m.group(1)! + r'\\)',
-  );
-
-  final lines = const LineSplitter().convert(protectedMath);
+  final lines = const LineSplitter().convert(inlineNormalized);
   final buffer = StringBuffer();
   final imageLineRegex = RegExp(r'^\s*!\[.*?\]\(.*?\)\s*$');
   final tableLineRegex = RegExp(r'^\s*\|.*?\|\s*$');
-  final listOrTaskLineRegex =
-      RegExp(r'^\s*([-*+](\s+\[[ xX]\]|\s+)|\d+\.\s+)');
+  final listOrTaskLineRegex = RegExp(r'^\s*([-*+](\s+\[[ xX]\]|\s+)|\d+\.\s+)');
   // A line that is exactly a single `[name](qp://document|asset/...)` link must
   // be isolated as its own block so it deserializes into a standalone paragraph
   // (which is then promoted to an embedded attachment card).
-  final qpLinkLineRegex =
-      RegExp(r'^\s*\[[^\]]*\]\(\s*qp://(?:document|asset)/[^)]*\)\s*$');
+  final qpLinkLineRegex = RegExp(
+    r'^\s*\[[^\]]*\]\(\s*qp://(?:document|asset)/[^)]*\)\s*$',
+  );
   // A standalone web link line `[Title](https?://...)`
-  final webLinkLineRegex =
-      RegExp(r'^\s*\[[^\]]*\]\(\s*https?://[^)]*\)\s*$');
-  final mathBracketStartRegex = RegExp(r'^\s*\\{1,2}\[');
-  final mathDollarStartRegex = RegExp(r'^\s*\$\$');
-
+  final webLinkLineRegex = RegExp(r'^\s*\[[^\]]*\]\(\s*https?://[^)]*\)\s*$');
   for (int i = 0; i < lines.length; i++) {
-    final line = lines[i];
+    final codeCount = _codeFenceLineCount(lines, i);
+    if (codeCount != null) {
+      buffer.writeln(lines.sublist(i, i + codeCount).join('\n'));
+      i += codeCount - 1;
+      continue;
+    }
+    // Protect inline delimiters only outside code and display math.
+    final line = lines[i].replaceAllMapped(
+      RegExp(r'(?<!\\)\\{1,2}\(([\s\S]+?)(?<!\\)\\{1,2}\)'),
+      (m) => r'\\(' + m.group(1)! + r'\\)',
+    );
     final trimmed = line.trim();
     final isImage = imageLineRegex.hasMatch(line);
     final isTable = tableLineRegex.hasMatch(line);
     final isQpLink = qpLinkLineRegex.hasMatch(line);
     final isWebLink = webLinkLineRegex.hasMatch(line);
-    final isLinkPreview = isLinkPreviewComment(trimmed) ||
+    final isLinkPreview =
+        isLinkPreviewComment(trimmed) ||
         trimmed.startsWith(r'\<!-- qp-link-preview:');
     final isListOrTask = listOrTaskLineRegex.hasMatch(line);
-    final isMathBracket = mathBracketStartRegex.hasMatch(trimmed);
-    final isMathDollar = mathDollarStartRegex.hasMatch(trimmed);
+    final mathCount = QuietMathParser.blockLineCount(
+      (offset) => i + offset < lines.length ? lines[i + offset] : null,
+    );
 
-    // Isolate block math formulas (\[ ... \] and $$ ... $$) with blank lines
-    // and repair legacy escaped underscores (\_ -> _) so CommonMark does not merge
-    // them into neighboring paragraphs or list items.
-    if (isMathBracket || isMathDollar) {
+    // Isolate complete formulas while preserving every byte inside them.
+    if (mathCount != null) {
       if (buffer.isNotEmpty && !buffer.toString().endsWith('\n\n')) {
         if (!buffer.toString().endsWith('\n')) {
           buffer.write('\n');
@@ -224,32 +244,9 @@ String normalizeMarkdownForSuperEditor(String markdown) {
         buffer.write('\n');
       }
 
-      final isSingleLineBracket = isMathBracket && RegExp(r'\\{1,2}\]$').hasMatch(trimmed) && trimmed.length > 2;
-      final isSingleLineDollar = isMathDollar && trimmed.endsWith(r'$$') && trimmed.length > 2;
-
-      if (isSingleLineBracket || isSingleLineDollar) {
-        final cleaned = trimmed.replaceAll(r'\_', '_').replaceAll(r'\*', '*');
-        buffer.write(cleaned);
-        buffer.write('\n\n');
-        continue;
-      }
-
-      // Multi-line block math
-      final mathLines = <String>[line];
-      final closingRegex = isMathBracket ? RegExp(r'\\{1,2}\]$') : RegExp(r'\$\$$');
-      int j = i + 1;
-      while (j < lines.length) {
-        final nextLine = lines[j];
-        mathLines.add(nextLine);
-        if (closingRegex.hasMatch(nextLine.trim())) {
-          break;
-        }
-        j++;
-      }
-      i = j; // Advance outer loop
-      final joinedMath = mathLines.join('\n').replaceAll(r'\_', '_').replaceAll(r'\*', '*');
-      buffer.write(joinedMath);
+      buffer.write(lines.sublist(i, i + mathCount).join('\n'));
       buffer.write('\n\n');
+      i += mathCount - 1;
       continue;
     }
 
@@ -281,7 +278,10 @@ String normalizeMarkdownForSuperEditor(String markdown) {
     }
 
     buffer.write(line);
-    if (isTable && i + 1 < lines.length && !tableLineRegex.hasMatch(lines[i + 1]) && lines[i + 1].trim().isNotEmpty) {
+    if (isTable &&
+        i + 1 < lines.length &&
+        !tableLineRegex.hasMatch(lines[i + 1]) &&
+        lines[i + 1].trim().isNotEmpty) {
       buffer.write('\n\n');
       continue;
     }
@@ -303,7 +303,27 @@ String normalizeMarkdownForSuperEditor(String markdown) {
     }
   }
 
-  return buffer.toString().replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  // Collapse layout separators without deleting blank lines inside formulas or code.
+  final outputLines = buffer.toString().split('\n');
+  final result = <String>[];
+  for (var index = 0; index < outputLines.length; index++) {
+    final count =
+        _codeFenceLineCount(outputLines, index) ??
+        QuietMathParser.blockLineCount(
+          (offset) => index + offset < outputLines.length
+              ? outputLines[index + offset]
+              : null,
+        );
+    if (count != null) {
+      result.addAll(outputLines.sublist(index, index + count));
+      index += count - 1;
+    } else if (outputLines[index].isNotEmpty ||
+        result.isEmpty ||
+        result.last.isNotEmpty) {
+      result.add(outputLines[index]);
+    }
+  }
+  return result.join('\n');
 }
 
 /// A specialized [DocumentNodeMarkdownSerializer] that serializes [ImageNode]
@@ -314,7 +334,8 @@ String normalizeMarkdownForSuperEditor(String markdown) {
 /// newline (`\n`). In CommonMark, an image line followed by a single newline and text
 /// is treated as a paragraph of text containing an image, which [deserializeMarkdownToDocument]
 /// drops because it only parses pure block images.
-class QuietImageNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<ImageNode> {
+class QuietImageNodeSerializer
+    extends NodeTypedDocumentNodeMarkdownSerializer<ImageNode> {
   const QuietImageNodeSerializer({this.useSizeNotation = false});
 
   final bool useSizeNotation;
@@ -335,7 +356,9 @@ class QuietImageNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<I
     }
 
     final buffer = StringBuffer();
-    final hasSize = node.expectedBitmapSize?.width != null || node.expectedBitmapSize?.height != null;
+    final hasSize =
+        node.expectedBitmapSize?.width != null ||
+        node.expectedBitmapSize?.height != null;
     if (!useSizeNotation || !hasSize) {
       buffer.write('![${node.altText}](${node.imageUrl})');
     } else {
@@ -359,4 +382,3 @@ class QuietImageNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<I
     return buffer.toString();
   }
 }
-

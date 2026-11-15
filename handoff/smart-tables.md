@@ -46,6 +46,11 @@ precision, limits, references, aggregates).
 
 ## Phase 2: canonical source and derived display
 
+`deserializeQuietMarkdown` registers both table and math block syntax/converters
+and math inline syntax for note loading, controller paste and native-menu math
+paste. Table regions bypass prose normalization in each path, keeping annotations
+attached when formulas and prose share a snippet.
+
 Custom table Markdown syntax/converter retains the exact raw table in existing
 TableBlockNode metadata. The custom node serializer uses that source; formulas
 are never replaced by values. Visual edits now publish through ReplaceNodeRequest
