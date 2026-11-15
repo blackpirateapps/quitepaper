@@ -1,0 +1,22 @@
+from qp_tables_native_control import *
+def action(name,**args):
+    result=rpc('ext.qpTables.action',isolateId=isolate,action=name,**{k:str(v) for k,v in args.items()});time.sleep(.35);return result
+def active(): return next(t for t in reversed(state()['tables']) if t.get('editing'))
+resume=json.load(open('/tmp/qp-smart-tables-resume.json'))
+action('tap',label='Open full screen');wait_state(lambda s:any(c['label']=='Edit table' for c in s['controls']))
+action('select',row=1,column=1);action('text',text='7');record('expanded workspace live edit')
+action('tap',label='Done');wait_state(lambda s:not any(c['label']=='Edit table' for c in s['controls']))
+s=record('expanded result returns to inline history');assert active()['display'][-1][3]=='₹1,045.00',s
+action('undo');s=record('inline undo reverses expanded edit');assert active()['display'][-1][3]=='₹670.00',s
+action('redo');s=record('inline redo restores expanded edit');assert active()['display'][-1][3]=='₹1,045.00',s
+reopen(style='markdown');s=record('reopen in Markdown mode retains formulas and annotation');assert '=B2*C2' in s['savedContent'] and '"currency":"INR"' in s['savedContent'],s
+action('select',row=1,column=3);s=record('Markdown hybrid formula and formatted result');assert active()['raw'][1][3]=='=B2*C2',s;assert active()['display'][-1][3]=='₹1,045.00',s
+reopen(style='wysiwyg');action('select',row=1,column=3);s=record('legacy Visual mode formula and metadata');assert active()['raw'][1][3]=='=B2*C2',s;assert active()['display'][-1][3]=='₹1,045.00',s
+reopen(style='superEditor',dark=True);action('select',row=1,column=3);s=record('dark native Super Editor currency');assert active()['display'][-1][3]=='₹1,045.00',s
+print(screenshot('dark-currency'))
+errors='| Division | Cycle A | Cycle B | Literal |\n| --- | --- | --- | --- |\n| =1/0 | =C2 | =B2 | \'=SUM(A1:A3) |'
+reset(content=errors);action('select',row=0,column=0);s=record('live runtime errors and literal equals');assert active()['display'][1]==['#DIV/0!','#CYCLE!','#CYCLE!','=SUM(A1:A3)'],s
+# Leave the useful main fixture visible instead of the error probe.
+rpc('ext.qpTables.reopen',isolateId=isolate,id=resume['noteId'],style='superEditor',dark='false');time.sleep(.8)
+record('final saved main table')
+print('PASS format dialog, expanded history, Markdown/Visual/Super modes, dark theme, errors, hot restart persistence',flush=True)

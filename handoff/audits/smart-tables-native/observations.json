@@ -1,0 +1,4000 @@
+[
+  {
+    "step": "initial native Super Editor table",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765028075861",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 340.5,
+        "y": 116.0,
+        "w": 672.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 4,
+        "columns": 4,
+        "x": 349.5,
+        "y": 322.0,
+        "w": 654.0,
+        "h": 201.0
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "click Qty B2",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765028075861",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 4,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 201.0
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "native edit B2 from 2 to 4",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765028075861",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 4,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 201.0
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "diagnostic app menu click",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765028075861",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "2",
+        "focus": false,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "250"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "370"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "click Qty B2",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 4,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 201.0
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "native edit B2 from 2 to 4",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "250"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "370"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "stable focus before isolated key probe",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "250"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "370"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "isolated native key after stable B2 focus",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "4",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "focused native cell before Tab retry",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "4",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 0, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "focused native Tab retry",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765190400840",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "125",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 3, isDirectional: false)",
+        "key": "[<'cell_1_2'>]",
+        "x": 321.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 2,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "VM-selected active cell after debugger attach",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765799361796",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "2",
+            "125",
+            "250"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "370"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 2 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "VM runtime edit B2 to four",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765799361796",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "4",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "VM saved reopen and edit 5",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765799361796",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "5",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "5",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "5",
+            "125",
+            "625"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "745"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 5 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "VM saved reopen and edit 6",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765799361796",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "6",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 180.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "6",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "6",
+            "125",
+            "750"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Total",
+            "",
+            "",
+            "870"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 6 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Total | | | =SUM(D2:D3) |\n\nAfter table."
+  },
+  {
+    "step": "VM actual menu creates SUM summary",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D3)"
+            ]
+          },
+          "_layout": {
+            "rows": 4,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984"
+        },
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n|  |  |  | =SUM(D2:D3) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D3)\"]},\"_layout\":{\"rows\":4,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\"} -->\n\nAfter table."
+  },
+  {
+    "step": "VM actual confirmation applies calculated column",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D3)"
+            ]
+          },
+          "_layout": {
+            "rows": 4,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n|  |  |  | =SUM(D2:D3) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D3)\"]},\"_layout\":{\"rows\":4,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "VM paste appends data before summary",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "Notebook",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 8, isDirectional: false)",
+        "key": "[<'cell_3_0'>]",
+        "x": 39.7,
+        "y": 449.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 3,
+        "column": 0,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "50"
+          ],
+          [
+            "",
+            "",
+            "",
+            "670"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "VM undo append restores cells metadata and summary",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 52.60000000000002,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 0, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_3_0'>]",
+        "x": 39.7,
+        "y": 495.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 3,
+        "column": 0,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D3)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "",
+            "",
+            "",
+            "620"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D3)"
+            ]
+          },
+          "_layout": {
+            "rows": 4,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 258.6,
+        "w": 614.0,
+        "h": 283.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n|  |  |  | =SUM(D2:D3) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D3)\"]},\"_layout\":{\"rows\":4,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "VM redo append restores result",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "Notebook",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 8, isDirectional: false)",
+        "key": "[<'cell_3_0'>]",
+        "x": 39.7,
+        "y": 449.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 3,
+        "column": 0,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "50"
+          ],
+          [
+            "",
+            "",
+            "",
+            "670"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "VM actual menu quick range summary",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 3,
+        "column": 3,
+        "navigation": true,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "500"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "120"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "50"
+          ],
+          [
+            "",
+            "",
+            "",
+            "670"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 382.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "real hot restart restores persisted formula and table intent",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 5,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 247.0
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}}} -->\n\nAfter table."
+  },
+  {
+    "step": "actual currency dialog INR two decimals",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 20.69999999999999,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 371.9,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "$500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "$120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "$50.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "$670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "USD"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 226.7,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"USD\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "VM reopen persisted table before format retry",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 5,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 247.0
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"USD\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "actual currency dialog INR two decimals",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "$500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "$120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "$50.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "$670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "USD"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"USD\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "currency field diagnostic before Apply",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": false,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      },
+      {
+        "hint": null,
+        "text": "INR",
+        "focus": null,
+        "selection": "TextSelection.collapsed(offset: 3, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "null",
+        "x": 220.0,
+        "y": 369.0,
+        "w": 232.0,
+        "h": 72.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "$500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "$120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "$50.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "$670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "USD"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"USD\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "currency code entered using native keyboard",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": false,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      },
+      {
+        "hint": null,
+        "text": "INR",
+        "focus": null,
+        "selection": "TextSelection.collapsed(offset: 3, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "null",
+        "x": 220.0,
+        "y": 369.0,
+        "w": 232.0,
+        "h": 72.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "$500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "$120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "$50.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "$670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "USD"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"USD\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "currency Apply after native INR entry",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 20.69999999999999,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 371.9,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "\u20b9500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b9670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 226.7,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "expanded workspace live edit",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 20.69999999999999,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B3*C3",
+        "focus": false,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_2_3'>]",
+        "x": 462.7,
+        "y": 417.9,
+        "w": 121.0,
+        "h": 29.0
+      },
+      {
+        "hint": "Cell",
+        "text": "7",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 1, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_1'>]",
+        "x": 167.7,
+        "y": 217.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 2,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "\u20b9500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b9670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 226.7,
+        "w": 614.0,
+        "h": 329.4
+      },
+      {
+        "editing": true,
+        "row": 1,
+        "column": 1,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 16.0,
+        "y": 72.0,
+        "w": 640.0,
+        "h": 648.0
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "expanded result returns to inline history",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B3*C3",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_2_3'>]",
+        "x": 462.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 2,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "inline undo reverses expanded edit",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B3*C3",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_2_3'>]",
+        "x": 462.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 2,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "4",
+            "125",
+            "\u20b9500.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b9670.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "inline redo restores expanded edit",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 6.600000000000023,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B3*C3",
+        "focus": true,
+        "selection": "TextSelection(baseOffset: 0, extentOffset: 6, isDirectional: false)",
+        "key": "[<'cell_2_3'>]",
+        "x": 462.7,
+        "y": 403.8,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 2,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 212.60000000000002,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "reopen in Markdown mode retains formulas and annotation",
+    "style": "markdown",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Start writing...",
+        "text": "Before table.\n\n\n\n",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 184.0,
+        "w": 624.0,
+        "h": 145.0
+      },
+      {
+        "hint": "",
+        "text": "\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table.",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 576.0,
+        "w": 624.0,
+        "h": 232.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 5,
+        "columns": 4,
+        "x": 24.0,
+        "y": 329.0,
+        "w": 624.0,
+        "h": 247.0
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "Markdown hybrid formula and formatted result",
+    "style": "markdown",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Start writing...",
+        "text": "Before table.\n\n\n\n",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 184.0,
+        "w": 624.0,
+        "h": 145.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 6, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 457.7,
+        "y": 474.2,
+        "w": 121.0,
+        "h": 29.0
+      },
+      {
+        "hint": "",
+        "text": "\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table.",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 658.4,
+        "w": 624.0,
+        "h": 232.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 24.0,
+        "y": 329.0,
+        "w": 624.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "legacy Visual mode formula and metadata",
+    "style": "wysiwyg",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Start writing...",
+        "text": "Before table.\n\n\n",
+        "focus": false,
+        "selection": "TextSelection.collapsed(offset: 0, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "null",
+        "x": 24.0,
+        "y": 184.0,
+        "w": 624.0,
+        "h": 116.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 6, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 466.2,
+        "w": 121.0,
+        "h": 29.0
+      },
+      {
+        "hint": "",
+        "text": "\nAfter table.",
+        "focus": false,
+        "selection": "TextSelection.collapsed(offset: 0, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "null",
+        "x": 24.0,
+        "y": 724.4,
+        "w": 624.0,
+        "h": 58.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 321.0,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "dark native Super Editor currency",
+    "style": "superEditor",
+    "dark": true,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Cell",
+        "text": "=B2*C2",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 6, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_1_3'>]",
+        "x": 462.7,
+        "y": 467.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 1,
+        "column": 3,
+        "navigation": false,
+        "raw": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "=B2*C2"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "=B3*C3"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "=B4*C4"
+          ],
+          [
+            "",
+            "",
+            "",
+            "=SUM(D2:D4)"
+          ]
+        ],
+        "display": [
+          [
+            "Item",
+            "Qty",
+            "Unit price",
+            "Total"
+          ],
+          [
+            "Paper",
+            "7",
+            "125",
+            "\u20b9875.00"
+          ],
+          [
+            "Pens",
+            "3",
+            "40",
+            "\u20b9120.00"
+          ],
+          [
+            "Notebook",
+            "1",
+            "50",
+            "\u20b950.00"
+          ],
+          [
+            "",
+            "",
+            "",
+            "\u20b91,045.00"
+          ]
+        ],
+        "summary": true,
+        "metadata": {
+          "summary": {
+            "operations": {
+              "3": "SUM"
+            },
+            "cells": [
+              "",
+              "",
+              "",
+              "=SUM(D2:D4)"
+            ]
+          },
+          "_layout": {
+            "rows": 5,
+            "headers": [
+              "Item",
+              "Qty",
+              "Unit price",
+              "Total"
+            ]
+          },
+          "id": "qt_1794765900305984",
+          "calculatedColumns": {
+            "3": {
+              "formula": "=B2*C2",
+              "row": 1
+            }
+          },
+          "formats": {
+            "3": {
+              "type": "currency",
+              "digits": 2,
+              "currency": "INR"
+            }
+          }
+        },
+        "x": 29.0,
+        "y": 322.0,
+        "w": 614.0,
+        "h": 329.4
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  },
+  {
+    "step": "live runtime errors and literal equals",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794766252869617",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      },
+      {
+        "hint": "Header 1",
+        "text": "Division",
+        "focus": true,
+        "selection": "TextSelection.collapsed(offset: 8, affinity: TextAffinity.downstream, isDirectional: false)",
+        "key": "[<'cell_0_0'>]",
+        "x": 39.7,
+        "y": 347.2,
+        "w": 121.0,
+        "h": 29.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": true,
+        "row": 0,
+        "column": 0,
+        "navigation": false,
+        "raw": [
+          [
+            "Division",
+            "Cycle A",
+            "Cycle B",
+            "Literal"
+          ],
+          [
+            "=1/0",
+            "=C2",
+            "=B2",
+            "'=SUM(A1:A3)"
+          ]
+        ],
+        "display": [
+          [
+            "Division",
+            "Cycle A",
+            "Cycle B",
+            "Literal"
+          ],
+          [
+            "#DIV/0!",
+            "#CYCLE!",
+            "#CYCLE!",
+            "=SUM(A1:A3)"
+          ]
+        ],
+        "summary": false,
+        "metadata": {},
+        "x": 29.0,
+        "y": 248.0,
+        "w": 614.0,
+        "h": 220.4
+      }
+    ],
+    "savedContent": "| Division | Cycle A | Cycle B | Literal |\n| --- | --- | --- | --- |\n| =1/0 | =C2 | =B2 | '=SUM(A1:A3) |"
+  },
+  {
+    "step": "final saved main table",
+    "style": "superEditor",
+    "dark": false,
+    "noteId": "table-native-1794765898814410",
+    "fields": [
+      {
+        "hint": "Title",
+        "text": "Smart Tables laptop test",
+        "focus": false,
+        "selection": "TextSelection.invalid",
+        "key": "null",
+        "x": 24.0,
+        "y": 116.0,
+        "w": 624.0,
+        "h": 48.0
+      }
+    ],
+    "tables": [
+      {
+        "editing": false,
+        "rows": 5,
+        "columns": 4,
+        "x": 33.0,
+        "y": 322.0,
+        "w": 606.0,
+        "h": 247.0
+      }
+    ],
+    "savedContent": "Before table.\n\n\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 7 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n| Notebook | 1 | 50 | =B4*C4 |\n|  |  |  | =SUM(D2:D4) |\n<!-- quiet-paper-table:v1 {\"summary\":{\"operations\":{\"3\":\"SUM\"},\"cells\":[\"\",\"\",\"\",\"=SUM(D2:D4)\"]},\"_layout\":{\"rows\":5,\"headers\":[\"Item\",\"Qty\",\"Unit price\",\"Total\"]},\"id\":\"qt_1794765900305984\",\"calculatedColumns\":{\"3\":{\"formula\":\"=B2*C2\",\"row\":1}},\"formats\":{\"3\":{\"type\":\"currency\",\"digits\":2,\"currency\":\"INR\"}}} -->\n\nAfter table."
+  }
+]

@@ -1,0 +1,17 @@
+from qp_tables_native_control import *
+reset()
+click('2');record('click Qty B2')
+key('a','CTRL');text('4')
+s=record('native edit B2 from 2 to 4')
+assert '| Paper | 4 | 125 | =B2*C2 |' in s['savedContent'],s
+assert s['tables'][0]['display'][1][3]=='500',s
+assert s['tables'][0]['display'][3][3]=='620',s
+key('Tab');s=record('Tab Qty to Unit price');assert s['tables'][0]['column']==2,s
+key('Tab');s=record('Tab Unit price to raw formula');assert any(f['text']=='=B2*C2' and f['focus'] for f in s['fields']),s
+key('Tab','SHIFT');s=record('Shift Tab formula to Unit price');assert s['tables'][0]['column']==2,s
+key('Escape');s=record('Escape to table navigation');assert s['tables'][0]['navigation'],s
+key('Down');s=record('native table arrow navigation');assert s['tables'][0]['row']==2,s
+screenshot('native-edit')
+reopen();s=record('reopen saved native-edited table');assert '| Paper | 4 | 125 | =B2*C2 |' in s['savedContent'],s
+assert candidates('500') and candidates('620'),s
+print('PASS native edit, recalculation, raw formula, Tab/Shift Tab, Escape/arrows and saved reopen',flush=True)

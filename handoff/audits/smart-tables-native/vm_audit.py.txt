@@ -1,0 +1,28 @@
+from qp_tables_native_control import *
+def action(name,**args):
+    result=rpc('ext.qpTables.action',isolateId=isolate,action=name,**{k:str(v) for k,v in args.items()})
+    time.sleep(.35)
+    return result
+
+def active():
+    return next(t for t in reversed(state()['tables']) if t.get('editing'))
+
+action('select',row=1,column=1);action('text',text='4');s=record('VM runtime edit B2 to four')
+for value in ['5','6']:
+    reopen();action('select',row=1,column=1);action('text',text=value);s=record('VM saved reopen and edit '+value)
+    print('spacing',value,len(re.search(r'Before table\.(\n+)\|',s['savedContent'])[1]),flush=True)
+print(screenshot('spacing-growth'))
+base='Before table.\n\n| Item | Qty | Unit price | Total |\n| --- | ---: | ---: | ---: |\n| Paper | 4 | 125 | =B2*C2 |\n| Pens | 3 | 40 | =B3*C3 |\n\nAfter table.'
+reset(content=base)
+action('select',row=1,column=3)
+action('menu',value='summary:SUM');s=record('VM actual menu creates SUM summary');t=active();assert t['summary'] and t['display'][-1][3]=='620',s
+action('menu',value='fill');wait_state(lambda s:any(c['label']=='Calculate this column?' for c in s['controls']))
+action('tap',label='Apply');s=record('VM actual confirmation applies calculated column');assert '3' in active()['metadata']['calculatedColumns'],s
+before=s['savedContent']
+action('select',row=3,column=0);action('paste',text='Notebook\t1\t50');s=record('VM paste appends data before summary');t=active();assert t['raw'][3]==['Notebook','1','50','=B4*C4'],s;assert t['display'][-1][3]=='670',s
+print(screenshot('summary-calculated'))
+action('undo');s=record('VM undo append restores cells metadata and summary');assert s['savedContent']==before,s
+action('redo');s=record('VM redo append restores result');assert active()['display'][-1][3]=='670',s
+# Quick summary through the actual menu callback selects the full data column.
+action('select',row=1,column=3);action('menu',value='select_column');s=record('VM actual menu quick range summary');assert any('Sum 670' in c['label'] and 'Count 3' in c['label'] for c in s['controls']),s
+print('PASS VM-driven actual editor callbacks: formulas, summary, calculated column, atomic paste history, quick summary',flush=True)

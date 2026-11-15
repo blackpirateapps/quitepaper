@@ -6358,3 +6358,30 @@ inline math, raw table formulas and an opaque table annotation survive together.
   **112 passed**, including the three mixed-document regressions.
 - Full-suite execution omitted in accordance with the user's preference.
 - `git diff --check`: clean.
+
+## 281. Smart Tables native laptop audit checkpoint (November 15, 2026)
+
+Tested the actual EditorScreen in a separate native GTK/Wayland window with an
+isolated SQLite profile and Dart VM inspection. Live callback/controller checks
+passed formulas, summary/calculated-column operations, range summaries, bulk and
+expanded-editor undo/redo, note reopen, hot-restart persistence, mode loading,
+dark rendering and stable error/literal display. Native keyboard entry verified
+quantity replacement/recalculation and INR currency entry; one focused Tab passed.
+
+Initial native activation sequences were unreliable and remain unconfirmed as
+production bugs. Stable-focus typing ruled out an independent input-loss finding.
+First-save spacing normalized two newlines to four and then remained stable.
+A VM form-field driver produced a false currency failure; actual native input
+persisted INR correctly. No application fixes were made, as requested.
+
+`SMART_TABLES_NATIVE_AUDIT.md` separates confirmed passing paths, tentative
+findings, environment/driver issues and incomplete native coverage. Durable
+screenshots, fixture/scripts and ordered VM observations are in
+`handoff/audits/smart-tables-native/`. Synthetic main table is left open for
+inspection. Build output currently targets the fixture; rebuild `lib/main.dart`
+before delivering a regular bundle.
+
+Verification for the audit-only change: `flutter analyze --no-pub` reported no
+issues; `flutter test --no-pub test/editor/smart_tables` passed all 32 tests.
+No full suite was run. `git diff --check` is clean. Production Dart files are
+unchanged; only documentation and synthetic audit artifacts are committed.

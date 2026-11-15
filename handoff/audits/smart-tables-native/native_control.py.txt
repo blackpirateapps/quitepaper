@@ -1,0 +1,95 @@
+import json,re,subprocess,time,urllib.request,urllib.parse,os
+LOG='/tmp/qp-tables-native.log'
+match=re.search(r'A Dart VM Service on Linux is available at: (\S+)',open(LOG).read())
+if not match: raise RuntimeError('Native test window is not ready yet')
+base=match[1]
+def rpc(method,**params):
+    reply=json.load(urllib.request.urlopen(base+method+'?'+urllib.parse.urlencode(params),timeout=15))
+    if 'error' in reply: raise RuntimeError(reply)
+    return reply.get('result',reply)
+vm=rpc('getVM')
+isolate=next(i['id'] for i in vm['isolates'] if i['name']=='main')
+instances=json.loads(subprocess.check_output(['hyprctl','instances','-j']))
+env=dict(os.environ,HYPRLAND_INSTANCE_SIGNATURE=next(i['instance'] for i in instances if i['wl_socket']==os.environ.get('WAYLAND_DISPLAY','wayland-1')))
+def clients(): return json.loads(subprocess.check_output(['hyprctl','clients','-j'],env=env))
+client=next(c for c in clients() if c['pid']==int(vm['pid']))
+address='address:'+client['address']
+def dispatch(expression):
+    p=subprocess.run(['hyprctl','dispatch',expression],env=env,capture_output=True,text=True,check=True)
+    if p.stdout.strip()!='ok': raise RuntimeError(p.stdout+p.stderr)
+def refresh():
+    global client
+    client=next(c for c in clients() if c['address']==address.removeprefix('address:'))
+def focus(): dispatch('hl.dsp.focus({window='+json.dumps(address)+'})');time.sleep(.2)
+def maximize():
+    dispatch('hl.dsp.window.fullscreen({window='+json.dumps(address)+',action="set",mode="maximized"})')
+    time.sleep(.5);refresh()
+def key(k,mods=''):
+    dispatch('hl.dsp.send_shortcut({window='+json.dumps(address)+',mods='+json.dumps(mods)+',key='+json.dumps(k)+'})');time.sleep(.12)
+def text(value):
+    symbols={' ':'space','\n':'Return','.':'period',',':'comma',':':'colon','/':'slash','-':'minus','_':'underscore','=':'equal','#':'numbersign','[':'bracketleft',']':'bracketright','(':'parenleft',')':'parenright','*':'asterisk','+':'plus','$':'dollar','!':'exclam','\t':'Tab',"'":'apostrophe','%':'percent'}
+    for char in value:
+        if char.isupper(): key(char.lower(),'SHIFT')
+        else:key(symbols.get(char,char))
+def state(): return rpc('ext.qpTables.state',isolateId=isolate)
+def click_at(x,y):
+    refresh();dispatch(f'hl.dsp.cursor.move({{x={int(client["at"][0]+x)},y={int(client["at"][1]+y)}}})');time.sleep(.35);key('mouse:272');time.sleep(.8)
+def candidates(label):
+    return [c for c in state()['controls'] if c['label']==label and 0<=c.get('y',-1)<client['size'][1] and c.get('w',0)>0 and c.get('h',0)>0]
+def click(label):
+    for i in range(20):
+        found=candidates(label)
+        if found:
+            c=found[0];click_at(c['x']+c['w']/2,c['y']+c['h']/2);return
+        time.sleep(.15)
+    raise RuntimeError('Missing visible control '+label)
+def reset(style='superEditor',content=None,dark=False):
+    p={'isolateId':isolate,'style':style,'dark':str(dark).lower()}
+    if content is not None:p['content']=content
+    rpc('ext.qpTables.reset',**p);time.sleep(.9);focus()
+def reopen(style=None,dark=None):
+    time.sleep(1)
+    p={'isolateId':isolate}
+    if style is not None:p['style']=style
+    if dark is not None:p['dark']=str(dark).lower()
+    rpc('ext.qpTables.reopen',**p);time.sleep(.8);focus()
+def record(name):
+    time.sleep(1)
+    current=state()
+    with open('/tmp/qp-smart-tables-native-results.jsonl','a') as f:f.write(json.dumps({'step':name,'state':current})+'\n')
+    print(name,json.dumps({'fields':current['fields'],'tables':current['tables'],'saved':current['savedContent']}),flush=True)
+    return current
+
+def screenshot(name):
+    refresh()
+    geometry=f'{client["at"][0]},{client["at"][1]} {client["size"][0]}x{client["size"][1]}'
+    path='/tmp/qp-smart-tables-'+name+'.png'
+    subprocess.run(['grim','-g',geometry,path],env=env,check=True)
+    return path
+if __name__=='__main__':
+    focus();maximize();record('initial native Super Editor table');print(screenshot('initial'))
+
+def wait_state(predicate,timeout=10):
+    start=time.monotonic()
+    while time.monotonic()-start<timeout:
+        current=state()
+        if predicate(current):return current
+        time.sleep(.25)
+    raise RuntimeError('Timed out waiting for live widget state: '+json.dumps(current))
+
+def edit_cell_label(label,replacement):
+    click(label)
+    wait_state(lambda s:any(f.get('hint')=='Cell' and f.get('focus') for f in s['fields']))
+    key('a','CTRL')
+    wait_state(lambda s:any(f.get('hint')=='Cell' and ('baseOffset: 0' in f.get('selection','') or f.get('text')=='') for f in s['fields']))
+    text(replacement)
+    return wait_state(lambda s:any(f.get('hint')=='Cell' and f.get('text')==replacement for f in s['fields']))
+
+def evaluate(expression):
+    library=rpc('getIsolate',isolateId=isolate)['rootLib']['id']
+    result=rpc('evaluate',isolateId=isolate,targetId=library,expression=expression)
+    if result.get('kind')=='Error':raise RuntimeError(result)
+    return result
+
+def focus_cell_vm():
+    return evaluate("(() { TextField? field; void visit(Element e) { if (e.widget is TextField && (e.widget as TextField).decoration?.hintText == 'Cell') field = e.widget as TextField; e.visitChildren(visit); } WidgetsBinding.instance.rootElement?.visitChildren(visit); field?.focusNode?.requestFocus(); return field?.controller?.text; })()")

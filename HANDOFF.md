@@ -125,3 +125,14 @@ for architecture, verification and interoperability limits.
 
 PR #4 conflict resolution combines Smart Tables and math parsing for note loading,
 controller paste and native-menu math paste, preserving both custom block formats.
+
+## Smart Tables Native Laptop Audit
+
+A native GTK test window and Dart VM inspection checked live formulas, summary
+rows, calculated columns, bulk/expanded history, saved reopen, mode loading,
+INR formatting, dark rendering and errors. Those completed checks passed. Initial
+native activation/typing attempts were unreliable; stable-focus typing and Tab
+subsequently passed. Tentative findings, false-positive driver probes, coverage
+limits and screenshots are preserved in
+[SMART_TABLES_NATIVE_AUDIT.md](SMART_TABLES_NATIVE_AUDIT.md). No application fixes
+were made. The synthetic test window remains open on `fix/smart-tables-native`.

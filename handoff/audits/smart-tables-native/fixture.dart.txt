@@ -1,0 +1,144 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/storage/app_storage_path_resolver.dart';
+import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
+import 'package:quitepaper/features/editor/domain/markdown_table_position.dart';
+import 'package:quitepaper/features/editor/application/markdown_table_controller.dart';
+import 'package:quitepaper/features/editor/application/table_clipboard_parser.dart';
+import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/table/markdown_table_view.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
+
+const sample = '''Before table.
+
+| Item | Qty | Unit price | Total |
+| --- | ---: | ---: | ---: |
+| Paper | 2 | 125 | =B2*C2 |
+| Pens | 3 | 40 | =B3*C3 |
+| Total | | | =SUM(D2:D3) |
+
+After table.''';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+  final prefs=await SharedPreferences.getInstance();
+  AppStoragePathResolver.customDataDirectory=Directory('/tmp/qp-smart-table-native-profile');
+  final db=AppDatabase();
+  final repository=DriftNotesRepository(db);
+  final revision=ValueNotifier<int>(0);
+  var style=EditorEditingStyle.superEditor;
+  var dark=false;
+  late Note note;
+  Future<void> reset(String content) async {
+    final now=DateTime.now();
+    note=Note(id:'table-native-${now.microsecondsSinceEpoch}',title:'Smart Tables laptop test',content:content,createdAt:now,updatedAt:now,tags:[]);
+    await repository.saveNote(note); revision.value++;
+  }
+  await reset(sample);
+  developer.registerExtension('ext.qpTables.reset',(_,p) async {
+    style=EditorEditingStyle.values.firstWhere((s)=>s.name==(p['style'] ?? 'superEditor'));
+    dark=p['dark']=='true';
+    await reset(p['content'] ?? sample);
+    return developer.ServiceExtensionResponse.result(jsonEncode({'ok':true}));
+  });
+  developer.registerExtension('ext.qpTables.reopen',(_,p) async {
+    final saved=await repository.getNoteById(p['id'] ?? note.id);
+    if(saved!=null) note=saved;
+    if(p['style']!=null) style=EditorEditingStyle.values.firstWhere((s)=>s.name==p['style']);
+    if(p['dark']!=null) dark=p['dark']=='true';
+    revision.value++;
+    return developer.ServiceExtensionResponse.result(jsonEncode({'ok':true}));
+  });
+  developer.registerExtension('ext.qpTables.action',(_,p) async {
+    MarkdownTableController? table;
+    MarkdownTableView? view;
+    final elements=<Element>[];
+    void visit(Element e) {
+      elements.add(e);
+      if(e.widget is MarkdownTableEditor) table=(e.widget as MarkdownTableEditor).controller;
+      if(e.widget is MarkdownTableView) view=e.widget as MarkdownTableView;
+      e.visitChildren(visit);
+    }
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    final action=p['action'];
+    if(action=='select') {
+      final pos=TablePosition(row:int.parse(p['row']!),column:int.parse(p['column']!));
+      if(table!=null) { table!.setActivePosition(pos); table!.startEditing(); }
+      else { view?.onCellTap?.call(pos); }
+    } else if(action=='dropdown') {
+      for(final e in elements) { final w=e.widget; if(w is DropdownButton<String>) { w.onChanged?.call(p['value']); break; } }
+    } else if(action=='field') {
+      for(final e in elements) { final w=e.widget; if(w is TextField && (w.decoration?.labelText ?? '').startsWith(p['label']!)) {
+        final value=p['text'] ?? ''; w.controller?.value=TextEditingValue(text:value,selection:TextSelection.collapsed(offset:value.length)); w.onChanged?.call(value); break;
+      } }
+    } else if(action=='text') {
+      final text=p['text'] ?? '';
+      table!.cellController.value=TextEditingValue(text:text,selection:TextSelection.collapsed(offset:text.length));
+    } else if(action=='row') { table!.addRowBelow(); }
+    else if(action=='column') { table!.addColumnRight(); }
+    else if(action=='deleteRow') { table!.deleteCurrentRow(); }
+    else if(action=='deleteColumn') { table!.deleteCurrentColumn(); }
+    else if(action=='undo') { table!.undo(); }
+    else if(action=='redo') { table!.redo(); }
+    else if(action=='paste') { table!.pasteCells(TableClipboardParser.parse(p['text']!)); }
+    else if(action=='range') { table!.selectRange(TablePosition(row:int.parse(p['r0']!),column:int.parse(p['c0']!)),TablePosition(row:int.parse(p['r1']!),column:int.parse(p['c1']!))); }
+    else if(action=='menu') {
+      for(final e in elements) { final w=e.widget; if(w is PopupMenuButton<String> && w.tooltip=='Smart table actions') { w.onSelected?.call(p['value']!); break; } }
+    } else if(action=='tap') {
+      for(final e in elements) {
+        final w=e.widget;
+        if(w is Tooltip && w.message==p['label']) {
+          final child=w.child;
+          if(child is InkWell) { child.onTap?.call(); break; }
+          if(child is IconButton) { child.onPressed?.call(); break; }
+        }
+        if(w is IconButton && w.tooltip==p['label']) { w.onPressed?.call(); break; }
+        if(w is TextButton && w.child is Text && (w.child as Text).data==p['label']) { w.onPressed?.call(); break; }
+      }
+    }
+    return developer.ServiceExtensionResponse.result(jsonEncode({'ok':true,'action':action}));
+  });
+  developer.registerExtension('ext.qpTables.state',(_,p) async {
+    final controls=<Object>[],fields=<Object>[],tables=<Object>[];
+    void visit(Element element) {
+      final widget=element.widget;
+      final render=element.findRenderObject();
+      Map<String,Object> bounds() {
+        if(render is! RenderBox || !render.hasSize || !render.attached) return {};
+        final o=render.localToGlobal(Offset.zero);
+        return {'x':o.dx,'y':o.dy,'w':render.size.width,'h':render.size.height};
+      }
+      String? label;
+      if(widget is Tooltip) label=widget.message;
+      if(widget is Text) label=widget.data;
+      if(widget is RichText) label=widget.text.toPlainText();
+      if(label!=null) controls.add({'label':label,'type':widget.runtimeType.toString(),...bounds()});
+      if(widget is TextField) fields.add({'hint':widget.decoration?.hintText,'text':widget.controller?.text,'focus':widget.focusNode?.hasPrimaryFocus,'selection':widget.controller?.selection.toString(),'key':widget.key.toString(),...bounds()});
+      if(widget is MarkdownTableEditor) {
+        final c=widget.controller;
+        tables.add({'editing':true,'row':c.activePosition.row,'column':c.activePosition.column,'navigation':c.navigationMode,'raw':[for(var r=0;r<c.table.rowCount;r++) [for(var col=0;col<c.table.columnCount;col++) c.table.getCell(r,col)?.trimmedText ?? '']], 'display':[for(var r=0;r<c.table.rowCount;r++) [for(var col=0;col<c.table.columnCount;col++) c.displayedCell(r,col)]], 'summary':c.hasSummary, 'metadata':c.smartMetadata.data, ...bounds()});
+      } else if(widget is MarkdownTableView) {
+        tables.add({'editing':false,'rows':widget.table.rowCount,'columns':widget.table.columnCount,...bounds()});
+      }
+      element.visitChildren(visit);
+    }
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    final saved=await repository.getNoteById(note.id);
+    return developer.ServiceExtensionResponse.result(jsonEncode({'style':style.name,'dark':dark,'noteId':note.id,'controls':controls,'fields':fields,'tables':tables,'savedContent':saved?.content}));
+  });
+  runApp(ValueListenableBuilder<int>(valueListenable:revision,builder:(_,value,_)=>ProviderScope(key:ValueKey(value),overrides:[
+    databaseProvider.overrideWithValue(db),notesRepositoryProvider.overrideWithValue(repository),sharedPreferencesProvider.overrideWithValue(prefs),
+    editorEditingStyleProvider.overrideWith((ref)=>EditingStyleNotifier(prefs)..state=style),
+  ],child:MaterialApp(title:'Quiet Paper Smart Tables Laptop Test',theme:dark ? AppTheme.dark():AppTheme.light(),home:EditorScreen(note:note,autoFocusBody:false)))));
+}
