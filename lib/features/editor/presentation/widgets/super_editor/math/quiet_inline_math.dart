@@ -51,10 +51,7 @@ Widget? inlineMathWidgetBuilder(
     return null;
   }
 
-  return InlineMathWidget(
-    latex: placeholder.latex,
-    style: textStyle,
-  );
+  return InlineMathWidget(latex: placeholder.latex, style: textStyle);
 }
 
 /// Widget displaying a rendered inline LaTeX math equation using [Math.tex].
@@ -103,10 +100,7 @@ class InlineMathWidget extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.text,
-        child: mathWidget,
-      ),
+      child: MouseRegion(cursor: SystemMouseCursors.text, child: mathWidget),
     );
   }
 }
@@ -139,7 +133,7 @@ AttributedText foldInlineMathText({
 
   final plainText = canonicalText.toPlainText();
   final buffer = StringBuffer();
-  final newPlaceholders = <int, Object>{};
+  final newPlaceholders = Map<int, Object>.from(canonicalText.placeholders);
 
   int cursor = 0;
   for (final match in matches) {
@@ -151,15 +145,21 @@ AttributedText foldInlineMathText({
       // Unfolded: write raw characters verbatim.
       buffer.write(plainText.substring(match.start, match.end));
     } else {
-      // Folded: register placeholder at current buffer length.
-      // Note: AttributedText automatically inserts '\uFFFC' for each placeholder in toPlainText().
-      final placeholderIndex = buffer.length;
-      newPlaceholders[placeholderIndex] = InlineMathPlaceholder(
+      // Keep every canonical offset: one rendered formula followed by invisible
+      // padding for the remaining UTF-16 units. Shrinking the displayed text
+      // makes SuperEditor hit-testing, End, selection and deletion target the
+      // wrong characters. Padding is display-only and never enters the document.
+      newPlaceholders.removeWhere(
+        (offset, _) => offset >= match.start && offset < match.end,
+      );
+      newPlaceholders[match.start] = InlineMathPlaceholder(
         latex: match.latex,
         isBracket: match.isBracket,
         rawStart: match.start,
         rawEnd: match.end,
       );
+      buffer.write(AttributedText.placeholderCharacter);
+      buffer.write('\u200B' * (match.end - match.start - 1));
     }
     cursor = match.end;
   }
@@ -168,9 +168,14 @@ AttributedText foldInlineMathText({
     buffer.write(plainText.substring(cursor));
   }
 
+  final displayText = buffer.toString();
   return AttributedText(
-    buffer.toString(),
-    null,
+    String.fromCharCodes([
+      for (var offset = 0; offset < displayText.length; offset++)
+        if (!newPlaceholders.containsKey(offset))
+          displayText.codeUnitAt(offset),
+    ]),
+    canonicalText.spans.copy(),
     newPlaceholders,
   );
 }
@@ -187,7 +192,10 @@ class QuietMathParagraphComponentBuilder implements ComponentBuilder {
     Document document,
     DocumentNode node,
   ) {
-    if (node is! ParagraphNode) return null;
+    if (node is! ParagraphNode ||
+        node.metadata[NodeMetadata.blockType] == codeAttribution) {
+      return null;
+    }
     final plainText = node.text.toPlainText();
     final matches = QuietMathParser.findInlineMathMatches(plainText);
     if (matches.isEmpty) return null;

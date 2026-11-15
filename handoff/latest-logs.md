@@ -6144,3 +6144,63 @@ explicitly use phone dimensions to continue covering the original mobile flow.
   portrait-tablet (768×1024) screenshots with real fonts and the app's dark theme;
   both were visually inspected. The capture harness passed.
 - `git diff --check`: clean.
+
+
+## 274. Super Editor math parsing, paste, insertion and editing stability (November 15, 2026)
+
+### Bugs diagnosed
+
+- Display math was recognized only after CommonMark paragraph parsing. TeX
+  escapes and emphasis markers could change first; blank lines inside a formula
+  split it into multiple paragraphs, leaving raw source in edit mode while the
+  preview's dedicated math parser still rendered it.
+- The normalizer modified math-looking lines inside ordinary code fences and
+  collapsed internal formula/code blank lines together with layout separators.
+- Controller paste recognized images/tables/attachments but usually inserted math
+  as plain text. Native selection-menu paste used another plain-text path.
+- The plus-menu math action silently returned when focus changes cleared the body
+  selection. Empty formulas did not open for entry; replacing a paragraph also
+  left a text selection pointing into a block node.
+- Inline folding shortened display text without translating document offsets,
+  placed later placeholders at incorrect indices, and discarded attribution
+  spans. Clicking or editing text after formulas could target the wrong source
+  characters and expose or damage delimiters.
+
+### Fixes
+
+- `QuietMathBlockSyntax` captures complete bracket/dollar formulas before inline
+  parsing, with `QuietMathElementToNodeConverter` creating the block nodes.
+  `deserializeQuietMathDocument` also protects inline formula contents and is
+  shared by note loading, controller paste, and native `PasteEditorRequest`.
+  Existing promotion still supports legacy paragraphs and fenced math languages.
+- Markdown normalization preserves complete formulas, internal blank lines and
+  fenced code. Unclosed delimiters do not consume unrelated later blocks. Math
+  recognition skips ordinary code blocks, including pasted code examples.
+- Math-containing snippets become structured content immediately. Selected text
+  is removed before structured paste within the same transaction so one undo
+  restores the original text. Native paste receives the same conversion.
+- Math insertion retains a valid previous caret across menu focus changes and
+  falls back to the document end when needed. Empty paragraphs keep their node
+  IDs, selections use block positions, and empty formulas focus their TeX input.
+  The Enter shortcut checks caret position/code context and repairs the selection.
+- Inline folding now preserves canonical UTF-16 length, existing placeholders,
+  and styles. Each rendered formula is followed by zero-width display padding;
+  canonical text, clipboard content, and persisted Markdown remain padding-free.
+
+### Files and validation
+
+Updated the Super Editor widget/controller, math parser/node/component/folding,
+Markdown normalization in `quiet_image_component.dart`, math tests, `HANDOFF.md`,
+and the editor domain guide. Added `quiet_math_regression_test.dart` with 17
+regressions, including long-paste edits, blank paragraph deletion, exact TeX and
+blank-line preservation, undo/redo, save/reload, multiple inline formulas and
+styles, hit-testing in paragraphs/bullet/numbered lists, menu focus and insertion,
+Enter creation, unfinished formulas, code isolation, and native paste formats.
+The original 20 math tests passed before the fixes and did not cover these
+regressions.
+
+- `flutter analyze --no-pub`: no issues.
+- Only relevant tests ran, per the user's instruction:
+  `flutter test --no-pub test/editor/quiet_math_test.dart test/editor/quiet_math_regression_test.dart test/editor/quiet_super_editor_test.dart test/editor/quiet_code_block_test.dart test/editor/formatting_toolbar_test.dart test/editor/dual_mode_editor_screen_test.dart test/editor/web_link_enhancements_test.dart`
+  — all **101 passed**. The full repository suite was not run.
+- `git diff --check`: clean.

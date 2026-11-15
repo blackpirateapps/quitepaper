@@ -102,7 +102,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
-        : deserializeMarkdownToDocument(normalized);
+        : deserializeQuietMathDocument(normalized);
 
     // Promote standalone `[name](qp://document|asset/...)` link paragraphs into
     // embedded attachment card nodes before the editor takes ownership.
@@ -140,6 +140,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     _editor.reactionPipeline.insert(0, const CodeBlockConversionReaction());
     _editor.requestHandlers.insert(0, handleCodeBlockFenceNewlineRequest);
     _editor.requestHandlers.insert(0, handleMathBlockFenceNewlineRequest);
+    _editor.requestHandlers.insert(0, _handleMathPasteRequest);
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
@@ -151,6 +152,31 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  // Native selection-toolbar paste uses PasteEditorRequest instead of the app's
+  // keyboard paste callback. Give it the same math parsing as controller paste.
+  EditCommand? _handleMathPasteRequest(Editor editor, EditRequest request) {
+    if (request is! PasteEditorRequest ||
+        !QuietMathParser.containsMathSyntax(request.content)) {
+      return null;
+    }
+    final target = editor.document.getNodeById(request.pastePosition.nodeId);
+    if (target is ParagraphNode &&
+        target.metadata[NodeMetadata.blockType] == codeAttribution) {
+      return null;
+    }
+    final content = deserializeQuietMathDocument(
+      normalizeMarkdownForSuperEditor(request.content),
+    );
+    promoteQuietAttachmentNodes(content);
+    promoteLinkPreviewNodes(content);
+    promoteQuietCodeBlockNodes(content, request.content);
+    promoteQuietMathBlockNodes(content);
+    return PasteStructuredContentEditorCommand(
+      content: content,
+      pastePosition: request.pastePosition,
+    );
   }
 
   /// Splits [markdown] into its preserved frontmatter prefix and the editable
