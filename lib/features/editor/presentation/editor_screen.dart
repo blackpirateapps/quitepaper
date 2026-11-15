@@ -2113,10 +2113,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     textCapitalization: TextCapitalization.sentences,
                                     textInputAction: TextInputAction.next,
                                     onSubmitted: (_) {
+                                      if (isSuperEditor) {
+                                        _superEditorController.moveCaretToStart();
+                                      }
                                       _contentFocusNode.requestFocus();
                                     },
                                   ),
-                                  const SizedBox(height: 20.0),
+                                  if (isSuperEditor)
+                                    Divider(
+                                      key: const ValueKey('super-editor-title-divider'),
+                                      height: 32,
+                                      thickness: 1,
+                                      color: colors.divider,
+                                    )
+                                  else
+                                    const SizedBox(height: 20.0),
 
                                    // Tags bar (displayed seamlessly if tags exist on notes without properties card)
                                    if (note.tags.isNotEmpty && (!showsPropertiesSection || !frontmatterDoc.hasMatchingSectionProperties)) ...[

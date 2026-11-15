@@ -6008,4 +6008,43 @@ build_apk_pdf_annotation,release}.yml`, `HANDOFF.md` and the platform/build guid
   flag has been removed and is ignored.
 - All six workflow files parse as YAML; all seven Flutter setups pin 3.47.2.
 - Post-generation `flutter analyze`: no issues.
+
+## 271. Super Editor title-to-body caret, divider and placeholder (November 15, 2026)
+
+### Behavior and cause
+
+New notes in Super Editor had no visual title/body boundary. Submitting the title
+requested body focus without setting a document selection, so the caret remained
+absent under the intentional disabled automatic end-of-document selection policy.
+The body hint was already passed through MarkdownEditor but never rendered.
+
+### Implementation
+
+- `editor_screen.dart` adds a themed title divider only in Super Editor mode and
+  calls `QuietSuperEditorController.moveCaretToStart()` before requesting body
+  focus on title submission. Visual and Markdown title layouts retain their
+  existing behavior. The embedded math input focus policy stays intact.
+- `quiet_super_editor.dart` renders the supplied `Start writing...` hint through
+  SuperEditor's native hint component for a single empty ordinary paragraph.
+  It inherits body typography, disappears when typing, returns after clearing,
+  and stays hidden for read-only notes and formatted blocks. Frontmatter-only
+  notes also show the hint when their editable body is empty.
+- The screen regressions exposed attachment notifications rebuilding sibling
+  toolbar listeners during build. Controller connection notifications now defer
+  and coalesce until after the frame when necessary, with disposal checks.
+- The divider and placeholder never enter the document or saved Markdown.
+
+### Files and validation
+
+Updated the three editor files above, `test/editor/dual_mode_editor_screen_test.dart`,
+`test/editor/quiet_super_editor_test.dart`, `HANDOFF.md` and the editor guide.
+
+- `flutter analyze`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test test/editor/dual_mode_editor_screen_test.dart test/editor/quiet_super_editor_test.dart test/editor/formatting_toolbar_test.dart test/editor/quiet_math_test.dart`
+  — all 63 passed.
+- Linux and Android screen regressions cover title submission, focused body and
+  visible caret, actual IME text insertion/deletion, placeholder lifecycle and
+  saved title/body. Widget checks cover empty frontmatter and read-only hints;
+  existing toolbar and embedded math focus tests pass.
 - `git diff --check`: clean.

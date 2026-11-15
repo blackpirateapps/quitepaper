@@ -257,6 +257,8 @@ void main() {
       required String markdown,
       required ValueChanged<String> onChanged,
       bool stripFrontmatter = false,
+      String? hintText,
+      bool readOnly = false,
     }) {
       return ProviderScope(
         overrides: [
@@ -273,6 +275,8 @@ void main() {
               initialMarkdown: markdown,
               onChanged: onChanged,
               stripFrontmatter: stripFrontmatter,
+              hintText: hintText,
+              readOnly: readOnly,
             ),
           ),
         ),
@@ -294,6 +298,32 @@ void main() {
       expect(find.byType(SuperEditor), findsOneWidget);
       expect(find.text('Hello World', findRichText: true), findsOneWidget);
       expect(find.text('This is a super editor note.', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('empty frontmatter body shows hint without changing stored content', (tester) async {
+      final changes = <String>[];
+      await tester.pumpWidget(buildTestWidget(
+        markdown: '---\nauthor: Jane\n---\n',
+        stripFrontmatter: true,
+        hintText: 'Start writing...',
+        onChanged: changes.add,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start writing...', findRichText: true), findsOneWidget);
+      expect(changes, isEmpty);
+    });
+
+    testWidgets('empty read-only body does not show an editing hint', (tester) async {
+      await tester.pumpWidget(buildTestWidget(
+        markdown: '',
+        readOnly: true,
+        hintText: 'Start writing...',
+        onChanged: (_) {},
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start writing...', findRichText: true), findsNothing);
     });
 
     testWidgets('renders task nodes with QuietTaskComponent and toggles checkboxes', (tester) async {

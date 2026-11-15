@@ -82,6 +82,17 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
 - **Lifecycle Flush**: Focus changes, app pausing, or navigating back immediately flushes pending changes.
 - **Empty-Draft Cleanup**: If a user creates a new note but exits without typing any content, the draft is cleanly discarded to prevent empty note clutter.
 
+### Super Editor Title & Empty Body
+- Super Editor mode displays a themed divider below the title. Submitting the
+  title (Enter / mobile Next) explicitly places a collapsed document selection
+  at the start of the body before requesting focus. Keep the existing
+  `placeCaretAtEndOfDocumentOnGainFocus: false` policy for embedded input focus.
+- The body uses SuperEditor's native hint component for a single empty ordinary
+  paragraph. `Start writing...` inherits body typography, disappears on typing,
+  and returns when cleared. The hint and title divider are presentation only.
+- Controller attachment/detachment notifications defer until after the frame
+  when invoked during build, preventing sibling toolbar rebuild assertions.
+
 ---
 
 ## 3. Typography & Aesthetic System

@@ -45,6 +45,13 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## Latest Super Editor Polish
+
+Super Editor now separates the title and body with a themed divider. Submitting
+the title places a visible caret at the beginning of the body, and empty editable
+bodies display `Start writing...` until text is entered. See
+[engineering log 271](handoff/latest-logs.md#271-super-editor-title-to-body-caret-divider-and-placeholder-november-15-2026).
+
 ## 2. Quick Architectural Reference
 
 ### Core Principles

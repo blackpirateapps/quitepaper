@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:super_editor/super_editor.dart';
 
 import '../../../core/utils/web_url_helper.dart';
@@ -34,6 +35,25 @@ class QuietSuperEditorController extends ChangeNotifier {
   /// Current selected node ID, if any.
   String? get selectedNodeId => _composer?.selection?.extent.nodeId;
 
+  /// Places the caret at the beginning of the body when leaving the title.
+  void moveCaretToStart() {
+    final document = _editor?.document;
+    if (document == null || document.isEmpty) return;
+
+    _editor!.execute([
+      ChangeSelectionRequest(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: document.first.id,
+            nodePosition: document.first.beginningPosition,
+          ),
+        ),
+        SelectionChangeType.placeCaret,
+        SelectionReason.userInteraction,
+      ),
+    ]);
+  }
+
   /// Attaches this controller to an active [Editor] and [MutableDocumentComposer].
   void attach(Editor editor, MutableDocumentComposer composer) {
     if (_editor == editor && _composer == composer) return;
@@ -44,10 +64,25 @@ class QuietSuperEditorController extends ChangeNotifier {
     _editor!.document.addListener(_onDocumentChanged);
     _composer!.selectionNotifier.addListener(_onSelectionChanged);
     _composer!.preferences.addListener(_onPreferencesChanged);
-    notifyListeners();
+    _notifyConnectionChanged();
   }
 
   bool _isDisposed = false;
+  bool _connectionNotificationScheduled = false;
+
+  void _notifyConnectionChanged() {
+    // The editor attaches during build, after sibling toolbars may have built.
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      if (_connectionNotificationScheduled) return;
+      _connectionNotificationScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _connectionNotificationScheduled = false;
+        if (!_isDisposed) notifyListeners();
+      });
+    } else {
+      notifyListeners();
+    }
+  }
 
   /// Detaches the controller and cleans up listeners.
   void detach() {
@@ -57,7 +92,7 @@ class QuietSuperEditorController extends ChangeNotifier {
     _editor = null;
     _composer = null;
     if (!_isDisposed) {
-      notifyListeners();
+      _notifyConnectionChanged();
     }
   }
 

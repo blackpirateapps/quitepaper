@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
@@ -47,6 +50,89 @@ void main() {
     Future<void> finishTest(WidgetTester tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 800));
+    }
+
+    for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
+      testWidgets('Super Editor title submission on ${platform.name} shows body caret and accepts typing', (tester) async {
+        final now = DateTime.now();
+        final note = Note(
+          id: 'new-super-note',
+          title: '',
+          content: '',
+          createdAt: now,
+          updatedAt: now,
+          tags: [],
+        );
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: EditorEditingStyle.superEditor));
+        await tester.pumpAndSettle();
+
+        final titleField = find.byWidgetPredicate(
+          (widget) => widget is TextField && widget.decoration?.hintText == 'Title',
+        );
+        final divider = find.byKey(const ValueKey('super-editor-title-divider'));
+        final bodyHint = find.text('Start writing...', findRichText: true);
+        expect(divider, findsOneWidget);
+        expect(bodyHint, findsOneWidget);
+        expect(tester.getBottomLeft(titleField).dy, lessThanOrEqualTo(tester.getTopLeft(divider).dy));
+        expect(tester.getBottomLeft(divider).dy, lessThanOrEqualTo(tester.getTopLeft(bodyHint).dy));
+
+        await tester.enterText(titleField, 'My new note');
+        // Both desktop Enter and the mobile Next key submit this single-line field
+        // through the platform text input action.
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final body = tester.widget<QuietSuperEditor>(find.byType(QuietSuperEditor));
+        expect(body.focusNode!.hasFocus, isTrue);
+        final controller = body.controller!;
+        expect(controller.composer!.selection, DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: controller.editor!.document.first.id,
+            nodePosition: const TextNodePosition(offset: 0),
+          ),
+        ));
+        expect(find.byKey(DocumentKeys.caret), findsWidgets);
+        expect(bodyHint, findsOneWidget);
+
+        final imeState = tester.state<SuperEditorImeInteractorState>(find.byType(SuperEditorImeInteractor));
+        expect(imeState.isAttachedToIme, isTrue);
+        final imeClient = imeState.imeClient;
+        final imeValue = imeClient.currentTextEditingValue!;
+        final insertionOffset = imeValue.selection.extentOffset;
+        imeClient.updateEditingValueWithDeltas([
+          TextEditingDeltaInsertion(
+            oldText: imeValue.text,
+            textInserted: 'Body text',
+            insertionOffset: insertionOffset,
+            selection: TextSelection.collapsed(offset: insertionOffset + 'Body text'.length),
+            composing: TextRange.empty,
+          ),
+        ]);
+        await tester.pump(const Duration(milliseconds: 800));
+        expect(bodyHint, findsNothing);
+        final saved = (await repository.getNoteById(note.id))!;
+        expect(saved.title, 'My new note');
+        expect(saved.content.trim(), 'Body text');
+        expect(saved.content, isNot(contains('Start writing...')));
+        expect(saved.content, isNot(contains('---')));
+
+        final typedValue = imeClient.currentTextEditingValue!;
+        imeClient.updateEditingValueWithDeltas([
+          TextEditingDeltaDeletion(
+            oldText: typedValue.text,
+            deletedRange: TextRange(start: insertionOffset, end: typedValue.selection.extentOffset),
+            selection: TextSelection.collapsed(offset: insertionOffset),
+            composing: TextRange.empty,
+          ),
+        ]);
+        await tester.pump(const Duration(milliseconds: 800));
+        expect(bodyHint, findsOneWidget);
+        expect((await repository.getNoteById(note.id))!.content.trim(), isEmpty);
+
+        await finishTest(tester);
+      }, variant: TargetPlatformVariant({platform}));
     }
 
     testWidgets('WYSIWYG mode displays FrontmatterPropertiesSection and hides raw frontmatter from body', (tester) async {

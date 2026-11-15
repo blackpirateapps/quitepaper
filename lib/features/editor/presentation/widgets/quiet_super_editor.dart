@@ -474,6 +474,17 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             ),
             QuietTableComponentBuilder(editor: _editor),
             QuietHorizontalRuleComponentBuilder(_editor),
+            if (widget.hintText?.isNotEmpty == true && !widget.readOnly)
+              _EmptyBodyHintComponentBuilder(
+                widget.hintText!,
+                (_) => TextStyle(
+                  color: colors.textTertiary,
+                  fontFamily: typography.bodyFontFamily,
+                  fontFamilyFallback: kContentFontFallback,
+                  fontSize: typography.fontSize,
+                  height: typography.lineHeight,
+                ),
+              ),
             ...defaultComponentBuilders,
           ],
           selectionStyle: SelectionStyles(
@@ -525,6 +536,22 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         );
       },
     );
+  }
+}
+
+/// Keep the body hint out of headings and other formatted empty blocks.
+class _EmptyBodyHintComponentBuilder extends HintComponentBuilder {
+  const _EmptyBodyHintComponentBuilder(super.hint, super.hintStyleBuilder);
+
+  @override
+  SingleColumnLayoutComponentViewModel? createViewModel(
+    Document document,
+    DocumentNode node,
+  ) {
+    if (node is! ParagraphNode || node.text.isNotEmpty) return null;
+    final blockType = node.getMetadataValue(NodeMetadata.blockType);
+    if (blockType != null && blockType != paragraphAttribution) return null;
+    return super.createViewModel(document, node);
   }
 }
 
