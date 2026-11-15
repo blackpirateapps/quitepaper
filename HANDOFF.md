@@ -107,3 +107,8 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
    - Append detailed entries to **[`handoff/latest-logs.md`](handoff/latest-logs.md)**.
    - Include: numbered section, motivation, architectural design, modified files, and test verification results.
 3. **Keep domain guides updated**: If introducing a new architectural pattern or subsystem, update the corresponding file in [`handoff/`](handoff/).
+
+## Smart Tables implementation
+
+Work is on `feat/smart-tables`. The implementation audit and phase results are
+recorded in [the Smart Tables guide](handoff/smart-tables.md).
