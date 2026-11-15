@@ -54,6 +54,11 @@ The search subsystem resides in [`lib/features/search/`](file:///home/dog/git/qu
 - Search matches highlight matching terms within note snippets in real time.
 - Clicking an OCR match jumps directly to the matching page in the PDF / Scanned Document Viewer.
 - **In-Place Pull-Down to Search**: Pulling down on the note list smoothly unveils the search input without jarring screen transitions or layout pops.
+- **Desktop Search Opening**: Toolbar and keyboard actions reveal search on the
+  next frame without the touch slide animation. The search stack fills the pane
+  even when the notes list is offstage, preserving height under the desktop
+  AnimatedSwitcher's loose constraints. The swipe preference gates only scroll
+  gestures; explicit search actions remain available when it is disabled.
 - **In-Note Search & Replace**: In-editor search bar supporting next/previous navigation and batch text replacement.
 
 ---

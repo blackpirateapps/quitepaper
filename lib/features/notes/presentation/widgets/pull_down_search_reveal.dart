@@ -70,6 +70,9 @@ class PullDownSearchReveal extends StatefulWidget {
   final double? maxPullOffset;
 
   final bool isTabletPane;
+
+  /// Enables the pull gesture. Toolbar and keyboard actions can still open
+  /// search when the gesture is disabled.
   final bool enabled;
 
   /// Overrides the placeholder shown in the fallback revealed search bar.
@@ -144,8 +147,8 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
     super.dispose();
   }
 
-  /// Programmatically opens search with the smooth slide unveil.
-  void openSearch() {
+  /// Opens search, optionally skipping the touch-oriented slide on desktop.
+  void openSearch({bool animate = true}) {
     if (_isSearchActive) return;
     if (_slideController.isAnimating) return;
 
@@ -154,13 +157,20 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
       return;
     }
 
+    _springController.stop();
     setState(() {
+      _armed = false;
+      _pullOffset = 0.0;
       _isSearchActive = true;
       _committed = true;
       _slideBeginOffset = 0.0;
     });
 
-    _slideController.forward(from: 0.0);
+    if (animate) {
+      _slideController.forward(from: 0.0);
+    } else {
+      _slideController.value = 1.0;
+    }
     widget.onOpenSearch();
   }
 
@@ -307,7 +317,7 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) {
+    if (!widget.enabled && widget.searchViewBuilder == null) {
       return widget.child;
     }
 
@@ -340,6 +350,9 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
           return NotificationListener<ScrollNotification>(
             onNotification: _handleScrollNotification,
             child: Stack(
+              // Keep the pane sized when its only non-positioned child goes
+              // offstage. AnimatedSwitcher's desktop constraints are loose.
+              fit: StackFit.expand,
               clipBehavior: Clip.hardEdge,
               children: [
                 if (showSearchView)

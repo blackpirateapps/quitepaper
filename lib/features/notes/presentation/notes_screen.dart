@@ -3166,14 +3166,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void _openSearchScreen(BuildContext context) {
     HapticFeedback.lightImpact();
     final isTablet = MediaQuery.sizeOf(context).width >= 900.0;
-    if (isTablet && _tabletPullDownState != null) {
-      _tabletPullDownState!.openSearch();
-    } else if (_phonePullDownState != null) {
-      _phonePullDownState!.openSearch();
+    final searchState =
+        isTablet ? _tabletPullDownState : _phonePullDownKey.currentState;
+    final animate = !PlatformLayoutHelper.isDesktop(context);
+    if (searchState != null && searchState.mounted) {
+      searchState.openSearch(animate: animate);
     } else {
       Navigator.of(
         context,
-      ).push(SearchPageRoute(builder: (_) => const SearchScreen()));
+      ).push(SearchPageRoute(
+        builder: (_) => const SearchScreen(),
+        animate: animate,
+      ));
     }
   }
 

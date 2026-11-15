@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
@@ -45,20 +47,112 @@ void main() {
     await tester.pump(Duration.zero);
   }
 
-  Widget buildNotesApp({SharedPreferences? prefs}) {
+  Widget buildNotesApp({SharedPreferences? prefs, TargetPlatform? platform}) {
     return ProviderScope(
       overrides: [
         if (prefs != null) sharedPreferencesProvider.overrideWithValue(prefs),
         databaseProvider.overrideWithValue(db),
         notesRepositoryProvider.overrideWithValue(repository),
       ],
-      child: const MaterialApp(
-        home: NotesScreen(),
+      child: MaterialApp(
+        theme: platform == null ? null : ThemeData(platform: platform),
+        home: const NotesScreen(),
       ),
     );
   }
 
   group('NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar)', () {
+    for (final width in [720.0, 1280.0]) {
+      for (final swipeEnabled in [true, false]) {
+        testWidgets(
+            'Linux search click is immediately usable at width $width with swipe $swipeEnabled',
+            (tester) async {
+          tester.view.physicalSize = Size(width, 800);
+          tester.view.devicePixelRatio = 1;
+          SharedPreferences.setMockInitialValues({
+            'setting_swipe_down_to_search_notes': swipeEnabled,
+          });
+          final prefs = await SharedPreferences.getInstance();
+          await tester.pumpWidget(buildNotesApp(
+            prefs: prefs,
+            platform: TargetPlatform.linux,
+          ));
+          await tester.pumpAndSettle();
+
+          // Reopening also verifies the search state resets after Back.
+          for (var attempt = 0; attempt < 2; attempt++) {
+            await tester.tap(find.byTooltip('Search notes'),
+                kind: PointerDeviceKind.mouse);
+            await tester.pump();
+
+            final field = find.descendant(
+              of: find.byType(SearchScreen),
+              matching: find.byType(TextField),
+            );
+            expect(field.hitTestable(), findsOneWidget,
+                reason: 'Search must accept input on the first frame');
+            await tester.pump();
+            expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+            await tester.tap(find.byTooltip('Back'));
+            await tester.pumpAndSettle();
+            expect(find.byType(SearchScreen), findsNothing);
+          }
+
+          await finishTest(tester);
+        });
+      }
+    }
+
+    testWidgets('Linux Ctrl+F opens search with swipe disabled', (tester) async {
+      setTabletSize(tester);
+      SharedPreferences.setMockInitialValues({
+        'setting_swipe_down_to_search_notes': false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(
+        prefs: prefs,
+        platform: TargetPlatform.linux,
+      ));
+      await tester.pumpAndSettle();
+      final notesFocus = tester.widget<Focus>(find.byWidgetPredicate(
+        (widget) => widget is Focus &&
+            widget.focusNode?.debugLabel == 'notes-multi-select',
+      ));
+      notesFocus.focusNode!.requestFocus();
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(find.byType(TextField).hitTestable(), findsOneWidget);
+      await finishTest(tester);
+    });
+
+    testWidgets('Linux search survives switching between window layouts',
+        (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 800);
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(
+        prefs: prefs,
+        platform: TargetPlatform.linux,
+      ));
+      await tester.pumpAndSettle();
+
+      for (final width in [1280.0, 720.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 800);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Search notes'),
+            kind: PointerDeviceKind.mouse);
+        await tester.pump();
+        expect(find.byType(TextField).hitTestable(), findsOneWidget);
+        await tester.tap(find.byTooltip('Back'));
+        await tester.pumpAndSettle();
+      }
+      await finishTest(tester);
+    });
+
     testWidgets('pulling down on notes list past threshold triggers SearchScreen navigation',
         (tester) async {
       setPhoneSize(tester);
@@ -228,6 +322,9 @@ void main() {
 
       // SearchScreen should be opened
       expect(find.byType(SearchScreen), findsOneWidget);
+
+      // The pane must retain its height after the notes list goes offstage.
+      expect(find.byType(TextField).hitTestable(), findsOneWidget);
 
       await finishTest(tester);
     });

@@ -52,6 +52,13 @@ the title places a visible caret at the beginning of the body, and empty editabl
 bodies display `Start writing...` until text is entered. See
 [engineering log 271](handoff/latest-logs.md#271-super-editor-title-to-body-caret-divider-and-placeholder-november-15-2026).
 
+## Latest Desktop Search Fix
+
+Desktop toolbar and keyboard search now open immediately. The split pane retains
+its height when the notes list is hidden, and disabling swipe-to-search no longer
+disables explicit search actions. See
+[engineering log 272](handoff/latest-logs.md#272-linux-search-opening-delay-and-collapsed-desktop-pane-november-15-2026).
+
 ## 2. Quick Architectural Reference
 
 ### Core Principles

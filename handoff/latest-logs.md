@@ -6048,3 +6048,44 @@ Updated the three editor files above, `test/editor/dual_mode_editor_screen_test.
   saved title/body. Widget checks cover empty frontmatter and read-only hints;
   existing toolbar and embedded math focus tests pass.
 - `git diff --check`: clean.
+
+## 272. Linux search opening delay and collapsed desktop pane (November 15, 2026)
+
+### Causes and behavior
+
+Opening search from the toolbar used the same 240 ms card slide as a touch pull.
+On desktop, the search stack also derived its height from the notes list under
+AnimatedSwitcher's loose constraints. When that list became offstage at the end
+of the slide, it reported zero size and collapsed the positioned search view.
+Existing tests only checked that SearchScreen existed, missing its zero height.
+Separately, disabling swipe-to-search bypassed the entire reveal widget's layout,
+so toolbar and shortcut actions changed state without displaying search.
+
+### Implementation
+
+- `PullDownSearchReveal` uses `StackFit.expand` for the search underlay so hiding
+  the notes list preserves the pane. `enabled` gates gestures rather than explicit
+  search actions; the editor's disabled fallback still returns its child directly.
+- Programmatic opening accepts an animation option and stops any spring-back.
+  `NotesScreen` skips the touch slide on native desktops, retaining the animated
+  mobile and pull gesture flows. The fallback SearchPageRoute also skips its
+  260 ms transition on desktop.
+- Search selects the state belonging to the current window layout and checks that
+  it remains mounted before opening, avoiding disposed states after pane changes.
+- Regression tests use Linux mouse clicks at narrow and wide window sizes, with
+  swipe enabled and disabled, and verify first-frame hit testing, focus, Back and
+  reopening. They also cover Ctrl+F with swipe disabled, window resizing and a
+  hit-testable tablet search field after a completed pull reveal.
+
+### Files and validation
+
+Updated the reveal widget, notes screen, search route, gesture tests,
+`HANDOFF.md` and the tags/search guide.
+
+- `flutter analyze`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test test/features/notes/gestures_test.dart test/search/ test/notes/notes_filter_and_sort_ui_test.dart`
+  — all 93 passed, including the six new Linux regressions.
+- Before the fixes, the five initial Linux regressions failed; the new tablet
+  hit-test assertion also guards against the previously invisible search pane.
+- `git diff --check`: clean.

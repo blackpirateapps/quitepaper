@@ -808,11 +808,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
 /// Custom top-slide and fade transition route for opening SearchScreen seamlessly.
 class SearchPageRoute<T> extends PageRouteBuilder<T> {
-  SearchPageRoute({required WidgetBuilder builder, super.settings})
+  SearchPageRoute({
+    required WidgetBuilder builder,
+    bool animate = true,
+    super.settings,
+  })
       : super(
           pageBuilder: (context, animation, secondaryAnimation) => builder(context),
-          transitionDuration: const Duration(milliseconds: 260),
-          reverseTransitionDuration: const Duration(milliseconds: 220),
+          transitionDuration:
+              animate ? const Duration(milliseconds: 260) : Duration.zero,
+          reverseTransitionDuration:
+              animate ? const Duration(milliseconds: 220) : Duration.zero,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             final curved = CurvedAnimation(
               parent: animation,
