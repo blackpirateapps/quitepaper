@@ -35,7 +35,7 @@ void main([List<String> args = const []]) async {
     packageInfo = PackageInfo(
       appName: 'Quite Paper',
       packageName: 'com.blackpirate.quitepaper',
-      version: '1.6.2',
+      version: '1.6.3',
       buildNumber: '0',
       buildSignature: '',
     );

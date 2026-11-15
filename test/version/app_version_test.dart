@@ -7,34 +7,34 @@ void main() {
   group('AppVersionInfo & Providers Unit Tests', () {
     test('formats displayVersion with buildNumber correctly', () {
       const info = AppVersionInfo(
-        version: '1.6.0',
+        version: '1.6.3',
         buildNumber: '264',
       );
 
-      expect(info.displayVersion, equals('Version 1.6.0 (264)'));
-      expect(info.fullVersion, equals('1.6.0+264'));
+      expect(info.displayVersion, equals('Version 1.6.3 (264)'));
+      expect(info.fullVersion, equals('1.6.3+264'));
     });
 
     test('omits buildNumber in displayVersion when buildNumber is 0 or empty', () {
       const infoZero = AppVersionInfo(
-        version: '1.6.0',
+        version: '1.6.3',
         buildNumber: '0',
       );
-      expect(infoZero.displayVersion, equals('Version 1.6.0'));
-      expect(infoZero.fullVersion, equals('1.6.0'));
+      expect(infoZero.displayVersion, equals('Version 1.6.3'));
+      expect(infoZero.fullVersion, equals('1.6.3'));
 
       const infoEmpty = AppVersionInfo(
-        version: '1.6.0',
+        version: '1.6.3',
         buildNumber: '',
       );
-      expect(infoEmpty.displayVersion, equals('Version 1.6.0'));
-      expect(infoEmpty.fullVersion, equals('1.6.0'));
+      expect(infoEmpty.displayVersion, equals('Version 1.6.3'));
+      expect(infoEmpty.fullVersion, equals('1.6.3'));
     });
 
     test('equality and hashCode work as expected', () {
-      const a = AppVersionInfo(version: '1.6.0', buildNumber: '264');
-      const b = AppVersionInfo(version: '1.6.0', buildNumber: '264');
-      const c = AppVersionInfo(version: '1.6.0', buildNumber: '265');
+      const a = AppVersionInfo(version: '1.6.3', buildNumber: '264');
+      const b = AppVersionInfo(version: '1.6.3', buildNumber: '264');
+      const c = AppVersionInfo(version: '1.6.3', buildNumber: '265');
 
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));

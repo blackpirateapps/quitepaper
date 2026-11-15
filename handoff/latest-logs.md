@@ -6289,9 +6289,45 @@ math entry as 276. Updated the corresponding `HANDOFF.md` link.
 - `git diff --check`: clean.
 
 
----
+## 277. Release version bump to 1.6.3 (Build 21) (November 15, 2026)
 
-## 277. Super Editor smart checklist focus, folding and preview alignment (November 15, 2026)
+### Release and version audit
+
+Updated the application from `1.6.2+20` to **`1.6.3+21`**. The local Android
+build suffix increments to 21; CI still derives build numbers from the Git commit
+count. Searched tracked files for the previous version and reviewed older
+application-version defaults as well.
+
+- Updated `pubspec.yaml`, startup/provider fallbacks, backup/device/location
+  defaults, the weather HTTP user agent, `.qpnote` export metadata, and the Linux
+  CLI version. Updated version-format test examples to 1.6.3.
+- Found older 1.2.0 defaults in `update_service.dart` and `update_dialog.dart` and
+  synchronized them to 1.6.3. Normal runtime providers continue supplying the
+  installed package version.
+- Updated the RPM spec and Windows numeric/string resource fallbacks. Prepended
+  a dated AppStream release entry; Flutter-managed platform version references
+  continue reading the package version.
+- Updated badges/footers and added matching 1.6.3 changelog entries in `public/`
+  and `backend/public/`, covering editor math/navigation, the search workspace,
+  and Linux CLI attachments. Refreshed release/AAB workflow input examples.
+- Updated `HANDOFF.md` and corrected the platform guide's stale version checklist
+  paths, documenting the current runtime, CLI, packaging and site locations.
+- Preserved historical changelogs, engineering logs and the verbatim handoff
+  backup, dependency versions, OCR engine versions, and parser defaults for
+  missing versions in legacy backups and remote release metadata. The backend
+  package has its own version; its API entry point has no app-version header.
+
+### Validation
+
+- `flutter analyze`: no issues, including a final pass after updating older
+  update-checker/dialog defaults.
+- `flutter test`: all **2,602 tests passed** (full suite).
+- Version audit passed: both public-site copies are byte-identical, AppStream XML
+  parses with 1.6.3 as the newest release, and remaining literal 1.6.2 app-version
+  references are historical releases or engineering records.
+- `git diff --check`: clean.
+
+## 278. Super Editor smart checklist focus, folding and preview alignment (November 15, 2026)
 
 ### Diagnosis
 
@@ -6355,3 +6391,16 @@ Android behavior is covered by widget tests with Android platform selection and
 its test IME; physical-device keyboard validation remains a manual check. The
 report did not include the intermittent exception stack trace, so that exact
 exception cannot be matched to a specific reproduction.
+
+### PR #5 merge validation
+
+Merged current `main` (including release **1.6.3+21**) into the checklist fix.
+The only conflict was the shared engineering-log entry number: preserved the
+release entry as 277, renumbered the checklist entry to 278, and updated its
+`HANDOFF.md` link. Application changes merged without conflicts.
+
+- `flutter analyze`: no issues.
+- Full `flutter test` stopped at the user's request; no full-suite result is
+  claimed for this merge. The PR's existing CI checks passed before this
+  documentation-only conflict resolution.
+- `git diff --check`: clean.

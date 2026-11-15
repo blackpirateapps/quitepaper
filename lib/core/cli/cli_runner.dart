@@ -47,7 +47,7 @@ class CliRunner extends CommandRunner<int> {
     addCommand(DeleteCommand(_getDb));
   }
 
-  static const String currentVersion = '1.6.2';
+  static const String currentVersion = '1.6.3';
 
   final CliDatabase? _providedDb;
   CliDatabase? _lazyDb;
