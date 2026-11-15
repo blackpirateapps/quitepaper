@@ -1,3 +1,4 @@
+import '../../application/smart_table_markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,7 +103,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
-        : deserializeMarkdownToDocument(normalized);
+        : deserializeQuietMarkdown(normalized);
 
     // Promote standalone `[name](qp://document|asset/...)` link paragraphs into
     // embedded attachment card nodes before the editor takes ownership.
@@ -472,7 +473,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
               noteId: widget.noteId,
               showRemove: !widget.readOnly,
             ),
-            QuietTableComponentBuilder(editor: _editor),
+            QuietTableComponentBuilder(editor: _editor, readOnly: widget.readOnly),
             QuietHorizontalRuleComponentBuilder(_editor),
             if (widget.hintText?.isNotEmpty == true && !widget.readOnly)
               _EmptyBodyHintComponentBuilder(

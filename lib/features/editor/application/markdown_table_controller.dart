@@ -1,3 +1,5 @@
+import '../domain/smart_tables/formula_engine.dart';
+import 'smart_table_markdown.dart';
 import 'package:flutter/material.dart';
 import '../domain/markdown_styles.dart';
 import '../domain/markdown_table.dart';
@@ -19,11 +21,18 @@ class MarkdownTableController extends ChangeNotifier {
     this.styles,
   })  : _activePosition = initialPosition ?? const TablePosition(row: 0, column: 0) {
     _initCellController();
+    calculations = FormulaEngine(tableRawCells(table));
   }
 
   static const _parser = MarkdownTableParser();
 
   MarkdownTable table;
+  late final FormulaEngine calculations;
+
+  String displayedCell(int row, int column) {
+    final raw = table.getCell(row,column)?.trimmedText ?? '';
+    return raw.startsWith('=') || raw.startsWith("'=") ? calculations.value(row,column).display : raw;
+  }
 
   TablePosition _activePosition;
   TablePosition get activePosition => _activePosition;
@@ -66,6 +75,7 @@ class MarkdownTableController extends ChangeNotifier {
     final validRow = _activePosition.row.clamp(0, table.rowCount - 1);
     final validCol = _activePosition.column.clamp(0, table.columnCount - 1);
     _activePosition = TablePosition(row: validRow, column: validCol);
+    calculations.update(tableRawCells(table));
     _pruneDeadFocusNodes();
     notifyListeners();
   }
@@ -81,7 +91,7 @@ class MarkdownTableController extends ChangeNotifier {
   }
 
   void _onCellTextChanged() {
-    if (_isInternalSync || _isDisposed) return;
+    if (_isInternalSync || _isDisposed || _cellController.value.composing.isValid && !_cellController.value.composing.isCollapsed) return;
 
     final cell = table.getCell(_activePosition.row, _activePosition.column);
     if (cell == null) return;
@@ -110,7 +120,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloadedTable;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
   }
 
   void setActivePosition(TablePosition position) {
@@ -219,7 +231,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetRow = (_activePosition.row + 1).clamp(0, table.rowCount - 1);
     setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
@@ -244,7 +258,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetRow = (afterIndex + 1).clamp(0, table.rowCount - 1);
     setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
@@ -268,7 +284,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetCol = (_activePosition.column + 1).clamp(0, table.columnCount - 1);
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
@@ -293,7 +311,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetCol = (insertAfter + 1).clamp(0, table.columnCount - 1);
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
@@ -318,7 +338,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
     notifyListeners();
   }
 
@@ -344,7 +366,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetRow = (_activePosition.row - 1).clamp(0, table.rowCount - 1);
     setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
@@ -372,7 +396,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetCol = _activePosition.column.clamp(0, table.columnCount - 1);
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
@@ -392,7 +418,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetRow = (_activePosition.row < 1 ? 1 : _activePosition.row + 1)
         .clamp(0, table.rowCount - 1);
@@ -413,7 +441,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetCol = (_activePosition.column + 1).clamp(0, table.columnCount - 1);
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
@@ -435,7 +465,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetRow = targetRowIndex.clamp(1, table.rowCount - 1);
     setActivePosition(TablePosition(row: targetRow, column: _activePosition.column));
@@ -456,7 +488,9 @@ class MarkdownTableController extends ChangeNotifier {
       table = reloaded;
     }
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
 
     final targetCol = targetColumnIndex.clamp(0, table.columnCount - 1);
     setActivePosition(TablePosition(row: _activePosition.row, column: targetCol));
@@ -479,6 +513,7 @@ class MarkdownTableController extends ChangeNotifier {
     _isInternalSync = true;
     _cellController.text = cell?.trimmedText ?? '';
     _isInternalSync = false;
+    calculations.update(tableRawCells(table));
     _pruneDeadFocusNodes();
     notifyListeners();
   }
@@ -491,7 +526,9 @@ class MarkdownTableController extends ChangeNotifier {
       table: table,
     );
 
+    calculations.update(tableRawCells(table));
     onUpdateDocument(updatedDocVal);
+    notifyListeners();
   }
 
   @override

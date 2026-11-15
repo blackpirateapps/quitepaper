@@ -417,7 +417,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     }
 
     // Inactive Cell
-    final cellText = cell?.trimmedText ?? '';
+    final cellText = widget.controller.displayedCell(rowIndex, columnIndex);
     final textSpan = cellText.isNotEmpty
         ? MarkdownParser.buildTextSpan(
             text: cellText,

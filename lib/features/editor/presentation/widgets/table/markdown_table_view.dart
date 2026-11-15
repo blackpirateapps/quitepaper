@@ -1,3 +1,5 @@
+import '../../../application/smart_table_markdown.dart';
+import '../../../domain/smart_tables/formula_engine.dart';
 import 'package:flutter/material.dart';
 import '../../../../../app/theme/app_colors.dart';
 import '../../../../../app/theme/app_radii.dart';
@@ -33,6 +35,7 @@ class MarkdownTableView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final effectiveStyles = styles ?? MarkdownStyles.fromColors(colors);
+    final engine = FormulaEngine(tableRawCells(table));
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -60,6 +63,7 @@ class MarkdownTableView extends StatelessWidget {
                 isHeader: true,
                 colors: colors,
                 styles: effectiveStyles,
+                engine: engine,
               ),
 
               // Body Rows
@@ -76,6 +80,7 @@ class MarkdownTableView extends StatelessWidget {
                   isHeader: false,
                   colors: colors,
                   styles: effectiveStyles,
+                engine: engine,
                 ),
               ],
             ],
@@ -92,6 +97,7 @@ class MarkdownTableView extends StatelessWidget {
     required bool isHeader,
     required AppColors colors,
     required MarkdownStyles styles,
+    required FormulaEngine engine,
   }) {
     final cells = row.cells as List<MarkdownTableCell>;
 
@@ -114,6 +120,7 @@ class MarkdownTableView extends StatelessWidget {
               isHeader: isHeader,
               colors: colors,
               styles: styles,
+              engine: engine,
             ),
           ],
         ],
@@ -129,8 +136,10 @@ class MarkdownTableView extends StatelessWidget {
     required bool isHeader,
     required AppColors colors,
     required MarkdownStyles styles,
+    required FormulaEngine engine,
   }) {
-    final cellText = cell?.trimmedText ?? '';
+    final raw = cell?.trimmedText ?? '';
+    final cellText = raw.startsWith('=') || raw.startsWith("'=") ? engine.value(rowIndex,columnIndex).display : raw;
     final alignment = table.getAlignment(columnIndex);
     final pos = TablePosition(row: rowIndex, column: columnIndex);
 

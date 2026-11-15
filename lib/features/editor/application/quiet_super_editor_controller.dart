@@ -1,3 +1,4 @@
+import 'smart_table_markdown.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:super_editor/super_editor.dart';
@@ -1147,7 +1148,7 @@ class QuietSuperEditorController extends ChangeNotifier {
 
       if (hasBlockImage || hasBlockTable || hasBlockAttachment || hasBlockLinkPreview) {
         final normalized = normalizeMarkdownForSuperEditor(trimmed);
-        final structuredDoc = deserializeMarkdownToDocument(normalized);
+        final structuredDoc = deserializeQuietMarkdown(normalized);
         promoteQuietAttachmentNodes(structuredDoc);
         promoteLinkPreviewNodes(structuredDoc);
         if (structuredDoc.isNotEmpty) {

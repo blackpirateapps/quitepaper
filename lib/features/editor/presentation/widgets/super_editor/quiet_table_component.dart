@@ -1,3 +1,4 @@
+import '../../../application/smart_table_markdown.dart';
 import 'package:flutter/material.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_radii.dart';
@@ -16,7 +17,9 @@ import 'package:super_editor/super_editor.dart';
 /// using Quiet Paper's [MarkdownTableView] and provides tap-to-edit
 /// via [MarkdownTableEditor].
 class QuietTableComponentBuilder implements ComponentBuilder {
-  QuietTableComponentBuilder({required this.editor});
+  QuietTableComponentBuilder({required this.editor, this.readOnly = false});
+
+  final bool readOnly;
 
   final Editor editor;
 
@@ -74,6 +77,7 @@ class QuietTableComponentBuilder implements ComponentBuilder {
       componentKey: componentContext.componentKey,
       node: node,
       editor: editor,
+      readOnly: readOnly,
     );
   }
 }
@@ -86,11 +90,13 @@ class QuietTableComponent extends StatefulWidget {
     required this.componentKey,
     required this.node,
     required this.editor,
+    this.readOnly = false,
   });
 
   final GlobalKey componentKey;
   final TableBlockNode node;
   final Editor editor;
+  final bool readOnly;
 
   @override
   State<QuietTableComponent> createState() => _QuietTableComponentState();
@@ -109,7 +115,21 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(QuietTableComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isEditing) {
+      final incoming = _serializeTableNode(widget.node);
+      if (incoming != _workingMarkdown) {
+        _workingMarkdown = incoming;
+        _editController!.reloadFrom(TextEditingValue(text: incoming));
+      }
+    }
+  }
+
   String _serializeTableNode(TableBlockNode node) {
+    final raw = node.metadata[quietTableSourceKey];
+    if (raw is String) return raw;
     try {
       final doc = MutableDocument(nodes: [node]);
       final md = serializeDocumentToMarkdown(doc);
@@ -151,6 +171,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
   /// Enters inline tap-to-activate editing, seeding a controller from the
   /// node's current Markdown. Edits stay local until [_commitEdit].
   void _startInlineEdit([TablePosition? initialPos]) {
+    if (widget.readOnly) return;
     if (_isEditing) {
       if (initialPos != null) _editController!.setActivePosition(initialPos);
       return;
@@ -162,7 +183,10 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
     _editController = MarkdownTableController(
       table: tables.first,
       getDocumentValue: () => TextEditingValue(text: _workingMarkdown),
-      onUpdateDocument: (newVal) => _workingMarkdown = newVal.text,
+      onUpdateDocument: (newVal) {
+        _workingMarkdown = newVal.text;
+        _applyMarkdownToNode(newVal.text);
+      },
       initialPosition: initialPos,
     );
     setState(() {});
@@ -191,20 +215,12 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
   void _applyMarkdownToNode(String markdown) {
     if (!mounted) return;
     try {
-      final doc = deserializeMarkdownToDocument(markdown);
-      if (doc.isEmpty) return;
-      final newTableNode = doc.firstWhere(
-        (n) => n is TableBlockNode,
-        orElse: () => doc.first,
-      );
-      if (newTableNode is TableBlockNode) {
-        widget.editor.execute([
-          ReplaceNodeRequest(
-            existingNodeId: widget.node.id,
-            newNode: newTableNode,
-          ),
-        ]);
-      }
+      widget.editor.execute([
+        ReplaceNodeRequest(
+          existingNodeId: widget.node.id,
+          newNode: quietTableNode(markdown, id: widget.node.id),
+        ),
+      ]);
     } catch (_) {}
   }
 
@@ -286,6 +302,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                     ),
                   ),
                   const Spacer(),
+                  if (!widget.readOnly) ...[
                   if (editing)
                     _HeaderAction(
                       icon: PhosphorIconsRegular.check,
@@ -310,6 +327,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                       _deleteTable();
                     },
                   ),
+                  ],
                 ],
               ),
             ),
@@ -327,8 +345,8 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 child: MarkdownTableView(
                   table: markdownTable,
-                  readOnly: false,
-                  onCellTap: _startInlineEdit,
+                  readOnly: widget.readOnly,
+                  onCellTap: widget.readOnly ? null : _startInlineEdit,
                 ),
               )
             else
@@ -407,6 +425,11 @@ class QuietTableBlockNodeSerializer extends NodeTypedDocumentNodeMarkdownSeriali
     TableBlockNode node, {
     NodeSelection? selection,
   }) {
+    final raw = node.metadata[quietTableSourceKey];
+    if (raw is String) {
+      if (selection is UpstreamDownstreamNodeSelection && selection.isCollapsed) return '';
+      return document.getNodeIndexById(node.id) == document.nodeCount - 1 ? raw : '$raw\n';
+    }
     const defaultSerializer = TableBlockNodeSerializer();
     final serialized = defaultSerializer.serialize(document, node, selection: selection);
     if (serialized == null || serialized.isEmpty) return serialized ?? '';

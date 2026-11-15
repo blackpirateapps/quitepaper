@@ -43,3 +43,15 @@ empty AVERAGE uses #DIV/0!. A leading apostrophe before = renders as literal tex
 without the apostrophe and is retained in Markdown. Baseline: 17 tests passed;
 formula domain: 6 tests passed including baseline (grammar, cycles, caches,
 precision, limits, references, aggregates).
+
+## Phase 2: canonical source and derived display
+
+Custom table Markdown syntax/converter retains the exact raw table in existing
+TableBlockNode metadata. The custom node serializer uses that source; formulas
+are never replaced by values. Visual edits now publish through ReplaceNodeRequest
+with a stable node ID, and external history replacements reload the cell session.
+Read-only tables suppress editing controls. The shared table view and native
+Markdown preview calculate ephemeral results; source mode remains raw. Formula
+caches are scoped to an active table controller, not the whole editor. Composing
+IME text is not rewritten into table delimiters. Bridge + existing visual/table
+widget regressions: 45 tests passed. No database or sync changes.

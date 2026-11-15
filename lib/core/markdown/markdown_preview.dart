@@ -1,3 +1,4 @@
+import '../../features/editor/application/smart_table_markdown.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -152,7 +153,7 @@ class _QuietMarkdownPreviewState extends ConsumerState<QuietMarkdownPreview> {
     final previewBody = AudioTranscriptMarkdownHelper.stripTranscriptBlockquotesForPreview(
       _parsedMarkdown.contentBody,
     );
-    _chunks = MarkdownChunker.split(previewBody);
+    _chunks = MarkdownChunker.split(projectSmartTableResults(previewBody));
     _documentImages = _extractDocumentImages(previewBody);
 
     final baseIndices = <int>[];
