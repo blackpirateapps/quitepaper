@@ -55,3 +55,16 @@ Markdown preview calculate ephemeral results; source mode remains raw. Formula
 caches are scoped to an active table controller, not the whole editor. Composing
 IME text is not rewritten into table delimiters. Bridge + existing visual/table
 widget regressions: 45 tests passed. No database or sync changes.
+
+## Phase 3: selection and summary rows
+
+Shift-click or long-press extends a rectangular selection; the functions menu can
+select the data column on touch. The strip computes Sum/Average/Min/Max/Count
+without mutations and reports excluded errors, with raw/display copy and SUM
+insertion. Summary actions materialize aggregate formulas in a final row and
+record its exact contents in a versioned comment immediately after the table.
+Row/column insertion and deletion rebase references and metadata atomically;
+summary formulas exclude themselves. Unknown/malformed annotations are opaque
+and retained, and externally altered summary signatures disengage automation.
+Table-controller history captures complete source transactions. Summary and
+existing widget tests: 19 passed; flutter analyze: no issues.

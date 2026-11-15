@@ -30,8 +30,12 @@ class QuietTableSyntax extends md.BlockSyntax {
     while (!parser.isDone && parser.current.content.trim().isNotEmpty && parser.current.content.contains('|') && !parser.current.content.trimLeft().startsWith('<!--')) {
       lines.add(parser.current.content); parser.advance();
     }
-    if (!parser.isDone && parser.current.content.startsWith('<!-- quiet-paper-table:') && parser.current.content.endsWith('-->')) {
-      lines.add(parser.current.content); parser.advance();
+    if (!parser.isDone && parser.current.content.startsWith('<!-- quiet-paper-table:')) {
+      while (!parser.isDone) {
+        final line = parser.current.content;
+        lines.add(line); parser.advance();
+        if (line.contains('-->')) break;
+      }
     }
     return md.Element.empty('quiet-table')..attributes['source'] = lines.join('\n');
   }

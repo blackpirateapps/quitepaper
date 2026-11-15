@@ -1,3 +1,4 @@
+import 'smart_table_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../app/theme/app_colors.dart';
@@ -189,6 +190,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
                 onCloseTable: widget.onClose,
               ),
 
+              SmartTableControls(controller: widget.controller),
               // Spreadsheet Container
               Container(
                 decoration: BoxDecoration(
@@ -436,11 +438,15 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
 
     return InkWell(
       canRequestFocus: false,
-      onTap: () => widget.controller.setActivePosition(pos),
+      onTap: () => HardwareKeyboard.instance.isShiftPressed
+          ? widget.controller.selectThrough(pos)
+          : widget.controller.setActivePosition(pos),
+      onLongPress: () => widget.controller.selectThrough(pos),
       splashColor: colors.accent.withValues(alpha: 0.1),
       highlightColor: colors.accent.withValues(alpha: 0.05),
       child: Container(
         width: _columnWidth,
+        color: widget.controller.hasRangeSelection && widget.controller.selectedRange.contains(rowIndex,columnIndex) ? colors.accent.withValues(alpha:0.12) : null,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,
