@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
@@ -22,7 +24,10 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
   final String placeholder;
 
   @override
-  TaskComponentViewModel? createViewModel(Document document, DocumentNode node) {
+  TaskComponentViewModel? createViewModel(
+    Document document,
+    DocumentNode node,
+  ) {
     if (node is! TaskNode) {
       return null;
     }
@@ -45,14 +50,20 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
         if (!isExpanded) {
           if (node.id == firstCompletedId) {
             isCollapseSummary = true;
-            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block, editor: _editor);
+            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(
+              block,
+              editor: _editor,
+            );
           } else if (node.isComplete) {
             isHiddenInCollapse = true;
           }
         } else {
           if (node.id == firstCompletedId) {
             isExpandedHeader = true;
-            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(block, editor: _editor);
+            onToggleCollapse = () => smartTaskController!.toggleBlockExpansion(
+              block,
+              editor: _editor,
+            );
           }
         }
       }
@@ -82,7 +93,9 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
       },
       text: node.text,
       textDirection: textDirection,
-      textAlignment: textDirection == TextDirection.ltr ? TextAlign.left : TextAlign.right,
+      textAlignment: textDirection == TextDirection.ltr
+          ? TextAlign.left
+          : TextAlign.right,
       textStyleBuilder: noStyleBuilder,
       selectionColor: const Color(0x00000000),
       isCollapseSummary: isCollapseSummary,
@@ -99,7 +112,7 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
     SingleColumnDocumentComponentContext componentContext,
     SingleColumnLayoutComponentViewModel componentViewModel,
   ) {
-    if (componentViewModel is! TaskComponentViewModel) {
+    if (componentViewModel is! QuietTaskComponentViewModel) {
       return null;
     }
 
@@ -221,6 +234,7 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
   final _textKey = GlobalKey();
   bool _isPendingAnimation = false;
   bool? _optimisticComplete;
+  Timer? _completionTimer;
 
   @override
   GlobalKey<State<StatefulWidget>> get childDocumentComponentKey => _textKey;
@@ -233,35 +247,67 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
   void didUpdateWidget(QuietTaskComponent oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.viewModel.isComplete != oldWidget.viewModel.isComplete) {
+      _completionTimer?.cancel();
       _isPendingAnimation = false;
       _optimisticComplete = null;
     }
   }
 
-  /// Never report a caret rectangle for collapsed/hidden tasks.
-  /// This prevents SuperEditor from rendering a floating ghost caret in empty space.
-  @override
-  Rect getRectForPosition(NodePosition nodePosition) {
-    final quietVm = widget.viewModel is QuietTaskComponentViewModel
-        ? widget.viewModel as QuietTaskComponentViewModel
-        : null;
-    if (quietVm != null && (quietVm.isHiddenInCollapse || quietVm.isCollapseSummary)) {
-      return Rect.zero;
-    }
-    return super.getRectForPosition(nodePosition);
+  bool get _isFolded {
+    final vm = widget.viewModel;
+    return vm is QuietTaskComponentViewModel &&
+        (vm.isHiddenInCollapse || vm.isCollapseSummary);
   }
 
-  /// Never report a text position for collapsed/hidden tasks.
   @override
-  NodePosition? getPositionAtOffset(Offset localOffset) {
-    final quietVm = widget.viewModel is QuietTaskComponentViewModel
-        ? widget.viewModel as QuietTaskComponentViewModel
-        : null;
-    if (quietVm != null && (quietVm.isHiddenInCollapse || quietVm.isCollapseSummary)) {
-      return null;
-    }
-    return super.getPositionAtOffset(localOffset);
+  void dispose() {
+    _completionTimer?.cancel();
+    super.dispose();
   }
+
+  // Every geometry entry point must agree that folded text has no layout.
+  // Rect.zero alone doesn't protect keyboard navigation, selection handles or
+  // the IME from querying a zero-width offstage paragraph.
+  @override
+  bool isVisualSelectionSupported() => !_isFolded;
+
+  @override
+  Rect getRectForPosition(NodePosition position) =>
+      _isFolded ? Rect.zero : super.getRectForPosition(position);
+
+  @override
+  Rect getEdgeForPosition(NodePosition position) =>
+      _isFolded ? Rect.zero : super.getEdgeForPosition(position);
+
+  @override
+  Offset getOffsetForPosition(NodePosition position) =>
+      _isFolded ? Offset.zero : super.getOffsetForPosition(position);
+
+  @override
+  CaretGeometry getCaretForPosition(NodePosition position) {
+    final rect = getRectForPosition(position);
+    return CaretGeometry(x: rect.left, top: rect.top, bottom: rect.bottom);
+  }
+
+  @override
+  Rect getRectForSelection(NodePosition base, NodePosition extent) =>
+      _isFolded ? Rect.zero : super.getRectForSelection(base, extent);
+
+  @override
+  NodePosition? getPositionAtOffset(Offset offset) =>
+      _isFolded ? null : super.getPositionAtOffset(offset);
+
+  @override
+  NodeSelection? getSelectionInRange(Offset base, Offset extent) =>
+      _isFolded ? null : super.getSelectionInRange(base, extent);
+
+  @override
+  NodePosition? movePositionUp(NodePosition position) =>
+      _isFolded ? null : super.movePositionUp(position);
+
+  @override
+  NodePosition? movePositionDown(NodePosition position) =>
+      _isFolded ? null : super.movePositionDown(position);
 
   bool get _isEffectiveComplete =>
       _optimisticComplete ?? widget.viewModel.isComplete;
@@ -272,7 +318,10 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
         ? style.copyWith(
             decoration: style.decoration == null
                 ? TextDecoration.lineThrough
-                : TextDecoration.combine([TextDecoration.lineThrough, style.decoration!]),
+                : TextDecoration.combine([
+                    TextDecoration.lineThrough,
+                    style.decoration!,
+                  ]),
           )
         : style;
   }
@@ -286,8 +335,9 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
       _optimisticComplete = targetComplete;
     });
 
-    // 250ms smooth visual dwell & fade transition before executing document move
-    Future.delayed(const Duration(milliseconds: 250), () {
+    // Coalesce rapid toggles; only the final visible state becomes an edit.
+    _completionTimer?.cancel();
+    _completionTimer = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
       widget.viewModel.setComplete!(targetComplete);
       if (mounted) {
@@ -297,37 +347,6 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
         });
       }
     });
-  }
-
-  Widget _buildHiddenComponent() {
-    return SizedBox(
-      width: 0,
-      height: 0,
-      child: OverflowBox(
-        minWidth: 0,
-        maxWidth: 0,
-        minHeight: 0,
-        maxHeight: 0,
-        child: Offstage(
-          offstage: true,
-          child: TextComponent(
-            key: _textKey,
-            text: widget.viewModel.text,
-            textDirection: widget.viewModel.textDirection,
-            textAlign: widget.viewModel.textAlignment,
-            maxLines: widget.viewModel.maxLines,
-            overflow: widget.viewModel.overflow,
-            textStyleBuilder: _computeStyles,
-            inlineWidgetBuilders: widget.viewModel.inlineWidgetBuilders,
-            textSelection: widget.viewModel.selection,
-            selectionColor: widget.viewModel.selectionColor,
-            highlightWhenEmpty: widget.viewModel.highlightWhenEmpty,
-            underlines: widget.viewModel.createUnderlines(),
-            showDebugPaint: widget.showDebugPaint,
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildSummaryHeader({
@@ -389,7 +408,10 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
     final lineHeight = style.height ?? 1.6;
     final firstLineHeight = fontSize * lineHeight;
     const checkboxSize = 20.0;
-    final topPadding = ((firstLineHeight - checkboxSize) / 2).clamp(0.0, double.infinity);
+    final topPadding = ((firstLineHeight - checkboxSize) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
 
     return Directionality(
       textDirection: widget.viewModel.textDirection,
@@ -398,7 +420,7 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2.0),
+          padding: const EdgeInsets.symmetric(vertical: 6.0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -412,7 +434,9 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
                 padding: EdgeInsets.only(top: topPadding, right: 8.0),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: widget.viewModel.setComplete != null ? _onCheckboxTap : null,
+                  onTap: widget.viewModel.setComplete != null
+                      ? _onCheckboxTap
+                      : null,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
@@ -434,7 +458,8 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
               ),
               Expanded(
                 child: Stack(
-                  alignment: Alignment.topLeft,
+                  fit: StackFit.passthrough,
+                  alignment: AlignmentDirectional.topStart,
                   children: [
                     if (widget.viewModel.text.isEmpty)
                       IgnorePointer(
@@ -453,7 +478,8 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
                       maxLines: widget.viewModel.maxLines,
                       overflow: widget.viewModel.overflow,
                       textStyleBuilder: _computeStyles,
-                      inlineWidgetBuilders: widget.viewModel.inlineWidgetBuilders,
+                      inlineWidgetBuilders:
+                          widget.viewModel.inlineWidgetBuilders,
                       textSelection: widget.viewModel.selection,
                       selectionColor: widget.viewModel.selectionColor,
                       highlightWhenEmpty: widget.viewModel.highlightWhenEmpty,
@@ -477,58 +503,28 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
         ? widget.viewModel as QuietTaskComponentViewModel
         : null;
 
-    if (quietVm != null && quietVm.isHiddenInCollapse) {
-      return _buildHiddenComponent();
-    }
-
-    if (quietVm != null && quietVm.isCollapseSummary) {
-      return SizeChangedLayoutNotifier(
-        child: AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSummaryHeader(
-                context: context,
-                colors: colors,
-                count: quietVm.completedCount,
-                isExpanded: false,
-                onTap: quietVm.onToggleCollapse,
-              ),
-              _buildHiddenComponent(),
-            ],
+    // Keep one stable text subtree across folding transitions. Offstage lays
+    // it out at the real column width, while contributing zero document height.
+    // Animating document height invalidates caret geometry between frames.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (quietVm != null &&
+            (quietVm.isCollapseSummary || quietVm.isExpandedHeader))
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _buildSummaryHeader(
+              context: context,
+              colors: colors,
+              count: quietVm.completedCount,
+              isExpanded: quietVm.isExpandedHeader,
+              onTap: quietVm.onToggleCollapse,
+            ),
           ),
-        ),
-      );
-    }
-
-    if (quietVm != null && quietVm.isExpandedHeader) {
-      return SizeChangedLayoutNotifier(
-        child: AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4.0),
-                child: _buildSummaryHeader(
-                  context: context,
-                  colors: colors,
-                  count: quietVm.completedCount,
-                  isExpanded: true,
-                  onTap: quietVm.onToggleCollapse,
-                ),
-              ),
-              _buildTaskRow(context, colors),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return _buildTaskRow(context, colors);
+        Offstage(offstage: _isFolded, child: _buildTaskRow(context, colors)),
+      ],
+    );
   }
 }
 
@@ -540,7 +536,8 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
 /// By appending a trailing newline when the following node is not a task or list item,
 /// this serializer guarantees a blank line (`\n\n`) is written between the checklist
 /// and the following paragraph.
-class QuietTaskNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<TaskNode> {
+class QuietTaskNodeSerializer
+    extends NodeTypedDocumentNodeMarkdownSerializer<TaskNode> {
   const QuietTaskNodeSerializer();
 
   @override
@@ -561,10 +558,13 @@ class QuietTaskNodeSerializer extends NodeTypedDocumentNodeMarkdownSerializer<Ta
         : node.text;
 
     final markdownText = textToConvert.toMarkdown();
-    final taskMarkdown = '- [${node.isComplete ? 'x' : ' '}] $markdownText';
+    final indent = '  ' * node.indent;
+    final taskMarkdown =
+        '$indent- [${node.isComplete ? 'x' : ' '}] $markdownText';
 
     final nodeIndex = document.getNodeIndexById(node.id);
-    final isFollowedByNonList = nodeIndex < document.nodeCount - 1 &&
+    final isFollowedByNonList =
+        nodeIndex < document.nodeCount - 1 &&
         document.getNodeAt(nodeIndex + 1) is! TaskNode &&
         document.getNodeAt(nodeIndex + 1) is! ListItemNode;
 

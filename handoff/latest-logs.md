@@ -6326,3 +6326,81 @@ application-version defaults as well.
   parses with 1.6.3 as the newest release, and remaining literal 1.6.2 app-version
   references are historical releases or engineering records.
 - `git diff --check`: clean.
+
+## 278. Super Editor smart checklist focus, folding and preview alignment (November 15, 2026)
+
+### Diagnosis
+
+- `SmartTaskController` cleared the composer selection whenever a checked item
+  moved, including when the caret was in another paragraph. Android interprets
+  the missing selection as ending text input, closing the keyboard.
+- Folded components laid out their offstage text at zero width, retained 8dp of
+  stylesheet padding per hidden row, and only guarded two geometry methods.
+  Keyboard navigation, selection handles, and caret queries could still reach
+  hidden layouts. Animating the component height also moved subsequent text
+  independently of document selection overlays.
+- Preview `MarkdownBody` chunks defaulted to content width inside a centered
+  page container, centering short checklists within the page.
+- Repeated taps queued competing delayed edits; expansion flags survived
+  deletions below the collapse threshold; nested tasks could move separately
+  from their parents and lost their indentation during serialization.
+
+### Changes
+
+- Replaced selection clearing with an atomic move to another active task or a
+  plain paragraph below the list. Preserve unrelated caret/range selections and
+  clear only stale IME composition when relocating. A terminal folded list gets
+  an editable paragraph on load or in the completion transaction.
+- Folded rows are unselectable, consume zero vertical spacing, and guard position,
+  offset, edge, caret and selection geometry. Keep their text mounted at full
+  width. Removed animated document-height changes, retained completion feedback,
+  and stretched empty-task text so its caret starts beside the checkbox.
+- Check/uncheck stably groups flat lists into active/completed rows, even when
+  imported Markdown or preview toggles left them interleaved. The toggled item
+  moves to the bottom of its new group; changes remain one undo transaction.
+- Reconcile expansion state after document edits, reset it when loading another
+  document, and reveal folded selection endpoints reached through IME or
+  programmatic editing. Collapse checks both selection endpoints.
+- At folded-list boundaries, Backspace/Delete reveals the completed task before
+  an attempted merge, preserving the paragraph and completed text. Handles both
+  desktop `CombineParagraphsRequest` and mobile upstream-boundary deletion.
+- Coalesce rapid checkbox taps using a cancellable timer. Preserve nested-list
+  order by restricting automatic sorting/folding to flat lists and retain
+  indentation in `QuietTaskNodeSerializer`.
+- Set preview chunks to `fitContent: false`. Updated `AGENTS.md` per user request:
+  run relevant tests only, with the full suite reserved for an explicit request.
+
+### Modified files and validation
+
+Implementation: `quiet_super_editor.dart`, `smart_task_controller.dart`,
+`quiet_task_component.dart`, and `markdown_preview.dart`. Regression coverage is
+in `smart_task_super_editor_test.dart` and
+`markdown_preview_interactive_checklist_test.dart`; documentation updated in
+`HANDOFF.md`, this log, and the editor guide.
+
+- `flutter analyze --no-pub`: no issues, warnings, or errors.
+- Relevant tests: **89 passed**, zero failures or test warnings, across
+  `test/editor/smart_task_super_editor_test.dart`,
+  `test/editor/quiet_super_editor_test.dart`,
+  `test/editor/editor_preview_checklist_integration_test.dart`,
+  `test/core/markdown_preview_interactive_checklist_test.dart`, and
+  `test/markdown/markdown_preview_test.dart`.
+- Full suite not run, as requested. `git diff --check` passes.
+
+Android behavior is covered by widget tests with Android platform selection and
+its test IME; physical-device keyboard validation remains a manual check. The
+report did not include the intermittent exception stack trace, so that exact
+exception cannot be matched to a specific reproduction.
+
+### PR #5 merge validation
+
+Merged current `main` (including release **1.6.3+21**) into the checklist fix.
+The only conflict was the shared engineering-log entry number: preserved the
+release entry as 277, renumbered the checklist entry to 278, and updated its
+`HANDOFF.md` link. Application changes merged without conflicts.
+
+- `flutter analyze`: no issues.
+- Full `flutter test` stopped at the user's request; no full-suite result is
+  claimed for this merge. The PR's existing CI checks passed before this
+  documentation-only conflict resolution.
+- `git diff --check`: clean.

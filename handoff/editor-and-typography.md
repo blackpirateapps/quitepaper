@@ -31,6 +31,27 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
   - **Smart Placeholders**: Prompting hint text on new empty task items.
   - **Auto-Sorting & Collapsible Done Items**: Completed items can be automatically sorted to the bottom and collapsed into a compact section.
   - **Task Boundary Isolation**: Paragraphs immediately following a task list are isolated so that strikethrough or collapse styles do not spill over into regular paragraphs.
+- **Selection and keyboard contract**: Checking a focused task moves the selection
+  to the next active item (or the previous active item / a plain paragraph below
+  the list). An unrelated selection remains unchanged. Selection relocation,
+  completion, stable grouping of active/completed rows, and paragraph insertion
+  share one undo transaction; selection is never cleared just to hide a caret.
+- **Folding contract**: Flat lists fold above three completed items. Folded rows
+  have no outer padding and report no selectable text geometry. The text subtree
+  stays mounted offstage at the real column width; document height changes
+  immediately so selection overlays do not lag animated component sizes. Arrow
+  navigation skips folded rows, and IME/programmatic selections reveal the target
+  before editing. A terminal folded list has an empty paragraph for continuation.
+  Backspace/Delete at a folded boundary reveals tasks before merging text, so
+  a following paragraph cannot disappear into a hidden completed item.
+- **State lifecycle**: Expansion state is reset on document replacement and pruned
+  after deletion or falling below the threshold. Rapid checkbox taps coalesce
+  into one cancellable completion timer, which is cancelled on component disposal.
+- **Nested tasks**: Lists containing indented tasks retain their order and stay
+  unfolded, avoiding detaching children during automatic sorting. Serialization
+  preserves task indentation.
+- **Preview alignment**: Markdown preview chunks use `fitContent: false` to fill
+  the centered paragraph column and keep short checklists at its left edge.
 
 ### Native Code Blocks
 - **Component**: Native code block node with live syntax highlighting and line numbers.

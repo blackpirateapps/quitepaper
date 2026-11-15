@@ -1470,6 +1470,8 @@ class _QuietMarkdownChunkWidget extends StatelessWidget {
     int localIndex = 0;
 
     return MarkdownBody(
+      // Occupy the paragraph column even when a checklist has short labels.
+      fitContent: false,
       data: data,
       selectable: false,
       styleSheet: customStyleSheet,
