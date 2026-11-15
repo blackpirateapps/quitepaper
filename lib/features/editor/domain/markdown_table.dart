@@ -16,10 +16,16 @@ class MarkdownTable {
     required this.bodyRows,
     required this.alignments,
     required this.columnCount,
+    this.annotation = '',
   });
 
   /// Absolute start offset of the table in the canonical Markdown document.
   final int sourceStart;
+
+  /// Verbatim ignorable comment immediately following this table.
+  final String annotation;
+
+  String get rawMarkdown => [headerRow.rawLine,delimiterRow.rawLine,...bodyRows.map((r)=>r.rawLine),if(annotation.isNotEmpty) annotation].join('\n');
 
   /// Absolute end offset of the table in the canonical Markdown document.
   final int sourceEnd;
@@ -114,6 +120,7 @@ class MarkdownTable {
     if (delta == 0) return this;
     return MarkdownTable(
       sourceStart: sourceStart + delta,
+      annotation: annotation,
       sourceEnd: sourceEnd + delta,
       headerRow: headerRow.shift(delta),
       delimiterRow: delimiterRow.shift(delta),
@@ -138,7 +145,7 @@ class MarkdownTable {
           delimiterRow == other.delimiterRow &&
           listEquals(bodyRows, other.bodyRows) &&
           listEquals(alignments, other.alignments) &&
-          columnCount == other.columnCount;
+          columnCount == other.columnCount && annotation == other.annotation;
 
   @override
   int get hashCode => Object.hash(
@@ -148,6 +155,6 @@ class MarkdownTable {
         delimiterRow,
         Object.hashAll(bodyRows),
         Object.hashAll(alignments),
-        columnCount,
+        columnCount, annotation,
       );
 }

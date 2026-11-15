@@ -20,23 +20,23 @@ class MarkdownTableParser {
     final lines = _splitLinesWithOffsets(text);
     if (lines.length < 2) return const [];
 
-    var inCodeBlock = false;
+    String? fenceCharacter;
+    var fenceLength = 0;
+    var inComment = false;
     var i = 0;
 
     while (i < lines.length) {
       final lineInfo = lines[i];
       final lineText = lineInfo.text;
 
-      // 1. Fenced code block boundary check
-      if (_codeFenceRegex.hasMatch(lineText)) {
-        inCodeBlock = !inCodeBlock;
-        i++;
-        continue;
+      final fence=RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$').firstMatch(lineText);
+      if(fenceCharacter!=null) {
+        if(fence!=null && fence[1]![0]==fenceCharacter && fence[1]!.length>=fenceLength && fence[2]!.trim().isEmpty) fenceCharacter=null;
+        i++; continue;
       }
-
-      if (inCodeBlock) {
-        i++;
-        continue;
+      if(fence!=null) { fenceCharacter=fence[1]![0]; fenceLength=fence[1]!.length; i++; continue; }
+      if(inComment || lineText.trimLeft().startsWith('<!--')) {
+        inComment=!lineText.contains('-->'); i++; continue;
       }
 
       // 2. Table detection: Check if lineInfo (header) followed by lines[i + 1] (delimiter) forms a table
@@ -104,7 +104,7 @@ class MarkdownTableParser {
 
               // Break table on blank line, code fence, or non-table line
               if (bodyLineText.trim().isEmpty ||
-                  _codeFenceRegex.hasMatch(bodyLineText) ||
+                  _codeFenceRegex.hasMatch(bodyLineText) || bodyLineText.trimLeft().startsWith('<!--') ||
                   !_isPotentialTableRow(bodyLineText)) {
                 break;
               }
@@ -138,6 +138,7 @@ class MarkdownTableParser {
 
             tables.add(MarkdownTable(
               sourceStart: lineInfo.start,
+              annotation: RegExp(r'^\r?\n(<!-- quiet-paper-table:[\s\S]*?-->)').firstMatch(text.substring(tableEndOffset))?.group(1) ?? '',
               sourceEnd: tableEndOffset,
               headerRow: headerRow,
               delimiterRow: delimiterRow,
@@ -179,6 +180,7 @@ class MarkdownTableParser {
     // Shift offsets by baseOffset if non-zero
     return MarkdownTable(
       sourceStart: t.sourceStart + baseOffset,
+      annotation: t.annotation,
       sourceEnd: t.sourceEnd + baseOffset,
       headerRow: _shiftRow(t.headerRow, baseOffset),
       delimiterRow: _shiftRow(t.delimiterRow, baseOffset),

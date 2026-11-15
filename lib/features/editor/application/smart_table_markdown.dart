@@ -102,7 +102,7 @@ String transformOutsideQuietTables(String source, String Function(String) transf
     if(isolate && output.isNotEmpty && !output.toString().endsWith('\n\n')) output.write('\n\n');
     final end=SmartTableMetadata.read(source,table).sourceEnd;
     output.write(source.substring(table.sourceStart,end));
-    if(isolate) output.write('\n\n');
+    if(isolate && !source.substring(end).startsWith('\n\n')) output.write(source.substring(end).startsWith('\n') ? '\n':'\n\n');
     offset=end;
   }
   output.write(transform(source.substring(offset)));

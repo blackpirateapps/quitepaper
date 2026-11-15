@@ -8,7 +8,6 @@ import '../../../application/markdown_table_controller.dart';
 import '../../../application/markdown_table_parser.dart';
 import '../../../application/table_clipboard_parser.dart';
 import '../../../domain/markdown_table.dart';
-import '../../../domain/markdown_table_alignment.dart';
 import '../../../domain/markdown_table_position.dart';
 import 'markdown_table_editor.dart';
 import 'markdown_table_view.dart';
@@ -57,8 +56,6 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
   late String _workingMarkdown;
   MarkdownTableController? _controller;
 
-  final List<String> _undoStack = <String>[];
-  final List<String> _redoStack = <String>[];
   bool _deleted = false;
   bool _dirty = false;
   bool _showPreview = false;
@@ -89,6 +86,7 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
       onUpdateDocument: (newValue) {
         _workingMarkdown = newValue.text;
         _dirty = true;
+        if(mounted) setState(() {});
       },
       initialPosition: const TablePosition(row: 0, column: 0),
     );
@@ -99,152 +97,30 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
     return tables.isEmpty ? null : tables.first;
   }
 
-  /// Snapshots the current Markdown onto the undo stack before a mutation.
-  void _snapshot() {
-    _undoStack.add(_workingMarkdown);
-    if (_undoStack.length > 100) _undoStack.removeAt(0);
-    _redoStack.clear();
-  }
-
-  /// Rebuilds the controller + UI after [_workingMarkdown] changed externally
-  /// (undo/redo, CSV paste, header promote), keeping the active cell if valid.
-  void _reloadAfterExternalChange({TablePosition? active}) {
-    _dirty = true;
-    final tables = _parser.findTables(_workingMarkdown);
-    if (tables.isEmpty) {
-      _controller?.dispose();
-      _controller = null;
-    } else if (_controller != null) {
-      _controller!.reloadFrom(
-        TextEditingValue(text: _workingMarkdown),
-        newActivePosition: active,
-      );
-    } else {
-      _buildController();
-    }
-    setState(() {});
-  }
-
-  void _undo() {
-    if (_undoStack.isEmpty) return;
-    _redoStack.add(_workingMarkdown);
-    _workingMarkdown = _undoStack.removeLast();
-    _reloadAfterExternalChange();
-  }
-
-  void _redo() {
-    if (_redoStack.isEmpty) return;
-    _undoStack.add(_workingMarkdown);
-    _workingMarkdown = _redoStack.removeLast();
-    _reloadAfterExternalChange();
-  }
-
-  // ----- Structure ops routed through the controller (snapshot + rebuild) -----
+  void _undo() => _controller?.undo();
+  void _redo() => _controller?.redo();
 
   void _runControllerOp(void Function(MarkdownTableController c) op) {
-    final c = _controller;
-    if (c == null) return;
-    _snapshot();
-    op(c);
-    setState(() {});
+    final c=_controller;
+    if(c!=null) op(c);
   }
 
   void _deleteTable() {
-    _snapshot();
     _deleted = true;
     _dirty = true;
     Navigator.of(context).pop<String>('');
   }
 
-  // ----- Grid helpers -----
-
-  List<List<String>> _cellsOf(MarkdownTable table) {
-    return [
-      for (final row in table.allVisibleRows)
-        [
-          for (var c = 0; c < table.columnCount; c++)
-            (c < row.cells.length ? row.cells[c].trimmedText : ''),
-        ],
-    ];
-  }
-
-  List<MarkdownTableAlignment> _alignmentsOf(MarkdownTable table) {
-    return [
-      for (var c = 0; c < table.columnCount; c++) table.getAlignment(c),
-    ];
-  }
-
-  String _buildTableMarkdown(
-    List<List<String>> cells,
-    List<MarkdownTableAlignment> alignments,
-  ) {
-    if (cells.isEmpty) return '';
-    final colCount = cells.fold<int>(0, (m, r) => r.length > m ? r.length : m);
-    String pad(List<String> row) {
-      final out = [...row];
-      while (out.length < colCount) {
-        out.add('');
-      }
-      return '| ${out.map((c) => c.replaceAll('|', r'\|')).join(' | ')} |';
-    }
-
-    final header = pad(cells.first);
-    final delimCells = [
-      for (var c = 0; c < colCount; c++)
-        (c < alignments.length ? alignments[c] : MarkdownTableAlignment.none)
-            .toDelimiterString(),
-    ];
-    final delimiter = '| ${delimCells.join(' | ')} |';
-    final body = cells.skip(1).map(pad);
-    return [header, delimiter, ...body].join('\n');
-  }
-
   void _promoteActiveRowToHeader() {
-    final c = _controller;
-    final table = _table;
-    if (c == null || table == null) return;
-    final activeRow = c.activePosition.row;
-    if (activeRow <= 0) return; // already header
-    _snapshot();
-    final cells = _cellsOf(table);
-    final tmp = cells[0];
-    cells[0] = cells[activeRow];
-    cells[activeRow] = tmp;
-    _workingMarkdown = _buildTableMarkdown(cells, _alignmentsOf(table));
-    _reloadAfterExternalChange(active: const TablePosition(row: 0, column: 0));
+    final c=_controller;
+    if(c!=null) c.promoteRowToHeader();
   }
 
   Future<void> _pasteTabularData() async {
-    final table = _table;
-    final c = _controller;
-    if (table == null || c == null) return;
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text ?? '';
-    final rows = TableClipboardParser.parse(text);
-    if (rows.isEmpty) return;
-
-    _snapshot();
-    final cells = _cellsOf(table);
-    final startRow = c.activePosition.row;
-    final startCol = c.activePosition.column;
-    final colCount = cells.first.length;
-
-    for (var r = 0; r < rows.length; r++) {
-      final targetRow = startRow + r;
-      while (targetRow >= cells.length) {
-        cells.add(List<String>.filled(colCount, ''));
-      }
-      for (var cc = 0; cc < rows[r].length; cc++) {
-        final targetCol = startCol + cc;
-        if (targetCol >= cells[targetRow].length) continue;
-        cells[targetRow][targetCol] = rows[r][cc];
-      }
-    }
-
-    _workingMarkdown = _buildTableMarkdown(cells, _alignmentsOf(table));
-    _reloadAfterExternalChange(
-      active: TablePosition(row: startRow, column: startCol),
-    );
+    final data=await Clipboard.getData(Clipboard.kTextPlain);
+    if(!mounted || _controller==null) return;
+    final rows=TableClipboardParser.parse(data?.text ?? '');
+    if(rows.isNotEmpty) _controller!.pasteCells(rows);
   }
 
   String? _result() {
@@ -287,12 +163,12 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
             IconButton(
               icon: const Icon(PhosphorIconsRegular.arrowUUpLeft),
               tooltip: 'Undo',
-              onPressed: _undoStack.isEmpty ? null : _undo,
+              onPressed: controller?.canUndo==true ? _undo:null,
             ),
             IconButton(
               icon: const Icon(PhosphorIconsRegular.arrowUUpRight),
               tooltip: 'Redo',
-              onPressed: _redoStack.isEmpty ? null : _redo,
+              onPressed: controller?.canRedo==true ? _redo:null,
             ),
             PopupMenuButton<String>(
               icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),

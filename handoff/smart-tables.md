@@ -81,3 +81,21 @@ range. The active formula input always shows raw source. Shared inactive views
 and preview use formatting without saving display strings. Formula/metadata and
 locale tests: 14 passed. Existing prose normalization is bypassed for raw tables
 and their annotations to prevent reinterpreting multiplication as Markdown.
+
+## Phase 5: keyboard, clipboard, focus and history
+
+Inline and full-screen operations share controller history, including cell input,
+formats, summary/column intent and TSV paste in a single operation. Ctrl/Cmd+Z,
+Shift+Z/Y, range copy and bounded TSV paste are scoped to the table. Single-cell
+paste retains ordinary text selection behavior. Escape restores the original
+cell and enters navigation mode; arrows there navigate/extend selections, while
+in-cell arrows remain caret controls. Enter/F2 resumes editing; IME Next advances.
+Row/column move/duplicate/promote now rebase formula coordinates with structure.
+A summary row cannot move into the data region. Cell semantics expose coordinates,
+displayed results and source formulas. Read-only views cache their per-table
+projection and formatting. Legacy RichDocument paths retain the annotation too.
+
+A focused widget regression caught and fixed competing parent/cell autofocus.
+Interaction regression set: 54 passed; additional hardware-key/IME/autosave and
+read-only tests: 5 passed. flutter analyze: no issues. Actual Linux/Android device
+smoke testing remains distinct from these Flutter widget simulations.

@@ -235,6 +235,7 @@ class FormulaEngine {
   final _dependencies = <String, Set<String>>{};
   final _visiting = <String>{};
   int _work = 0;
+  bool _oversized=false;
 
   void update(List<List<String>> rows) {
     final structural = rows.length != _rows.length || rows.asMap().entries.any((e) => e.key >= _rows.length || e.value.length != _rows[e.key].length);
@@ -255,17 +256,18 @@ class FormulaEngine {
       }
       for (final key in dirty) { _values.remove(key); _dependencies.remove(key); }
     }
+    _oversized=rows.fold<int>(0,(sum,row)=>sum+row.length)>maxCells || rows.any((row)=>row.length>256);
     _rows = List.unmodifiable(rows.map((r) => List<String>.unmodifiable(r)));
     if (_asts.length > maxCells) _asts.clear();
     _work = 0;
   }
 
   CellValue value(int row, int column) {
-    _work = 0;
-    return _cell(CellAddress(row, column));
+    final address=CellAddress(row,column);
+    return _values[address.key] ?? _cell(address);
   }
   CellValue _cell(CellAddress a) {
-    if (++_work > maxWork || _rows.length > maxCells || _rows.any((r) => r.length > 256)) return const CellValue.error('#LIMIT!');
+    if (++_work > maxWork || _oversized) return const CellValue.error('#LIMIT!');
     if (a.row < 0 || a.row >= _rows.length || a.column < 0 || a.column >= _rows[a.row].length) return const CellValue.error('#REF!');
     if (_visiting.contains(a.key)) return const CellValue.error('#CYCLE!');
     if (_values.containsKey(a.key)) return _values[a.key]!;

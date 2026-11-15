@@ -85,6 +85,7 @@ class MarkdownTableController extends ChangeNotifier {
     ].join('\t'),
   ].join('\n');
   void applyDocumentValue(TextEditingValue value) => _publish(value,syncCell:true);
+  void promoteRowToHeader() => _publish(SmartTableEdits.move(getDocumentValue().text,table,rows:true,from:_activePosition.row,to:0,promote:true),syncCell:true);
   void pasteCells(List<List<String>> cells) => _publish(SmartTableEdits.paste(getDocumentValue().text,table,_activePosition,cells),syncCell:true);
   void createSummary(String operation) => _publish(SmartTableEdits.summary(getDocumentValue().text,table,_activePosition.column,operation),syncCell:true);
   void insertQuickFormula(String operation) {
@@ -452,11 +453,7 @@ class MarkdownTableController extends ChangeNotifier {
   /// Duplicates the current active row, inserting the copy directly below it.
   void duplicateCurrentRow() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.duplicateRow(
-      value: docVal,
-      table: table,
-      rowIndex: _activePosition.row,
-    );
+    final updatedDocVal = SmartTableEdits.duplicate(docVal.text,table,rows:true,index:_activePosition.row);
 
     final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
     if (reloaded != null) {
@@ -473,11 +470,7 @@ class MarkdownTableController extends ChangeNotifier {
   /// Duplicates the current active column, inserting the copy to its right.
   void duplicateCurrentColumn() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.duplicateColumn(
-      value: docVal,
-      table: table,
-      columnIndex: _activePosition.column,
-    );
+    final updatedDocVal = SmartTableEdits.duplicate(docVal.text,table,rows:false,index:_activePosition.column);
 
     final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
     if (reloaded != null) {
@@ -494,12 +487,7 @@ class MarkdownTableController extends ChangeNotifier {
   void moveCurrentRow(int targetRowIndex) {
     if (_activePosition.row <= 0) return; // header is immovable
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.moveRow(
-      value: docVal,
-      table: table,
-      fromRowIndex: _activePosition.row,
-      toRowIndex: targetRowIndex,
-    );
+    final updatedDocVal = SmartTableEdits.move(docVal.text,table,rows:true,from:_activePosition.row,to:targetRowIndex);
 
     final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
     if (reloaded != null) {
@@ -515,12 +503,7 @@ class MarkdownTableController extends ChangeNotifier {
   /// Moves the current active column to [targetColumnIndex].
   void moveCurrentColumn(int targetColumnIndex) {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.moveColumn(
-      value: docVal,
-      table: table,
-      fromColumnIndex: _activePosition.column,
-      toColumnIndex: targetColumnIndex,
-    );
+    final updatedDocVal = SmartTableEdits.move(docVal.text,table,rows:false,from:_activePosition.column,to:targetColumnIndex);
 
     final reloaded = _parser.findTableAtOffset(updatedDocVal.text, table.sourceStart);
     if (reloaded != null) {

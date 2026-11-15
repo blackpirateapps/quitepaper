@@ -53,11 +53,7 @@ class _RichTableEditorState extends State<RichTableEditor> {
   }
 
   String _tableToMarkdown(MarkdownTable t) {
-    return [
-      t.headerRow.rawLine,
-      t.delimiterRow.rawLine,
-      ...t.bodyRows.map((r) => r.rawLine),
-    ].join('\n');
+    return t.rawMarkdown;
   }
 
   void _enterEdit([TablePosition? pos]) {
@@ -72,7 +68,11 @@ class _RichTableEditorState extends State<RichTableEditor> {
     _editController = MarkdownTableController(
       table: tables.first,
       getDocumentValue: () => TextEditingValue(text: _workingMarkdown),
-      onUpdateDocument: (v) => _workingMarkdown = v.text,
+      onUpdateDocument: (v) {
+        _workingMarkdown = v.text;
+        final table=_parser.findTables(v.text);
+        if(table.isNotEmpty) widget.controller.updateTable(widget.blockIndex,table.first);
+      },
       initialPosition: pos,
     );
     setState(() {});

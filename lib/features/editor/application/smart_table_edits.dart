@@ -4,6 +4,7 @@ import '../domain/markdown_table.dart';
 import '../domain/markdown_table_position.dart';
 import '../domain/smart_tables/formula_engine.dart';
 import 'markdown_table_formatter.dart';
+import 'markdown_table_parser.dart';
 import 'smart_table_markdown.dart';
 
 /// Ignorable, table-adjacent metadata. Unknown versions and malformed comments
@@ -176,8 +177,9 @@ abstract final class SmartTableEdits {
         if (key=='calculatedColumns' && value is Map && value['formula'] is String && value['row'] is int) {
           value = Map<String,dynamic>.from(value);
           value['formula'] = FormulaReferences.structure(value['formula'],rows:rows,index:index,delete:delete);
-          if (rows && value['row']>=index) value['row'] = (value['row'] as int)+(delete ? -1:1);
-          if (rows && delete && value['row']==index-1) {
+          final wasRow=value['row'] as int;
+          if (rows && wasRow>=index) value['row'] = wasRow+(delete ? -1:1);
+          if (rows && delete && wasRow==index) {
             // Deleting a template row doesn't remove its intent; reanchor the
             // template at the next data row, preserving relative offsets.
             value['formula'] = FormulaReferences.shift(value['formula'],1,0);
@@ -208,6 +210,68 @@ abstract final class SmartTableEdits {
       if(col==null || col<0 || col>=cells[row].length || config is! Map || config['formula'] is! String || config['row'] is! int) continue;
       cells[row][col]=FormulaReferences.shift(config['formula'],row-(config['row'] as int),0);
     }
+  }
+
+  static TextEditingValue move(String source,MarkdownTable table,{required bool rows,required int from,required int to,bool promote=false}) {
+    final cells=tableRawCells(table),meta=SmartTableMetadata.read(source,table);
+    final summary=hasSummary(cells,meta);
+    final max=rows ? cells.length-1-(summary ? 1:0):table.columnCount-1;
+    final min=rows && !promote ? 1:0;
+    if(from<min || from>max || to<min || to>max || from==to) return TextEditingValue(text:source);
+    final order=List.generate(rows ? cells.length:table.columnCount,(i)=>i);
+    if(promote) { final tmp=order[from]; order[from]=order[to]; order[to]=tmp; }
+    else { order.insert(to,order.removeAt(from)); }
+    int remap(int old)=>order.indexOf(old);
+    final changed=rows ? [for(final r in order) [...cells[r]]] : [for(final row in cells) [for(final c in order) row[c]]];
+    String rebase(String formula)=>FormulaReferences.rewrite(formula,(a)=>rows ? a.at(remap(a.row)<0 ? a.row:remap(a.row),a.column):a.at(a.row,remap(a.column)<0 ? a.column:remap(a.column)));
+    for(final row in changed) { for(var c=0;c<row.length;c++) { row[c]=rebase(row[c]); } }
+    for(final key in ['formats','calculatedColumns']) {
+      final out=<String,dynamic>{};
+      for(final entry in meta.section(key).entries) {
+        final col=int.tryParse(entry.key);
+        var config=entry.value;
+        if(key=='calculatedColumns' && config is Map && config['formula'] is String && config['row'] is int) {
+          config=Map<String,dynamic>.from(config);
+          config['formula']=rebase(config['formula']);
+          if(rows && remap(config['row'])>=0) config['row']=remap(config['row']);
+        }
+        out['${!rows && col!=null && remap(col)>=0 ? remap(col):entry.key}']=config;
+      }
+      if(out.isNotEmpty) meta.data[key]=out;
+    }
+    if(summary) {
+      final config=meta.section('summary');
+      if(!rows && config['operations'] is Map) {
+        config['operations']={for(final entry in (config['operations'] as Map).entries) '${remap(int.parse(entry.key))}':entry.value};
+      }
+      meta.data['summary']=config;
+      _refreshSummary(changed,meta);
+    }
+    final aligns=rows ? null:[for(final c in order) table.getAlignment(c).toDelimiterString()];
+    return write(source,table,changed,meta,alignments:aligns);
+  }
+
+  static TextEditingValue duplicate(String source,MarkdownTable table,{required bool rows,required int index}) {
+    final old=tableRawCells(table),oldMeta=SmartTableMetadata.read(source,table);
+    if(rows && hasSummary(old,oldMeta) && index==old.length-1) return TextEditingValue(text:source);
+    final inserted=structure(source,table,rows:rows,index:index+1,delete:false);
+    final next=const MarkdownTableParser().findTableAtOffset(inserted.text,table.sourceStart)!;
+    final cells=tableRawCells(next),meta=SmartTableMetadata.read(inserted.text,next);
+    if(rows) {
+      cells[index+1]=[for(final raw in cells[index]) FormulaReferences.shift(raw,1,0)];
+    } else {
+      for(final row in cells) { row[index+1]=FormulaReferences.shift(row[index],0,1); }
+      for(final key in ['formats','calculatedColumns']) {
+        final config=meta.section(key);
+        if(config.containsKey('$index')) {
+          final value=jsonDecode(jsonEncode(config['$index']));
+          if(key=='calculatedColumns' && value is Map && value['formula'] is String) value['formula']=FormulaReferences.shift(value['formula'],0,1);
+          config['${index+1}']=value; meta.data[key]=config;
+        }
+      }
+    }
+    if(hasSummary(old,oldMeta)) _refreshSummary(cells,meta);
+    return write(inserted.text,next,cells,meta);
   }
 
   static TextEditingValue calculatedColumn(String source, MarkdownTable table,int row,int column,{bool reapply=false}) {

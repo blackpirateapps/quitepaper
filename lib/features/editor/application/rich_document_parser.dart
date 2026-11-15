@@ -65,6 +65,12 @@ class RichDocumentParser {
           tableIndex++;
         }
 
+        if(tableIndex<rawLines.length && rawLines[tableIndex].startsWith('<!-- quiet-paper-table:')) {
+          while(tableIndex<rawLines.length) {
+            final annotationLine=rawLines[tableIndex++]; tableLines.add(annotationLine);
+            if(annotationLine.contains('-->')) break;
+          }
+        }
         final tableCandidate = tableLines.join('\n');
         final tables = _tableParser.findTables(tableCandidate);
         if (tables.isNotEmpty && tables.first.columnCount > 0) {
