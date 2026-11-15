@@ -6287,3 +6287,42 @@ math entry as 276. Updated the corresponding `HANDOFF.md` link.
 - The full `flutter test` run was stopped at the user's request; no full-suite result is claimed.
 - Existing PR checks passed before this documentation conflict resolution.
 - `git diff --check`: clean.
+
+
+## 277. Release version bump to 1.6.3 (Build 21) (November 15, 2026)
+
+### Release and version audit
+
+Updated the application from `1.6.2+20` to **`1.6.3+21`**. The local Android
+build suffix increments to 21; CI still derives build numbers from the Git commit
+count. Searched tracked files for the previous version and reviewed older
+application-version defaults as well.
+
+- Updated `pubspec.yaml`, startup/provider fallbacks, backup/device/location
+  defaults, the weather HTTP user agent, `.qpnote` export metadata, and the Linux
+  CLI version. Updated version-format test examples to 1.6.3.
+- Found older 1.2.0 defaults in `update_service.dart` and `update_dialog.dart` and
+  synchronized them to 1.6.3. Normal runtime providers continue supplying the
+  installed package version.
+- Updated the RPM spec and Windows numeric/string resource fallbacks. Prepended
+  a dated AppStream release entry; Flutter-managed platform version references
+  continue reading the package version.
+- Updated badges/footers and added matching 1.6.3 changelog entries in `public/`
+  and `backend/public/`, covering editor math/navigation, the search workspace,
+  and Linux CLI attachments. Refreshed release/AAB workflow input examples.
+- Updated `HANDOFF.md` and corrected the platform guide's stale version checklist
+  paths, documenting the current runtime, CLI, packaging and site locations.
+- Preserved historical changelogs, engineering logs and the verbatim handoff
+  backup, dependency versions, OCR engine versions, and parser defaults for
+  missing versions in legacy backups and remote release metadata. The backend
+  package has its own version; its API entry point has no app-version header.
+
+### Validation
+
+- `flutter analyze`: no issues, including a final pass after updating older
+  update-checker/dialog defaults.
+- `flutter test`: all **2,602 tests passed** (full suite).
+- Version audit passed: both public-site copies are byte-identical, AppStream XML
+  parses with 1.6.3 as the newest release, and remaining literal 1.6.2 app-version
+  references are historical releases or engineering records.
+- `git diff --check`: clean.

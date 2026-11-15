@@ -14,7 +14,7 @@ class UpdateDialog extends ConsumerStatefulWidget {
   const UpdateDialog({
     super.key,
     required this.release,
-    this.currentVersion = '1.2.0',
+    this.currentVersion = '1.6.3',
     this.isManualCheck = false,
   });
 
@@ -25,7 +25,7 @@ class UpdateDialog extends ConsumerStatefulWidget {
   static Future<void> show(
     BuildContext context,
     AppReleaseInfo release, {
-    String currentVersion = '1.2.0',
+    String currentVersion = '1.6.3',
     bool isManualCheck = false,
   }) {
     return showDialog<void>(

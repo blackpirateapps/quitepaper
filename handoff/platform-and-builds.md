@@ -49,12 +49,28 @@ Workflows are defined in [`.github/workflows/`](file:///home/dog/git/quitepaper/
 
 ## 3. App Version Bump Checklist
 
-When bumping the app release version, synchronize all 5 canonical locations:
-1. [`pubspec.yaml`](file:///home/dog/git/quitepaper/pubspec.yaml): `version: X.Y.Z+BUILD`
-2. `android/app/build.gradle`: `versionName` and `versionCode` (if not reading from Flutter)
-3. `lib/core/version/version_info.dart`: Hardcoded fallback runtime version constants
-4. `backend/src/api/index.ts`: API compatibility version headers
-5. Documentation / Release notes in `handoff/latest-logs.md`
+Current release: **1.6.3+21**. When bumping the app release version:
+
+1. Update `pubspec.yaml` (`version: X.Y.Z+BUILD`) and increment the build suffix.
+   Android's `android/app/build.gradle.kts`, iOS/macOS bundle metadata, and normal
+   Windows builds read Flutter's version. CI overrides the build number with the
+   Git commit count.
+2. Synchronize runtime fallbacks in `lib/main.dart`,
+   `lib/core/version/app_version_provider.dart`, the backup, device and location
+   services, weather HTTP user agent, update service/dialog defaults, and
+   `qpnote_exporter.dart`. Update
+   `lib/core/cli/cli_runner.dart` and version-format test examples as well.
+3. Update `linux/packaging/quietpaper.spec`, add a release to
+   `linux/com.blackpiratex.quietpaper.metainfo.xml`, and synchronize the fallback
+   numeric/string versions in `windows/runner/Runner.rc`.
+4. Update badges and footers in both `public/` and `backend/public/`, and prepend
+   matching changelog entries. Refresh CI manual-input examples and preserve
+   historical release entries.
+5. Update `HANDOFF.md` and append release details and validation to
+   `handoff/latest-logs.md`. Search tracked files for the previous version to
+   catch additional defaults; preserve dependency versions, unrelated protocol
+   versions, and archived documentation. The backend API entry point currently
+   has no hardcoded application-version header.
 
 ---
 

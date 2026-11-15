@@ -37,6 +37,14 @@ for local validation. Following the unpinned `stable` channel installed Flutter
 deprecations. Keep the workflow pins aligned when deliberately upgrading the SDK;
 see [engineering log 270](handoff/latest-logs.md#270-pin-the-ci-flutter-sdk-after-analyzer-drift-november-13-2026).
 
+## Current App Release
+
+The app release is **1.6.3+21**. Runtime fallbacks, the Linux CLI, packaging,
+Windows resource fallbacks, and both public-site copies use **1.6.3**. CI continues
+to derive build numbers from the Git commit count. See the
+[version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
+and [engineering log 277](handoff/latest-logs.md#277-release-version-bump-to-163-build-21-november-15-2026).
+
 ## Latest Linux CLI Work
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
