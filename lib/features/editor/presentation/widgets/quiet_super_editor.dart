@@ -99,7 +99,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     final split = _splitFrontmatter(widget.initialMarkdown);
     _frontmatterPrefix = split.prefix;
 
-    final normalized = normalizeMarkdownForSuperEditor(split.body);
+    final normalized = transformOutsideQuietTables(split.body, normalizeMarkdownForSuperEditor, isolate: true);
     final trimmed = normalized.trim();
     final document = trimmed.isEmpty
         ? MutableDocument.empty()
@@ -236,7 +236,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
           QuietMathBlockNodeSerializer(),
         ],
       );
-      final normalizedBody = normalizeInlineMarkdownSpacing(bodyMarkdown);
+      final normalizedBody = transformOutsideQuietTables(bodyMarkdown, normalizeInlineMarkdownSpacing);
       final fullMarkdown = _frontmatterPrefix != null
           ? '$_frontmatterPrefix$normalizedBody'
           : normalizedBody;

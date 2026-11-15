@@ -1,3 +1,5 @@
+import 'smart_table_edits.dart';
+import 'smart_table_display.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_editor/super_editor.dart';
 import '../domain/markdown_table.dart';
@@ -69,18 +71,40 @@ MutableDocument deserializeQuietMarkdown(String source) => deserializeMarkdownTo
 
 /// A display-only projection for native Markdown preview. Never use this as a
 /// save or export source. Source offsets outside tables remain authoritative.
-String projectSmartTableResults(String source) {
+String projectSmartTableResults(String source, {String? locale}) {
   final tables = const MarkdownTableParser().findTables(source);
   for (final table in tables.reversed) {
     final engine = FormulaEngine(tableRawCells(table));
+    final formats = SmartTableMetadata.read(source,table).section('formats');
     for (final row in table.allVisibleRows.reversed) {
       for (final cell in row.cells.reversed) {
         final raw = cell.trimmedText;
-        if (!raw.startsWith('=') && !raw.startsWith("'=")) continue;
+        final config = formats['${cell.columnIndex}'];
+        if (config == null && !raw.startsWith('=') && !raw.startsWith("'=")) continue;
         source = source.replaceRange(cell.contentStart, cell.contentEnd,
-          engine.value(cell.rowIndex, cell.columnIndex).display);
+          SmartTableDisplay.format(engine.value(cell.rowIndex, cell.columnIndex),config,locale:locale));
       }
     }
   }
   return source;
+}
+
+/// Existing prose normalization must never reinterpret formula operators or
+/// insert a blank line between a table and its attached annotation.
+String transformOutsideQuietTables(String source, String Function(String) transform, {bool isolate=false}) {
+  final tables=const MarkdownTableParser().findTables(source);
+  if(tables.isEmpty) return transform(source);
+  final output=StringBuffer();
+  var offset=0;
+  for(final table in tables) {
+    if(table.sourceStart<offset) continue;
+    output.write(transform(source.substring(offset,table.sourceStart)));
+    if(isolate && output.isNotEmpty && !output.toString().endsWith('\n\n')) output.write('\n\n');
+    final end=SmartTableMetadata.read(source,table).sourceEnd;
+    output.write(source.substring(table.sourceStart,end));
+    if(isolate) output.write('\n\n');
+    offset=end;
+  }
+  output.write(transform(source.substring(offset)));
+  return output.toString();
 }

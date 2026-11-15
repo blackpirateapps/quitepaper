@@ -1,3 +1,4 @@
+import 'smart_table_display.dart';
 import '../domain/smart_tables/formula_engine.dart';
 import 'smart_table_markdown.dart';
 import 'smart_table_edits.dart';
@@ -71,10 +72,11 @@ class MarkdownTableController extends ChangeNotifier {
     final anchor = _selectionAnchor ?? _activePosition;
     setActivePosition(position);
     _selectionAnchor = anchor;
+    navigationMode=true;
     notifyListeners();
   }
   void selectRange(TablePosition start,TablePosition end) {
-    setActivePosition(end); _selectionAnchor=start; notifyListeners();
+    setActivePosition(end); _selectionAnchor=start; navigationMode=true; notifyListeners();
   }
   String selectionTsv({bool displayed=false}) => [
     for(var r=selectedRange.top;r<=selectedRange.bottom;r++) [
@@ -82,6 +84,7 @@ class MarkdownTableController extends ChangeNotifier {
         displayed ? displayedCell(r,c) : table.getCell(r,c)?.trimmedText ?? '',
     ].join('\t'),
   ].join('\n');
+  void applyDocumentValue(TextEditingValue value) => _publish(value,syncCell:true);
   void pasteCells(List<List<String>> cells) => _publish(SmartTableEdits.paste(getDocumentValue().text,table,_activePosition,cells),syncCell:true);
   void createSummary(String operation) => _publish(SmartTableEdits.summary(getDocumentValue().text,table,_activePosition.column,operation),syncCell:true);
   void insertQuickFormula(String operation) {
@@ -104,9 +107,13 @@ class MarkdownTableController extends ChangeNotifier {
   void setNumericFormat(Map<String,dynamic> config) => _publish(SmartTableEdits.format(getDocumentValue().text,table,_activePosition.column,config),syncCell:true);
 
 
-  String displayedCell(int row, int column) {
+  String displayedCell(int row, int column, {String? locale}) {
     final raw = table.getCell(row,column)?.trimmedText ?? '';
-    return raw.startsWith('=') || raw.startsWith("'=") ? calculations.value(row,column).display : raw;
+    final config = smartMetadata.section('formats')['$column'];
+    if (config != null || raw.startsWith('=') || raw.startsWith("'=")) {
+      return SmartTableDisplay.format(calculations.value(row,column),config,locale:locale);
+    }
+    return raw;
   }
 
   TablePosition _activePosition;
@@ -131,6 +138,10 @@ class MarkdownTableController extends ChangeNotifier {
   FocusNode get cellFocusNode => getFocusNodeFor(_activePosition);
 
   bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
+  bool navigationMode = false;
+  void startEditing() { navigationMode=false; notifyListeners(); cellFocusNode.requestFocus(); }
+  void stopEditing() { navigationMode=true; cellFocusNode.unfocus(); notifyListeners(); }
   bool _isInternalSync = false;
 
   void _initCellController() {
@@ -177,13 +188,7 @@ class MarkdownTableController extends ChangeNotifier {
     if (currentCellText == newCellText) return;
 
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.updateCell(
-      value: docVal,
-      table: table,
-      row: _activePosition.row,
-      column: _activePosition.column,
-      newCellText: newCellText,
-    );
+    final updatedDocVal = SmartTableEdits.updateCell(docVal.text,table,_activePosition.row,_activePosition.column,newCellText);
 
     // Reparse the table from the updated document
     final reloadedTable = _parser.findTableAtOffset(
@@ -554,10 +559,8 @@ class MarkdownTableController extends ChangeNotifier {
   /// Deletes the entire table.
   void deleteTable() {
     final docVal = getDocumentValue();
-    final updatedDocVal = MarkdownTableFormatter.deleteTable(
-      value: docVal,
-      table: table,
-    );
+    final end=SmartTableMetadata.read(docVal.text,table).sourceEnd;
+    final updatedDocVal=TextEditingValue(text:docVal.text.replaceRange(table.sourceStart,end,''));
 
     _publish(updatedDocVal);
   }

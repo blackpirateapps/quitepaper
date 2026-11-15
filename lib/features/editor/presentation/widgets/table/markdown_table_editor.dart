@@ -419,7 +419,7 @@ class _MarkdownTableEditorState extends State<MarkdownTableEditor> {
     }
 
     // Inactive Cell
-    final cellText = widget.controller.displayedCell(rowIndex, columnIndex);
+    final cellText = widget.controller.displayedCell(rowIndex, columnIndex, locale:Localizations.localeOf(context).toString());
     final textSpan = cellText.isNotEmpty
         ? MarkdownParser.buildTextSpan(
             text: cellText,

@@ -345,6 +345,7 @@ class _QuietTableComponentState extends State<QuietTableComponent> {
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 child: MarkdownTableView(
                   table: markdownTable,
+                  sourceMarkdown: tableMarkdown,
                   readOnly: widget.readOnly,
                   onCellTap: widget.readOnly ? null : _startInlineEdit,
                 ),

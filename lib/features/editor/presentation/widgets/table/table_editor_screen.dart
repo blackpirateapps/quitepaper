@@ -364,7 +364,7 @@ class _TableEditorScreenState extends State<TableEditorScreen> {
                           AppSpacing.md,
                           0,
                         ),
-                        child: MarkdownTableView(table: table, readOnly: true),
+                        child: MarkdownTableView(table: table, sourceMarkdown: _workingMarkdown, readOnly: true),
                       ),
                     Expanded(
                       child: Padding(

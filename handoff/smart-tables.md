@@ -68,3 +68,16 @@ summary formulas exclude themselves. Unknown/malformed annotations are opaque
 and retained, and externally altered summary signatures disengage automation.
 Table-controller history captures complete source transactions. Summary and
 existing widget tests: 19 passed; flutter analyze: no issues.
+
+## Phase 4: calculated columns and number presentation
+
+Calculated-column actions confirm before filling blanks or explicitly replacing
+manual values. Templates are materialized into raw A1 formulas, follow anchors
+and inserted rows, and survive node/source/reopen conversion in metadata.
+Column format settings support plain numbers, fixed decimals (0–18 places), ISO
+currency codes and percentages. Intl supplies locale affixes/grouping/digit
+shapes, while BigInt decimals retain precision even beyond double's integer
+range. The active formula input always shows raw source. Shared inactive views
+and preview use formatting without saving display strings. Formula/metadata and
+locale tests: 14 passed. Existing prose normalization is bypassed for raw tables
+and their annotations to prevent reinterpreting multiplication as Markdown.

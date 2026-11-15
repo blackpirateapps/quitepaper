@@ -28,6 +28,15 @@ class SmartTableControls extends StatelessWidget {
             if(action=='copy_raw') await Clipboard.setData(ClipboardData(text:controller.selectionTsv()));
             if(action=='copy_display') await Clipboard.setData(ClipboardData(text:controller.selectionTsv(displayed:true)));
             if(action=='insert_sum') controller.insertQuickFormula('SUM');
+            if((action=='fill' || action=='reapply') && context.mounted) {
+              final confirmed=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(
+                title:Text(action=='fill' ? 'Calculate this column?':'Reapply column formula?'),
+                content:Text(action=='fill' ? 'Fill blank data cells using this formula. New rows will use relative copies.':'Replace every data cell in this column with a relative copy of this formula.'),
+                actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Apply'))],
+              ));
+              if(confirmed==true) controller.fillCalculatedColumn(reapply:action=='reapply');
+            }
+            if(action=='format' && context.mounted) await _formatDialog(context);
           },
           itemBuilder:(_)=>[
             const PopupMenuItem(value:'select_column',child:Text('Select data column')),
@@ -37,10 +46,35 @@ class SmartTableControls extends StatelessWidget {
               const PopupMenuItem(value:'copy_sum',child:Text('Copy sum')),
               const PopupMenuItem(value:'insert_sum',child:Text('Insert SUM below selection')),
             ],
+            const PopupMenuItem(value:'fill',child:Text('Calculate column · fill blanks…')),
+            const PopupMenuItem(value:'reapply',child:Text('Reapply column formula…')),
+            const PopupMenuItem(value:'format',child:Text('Number format…')),
             for(final op in SmartTableEdits.operations) PopupMenuItem(value:'summary:$op',child:Text('Summary row: $op')),
           ],
         ),
       ],
     );
   }
+  Future<void> _formatDialog(BuildContext context) async {
+    final existing=controller.smartMetadata.section('formats')['${controller.activePosition.column}'];
+    var type=existing is Map && existing['type'] is String ? existing['type'] as String:'number';
+    var digits=existing is Map && existing['digits'] is int ? (existing['digits'] as int).clamp(0,18):2;
+    var currency=existing is Map && existing['currency'] is String ? existing['currency'] as String:'USD';
+    final result=await showDialog<Map<String,dynamic>>(context:context,builder:(context)=>StatefulBuilder(builder:(context,setState)=>AlertDialog(
+      title:const Text('Column number format'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButton<String>(value:const ['number','decimal','currency','percent'].contains(type) ? type:'number',isExpanded:true,
+          items:[for(final option in const ['number','decimal','currency','percent']) DropdownMenuItem(value:option,child:Text(option))],onChanged:(v)=>setState(()=>type=v!)),
+        Row(children:[const Text('Decimal places'),IconButton(tooltip:'Fewer decimals',onPressed:()=>setState(()=>digits=(digits-1).clamp(0,18)),icon:const Icon(Icons.remove)),Text('$digits'),IconButton(tooltip:'More decimals',onPressed:()=>setState(()=>digits=(digits+1).clamp(0,18)),icon:const Icon(Icons.add))]),
+        if(type=='currency') TextFormField(initialValue:currency,onChanged:(value)=>currency=value,decoration:const InputDecoration(labelText:'ISO currency code (INR, USD…)'),textCapitalization:TextCapitalization.characters,maxLength:3),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),TextButton(onPressed:(){
+        final code=currency.trim().toUpperCase();
+        if(type=='currency' && !RegExp(r'^[A-Z]{3}$').hasMatch(code)) return;
+        Navigator.pop(context,{'type':type,if(type!='number') 'digits':digits,if(type=='currency') 'currency':code});
+      },child:const Text('Apply'))],
+    )));
+    if(result!=null) controller.setNumericFormat(result);
+  }
+
 }

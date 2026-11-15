@@ -89,6 +89,19 @@ abstract final class SmartTableEdits {
     return List.generate(cells.last.length,(c)=>recorded[c]==cells.last[c]).every((e)=>e);
   }
 
+  static TextEditingValue updateCell(String source,MarkdownTable table,int row,int column,String text) {
+    final meta=SmartTableMetadata.read(source,table), cells=tableRawCells(table);
+    final valid=hasSummary(cells,meta);
+    final value=MarkdownTableFormatter.updateCell(value:TextEditingValue(text:source),table:table,row:row,column:column,newCellText:text);
+    if(!valid || row!=cells.length-1 || !meta.editable) return value;
+    // An intentional override opts this summary cell out of regeneration.
+    final summary=meta.section('summary');
+    final ops=summary['operations'] is Map ? Map<String,dynamic>.from(summary['operations']):<String,dynamic>{};
+    ops.remove('$column'); cells[row][column]=text;
+    summary['operations']=ops; summary['cells']=[...cells.last]; meta.data['summary']=summary;
+    return write(source,table,cells,meta);
+  }
+
   static TextEditingValue summary(String source, MarkdownTable table, int column, String operation) {
     final meta = SmartTableMetadata.read(source,table);
     if (!meta.editable || !operations.contains(operation) || table.rowCount < 2) return TextEditingValue(text:source);

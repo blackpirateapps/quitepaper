@@ -1,3 +1,5 @@
+import '../../../application/smart_table_display.dart';
+import '../../../application/smart_table_edits.dart';
 import '../../../application/smart_table_markdown.dart';
 import '../../../domain/smart_tables/formula_engine.dart';
 import 'package:flutter/material.dart';
@@ -21,9 +23,11 @@ class MarkdownTableView extends StatelessWidget {
     this.onCellTap,
     this.readOnly = false,
     this.searchQuery,
+    this.sourceMarkdown,
   });
 
   final MarkdownTable table;
+  final String? sourceMarkdown;
   final MarkdownStyles? styles;
   final ValueChanged<TablePosition>? onCellTap;
   final bool readOnly;
@@ -139,7 +143,10 @@ class MarkdownTableView extends StatelessWidget {
     required FormulaEngine engine,
   }) {
     final raw = cell?.trimmedText ?? '';
-    final cellText = raw.startsWith('=') || raw.startsWith("'=") ? engine.value(rowIndex,columnIndex).display : raw;
+    final metadata = sourceMarkdown == null ? null : SmartTableMetadata.read(sourceMarkdown!,table);
+    final config = metadata?.section('formats')['$columnIndex'];
+    final cellText = config != null || raw.startsWith('=') || raw.startsWith("'=")
+        ? SmartTableDisplay.format(engine.value(rowIndex,columnIndex),config,locale:Localizations.localeOf(context).toString()) : raw;
     final alignment = table.getAlignment(columnIndex);
     final pos = TablePosition(row: rowIndex, column: columnIndex);
 
