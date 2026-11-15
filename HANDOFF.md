@@ -47,6 +47,13 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Latest Super Editor Polish
 
+Super Editor smart checklists now preserve the Android keyboard and visible caret
+when checking or folding items. Completed rows leave no hidden spacing, and
+paragraphs below folded lists remain compact and left aligned. Rapid toggles,
+undo/redo, and nested-list preservation are covered by regression tests; Markdown
+preview checklists fill the page column instead of centering short lists. See
+[engineering log 277](handoff/latest-logs.md#277-super-editor-smart-checklist-focus-folding-and-preview-alignment-november-15-2026).
+
 Super Editor math now parses display formulas before CommonMark, preserves TeX
 and internal blank lines, and recognizes math in keyboard and native-menu paste.
 The math insertion menu retains its caret anchor and opens the formula input;

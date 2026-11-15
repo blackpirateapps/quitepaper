@@ -19,8 +19,7 @@ void main() {
   }) {
     return ProviderScope(
       overrides: [
-        if (prefs != null)
-          sharedPreferencesProvider.overrideWithValue(prefs),
+        if (prefs != null) sharedPreferencesProvider.overrideWithValue(prefs),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -37,57 +36,96 @@ void main() {
   }
 
   group('QuietMarkdownPreview Checklist Tests', () {
-    testWidgets('renders PhosphorIconsRegular.square for unchecked and PhosphorIconsFill.checkSquare for checked', (tester) async {
-      const md = '''
+    testWidgets(
+      'renders PhosphorIconsRegular.square for unchecked and PhosphorIconsFill.checkSquare for checked',
+      (tester) async {
+        const md = '''
 - [ ] Milk
 - [x] Eggs
 ''';
-      await tester.pumpWidget(buildPreviewTestWidget(markdownData: md));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildPreviewTestWidget(markdownData: md));
+        await tester.pumpAndSettle();
 
-      expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
-      expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
-    });
+        expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
+        expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
+      },
+    );
 
-    testWidgets('tapping unchecked checkbox triggers onMarkdownChanged with - [x]', (tester) async {
-      const md = '- [ ] Buy bread';
-      String? updated;
+    for (final shrinkWrap in [false, true]) {
+      testWidgets(
+        'short checklist stays at the left of the preview column (shrinkWrap: $shrinkWrap)',
+        (tester) async {
+          await tester.pumpWidget(
+            buildPreviewTestWidget(
+              markdownData: '- [ ] Milk\n- [x] Eggs',
+              shrinkWrap: shrinkWrap,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final icon = tester.getRect(find.byIcon(PhosphorIconsRegular.square));
+          final body = tester.getRect(find.byType(QuietMarkdownPreview));
+          // At this 800dp viewport the page column is centered, but its short list
+          // must fill that column rather than centering a content-sized row.
+          expect(icon.left - body.left, lessThan(100));
+          expect(
+            tester.getRect(find.byIcon(PhosphorIconsFill.checkSquare)).left,
+            icon.left,
+          );
+        },
+      );
+    }
 
-      await tester.pumpWidget(buildPreviewTestWidget(
-        markdownData: md,
-        onMarkdownChanged: (val) => updated = val,
-      ));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping unchecked checkbox triggers onMarkdownChanged with - [x]',
+      (tester) async {
+        const md = '- [ ] Buy bread';
+        String? updated;
 
-      final squareFinder = find.byIcon(PhosphorIconsRegular.square);
-      expect(squareFinder, findsOneWidget);
+        await tester.pumpWidget(
+          buildPreviewTestWidget(
+            markdownData: md,
+            onMarkdownChanged: (val) => updated = val,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(squareFinder);
-      await tester.pumpAndSettle();
+        final squareFinder = find.byIcon(PhosphorIconsRegular.square);
+        expect(squareFinder, findsOneWidget);
 
-      expect(updated, equals('- [x] Buy bread'));
-    });
+        await tester.tap(squareFinder);
+        await tester.pumpAndSettle();
 
-    testWidgets('tapping checked checkbox triggers onMarkdownChanged with - [ ]', (tester) async {
-      const md = '- [x] Clean room';
-      String? updated;
+        expect(updated, equals('- [x] Buy bread'));
+      },
+    );
 
-      await tester.pumpWidget(buildPreviewTestWidget(
-        markdownData: md,
-        onMarkdownChanged: (val) => updated = val,
-      ));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping checked checkbox triggers onMarkdownChanged with - [ ]',
+      (tester) async {
+        const md = '- [x] Clean room';
+        String? updated;
 
-      final checkedFinder = find.byIcon(PhosphorIconsFill.checkSquare);
-      expect(checkedFinder, findsOneWidget);
+        await tester.pumpWidget(
+          buildPreviewTestWidget(
+            markdownData: md,
+            onMarkdownChanged: (val) => updated = val,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(checkedFinder);
-      await tester.pumpAndSettle();
+        final checkedFinder = find.byIcon(PhosphorIconsFill.checkSquare);
+        expect(checkedFinder, findsOneWidget);
 
-      expect(updated, equals('- [ ] Clean room'));
-    });
+        await tester.tap(checkedFinder);
+        await tester.pumpAndSettle();
 
-    testWidgets('renders completed item text with strikethrough style', (tester) async {
+        expect(updated, equals('- [ ] Clean room'));
+      },
+    );
+
+    testWidgets('renders completed item text with strikethrough style', (
+      tester,
+    ) async {
       const md = '''
 - [ ] Active task
 - [x] Completed task
@@ -101,7 +139,8 @@ void main() {
 
       for (final rt in richTexts) {
         rt.text.visitChildren((span) {
-          if (span is TextSpan && span.text?.contains('Completed task') == true) {
+          if (span is TextSpan &&
+              span.text?.contains('Completed task') == true) {
             if (span.style?.decoration == TextDecoration.lineThrough) {
               foundStrikethrough = true;
             }
@@ -113,42 +152,49 @@ void main() {
       expect(foundStrikethrough, isTrue);
     });
 
-    testWidgets('does NOT trigger onMarkdownChanged when interactiveChecklists is false', (tester) async {
-      const md = '- [ ] Buy tea';
-      String? updated;
+    testWidgets(
+      'does NOT trigger onMarkdownChanged when interactiveChecklists is false',
+      (tester) async {
+        const md = '- [ ] Buy tea';
+        String? updated;
 
-      await tester.pumpWidget(buildPreviewTestWidget(
-        markdownData: md,
-        interactiveChecklists: false,
-        onMarkdownChanged: (val) => updated = val,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildPreviewTestWidget(
+            markdownData: md,
+            interactiveChecklists: false,
+            onMarkdownChanged: (val) => updated = val,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final squareFinder = find.byIcon(PhosphorIconsRegular.square);
-      expect(squareFinder, findsOneWidget);
+        final squareFinder = find.byIcon(PhosphorIconsRegular.square);
+        expect(squareFinder, findsOneWidget);
 
-      await tester.tap(squareFinder);
-      await tester.pumpAndSettle();
+        await tester.tap(squareFinder);
+        await tester.pumpAndSettle();
 
-      expect(updated, isNull);
-    });
+        expect(updated, isNull);
+      },
+    );
 
-    testWidgets('does NOT trigger onMarkdownChanged when onMarkdownChanged is null (read only)', (tester) async {
-      const md = '- [ ] Read only item';
+    testWidgets(
+      'does NOT trigger onMarkdownChanged when onMarkdownChanged is null (read only)',
+      (tester) async {
+        const md = '- [ ] Read only item';
 
-      await tester.pumpWidget(buildPreviewTestWidget(
-        markdownData: md,
-        onMarkdownChanged: null,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildPreviewTestWidget(markdownData: md, onMarkdownChanged: null),
+        );
+        await tester.pumpAndSettle();
 
-      final squareFinder = find.byIcon(PhosphorIconsRegular.square);
-      expect(squareFinder, findsOneWidget);
+        final squareFinder = find.byIcon(PhosphorIconsRegular.square);
+        expect(squareFinder, findsOneWidget);
 
-      // Tapping should not cause errors
-      await tester.tap(squareFinder);
-      await tester.pumpAndSettle();
-    });
+        // Tapping should not cause errors
+        await tester.tap(squareFinder);
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets('works in shrinkWrap: true mode', (tester) async {
       const md = '''
@@ -157,11 +203,13 @@ void main() {
 ''';
       String? updated;
 
-      await tester.pumpWidget(buildPreviewTestWidget(
-        markdownData: md,
-        shrinkWrap: true,
-        onMarkdownChanged: (val) => updated = val,
-      ));
+      await tester.pumpWidget(
+        buildPreviewTestWidget(
+          markdownData: md,
+          shrinkWrap: true,
+          onMarkdownChanged: (val) => updated = val,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
@@ -170,13 +218,18 @@ void main() {
       await tester.tap(find.byIcon(PhosphorIconsRegular.square));
       await tester.pumpAndSettle();
 
-      expect(updated, equals('''
+      expect(
+        updated,
+        equals('''
 - [x] Shrink task 1
 - [x] Shrink task 2
-'''));
+'''),
+      );
     });
 
-    testWidgets('toggles multiple checklist items individually in order', (tester) async {
+    testWidgets('toggles multiple checklist items individually in order', (
+      tester,
+    ) async {
       const md = '''
 - [ ] Task A
 - [ ] Task B
@@ -218,11 +271,14 @@ void main() {
 
       expect(find.byIcon(PhosphorIconsRegular.square), findsNWidgets(2));
       expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
-      expect(currentMd, equals('''
+      expect(
+        currentMd,
+        equals('''
 - [ ] Task A
 - [x] Task B
 - [ ] Task C
-'''));
+'''),
+      );
 
       // Tap first item (Task A)
       await tester.tap(find.byIcon(PhosphorIconsRegular.square).at(0));
@@ -230,11 +286,14 @@ void main() {
 
       expect(find.byIcon(PhosphorIconsRegular.square), findsOneWidget);
       expect(find.byIcon(PhosphorIconsFill.checkSquare), findsNWidgets(2));
-      expect(currentMd, equals('''
+      expect(
+        currentMd,
+        equals('''
 - [x] Task A
 - [x] Task B
 - [ ] Task C
-'''));
+'''),
+      );
 
       // Uncheck Task B (now checked)
       await tester.tap(find.byIcon(PhosphorIconsFill.checkSquare).at(1));
@@ -242,11 +301,14 @@ void main() {
 
       expect(find.byIcon(PhosphorIconsRegular.square), findsNWidgets(2));
       expect(find.byIcon(PhosphorIconsFill.checkSquare), findsOneWidget);
-      expect(currentMd, equals('''
+      expect(
+        currentMd,
+        equals('''
 - [x] Task A
 - [ ] Task B
 - [ ] Task C
-'''));
+'''),
+      );
     });
   });
 }

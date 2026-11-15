@@ -97,6 +97,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   void _initEditor() {
     final split = _splitFrontmatter(widget.initialMarkdown);
     _frontmatterPrefix = split.prefix;
+    _smartTaskController.reset();
 
     final normalized = normalizeMarkdownForSuperEditor(split.body);
     final trimmed = normalized.trim();
@@ -119,8 +120,12 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // Promote math block paragraphs (\[ ... \], $$ ... $$, ```math) into QuietMathBlockNodes.
     promoteQuietMathBlockNodes(document);
 
-    // Ensure notes ending with a horizontal rule have an editable paragraph after it.
-    if (document.isNotEmpty && document.last is HorizontalRuleNode) {
+    // Folded terminal tasks need a visible writing position below the summary.
+    final lastTaskBlock = document.isNotEmpty
+        ? SmartTaskController.findBlockForNode(document, document.last.id)
+        : null;
+    if (document.isNotEmpty &&
+        (document.last is HorizontalRuleNode || lastTaskBlock?.hasCollapsibleCompleted == true)) {
       document.insertNodeAfter(
         existingNodeId: document.last.id,
         newNode: ParagraphNode(
@@ -141,6 +146,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     _editor.requestHandlers.insert(0, handleCodeBlockFenceNewlineRequest);
     _editor.requestHandlers.insert(0, handleMathBlockFenceNewlineRequest);
     _editor.requestHandlers.insert(0, _handleMathPasteRequest);
+    _editor.requestHandlers.insert(0, _smartTaskController.handleBoundaryDeletion);
 
     _lastSerializedMarkdown = widget.initialMarkdown;
     _editor.document.addListener(_onDocumentChange);
@@ -149,6 +155,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   }
 
   void _onSelectionChange() {
+    _smartTaskController.revealSelection(_editor.document, _composer.selection);
     if (mounted) {
       setState(() {});
     }
@@ -248,6 +255,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     if (!mounted || _isInternalUpdate) return;
     _isInternalUpdate = true;
     try {
+      _smartTaskController.reconcile(_editor.document);
+      _smartTaskController.revealSelection(_editor.document, _composer.selection);
       final bodyMarkdown = serializeDocumentToMarkdown(
         _editor.document,
         syntax: MarkdownSyntax.normal,
@@ -417,7 +426,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
         StyleRule(
           const BlockSelector('task'),
           (doc, docNode) => {
-            Styles.padding: const CascadingPadding.symmetric(vertical: 4),
+            // Visible rows own their spacing; folded rows consume no padding.
+            Styles.padding: const CascadingPadding.symmetric(vertical: 0),
             Styles.textStyle: TextStyle(
               color: colors.textPrimary,
               fontFamily: typography.bodyFontFamily,
