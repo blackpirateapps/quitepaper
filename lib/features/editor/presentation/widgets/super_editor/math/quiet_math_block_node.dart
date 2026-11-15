@@ -105,7 +105,9 @@ class QuietMathBlockNode extends BlockNode {
       case MathDelimiterType.brackets:
         return '\\[ $trimmed \\]';
       case MathDelimiterType.dollars:
-        return trimmed.contains('\n') ? '\$\$\n$trimmed\n\$\$' : '\$\$ $trimmed \$\$';
+        return trimmed.contains('\n')
+            ? '\$\$\n$trimmed\n\$\$'
+            : '\$\$ $trimmed \$\$';
       case MathDelimiterType.codeFence:
         return '```math\n$trimmed\n```';
     }
@@ -203,6 +205,11 @@ EditCommand? handleMathBlockFenceNewlineRequest(
   final base = selection.base;
   final node = editor.document.getNodeById(base.nodeId);
   if (node is! ParagraphNode) return null;
+  if (node.metadata[NodeMetadata.blockType] == codeAttribution) return null;
+  if (base.nodePosition is! TextNodePosition ||
+      (base.nodePosition as TextNodePosition).offset != node.text.length) {
+    return null;
+  }
 
   final text = node.text.toPlainText().trim();
   if (text == r'$$') {
@@ -241,5 +248,18 @@ class _ConvertParagraphToMathBlockCommand extends EditCommand {
         ),
       ),
     );
+    executor.executeCommand(
+      ChangeSelectionCommand(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: nodeId,
+            nodePosition: const UpstreamDownstreamNodePosition.downstream(),
+          ),
+        ),
+        SelectionChangeType.placeCaret,
+        SelectionReason.userInteraction,
+      ),
+    );
+    executor.executeCommand(ChangeComposingRegionCommand(null));
   }
 }

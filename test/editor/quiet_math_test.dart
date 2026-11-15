@@ -233,7 +233,8 @@ void main() {
         caretOffset: 0,
       );
 
-      expect(folded.toPlainText(), 'Here is \uFFFC in a sentence');
+      expect(folded.length, rawText.length);
+      expect(folded.toPlainText().replaceAll('\u200B', ''), 'Here is \uFFFC in a sentence');
       expect(folded.placeholders.containsKey(8), isTrue);
       final placeholder = folded.placeholders[8] as InlineMathPlaceholder;
       expect(placeholder.latex, 'n=17');
