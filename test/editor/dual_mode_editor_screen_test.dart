@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_editor/super_editor.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
+import 'package:quitepaper/features/editor/domain/rich_document.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
@@ -33,7 +37,7 @@ void main() {
       await db.close();
     });
 
-    Widget createEditorApp(Note note, {EditorEditingStyle initialGlobalStyle = EditorEditingStyle.wysiwyg}) {
+    Widget createEditorApp(Note note, {EditorEditingStyle initialGlobalStyle = EditorEditingStyle.wysiwyg, bool autoFocusBody = false}) {
       return ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
@@ -42,7 +46,7 @@ void main() {
           editorEditingStyleProvider.overrideWith((ref) => EditingStyleNotifier(prefs)..state = initialGlobalStyle),
         ],
         child: MaterialApp(
-          home: EditorScreen(note: note),
+          home: EditorScreen(note: note, autoFocusBody: autoFocusBody),
         ),
       );
     }
@@ -50,6 +54,89 @@ void main() {
     Future<void> finishTest(WidgetTester tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 800));
+    }
+
+    for (final style in [EditorEditingStyle.wysiwyg, EditorEditingStyle.markdown]) {
+      for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
+        testWidgets('${style.label} title submission on ${platform.name} keeps body input connected', (tester) async {
+          final now = DateTime.now();
+          final note = Note(
+            id: 'new-${style.name}-note',
+            title: '',
+            content: '',
+            createdAt: now,
+            updatedAt: now,
+            tags: [],
+          );
+          await repository.saveNote(note);
+          await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: style, autoFocusBody: true));
+          await tester.pumpAndSettle();
+
+          final titleField = find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.decoration?.hintText == 'Title',
+          );
+          await tester.enterText(titleField, 'My new note');
+          if (platform == TargetPlatform.linux) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          } else {
+            await tester.testTextInput.receiveAction(TextInputAction.next);
+          }
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 50));
+
+          final bodyField = find.descendant(
+            of: find.byType(MarkdownEditor),
+            matching: find.byType(EditableText),
+          );
+          final body = tester.widget<EditableText>(bodyField);
+          expect(body.focusNode.hasPrimaryFocus, isTrue);
+          expect(body.controller.selection, const TextSelection.collapsed(offset: 0));
+          expect(tester.state<EditableTextState>(bodyField).renderEditable.showCursor.value, isTrue);
+          expect(tester.testTextInput.hasAnyClients, isTrue);
+
+          // Use the existing input connection, without tapping or refocusing the body.
+          tester.testTextInput.updateEditingValue(const TextEditingValue(
+            text: 'Body text',
+            selection: TextSelection.collapsed(offset: 9),
+          ));
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(body.controller.text, 'Body text');
+
+          if (platform == TargetPlatform.linux && style == EditorEditingStyle.wysiwyg) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          } else {
+            tester.testTextInput.updateEditingValue(const TextEditingValue(
+              text: 'Body text\n',
+              selection: TextSelection.collapsed(offset: 10),
+            ));
+          }
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(body.controller.text, 'Body text\n');
+          tester.testTextInput.updateEditingValue(const TextEditingValue(
+            text: 'Body text\nNext line',
+            selection: TextSelection.collapsed(offset: 19),
+          ));
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump(const Duration(milliseconds: 800));
+          expect(body.controller.text, 'Body text\nNext line');
+          final saved = (await repository.getNoteById(note.id))!;
+          expect(saved.title, 'My new note');
+          final markdown = RichDocument.isJson(saved.content)
+              ? const RichDocumentSerializer().serialize(RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>))
+              : saved.content;
+          expect(markdown.trim(), 'Body text\nNext line');
+          if (platform == TargetPlatform.linux) {
+            await tester.tap(titleField);
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+            await tester.pump();
+            expect(body.focusNode.hasPrimaryFocus, isTrue);
+            expect(body.controller.selection, const TextSelection.collapsed(offset: 0));
+            expect(body.controller.text, 'Body text\nNext line');
+          }
+          await finishTest(tester);
+        }, variant: TargetPlatformVariant({platform}));
+      }
     }
 
     for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {

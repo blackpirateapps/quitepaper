@@ -6179,3 +6179,41 @@ Updated `search_filter_bar.dart`, `HANDOFF.md`, and the tags/search guide.
   updated control with real fonts at desktop (1440×900), tablet (768×1024), and
   phone (390×844) sizes. Tablet and phone screenshots were visually inspected.
 - `git diff --check`: clean.
+
+## 275. Visual and Markdown title Enter focus on Linux (November 15, 2026)
+
+### Behavior and implementation
+
+The user reported that submitting a new note's title with a Linux physical
+keyboard left Visual and Markdown modes unable to accept body text or another
+Enter. Title-to-body navigation relied exclusively on the native text-input
+submission callback and Flutter's default Next focus traversal.
+
+- `editor_screen.dart` handles Enter and numpad Enter on the title's focus node
+  for Visual and Markdown modes, consuming the key before native submission.
+  Active IME composition is left to the input method.
+- A shared `_focusBodyFromTitle` clears title composition, selects the beginning
+  of the active body controller, and requests body focus. The mobile Next action
+  uses the same helper. Explicit editing completion avoids default traversal
+  through toolbar controls. Read-only notes are guarded.
+- Super Editor continues to use its existing document caret API on submission;
+  its body rendering and key handling are unchanged.
+
+### Files and validation
+
+Updated `editor_screen.dart`, `test/editor/dual_mode_editor_screen_test.dart`,
+`HANDOFF.md`, and the editor guide.
+
+- `flutter analyze --no-pub`: no issues.
+- Only relevant tests ran, as requested:
+  `flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/markdown_editor_widget_test.dart test/editor/rich_text_editor_formattings_test.dart`
+  — all **104 passed**.
+- Four new screen regressions cover Visual and Markdown on Linux and Android:
+  focused body, visible caret, input through the current connection without
+  tapping the body, a second Enter/newline, further typing, and saved title/body.
+  The Linux tests dispatch physical Enter directly; mobile tests dispatch Next.
+- The four regressions also passed after matching new-note autofocus and adding
+  numpad Enter checks against populated bodies. Input-action submission already
+  passed in the initial isolated harness; the fix adds explicit hardware-key
+  handling. These are widget tests, not a native GTK/IME smoke test.
+- `git diff --check`: clean.

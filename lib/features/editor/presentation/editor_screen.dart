@@ -198,7 +198,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _titleController = TextEditingController(text: initialTitle);
     _contentController = MarkdownEditingController(text: widget.note.content);
     _lastContentText = widget.note.content;
-    _titleFocusNode = FocusNode();
+    _titleFocusNode = FocusNode(onKeyEvent: _handleTitleKeyEvent);
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
     _activeTargetFocusNode = _contentFocusNode;
@@ -393,6 +393,33 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _handleTitleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!_isSuperEditor &&
+        event is KeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        _titleController.value.composing.isCollapsed) {
+      // Transfer focus before Linux forwards Enter to the native text-input
+      // client. That client still belongs to the title until focus is applied.
+      _focusBodyFromTitle();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _focusBodyFromTitle() {
+    if (ref.read(editorProviderFamily(_editorParams)).isReadOnly) return;
+    _titleController.clearComposing();
+    if (_isSuperEditor) {
+      _superEditorController.moveCaretToStart();
+    } else if (_isWysiwyg) {
+      _richDocumentController?.setSelectionFromGlobalOffset(0);
+    } else {
+      _contentController.selection = const TextSelection.collapsed(offset: 0);
+    }
+    _contentFocusNode.requestFocus();
   }
 
   void _onFocusChanged() {
@@ -2112,12 +2139,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     ),
                                     textCapitalization: TextCapitalization.sentences,
                                     textInputAction: TextInputAction.next,
-                                    onSubmitted: (_) {
-                                      if (isSuperEditor) {
-                                        _superEditorController.moveCaretToStart();
-                                      }
-                                      _contentFocusNode.requestFocus();
-                                    },
+                                    // The body is the explicit next input; avoid
+                                    // default traversal through toolbar controls.
+                                    onEditingComplete: _titleController.clearComposing,
+                                    onSubmitted: (_) => _focusBodyFromTitle(),
                                   ),
                                   if (isSuperEditor)
                                     Divider(

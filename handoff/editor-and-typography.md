@@ -93,6 +93,18 @@ The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quite
 - Controller attachment/detachment notifications defer until after the frame
   when invoked during build, preventing sibling toolbar rebuild assertions.
 
+### Visual and Markdown Title Submission
+
+- The title's `FocusNode` handles physical Enter and numpad Enter directly in
+  Visual and Markdown modes. Do not rely exclusively on the native text-input
+  submission callback for Linux hardware keyboards.
+- Hardware Enter and the mobile Next action share `_focusBodyFromTitle`, which
+  clears title composition, selects the start of the active body representation,
+  and requests body focus. Explicit editing completion avoids default focus
+  traversal through editor controls. Enter during active IME composition remains
+  available to the native input method, and read-only notes cannot transfer focus
+  through this submission path.
+
 ---
 
 ## 3. Typography & Aesthetic System

@@ -52,6 +52,11 @@ the title places a visible caret at the beginning of the body, and empty editabl
 bodies display `Start writing...` until text is entered. See
 [engineering log 271](handoff/latest-logs.md#271-super-editor-title-to-body-caret-divider-and-placeholder-november-15-2026).
 
+Visual and Markdown modes now handle physical Enter and numpad Enter in the
+title directly, placing the caret in the body so typing can continue immediately
+on Linux. Mobile Next uses the same focus transition. See
+[engineering log 275](handoff/latest-logs.md#275-visual-and-markdown-title-enter-focus-on-linux-november-15-2026).
+
 ## Latest Desktop and Tablet Search Workspace
 
 Search now uses compact results beside a read-only preview at widths of 600dp
