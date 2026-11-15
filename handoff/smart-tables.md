@@ -30,3 +30,16 @@ Android IME Next/Done, narrow/mobile and tablet widths, read-only preview,
 import/export, reopening, encrypted sync and conservative conflict handling.
 Automated tests cover shared Dart/Flutter paths; actual device and multi-client QA
 must be reported separately.
+
+## Phase 1: formula domain
+
+`domain/smart_tables/formula_engine.dart` contains the bounded tokenizer/Pratt
+parser, table-scoped expression/dependency/result caches, downstream invalidation,
+A1 addresses and structural/fill rewriting. Decimal arithmetic uses BigInt with
+18 fractional digits and 48 integer digits; multiply/divide round half away from
+zero. Input with greater precision or magnitude reports #LIMIT!. Aggregates skip
+text/blanks, propagate formula errors, count zero; empty MIN/MAX use #VALUE! and
+empty AVERAGE uses #DIV/0!. A leading apostrophe before = renders as literal text
+without the apostrophe and is retained in Markdown. Baseline: 17 tests passed;
+formula domain: 6 tests passed including baseline (grammar, cycles, caches,
+precision, limits, references, aggregates).
