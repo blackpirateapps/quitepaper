@@ -438,8 +438,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     final result = _undoRedoManager.undo(_contentController.value);
     if (result != null) {
-      _contentController.value = result;
-      _onContentChanged();
+      _restoreMarkdownHistory(result);
     }
   }
 
@@ -450,9 +449,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     final result = _undoRedoManager.redo(_contentController.value);
     if (result != null) {
-      _contentController.value = result;
-      _onContentChanged();
+      _restoreMarkdownHistory(result);
     }
+  }
+
+  void _restoreMarkdownHistory(TextEditingValue value) {
+    final selection = value.selection;
+    _setActiveTarget(_contentController, _contentFocusNode);
+    _contentController.value = value.copyWith(
+      selection: selection.isValid
+          ? TextSelection(
+              baseOffset: selection.baseOffset.clamp(0, value.text.length),
+              extentOffset: selection.extentOffset.clamp(0, value.text.length),
+              affinity: selection.affinity,
+              isDirectional: selection.isDirectional,
+            )
+          : TextSelection.collapsed(offset: value.text.length),
+    );
+    _onContentChanged();
+    _contentFocusNode.requestFocus();
   }
 
   void _onRemoveTag(String tag) {

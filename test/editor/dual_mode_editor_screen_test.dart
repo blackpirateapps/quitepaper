@@ -144,6 +144,39 @@ void main() {
       await finishTest(tester);
     });
 
+    for (final fenced in [false, true]) {
+      testWidgets('Markdown toolbar history restores input focus with code=$fenced', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'markdown-history-$fenced', title: 'History', content: '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: EditorEditingStyle.markdown));
+        await tester.pumpAndSettle();
+        final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+        final text = fenced ? '```dart\nhistory probe\n```' : 'history probe';
+        await tester.enterText(body, text);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Undo'));
+        await tester.pumpAndSettle();
+        var editor = tester.widget<EditableText>(body);
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(editor.controller.selection.isValid, isTrue);
+        await tester.tap(find.byTooltip('Redo'));
+        await tester.pumpAndSettle();
+        editor = tester.widget<EditableText>(body);
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(editor.controller.text, text);
+        expect(editor.controller.selection.extentOffset, text.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${text}x',
+          selection: TextSelection.collapsed(offset: text.length + 1)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        expect((await repository.getNoteById(note.id))!.content, '${text}x');
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
     testWidgets('Markdown first code insertion keeps the field and accepts immediate typing', (tester) async {
       final now = DateTime.now();
       final note = Note(

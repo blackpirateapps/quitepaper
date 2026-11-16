@@ -6697,3 +6697,10 @@ Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/edit
 Audit finding 6: RichCodeBlock captures the code selection before opening the language picker, commits the chosen language by block ID, then restores the caret and code FocusNode after either selection or cancellation. Disposed, read-only, and removed blocks are guarded. The EditorScreen regression types printx immediately after selecting Dart, checks persistence, and verifies Escape cancellation focus.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 16 passed. Full test suite was not run.
+
+
+## 293. Restore Markdown history caret and keyboard focus (November 16, 2026)
+
+Audit finding 7: EditorScreen normalizes invalid snapshot selections to a valid caret and returns focus to the Markdown body after toolbar undo or redo. Plain and fenced-code regressions check both history actions, immediate input, restored caret and saved content.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 18 passed. Full test suite was not run.

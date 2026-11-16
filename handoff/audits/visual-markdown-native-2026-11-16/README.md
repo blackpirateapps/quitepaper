@@ -21,7 +21,7 @@ installed application were not changed.
 | 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Fixed |
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Fixed |
 | 6 | Medium | Visual code language selection loses typing focus | Fixed |
-| 7 | Medium | Markdown toolbar undo/redo loses typing focus | Open |
+| 7 | Medium | Markdown toolbar undo/redo loses typing focus | Fixed |
 | 9 | Medium | Visual Tag saves the name before `#` | Open |
 | 10 | Medium | Visual Link Note saves the query before `[[` | Open |
 
@@ -112,6 +112,9 @@ Likely investigation area: `RichCodeBlock._changeLanguage` commits the selected
 language but does not explicitly restore the code FocusNode.
 
 ## Confirmed new finding 7 — Markdown toolbar undo/redo loses typing focus
+
+**Fixed (2026-11-16).** EditorScreen normalizes invalid snapshot selections to a valid caret and returns focus to the Markdown body after toolbar undo or redo. Plain and fenced-code regressions check both history actions, immediate input, restored caret and saved content. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 18 passed Native evidence above/below describes the original failure; see the resolution log 293.
+
 
 Severity: medium; subsequent keystrokes are silently dropped.
 
