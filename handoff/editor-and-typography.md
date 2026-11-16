@@ -23,6 +23,18 @@ The editor supports three editing styles:
 
 ### Visual and Markdown input lifecycle
 
+- Visual Math insertion uses a `CodeBlock(language: 'math')` in the existing
+  AST. Its TeX source is editable with the established code input; insertion
+  selects the placeholder and focus routes to that block. JSON persistence and
+  fenced Markdown conversion are lossless. This is source editing in Visual
+  mode; Super Editor retains its separate rendered formula component.
+- Malformed JSON-like source falls back to Markdown parsing once. `setContent`
+  and `setMarkdown` must never recursively delegate failed decoding.
+- Before changing editor mode, reset active field targets to the persistent
+  source buffer so the destination toolbar cannot observe disposed controllers.
+- Text fields publish their current selection after tap focus settles, because native
+  clicks may deliver selection before focus. Programmatic focus retains AST intent. Toolbar edits then use that caret.
+
 - Visual toolbar and keyboard undo/redo use `RichDocumentController` snapshots,
   including ordinary text-span edits and caret positions. History restoration
   marks the document dirty for autosave. The toolbar observes the persistent

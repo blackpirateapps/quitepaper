@@ -91,6 +91,34 @@ void main() {
       });
     }
 
+    testWidgets('Empty Visual Math insertion connects input and selects the formula', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'visual-math-input', title: 'Math', content: '',
+        createdAt: now, updatedAt: now, tags: []);
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(RichTextEditor), matching: find.byType(EditableText)));
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Math Formula'));
+      await tester.pumpAndSettle();
+      final formulaField = find.descendant(of: find.byType(RichCodeBlock), matching: find.byType(EditableText));
+      final formula = tester.widget<EditableText>(formulaField);
+      expect(formula.focusNode.hasPrimaryFocus, isTrue);
+      expect(formula.controller.selection, const TextSelection(baseOffset: 0, extentOffset: 8));
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'x',
+        selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(formulaField).controller.value.composing, const TextRange(start: 0, end: 1));
+      await tester.pump(const Duration(milliseconds: 800));
+      final doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+      expect(doc.blocks.whereType<CodeBlock>().single.code, 'x');
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
     testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
       final now = DateTime.now();
       final note = Note(id: 'visual-math-json', title: 'Math', content: '',

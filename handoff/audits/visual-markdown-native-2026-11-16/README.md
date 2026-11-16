@@ -19,7 +19,7 @@ installed application were not changed.
 | 12 | Critical | Visual Math persists invalid JSON and raises Stack Overflow | Fixed |
 | 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Fixed |
 | 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Fixed |
-| 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Open |
+| 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Fixed |
 | 6 | Medium | Visual code language selection loses typing focus | Open |
 | 7 | Medium | Markdown toolbar undo/redo loses typing focus | Open |
 | 9 | Medium | Visual Tag saves the name before `#` | Open |
@@ -220,6 +220,9 @@ post-insertion document selection. The helper reparses Markdown and can reset
 the AST caret to the document start.
 
 ## Confirmed new finding 11 — Visual Math insertion shows focus but loses native typing
+
+**Fixed (2026-11-16).** The AST math insertion from finding 12 mounts the existing stable code input instead of restructuring a focused text field around raw math delimiters. Insertion now selects the equation placeholder. The empty-note EditorScreen regression types immediately through the input client, preserves IME composition, and verifies the saved formula. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/rich_document_controller_test.dart: 31 passed Native evidence above/below describes the original failure; see the resolution log 291.
+
 
 Severity: high for keyboard workflow; fresh-process confirmation, no Flutter
 errors in the initial reproduction.

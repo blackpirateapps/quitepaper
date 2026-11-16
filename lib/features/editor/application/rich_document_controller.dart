@@ -609,7 +609,11 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   /// Fenced math is a supported, lossless Visual source block.
-  void insertMathBlock() => insertCodeBlock(language: 'math', code: 'equation');
+  void insertMathBlock() {
+    insertCodeBlock(language: 'math', code: 'equation');
+    // Select the placeholder in the new input, so the next keystroke replaces it.
+    updateSelection(_selection.copyWith(extent: _selection.extent.copyWith(offset: 8)));
+  }
 
   void insertImage({required String path, String alt = ''}) {
     _commitMutation(
