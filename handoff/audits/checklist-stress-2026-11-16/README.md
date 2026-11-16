@@ -67,7 +67,9 @@ Resolutions are recorded under each finding. Historical evidence below describes
 
 ## CL-09 — rapid creation loses/reassigns task-label characters
 
-**Open. High. Native Linux debug build; release/device performance unmeasured.**
+Resolution: Enter resolves live task models and moves the existing mounted TextField, controller and focus node into the continuation row. Linux splits on the ordered IME newline so hardware Enter cannot overtake earlier printable input; queued old-buffer updates are rebased after the split. Native 41-task creation now preserves every exact label, focus and persisted JSON, with zero Flutter errors; durable evidence is in fix-verification/cl09-native.jsonl.gz. Validation: flutter analyze: no issues; checklist and Visual stability tests: 35 passed; native rapid-creation acceptance passed.
+
+**Fixed.** High. Native Linux debug build; release/device performance unmeasured.
 
 1. In a new Visual note, create a task containing `Seed` and place the caret at its end.
 2. Repeat Enter followed immediately by `t1`, Enter followed by `t2`, and so on.

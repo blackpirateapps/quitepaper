@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
@@ -116,6 +117,67 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
       });
     }
+
+    testWidgets('CL-09 Linux Enter waits for ordered native text updates', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      controller.setMarkdown('- [ ] Seed');
+      await tester.pumpWidget(buildTestApp());
+      await tester.pumpAndSettle();
+      await tester.showKeyboard(find.byType(TextField));
+      final state = tester.state<EditableTextState>(find.byType(EditableText));
+      state.widget.controller.selection = const TextSelection.collapsed(offset: 4);
+      // Enter's hardware event may precede the IME update from a prior printable key.
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(controller.toMarkdown(), '- [ ] Seed');
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'Seed5\n', selection: TextSelection.collapsed(offset: 6),
+      ));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'Seed5\nnext', selection: TextSelection.collapsed(offset: 10),
+      ));
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [ ] Seed5\n- [ ] next');
+      final active = find.byWidgetPredicate((w) => w is EditableText && w.focusNode.hasFocus);
+      expect(tester.state<EditableTextState>(active), same(state));
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('CL-09 rapid Enter/input before rebuild preserves every label', (tester) async {
+      controller.setMarkdown('- [ ] Seed');
+      await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: Scaffold(
+        body: SingleChildScrollView(child: RichEditorSurface(controller: controller, focusNode: focusNode)),
+      )));
+      await tester.pumpAndSettle();
+      await tester.showKeyboard(find.byType(TextField));
+      final firstState = tester.state<EditableTextState>(find.byType(EditableText));
+      final first = firstState.widget;
+      first.controller.selection = const TextSelection.collapsed(offset: 4);
+      for (var i = 1; i <= 40; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        // Simulate native input arriving on the old client before the new row mounts.
+        tester.testTextInput.updateEditingValue(TextEditingValue(
+          text: 't$i', selection: TextSelection.collapsed(offset: 't$i'.length),
+        ));
+        // A second Enter can also arrive before a rebuild; it must read live text.
+        if (i.isEven) {
+          await tester.pumpAndSettle();
+          final active = find.byWidgetPredicate((w) => w is EditableText && w.focusNode.hasFocus);
+          expect(tester.state<EditableTextState>(active), same(firstState));
+        }
+      }
+      await tester.pumpAndSettle();
+      expect(controller.document.blocks.map((b) => b.plainText), ['Seed', for (var i = 1; i <= 40; i++) 't$i']);
+      expect(controller.selection.base.blockIndex, 40);
+      expect(controller.selection.base.offset, 3);
+      final focused = tester.widgetList<EditableText>(find.byType(EditableText)).where((f) => f.focusNode.hasFocus).single;
+      expect(focused.controller.text, 't40');
+      final reopened = RichDocumentController(initialMarkdown: controller.toJsonString());
+      expect(reopened.toMarkdown(), controller.toMarkdown());
+      reopened.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
 
     for (final reversed in [false, true]) {
       testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
