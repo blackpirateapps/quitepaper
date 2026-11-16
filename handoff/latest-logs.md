@@ -6704,3 +6704,10 @@ Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/edit
 Audit finding 7: EditorScreen normalizes invalid snapshot selections to a valid caret and returns focus to the Markdown body after toolbar undo or redo. Plain and fenced-code regressions check both history actions, immediate input, restored caret and saved content.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 18 passed. Full test suite was not run.
+
+
+## 294. Keep the Visual Tag caret after its marker (November 16, 2026)
+
+Audit finding 9: RichTextEditor now publishes the selection accompanying a text mutation even while a toolbar menu owns focus. Selection-only notifications still require field focus. This keeps the inserted hashtag caret in the AST before reconciliation. Regressions type nativeaudit immediately in empty and mixed-list notes, check saved text and retain surrounding bold formatting.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/visual_editor_stability_test.dart: 35 passed. Full test suite was not run.

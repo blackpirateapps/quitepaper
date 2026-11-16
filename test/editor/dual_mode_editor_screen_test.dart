@@ -119,6 +119,41 @@ void main() {
       await finishTest(tester);
     });
 
+    for (final mixed in [false, true]) {
+      testWidgets('Visual Tag keeps its caret after the marker with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'visual-tag-$mixed', title: 'Tags',
+          content: mixed ? '**Before**\n- [ ] task\nTail ' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == (mixed ? 'Tail ' : ''));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tag').last);
+        await tester.pumpAndSettle();
+        final prefix = mixed ? 'Tail #' : '#';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}nativeaudit',
+          selection: TextSelection.collapsed(offset: prefix.length + 11)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        final doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}nativeaudit');
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
     testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
       final now = DateTime.now();
       final note = Note(id: 'visual-math-json', title: 'Math', content: '',

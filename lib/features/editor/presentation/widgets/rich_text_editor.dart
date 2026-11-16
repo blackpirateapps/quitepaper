@@ -165,7 +165,8 @@ class _RichTextEditorState extends State<RichTextEditor> {
     final currentText = _textController.text;
     final expectedText = _textController.computeSegmentText();
 
-    if (currentText != expectedText) {
+    final textChanged = currentText != expectedText;
+    if (textChanged) {
       _isInternalUpdate = true;
       try {
         _textController.applyTextChangesToDocument(currentText);
@@ -185,7 +186,9 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
     // Clamp selection away from leading prefixes if user tapped/clicked in gutter
     final sel = _textController.selection;
-    if (sel.isValid && widget.focusNode.hasFocus) {
+    // Toolbar edits can arrive while their menu owns focus. Their resulting
+    // selection is part of the edit and must reach the AST before reconciliation.
+    if (sel.isValid && (widget.focusNode.hasFocus || textChanged)) {
       final clampedSel = _textController.clampSelectionAwayFromPrefixes(sel);
       if (clampedSel != sel) {
         _isInternalUpdate = true;

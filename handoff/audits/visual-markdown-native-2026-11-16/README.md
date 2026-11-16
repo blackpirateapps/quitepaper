@@ -22,7 +22,7 @@ installed application were not changed.
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Fixed |
 | 6 | Medium | Visual code language selection loses typing focus | Fixed |
 | 7 | Medium | Markdown toolbar undo/redo loses typing focus | Fixed |
-| 9 | Medium | Visual Tag saves the name before `#` | Open |
+| 9 | Medium | Visual Tag saves the name before `#` | Fixed |
 | 10 | Medium | Visual Link Note saves the query before `[[` | Open |
 
 ## Durable evidence
@@ -183,6 +183,9 @@ observing it. This is a different trigger from the previously fixed Visual
 toolbar undo/redo crash.
 
 ## Confirmed new finding 9 — Visual Tag inserts the name before the marker
+
+**Fixed (2026-11-16).** RichTextEditor now publishes the selection accompanying a text mutation even while a toolbar menu owns focus. Selection-only notifications still require field focus. This keeps the inserted hashtag caret in the AST before reconciliation. Regressions type nativeaudit immediately in empty and mixed-list notes, check saved text and retain surrounding bold formatting. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/visual_editor_stability_test.dart: 35 passed Native evidence above/below describes the original failure; see the resolution log 294.
+
 
 Severity: medium; the toolbar creates malformed tag text.
 
