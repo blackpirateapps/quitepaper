@@ -15,6 +15,36 @@ void main() {
       controller = RichDocumentController();
     });
 
+    test('CL-10 structured paste uses the task caret and reopens losslessly', () {
+      controller.setMarkdown('- [ ] **Alpha**\n- [ ] Neighbor');
+      final neighbor = controller.document.blocks[1];
+      controller.setSelectionFromGlobalOffset(5);
+      controller.insertMarkdownSnippet('\n- [ ] Beta\n- [x] Gamma');
+      expect(controller.toMarkdown(), '- [ ] **Alpha**\n- [ ] Beta\n- [x] Gamma\n- [ ] Neighbor');
+      expect(controller.document.blocks.last, same(neighbor));
+      expect(controller.selection.base.blockIndex, 2);
+      expect(controller.selection.base.offset, 5);
+      final reopened = RichDocumentController(initialMarkdown: controller.toJsonString());
+      expect(reopened.toMarkdown(), controller.toMarkdown());
+      reopened.dispose();
+      controller.undo();
+      expect(controller.toMarkdown(), '- [ ] **Alpha**\n- [ ] Neighbor');
+    });
+
+    for (final reversed in [false, true]) {
+      test('CL-10 paste replaces a cross-task selection reverse=$reversed', () {
+        controller.setMarkdown('- [ ] Alpha\n  - [x] Beta\n- [ ] Neighbor');
+        final start = RichDocumentPosition(blockIndex: 0, blockId: controller.document.blocks[0].id, offset: 2);
+        final end = RichDocumentPosition(blockIndex: 1, blockId: controller.document.blocks[1].id, offset: 2);
+        controller.updateSelection(RichDocumentSelection(base: reversed ? end : start, extent: reversed ? start : end));
+        controller.insertMarkdownSnippet('X\n  - [x] New');
+        expect(controller.toMarkdown(), '- [ ] AlX\n  - [x] Newta\n- [ ] Neighbor');
+        expect(controller.selection.base.offset, 3);
+        controller.undo();
+        expect(controller.toMarkdown(), '- [ ] Alpha\n  - [x] Beta\n- [ ] Neighbor');
+      });
+    }
+
     test('Math insertion keeps saved JSON valid and reopens without loss', () {
       controller.setMarkdown('Math existing body');
       final saved = controller.toJsonString();

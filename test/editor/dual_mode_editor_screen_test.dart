@@ -16,6 +16,7 @@ import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_prop
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_checklist_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_code_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
@@ -279,6 +280,30 @@ void main() {
         await finishTest(tester);
       });
     }
+
+    testWidgets('CL-10 structured checklist insertion autosaves at the task caret', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'checklist-paste', title: 'Paste', content: '- [ ] Alpha\n- [ ] Neighbor',
+        createdAt: now, updatedAt: now, tags: []);
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(RichChecklistEditor), matching: find.byType(EditableText)).first;
+      await tester.tap(body);
+      final editor = tester.widget<EditableText>(body);
+      editor.controller.selection = const TextSelection.collapsed(offset: 5);
+      tester.widget<RichEditorSurface>(find.byType(RichEditorSurface)).controller
+        .insertMarkdownSnippet('\n- [ ] Beta\n- [x] Gamma');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      final saved = (await repository.getNoteById(note.id))!.content;
+      final doc = RichDocument.fromJson(jsonDecode(saved) as Map<String, dynamic>);
+      expect(const RichDocumentSerializer().serialize(doc), '- [ ] Alpha\n- [ ] Beta\n- [x] Gamma\n- [ ] Neighbor');
+      final active = tester.widgetList<EditableText>(find.byType(EditableText)).where((f) => f.focusNode.hasFocus).single;
+      expect(active.controller.text, 'Gamma');
+      expect(active.controller.selection.extentOffset, 5);
+      await finishTest(tester);
+    });
 
     testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
       final now = DateTime.now();

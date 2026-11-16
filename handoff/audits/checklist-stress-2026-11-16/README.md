@@ -99,7 +99,9 @@ and a safe way to preserve early input have not been established.
 
 ## CL-10 — paste lands at the wrong checklist position
 
-**Open. High. Native repeat, persisted and reopened.**
+Resolution: Visual snippet insertion now splices parsed blocks into the AST selection, preserving styled prefix/suffix spans, checkbox/nesting metadata, unaffected block identities and the resulting caret. It replaces forward/reverse cross-task selections in one undo step. Native clipboard paste, delayed autosave and reopening now preserve the exact audited task order/state; evidence is in fix-verification/cl10-native.jsonl.gz. Validation: flutter analyze: no issues; rich controller and dual-mode editor tests: 43 passed; native paste/reopen acceptance passed.
+
+**Fixed.** High. Native repeat, persisted and reopened.
 
 1. Open Visual content `- [ ] Alpha` followed by `- [ ] Neighbor`.
 2. Click Alpha and press End. Put `\n- [ ] Beta\n- [x] Gamma` on the clipboard.

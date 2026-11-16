@@ -511,6 +511,51 @@ abstract final class RichDocumentMutations {
   // Enter & Backspace Key Interactions
   // ===========================================================================
 
+  /// Replace a document selection with parsed blocks, using AST text positions.
+  static (RichDocument, RichDocumentPosition) insertDocument(
+    RichDocument doc, RichDocumentSelection selection, RichDocument fragment,
+  ) {
+    final start = selection.start;
+    final end = selection.end;
+    final firstIndex = start.blockIndex.clamp(0, doc.blocks.length - 1);
+    final lastIndex = end.blockIndex.clamp(firstIndex, doc.blocks.length - 1);
+    final first = doc.blocks[firstIndex];
+    final last = doc.blocks[lastIndex];
+    final inserted = List<RichBlock>.from(fragment.blocks);
+    RichBlock withSpans(RichBlock block, List<RichInlineSpan> spans) =>
+        _replaceBlockSpans(RichDocument(blocks: [block]), 0, spans.normalized()).blocks.first;
+
+    if (!first.isTextBlock || !last.isTextBlock) {
+      if (!inserted.last.isTextBlock) inserted.add(ParagraphBlock.empty(_uuid.v4()));
+      final blocks = List<RichBlock>.from(doc.blocks)..insertAll(firstIndex + 1, inserted);
+      return (doc.copyWith(blocks: blocks), RichDocumentPosition(
+        blockIndex: firstIndex + inserted.length, blockId: inserted.last.id,
+        offset: inserted.last.plainText.length,
+      ));
+    }
+    final (prefix, _) = _splitSpansAtOffset(first.spans, start.offset.clamp(0, first.plainText.length));
+    final (_, suffix) = _splitSpansAtOffset(last.spans, end.offset.clamp(0, last.plainText.length));
+    // Inline/plain first lines continue the current block; explicit structural
+    // blocks keep their own type, checkbox state and indentation.
+    if (inserted.first is ParagraphBlock) {
+      inserted[0] = withSpans(first, [...prefix, ...inserted.first.spans]);
+    } else if (prefix.isNotEmpty) {
+      inserted.insert(0, withSpans(first, prefix));
+    }
+    late int caretOffset;
+    if (inserted.last.isTextBlock) {
+      caretOffset = inserted.last.plainText.length;
+      inserted[inserted.length - 1] = withSpans(inserted.last, [...inserted.last.spans, ...suffix]);
+    } else {
+      inserted.add(ParagraphBlock(id: _uuid.v4(), spans: suffix));
+      caretOffset = 0;
+    }
+    final blocks = List<RichBlock>.from(doc.blocks)..replaceRange(firstIndex, lastIndex + 1, inserted);
+    return (doc.copyWith(blocks: blocks), RichDocumentPosition(
+      blockIndex: firstIndex + inserted.length - 1, blockId: inserted.last.id, offset: caretOffset,
+    ));
+  }
+
   /// Executes smart Enter key behavior at [position].
   ///
   /// Returns a record with the updated [RichDocument] and resulting [RichDocumentPosition].

@@ -626,6 +626,12 @@ class RichDocumentController extends ChangeNotifier {
     );
   }
 
+  /// Insert structured Markdown at the current AST selection without source offsets.
+  void insertMarkdownSnippet(String snippet) {
+    final (document, position) = RichDocumentMutations.insertDocument(_document, _selection, _parser.parse(snippet));
+    _commitMutation(document, newSelection: RichDocumentSelection.collapsed(position));
+  }
+
   void handleEnterAt(RichDocumentPosition position, {int? replacementEnd}) {
     final (newDoc, newPos) = RichDocumentMutations.handleEnter(
       _document, position, replacementEnd: replacementEnd,

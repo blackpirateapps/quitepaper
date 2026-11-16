@@ -3577,10 +3577,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
       }
 
-      final currentMd = rc.toMarkdown();
-      final insertOffset = rc.globalCaretOffset.clamp(0, currentMd.length);
-      final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
-      rc.setMarkdown(newMarkdown);
+      rc.insertMarkdownSnippet(snippet);
       final newJson = rc.toJsonString();
       _contentController.value = TextEditingValue(
         text: newJson,
