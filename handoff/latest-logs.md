@@ -6601,29 +6601,51 @@ attempt timed out two existing image-upload tests whose real I/O/encryption work
 is only given fixed 200–300 ms waits. The lower-concurrency run passed those tests
 without changing their waits, assertions, or application behavior.
 
-## 285. Native Visual/Markdown re-audit checkpoint (November 16, 2026)
+## 285. Native Visual/Markdown re-audit: eight open findings (November 16, 2026)
 
-Re-ran actual GTK/Wayland EditorScreen interactions against `1bc137c`, using an
-in-memory note database, mock preferences, temporary XDG directories and a
-separate D-Bus session. Original code insertion and Visual history fixes passed
-native checks; divider continuation passes once its document selection is
-synchronized. Heading/style/list coverage and committed table cell edits passed.
+Completed a native GTK/Wayland audit against application commit `1bc137c`, using
+three isolated app processes, native Hyprland mouse/keyboard events, in-memory
+notes, mock preferences and temporary XDG directories. Personal notes and the
+installed application were not changed. Original Visual code insertion/history
+and Markdown first-code input fixes passed; divider continuation passes when the
+document caret is synchronized.
 
-Four additional failures are confirmed: Visual click-only selection can point at
-the wrong block, choosing a Visual code language loses typing focus, Markdown
-toolbar history loses typing focus, and changing an active Visual field to
-Markdown attaches the toolbar to a disposed controller and breaks rendering.
+Eight additional bugs remain open, numbered 5–12 to continue the original audit:
 
-The durable checkpoint is
-`handoff/audits/visual-markdown-native-2026-11-16/README.md`, with raw observations,
-exception stacks, application-only screenshots, the exact harness/driver,
-provisional observations, excluded automation artifacts and explicit resume steps.
-Updated HANDOFF.md and the root toolbar audit to link it. No new production fixes
-are included. A second isolated process is alive for remaining clean-process
-checks; the regular Linux bundle still must be restored before finishing.
+- **12, critical:** Visual Math appends raw Markdown to saved RichDocument JSON,
+  persists invalid JSON and raises Stack Overflow in recursive parsing.
+- **8, high:** switching an active Visual field to Markdown observes a disposed
+  controller, breaks rendering and moves the body offscreen.
+- **5, high:** clicking a later Visual paragraph can leave the canonical caret on
+  an earlier block, so divider insertion affects the wrong location.
+- **11:** Visual Math in an empty note reports focus while losing native typing.
+- **6–7:** Visual language selection and Markdown toolbar undo/redo drop focus.
+- **9–10:** Visual Tag and Link Note leave the caret before their markers,
+  saving `nativeaudit#` and `Other[[` respectively.
 
-Static analysis passed and all 55 relevant editor tests passed across
-`visual_editor_stability_test.dart`, `dual_mode_editor_screen_test.dart`,
-`code_block_overlay_test.dart`, `desktop_toolbar_and_shortcuts_test.dart` and
-`markdown_table_widget_test.dart`. No full suite was requested for this audit.
-This entry is a checkpoint and will be updated with final native coverage.
+The final report at `handoff/audits/visual-markdown-native-2026-11-16/README.md`
+contains every reproduction, severity, expected/actual behavior, evidence step,
+likely investigation area, coverage limit and prioritized future work. Raw
+observations, error stacks, synthetic screenshots and the session harness/driver
+are preserved alongside it. The intermediate durable checkpoint was committed
+and pushed as `89de2af`; this follow-up finalizes the report and later evidence.
+
+Coverage includes headings 1–6/paragraph, inline styles/highlight, list/quote
+continuation, table insertion and cell edits/Tab/Done, fresh-process web links,
+and mode round trips. Attachment chooser/camera/speech entry points were not
+repeated; real imports, recording/transcription, model downloads, full export,
+complete math rendering parity and other platforms remain future coverage.
+Preliminary pointer timing and reset artifacts were excluded; post-crash
+observations were repeated in fresh processes before being promoted to findings.
+
+Future work: fix persisted JSON corruption first, then the mode-switch crash,
+then selection/input routing and remaining focus/marker bugs. Add a regression
+for each failure, update HANDOFF and commit each bug fix separately. Repeat the
+native sequences after fixing them. This audit introduces no production fixes.
+
+Validation: `flutter analyze` reported no issues; all **55 relevant editor tests**
+passed across visual stability, dual-mode EditorScreen, code overlays, desktop
+shortcuts and Markdown tables. No full suite was run, following current AGENTS.md.
+All audit windows/processes are closed. The normal application target was restored
+with `flutter build linux --debug --no-pub -t lib/main.dart` (**passed**), so the
+Linux debug bundle no longer contains the audit-only executable.

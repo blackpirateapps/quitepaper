@@ -3,15 +3,22 @@
 Date: 2026-11-15
 Branch: fix/visual-markdown-editor-input
 
-## Native re-audit checkpoint — 2026-11-16
+## Completed native re-audit — 2026-11-16
 
-The native audit is being repeated against the four fixes. Four additional bugs
-are confirmed so far: stale Visual document selection after clicking a later
+The native audit was repeated against the four fixes. Eight additional bugs
+remain open: stale Visual document selection after clicking a later
 paragraph, lost focus after Visual code language selection, lost focus after
 Markdown toolbar undo/redo, and a disposed-controller crash when switching an
-active Visual field to Markdown. Full reproductions, evidence, excluded harness
-artifacts, provisional observations and exact resume steps are preserved in
+active Visual field to Markdown. A fresh process also confirmed incorrect caret
+placement for Visual Tag and Link Note insertion, and Visual Math insertion
+showing focus while dropping native typing. A separate fresh-process Math test
+also confirmed persisted RichDocument JSON corruption and Stack Overflow
+(finding 12, critical). Full reproductions, evidence, excluded harness
+artifacts, completed coverage and prioritized future work are preserved in
 [`handoff/audits/visual-markdown-native-2026-11-16/README.md`](handoff/audits/visual-markdown-native-2026-11-16/README.md).
+All isolated audit processes are closed and the ordinary Linux bundle has been
+restored. Analysis is clean and all 55 relevant editor tests passed. No production
+fixes for the new findings are included in this audit.
 
 ## Scope and method
 
@@ -186,5 +193,6 @@ Automated regressions cover all four findings, including focused continuation
 typing, persistent code/language edits, keyboard/toolbar history, saved content,
 and stable Markdown EditableText state/input across fence changes. Each fix has
 its own commit and handoff entry. Validation uses `flutter analyze` and the full
-`flutter test` suite. The original native Linux window audit has not been rerun;
-these fixes were reproduced and verified with Flutter widget regressions.
+`flutter test` suite. That first fix pass used Flutter widget regressions. The
+subsequent native re-audit is now complete and linked above; it verifies the
+original fixes' sequences and records eight additional open findings.
