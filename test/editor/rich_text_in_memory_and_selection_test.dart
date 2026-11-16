@@ -226,6 +226,10 @@ void main() {
         // Place caret at end
         final textFieldFinder = find.byType(TextField);
         expect(textFieldFinder, findsOneWidget);
+        final editable = tester.widget<EditableText>(find.byType(EditableText));
+        editable.controller.selection = TextSelection.collapsed(
+          offset: editable.controller.text.length,
+        );
 
         // Simulate pressing Enter
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -351,6 +355,8 @@ void main() {
         );
 
         // Find TextField and set non-collapsed selection
+        focusNode.requestFocus();
+        await tester.pump();
         final editableText = tester.widget<EditableText>(find.byType(EditableText));
         editableText.controller.selection = const TextSelection(baseOffset: 7, extentOffset: 16);
         await tester.pump();

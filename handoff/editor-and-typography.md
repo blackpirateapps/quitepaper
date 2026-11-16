@@ -23,6 +23,10 @@ The editor supports three editing styles:
 
 ### Visual and Markdown input lifecycle
 
+- Visual toolbar and keyboard undo/redo use `RichDocumentController` snapshots,
+  including ordinary text-span edits and caret positions. History restoration
+  marks the document dirty for autosave. The toolbar observes the persistent
+  source buffer, because segment controllers may be disposed during restoration.
 - Visual text/checklist segments use stable block-ID keys. Text-segment focus
   nodes live for the surface lifetime and are pruned after block removal. A plain
   document uses the same segment layout as a mixed document. The supplied body

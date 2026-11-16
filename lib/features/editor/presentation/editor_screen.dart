@@ -432,6 +432,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _undo() {
+    if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.undo();
+      return;
+    }
     final result = _undoRedoManager.undo(_contentController.value);
     if (result != null) {
       _contentController.value = result;
@@ -440,6 +444,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _redo() {
+    if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.redo();
+      return;
+    }
     final result = _undoRedoManager.redo(_contentController.value);
     if (result != null) {
       _contentController.value = result;
@@ -2323,7 +2331,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     return FormattingToolbar(
-      controller: _activeTargetController ?? _contentController,
+      // Visual formatting and history read the AST. Its transient segment
+      // controllers can be disposed during structural history restoration.
+      controller: isWysiwyg ? _contentController : (_activeTargetController ?? _contentController),
       focusNode: _activeTargetFocusNode ?? _contentFocusNode,
       richController: isWysiwyg ? _richDocumentController : null,
       superController: isSuperEditor ? _superEditorController : null,

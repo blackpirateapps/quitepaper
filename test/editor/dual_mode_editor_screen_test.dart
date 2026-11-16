@@ -56,6 +56,46 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
 
+    testWidgets('Visual toolbar undo and redo retain a live body input and save history', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'visual-toolbar-history', title: 'History', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+      await tester.enterText(body, 'undo probe');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<EditableText>(body).controller.text, isEmpty);
+      await tester.tap(find.byTooltip('Redo'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final restored = tester.widget<EditableText>(body);
+      expect(restored.controller.text, 'undo probe');
+      expect(restored.focusNode.hasPrimaryFocus, isTrue);
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      expect(tester.getTopLeft(body).dy, lessThan(600));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'undo probe!', selection: TextSelection.collapsed(offset: 11),
+      ));
+      await tester.pumpAndSettle();
+      // Keyboard history must operate on the same snapshots as the toolbar.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(body).controller.text, 'undo probe');
+      final saved = (await repository.getNoteById(note.id))!;
+      expect(const RichDocumentSerializer().serialize(
+        RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>)), 'undo probe');
+      await finishTest(tester);
+    });
+
     for (final style in [EditorEditingStyle.wysiwyg, EditorEditingStyle.markdown]) {
       for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
         testWidgets('${style.label} title submission on ${platform.name} keeps body input connected', (tester) async {

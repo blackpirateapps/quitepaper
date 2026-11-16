@@ -59,6 +59,12 @@ Evidence: native steps `visual insert Code Block`, `visual code typing` in
 
 ## Confirmed finding 3 — Undo/redo can leave toolbar attached to a disposed controller
 
+**Fixed (2026-11-16).** Toolbar and keyboard history now use the Visual document
+snapshots. Ordinary text edits record snapshots, selection changes retain their
+caret, and undo/redo mark content dirty for autosave. The toolbar observes the
+persistent source controller rather than a disposable text segment. The new
+EditorScreen regression reproduced the original crash before the fix.
+
 Severity: high. Mode: Visual. Native runtime exception observed.
 
 After typing `undo probe` in a fresh Visual note, clicking toolbar Undo cleared

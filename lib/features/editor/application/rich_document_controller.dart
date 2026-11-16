@@ -141,6 +141,8 @@ class RichDocumentController extends ChangeNotifier {
     final target = _undoStack.last;
     _document = target.document;
     _selection = target.selection;
+    _isDirty = true;
+    _updateTypingAttributesFromSelection();
     notifyListeners();
     onDocumentChanged?.call(_document);
   }
@@ -151,6 +153,8 @@ class RichDocumentController extends ChangeNotifier {
     _undoStack.add(target);
     _document = target.document;
     _selection = target.selection;
+    _isDirty = true;
+    _updateTypingAttributesFromSelection();
     notifyListeners();
     onDocumentChanged?.call(_document);
   }
@@ -162,6 +166,10 @@ class RichDocumentController extends ChangeNotifier {
   void updateSelection(RichDocumentSelection newSelection) {
     if (_selection != newSelection) {
       _selection = newSelection;
+      if (_undoStack.isNotEmpty && _undoStack.last.document == _document) {
+        _undoStack[_undoStack.length - 1] =
+            _EditorSnapshot(document: _document, selection: _selection);
+      }
       _updateTypingAttributesFromSelection();
       notifyListeners();
     }
@@ -633,10 +641,7 @@ class RichDocumentController extends ChangeNotifier {
 
     final newBlocks = List<RichBlock>.from(_document.blocks);
     newBlocks[blockIndex] = updated;
-    _document = _document.copyWith(blocks: newBlocks);
-    _isDirty = true;
-    notifyListeners();
-    onDocumentChanged?.call(_document);
+    _commitMutation(_document.copyWith(blocks: newBlocks));
   }
 
   // ===========================================================================

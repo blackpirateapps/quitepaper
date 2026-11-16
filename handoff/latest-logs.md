@@ -6517,3 +6517,26 @@ Validation: `flutter analyze` reported no issues; all 12 focused
 not cover the newly discovered toolbar sequences. No full test suite was run.
 Closed the temporary window and rebuilt the regular Linux app target afterward.
 Updated HANDOFF.md to link the durable audit. Installed app/user notes unchanged.
+
+## 281. Visual toolbar undo/redo controller lifecycle (November 16, 2026)
+
+Audit finding 3 reproduced as a disposed `_RichTextEditingController` exception
+in an actual EditorScreen widget regression. Toolbar undo previously restored
+serialized source snapshots, while keyboard undo used the AST. Restoring source
+could recreate segment IDs and dispose the controller still observed by the toolbar.
+
+`formatting_toolbar.dart` and `editor_screen.dart` now route Visual history to
+`RichDocumentController`; the toolbar observes the persistent source controller.
+`rich_document_controller.dart` records ordinary span edits in the same history,
+retains current snapshot selections, refreshes typing attributes on restoration,
+and marks undo/redo dirty so autosave persists restored documents. Markdown and
+Super Editor retain their own histories.
+
+Regression coverage in `dual_mode_editor_screen_test.dart` reproduces the original
+sequence, checks the restored body stays visible/focused with a live input client,
+types through that connection, mixes keyboard and toolbar history, and checks
+persisted content. Full-suite validation exposed two existing failures in
+`rich_text_in_memory_and_selection_test.dart`, confirmed again with the original
+branch controller. Their setup now explicitly places the end caret before Enter
+and focuses the field before setting its selection; assertions are unchanged.
+Validation: `flutter analyze` and the full `flutter test` suite.

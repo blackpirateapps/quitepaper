@@ -60,7 +60,10 @@ modes: divider continuation focus, Visual code-block focus, a Visual undo/redo
 disposed-controller crash, and lost Markdown typing after first code insertion.
 Reproduction steps, scope limitations and sample artifacts are preserved in
 [`EDITOR_TOOLBAR_AUDIT.md`](EDITOR_TOOLBAR_AUDIT.md). These findings are recorded
-for follow-up; this audit does not fix them.
+for follow-up. Finding 3 is now fixed: Visual toolbar and keyboard undo/redo use
+the same document history, text edits are recorded, and restored content is saved.
+The toolbar observes the persistent source buffer instead of disposable segment
+controllers. See engineering log 281.
 
 ## Latest Visual and Markdown Editor Stability
 
