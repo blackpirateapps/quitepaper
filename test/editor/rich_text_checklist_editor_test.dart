@@ -35,6 +35,19 @@ void main() {
       );
     }
 
+    testWidgets('CL-02 editing and splitting nested tasks retains indentation', (tester) async {
+      controller.setMarkdown('- [ ] Parent\n  - [x] Child\n- [ ] Sibling');
+      await tester.pumpWidget(buildTestApp());
+      await tester.pumpAndSettle();
+      final field = find.byType(TextField).at(1);
+      await tester.enterText(field, 'Child edited');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [ ] Parent\n  - [x] Child edited\n  - [ ] \n- [ ] Sibling');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     for (final reversed in [false, true]) {
       testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
         controller.setMarkdown('- [x] AlphaBeta\n- [ ] Neighbor');

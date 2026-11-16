@@ -123,7 +123,9 @@ position mapping or a proper AST replacement operation, including selections.
 
 ## CL-02 — Visual nested task hierarchy is lost on save
 
-**Open. High. Native and parser/serializer confirmation.**
+Resolution: ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing. Validation: flutter analyze: no issues; parser/serializer and checklist tests: 31 passed.
+
+**Fixed.** High. Native and parser/serializer confirmation.
 
 Open this fixture in Visual, edit Sibling, and wait for autosave:
 

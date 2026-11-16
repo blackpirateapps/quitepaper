@@ -558,6 +558,7 @@ abstract final class RichDocumentMutations {
       );
       final newBlock = ChecklistItemBlock(
         id: _uuid.v4(),
+        indent: block.indent,
         isChecked: false,
         spans: rightSpans,
       );

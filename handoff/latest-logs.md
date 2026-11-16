@@ -6807,3 +6807,9 @@ probe targets are retained only as `.dart.txt` audit artifacts.
 Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo.
 
 Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed. Full suite left to GitHub Actions.
+
+## 300. CL-02: Preserve Visual task hierarchy (November 16, 2026)
+
+ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing.
+
+Validation: flutter analyze: no issues; parser/serializer and checklist tests: 31 passed. Full suite left to GitHub Actions.

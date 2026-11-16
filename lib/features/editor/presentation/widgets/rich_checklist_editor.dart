@@ -479,7 +479,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       children.add(
         Padding(
           key: ValueKey(block.id),
-          padding: const EdgeInsets.symmetric(vertical: 2.0),
+          padding: EdgeInsets.only(left: block.indent * 24.0, top: 2, bottom: 2),
           child: Focus(
             onKeyEvent: (node, event) {
               if (event is KeyDownEvent) {
