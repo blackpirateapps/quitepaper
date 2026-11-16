@@ -6801,3 +6801,66 @@ Cleanup: all three isolated audit process groups were terminated. The normal
 `flutter build linux --debug --no-pub -t lib/main.dart` target rebuilt successfully.
 Application source and normal executable regression tests are unchanged; temporary
 probe targets are retained only as `.dart.txt` audit artifacts.
+
+
+## 299. PDF Viewer Native Audit and Targeted Stress Tests (November 16, 2026)
+
+Audited application source `5d869e9` on branch
+`audit/pdf-viewer-stress-2026-11-16`; no production fixes were made. The
+[durable report](audits/pdf-viewer-stress-2026-11-16/README.md) records **10 open
+findings**, including two high-priority annotation-loss paths: newer edits are
+lost when an older pending save finishes, and Back closes the viewer after failed
+autosave. Other findings concern an in-flight thumbnail deletion race, selected
+thumbnail visibility on long PDFs, stale header totals, malformed-PDF feedback,
+narrow mobile toolbar layout, large-document native debug stalls, and export
+cancellation/overwrite handling. Every finding was written to Markdown when
+confirmed, then consolidated with scope and reproduction details.
+
+Two isolated native Linux processes exercised the real DocumentViewerScreen,
+Syncfusion/PDFium, Drift memory metadata, real encrypted document storage and
+thumbnail caching. Temporary XDG/storage directories and synthetic keys/PDFs
+protected the ordinary notebook and Downloads. The save race/failure probes
+injected a service-boundary delay or exception; ordinary persistence was real.
+A loopback harness exposed state and deterministic public controller operations;
+Hyprland pointer/keyboard input exercised the user controls. Native batches are
+explicitly distinguished from pointer drawing and physical mobile testing.
+
+Evidence: 58 native snapshots with readable summaries and compressed raw JSONL,
+synthetic screenshots, frame samples, runtime logs, exact harness/probe sources,
+and native scripts. The 250-page, 328KB PDF showed multi-second debug stalls with
+the sidebar open; a fresh-process sidebar-closed control completed five jumps
+near the driver's intentional 950ms wait floor. The mixed 12-page fixture served
+36 simultaneous thumbnail requests in 881ms (including cached/duplicate pages).
+100 annotations survived 10 Undo/10 Redo operations, encrypted save/reopen, and
+revert/reopen to zero. Large-PDF search eventually found all 250 matches.
+
+A new durable test, `test/documents/pdf_thumbnail_stress_test.dart`, verifies
+2,500 concurrent requests deduplicate 250 pages, encrypted disk restart returns
+all 250 without rerendering, and settled deletion removes the cache. Its fake
+renderer isolates service behavior rather than claiming native raster speed.
+Adversarial observational probes are archived as `.dart.txt` and do not lock bugs
+into passing regression tests. The report excludes invalid menu targeting,
+premature streamed-search assertions and inconclusive native highlighting drag
+attempts. Suspected reload annotation loss was ruled out by settled reload and
+normal Back/save/reopen controls.
+
+Validation: final `flutter analyze --no-pub` reports **no issues**. All **48 focused
+tests pass** across the ten named viewer, annotation, thumbnail and renderer files
+listed in the report. No full suite was run. Mobile layout observations include
+a deliberately caught 16px RenderFlex overflow; the native exception arrays are
+empty, while malformed-PDF and injected-storage failures appear in their own
+callbacks/debug output. This is an audit of observable failures, not a claim
+that the existing suite catches them.
+
+Cleanup: both isolated process groups were closed, temporary executable probes
+were archived and removed, and `flutter build linux --debug --no-pub -t
+lib/main.dart` restored the normal app bundle successfully. Updated HANDOFF.md
+and the document domain guide to link the open findings and scope limitations.
+
+Final validation-log review also corrected the existing OCR menu test fixture:
+`document_viewer_ocr_menu_test.dart` now overrides annotation resolution instead
+of creating a second real database, generates a valid PDF, and pumps 600ms so
+Syncfusion's 500ms startup timer completes. This removes four Drift warnings and
+makes the PDF body actually mount during the toolbar tests. The intermediate
+warning/timer logs are retained; the final scoped run is clean. Application
+source is unchanged.

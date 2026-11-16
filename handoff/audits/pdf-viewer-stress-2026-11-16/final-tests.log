@@ -1,0 +1,80 @@
+00:00 +0: loading /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart
+00:00 +0: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests SfPdfViewer is configured with calibrated maxZoomLevel 5.0, pan mode, no double-tap lag, and RepaintBoundary
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:00 +0: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_thumbnail_test.dart: DocumentViewerScreen Thumbnail Sidebar Tests Large screen (>= 768dp) displays sidebar toggle and collapsible thumbnail sidebar
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:00 +0: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_text_selection_test.dart: DocumentViewerScreen Custom Text Selection & Search Tests Renders DocumentViewerScreen and has search option in overflow menu
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:01 +0: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows Searchable badge and View OCR Text action when OCR is available
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +1: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_thumbnail_test.dart: DocumentViewerScreen Thumbnail Sidebar Tests Large screen (>= 768dp) displays sidebar toggle and collapsible thumbnail sidebar
+00:02 +1: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests SfPdfViewer enables desktop scrollbars when platform is Linux or Windows
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +2: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_thumbnail_test.dart: DocumentViewerScreen Thumbnail Sidebar Tests Large screen (>= 768dp) displays sidebar toggle and collapsible thumbnail sidebar
+00:02 +2: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Renders floating quick-zoom pill with 100% initial zoom and functional zoom step controls
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +3: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_text_selection_test.dart: DocumentViewerScreen Custom Text Selection & Search Tests Renders DocumentViewerScreen and has search option in overflow menu
+00:02 +3: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_thumbnail_test.dart: DocumentViewerScreen Thumbnail Sidebar Tests Small mobile screen (< 768dp) hides thumbnail sidebar toggle
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +4: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_text_selection_test.dart: DocumentViewerScreen Custom Text Selection & Search Tests Renders DocumentViewerScreen and has search option in overflow menu
+00:02 +4: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Updates page counter dynamically via ValueListenable without re-creating SfPdfViewer
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:03 +5: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_text_selection_test.dart: DocumentViewerScreen Custom Text Selection & Search Tests Renders DocumentViewerScreen and has search option in overflow menu
+00:03 +6: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows Searchable badge and View OCR Text action when OCR is available
+00:03 +7: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows Searchable badge and View OCR Text action when OCR is available
+00:03 +7: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Floating zoom pill is hidden when entering annotation mode
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:03 +8: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows Searchable badge and View OCR Text action when OCR is available
+00:03 +8: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:03 +9: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+00:03 +9: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Tapping View OCR Text action navigates to OcrTextViewerScreen
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:04 +10: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+00:04 +11: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+00:04 +11: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_thumbnail_service_test.dart: PdfThumbnailService Tests Self-healing: corrupted disk file is detected, deleted, and re-rendered
+[PdfThumbnailService] Cache decryption failed for doc-corrupt-test page 0: DocumentDecryptionException: Encrypted document payload is too short or malformed
+00:04 +12: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+00:04 +13: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Can toggle page layout mode between continuous scroll and single page view via document options
+00:04 +14: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Tapping View OCR Text action navigates to OcrTextViewerScreen
+00:04 +14: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Switches interactionMode to selection during text markup annotation mode and reverts to pan on Done
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:04 +15: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_thumbnail_service_test.dart: PdfThumbnailService Tests DocumentService.deleteDocument triggers thumbnail cleanup
+00:04 +15: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows Retry OCR in menu when OCR state is failed
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:04 +16: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Switches interactionMode to selection during text markup annotation mode and reverts to pan on Done
+00:05 +17: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_zoom_test.dart: DocumentViewerScreen Zoom & Performance Tests Switches interactionMode to selection during text markup annotation mode and reverts to pan on Done
+00:05 +17: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart: DocumentViewerScreen OCR Actions & Menu Tests Shows enabled Run OCR action for skipped document with adaptive resolution tooltip
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:05 +18: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_thumbnail_stress_test.dart: 2500 requests deduplicate 250 pages and survive encrypted disk reload
+00:05 +19: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_thumbnail_stress_test.dart: 2500 requests deduplicate 250 pages and survive encrypted disk reload
+00:06 +20: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_raster_policy_test.dart: PdfRasterPolicy limits raster DPI for oversized pages without skipping OCR
+00:06 +21: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_raster_policy_test.dart: PdfRasterPolicy allows standard 150 DPI OCR for a small PDF page
+00:06 +22: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_raster_policy_test.dart: PdfRasterPolicy uses lower resolution DPI (90 DPI) for large PDFs (>8MB) without skipping
+00:06 +23: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_raster_policy_test.dart: PdfRasterPolicy skips OCR when the source PDF exceeds the extreme 100MB ceiling
+00:06 +24: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve (a) drag over all of line 1 -> one rect spanning its 3 words
+00:06 +25: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve (b) drag spanning both lines -> 2 rects, text with a newline
+00:06 +26: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve (c) drag over only the middle word -> rect hugging just that word
+00:06 +27: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve (d) line with empty words falls back to line-level rect
+00:06 +28: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve (d2) line whose words are all zero-size also falls back
+00:06 +29: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve drag over empty region yields no rects and empty text
+00:06 +30: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolve is robust to empty blocks / lines
+00:06 +31: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolvePoint (e) returns the word under a point
+00:06 +32: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolvePoint (e) returns null outside any geometry
+00:06 +33: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_text_selection_test.dart: AnnotationTextSelector.resolvePoint falls back to the line when no usable word is hit
+00:06 +34: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: Annotation JSON round-trip ink with points
+00:06 +35: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: Annotation JSON round-trip rect with rects
+00:06 +36: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: Annotation JSON round-trip comment with anchor + text
+00:06 +37: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: Annotation JSON round-trip redaction
+00:06 +38: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: mergeAnnotations union by id across replicas
+00:06 +39: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: mergeAnnotations for a shared id the greater updatedAtMs wins
+00:06 +40: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: mergeAnnotations a newer deleted tombstone wins over an older edit
+00:06 +41: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: mergeAnnotations a newer edit wins over an older tombstone (resurrects)
+00:06 +42: /home/dog/.codex/worktrees/8250/quitepaper/test/documents/annotation_models_test.dart: mergeAnnotations result is sorted by z then createdAtMs
+00:07 +43: /home/dog/.codex/worktrees/8250/quitepaper/test/pdf/syncfusion_pdf_page_renderer_test.dart: SyncfusionPdfPageRenderer Tests renders all pages and encodes PNGs properly
+00:07 +44: /home/dog/.codex/worktrees/8250/quitepaper/test/pdf/syncfusion_pdf_page_renderer_test.dart: SyncfusionPdfPageRenderer Tests renders specific single page using 1-based page index to platform
+00:07 +45: /home/dog/.codex/worktrees/8250/quitepaper/test/pdf/syncfusion_pdf_page_renderer_test.dart: SyncfusionPdfPageRenderer Tests returns empty list for empty pdfBytes without error
+00:07 +46: /home/dog/.codex/worktrees/8250/quitepaper/test/pdf/syncfusion_pdf_page_renderer_test.dart: SyncfusionPdfPageRenderer Tests cleans up resources and returns empty list on platform load error
+[SyncfusionPdfPageRenderer] Error rendering pages: Exception: Simulated load error
+00:07 +47: /home/dog/.codex/worktrees/8250/quitepaper/test/pdf/syncfusion_pdf_page_renderer_test.dart: SyncfusionPdfPageRenderer Tests DefaultPdfPageRenderer delegates to desktopRenderer on desktop platforms
+00:07 +48: All tests passed!

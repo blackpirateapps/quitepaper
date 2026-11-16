@@ -1,0 +1,98 @@
+import json
+import pathlib
+import subprocess
+import time
+import urllib.request
+
+BASE = 'http://127.0.0.1:38927'
+clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients']))
+candidates = [c for c in clients if pathlib.Path('/proc/' + str(c['pid']) + '/exe').resolve() == pathlib.Path('/home/dog/.codex/worktrees/8250/quitepaper/build/linux/x64/debug/bundle/quitepaper')]
+assert len(candidates) == 1, 'Expected exactly one isolated audit executable window'
+ADDRESS = candidates[0]['address']
+pathlib.Path('/tmp/qp-pdf-window.json').write_text(json.dumps(candidates[0]))
+WINDOW = 'address:' + ADDRESS
+RESULTS = pathlib.Path('/tmp/qp-pdf-native-results.jsonl')
+
+def api(path='/state', data=None):
+    request = urllib.request.Request(BASE + path, data=None if data is None else json.dumps(data).encode(), headers={'Content-Type': 'application/json'})
+    return json.load(urllib.request.urlopen(request, timeout=15))
+
+def dispatch(expression):
+    result = subprocess.run(['hyprctl', 'eval', 'hl.dispatch(' + expression + ')'], capture_output=True, text=True, check=True, timeout=10)
+    if 'error:' in result.stdout:
+        raise RuntimeError(result.stdout)
+
+def window():
+    return next(c for c in json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'])) if c['address'] == ADDRESS)
+
+def prepare():
+    dispatch('hl.dsp.window.float({window=' + json.dumps(WINDOW) + ',action="enable"})')
+    dispatch('hl.dsp.window.resize({window=' + json.dumps(WINDOW) + ',x=1180,y=680,relative=false})')
+    dispatch('hl.dsp.window.move({window=' + json.dumps(WINDOW) + ',x=100,y=85,relative=false})')
+    dispatch('hl.dsp.focus({window=' + json.dumps(WINDOW) + '})')
+    time.sleep(.7)
+
+def key(key, mods=''):
+    dispatch('hl.dsp.focus({window=' + json.dumps(WINDOW) + '})')
+    dispatch('hl.dsp.send_shortcut({window=' + json.dumps(WINDOW) + ',mods=' + json.dumps(mods) + ',key=' + json.dumps(key) + '})')
+    time.sleep(.065)
+
+def type_text(text):
+    plain = {' ': 'space', '\n': 'Return', '.': 'period', ',': 'comma', '-': 'minus', '=': 'equal', '`': 'grave', '/': 'slash', '\\': 'backslash', '[': 'bracketleft', ']': 'bracketright', "'": 'apostrophe', ';': 'semicolon'}
+    shifted = {'#': '3', '*': '8', '_': 'minus', '+': 'equal', ':': 'semicolon', '"': 'apostrophe', '(': '9', ')': '0', '>': 'period', '<': 'comma', '~': 'grave', '$': '4', '!': '1', '?': 'slash', '|': 'backslash', '{': 'bracketleft', '}': 'bracketright'}
+    for char in text:
+        if char in shifted:
+            key(shifted[char], 'SHIFT')
+        elif char.isupper():
+            key(char.lower(), 'SHIFT')
+        else:
+            key(plain.get(char, char))
+
+def click(rect, x_fraction=.5, y_fraction=.5):
+    dispatch('hl.dsp.focus({window=' + json.dumps(WINDOW) + '})')
+    time.sleep(.2)
+    current = window()
+    x = current['at'][0] + rect[0] + rect[2] * x_fraction
+    y = current['at'][1] + rect[1] + rect[3] * y_fraction
+    dispatch('hl.dsp.cursor.move({x=' + str(round(x)) + ',y=' + str(round(y)) + '})')
+    time.sleep(.1)
+    dispatch('hl.dsp.send_key_state({window=' + json.dumps(WINDOW) + ',mods="",key="mouse:272",state="down"})')
+    time.sleep(.12)
+    dispatch('hl.dsp.send_key_state({window=' + json.dumps(WINDOW) + ',mods="",key="mouse:272",state="up"})')
+    dispatch('hl.dsp.cursor.move({x=' + str(round(x)+1) + ',y=' + str(round(y)) + '})')
+    time.sleep(.45)
+
+def label(text, kind=None, exact=True):
+    state = api()
+    choices = [x for x in state['labels'] if x.get('rect') and (not kind or x['kind'] == kind) and ((x.get('text') == text) if exact else text in (x.get('text') or ''))]
+    choices = [x for x in choices if 0 <= x['rect'][1] < 680 and x['rect'][2] > 0 and x['rect'][3] > 0]
+    if not choices:
+        raise ValueError('Label missing: ' + text)
+    click(choices[-1]['rect'], .1 if text == 'Document options' else .5, .3 if text == 'Document options' else .5)
+
+def record(step):
+    state = api()
+    with RESULTS.open('a') as out:
+        out.write(json.dumps({'step':step,'state':state})+'\n')
+    shown = None if not state['viewer'] else dict(state['viewer'], annotations=len(state['viewer']['annotations']))
+    print(step, json.dumps({'viewer':shown,'labels':[x['text'] for x in state['labels'] if x['kind']=='text'][:12], 'errors':len(state['errors']),'attempts':state['attempts']}),flush=True)
+    return state
+
+def screenshot(name):
+    path=pathlib.Path('handoff/audits/pdf-viewer-stress-2026-11-16')/name
+    path.write_bytes(urllib.request.urlopen(BASE+'/screenshot',timeout=30).read())
+
+def open_pdf(fixture='small',initialPage=0):
+    state=api('/open',{'fixture':fixture,'initialPage':initialPage})
+    time.sleep(.8)
+    return state
+
+def menu(name):
+    for attempt in range(4):
+        if any(x.get('text') == name and x['kind'] == 'text' for x in api()['labels']):break
+        label('Document options','tooltip');time.sleep(.7)
+    label(name,'text');time.sleep(.7)
+
+def search(text):
+    menu('Search in Document');time.sleep(.3)
+    fields=api()['fields'];click(fields[-1]['rect']);key('a','CTRL');type_text(text);key('Return');time.sleep(.8)

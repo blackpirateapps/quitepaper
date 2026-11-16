@@ -1,0 +1,10 @@
+00:00 +0: loading /home/dog/.codex/worktrees/8250/quitepaper/test/documents/document_viewer_ocr_menu_test.dart
+00:00 +0: DocumentViewerScreen OCR Actions & Menu Tests Shows Searchable badge and View OCR Text action when OCR is available
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:01 +1: DocumentViewerScreen OCR Actions & Menu Tests Tapping View OCR Text action navigates to OcrTextViewerScreen
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +2: DocumentViewerScreen OCR Actions & Menu Tests Shows Retry OCR in menu when OCR state is failed
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +3: DocumentViewerScreen OCR Actions & Menu Tests Shows enabled Run OCR action for skipped document with adaptive resolution tooltip
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:02 +4: All tests passed!

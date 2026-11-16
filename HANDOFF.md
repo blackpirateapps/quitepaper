@@ -53,6 +53,24 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## PDF Viewer Stress Audit — 10 Open Findings
+
+The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
+against `5d869e9` found **10 open findings**, including two annotation-loss bugs:
+edits during a pending save are discarded, and Back exits after a failed save.
+Other findings cover thumbnail invalidation/scrolling, large-PDF debug stalls,
+malformed-PDF feedback, mobile toolbar layout, export cancellation/overwrite,
+and stale page totals. **Audit only; no production fixes.**
+
+Coverage includes two isolated native Linux test windows, 58 recorded snapshots,
+a 250-page PDF, 100-annotation undo/redo/save/revert checks, 36 concurrent native
+thumbnail requests, and a new 2,500-request thumbnail service stress test.
+Native screenshots, raw records, probe sources and explicit limitations are in
+the report. The suspected reload-loss issue was ruled out. Only the 48 focused
+viewer/annotation/thumbnail/renderer tests were run; no full suite. The existing
+OCR test fixture now isolates annotation resolution and drains PDF startup work,
+removing database warnings. See log 299.
+
 ## Checklist Stress Audit — 12 Open Findings
 
 The [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)

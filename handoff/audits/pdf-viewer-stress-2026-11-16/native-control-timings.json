@@ -1,0 +1,14 @@
+{
+  "source": "Transcribed from the native control driver stdout captured during this audit.",
+  "sidebarClosedJumpSeconds": {
+    "125": 1.006,
+    "200": 1.022,
+    "50": 1.035,
+    "249": 1.01,
+    "1": 0.98
+  },
+  "intentionalWaitMillisecondsPerJump": 950,
+  "recoveryStateRequestSeconds": 15.751629873000638,
+  "recoveryRequestTimeoutSeconds": 45,
+  "scope": "Linux native debug; request elapsed time includes inspection and driver waits, not a release benchmark."
+}

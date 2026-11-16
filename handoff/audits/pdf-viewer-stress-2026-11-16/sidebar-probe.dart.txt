@@ -1,0 +1,58 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/documents/document_provider.dart';
+import 'package:quitepaper/core/documents/pdf_thumbnail_service.dart';
+import 'package:quitepaper/core/documents/presentation/widgets/pdf_thumbnail_sidebar.dart';
+
+class Thumbnails implements PdfThumbnailService {
+  @override
+  Future<Uint8List?> getPageThumbnail({required String documentId, required int pageIndex, required Uint8List pdfBytes}) async => null;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+void main() {
+  testWidgets('observe active thumbnail visibility in 250-page sidebar', (tester) async {
+    final selected = ValueNotifier<int>(0);
+    addTearDown(selected.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [pdfThumbnailServiceProvider.overrideWithValue(Thumbnails())],
+      child: MaterialApp(theme: AppTheme.light(), home: Scaffold(body: SizedBox(width: 140, height: 600,
+        child: PdfThumbnailSidebar(documentId: 'audit', pdfBytes: Uint8List(1), pageCount: 250,
+          selectedPageIndexListenable: selected, onPageSelected: (_) {}))))));
+    await tester.pumpAndSettle();
+    for (final page in [2, 125, 200, 50, 249, 125]) {
+      selected.value = page - 1;
+      await tester.pumpAndSettle();
+      final selectedTiles = find.byWidgetPredicate((w) => w is Semantics && w.properties.selected == true);
+      final rects = selectedTiles.evaluate().map((e) => tester.getRect(find.byWidget(e.widget))).toList();
+      final visible = rects.any((rect) => rect.bottom > 0 && rect.top < 600);
+      final list = tester.widget<ListView>(find.byType(ListView));
+      final state = {'probe': 'sidebar-active-page', 'page': page, 'selectedTileVisible': visible,
+        'offset': list.controller!.offset, 'selectedRects': rects.map((r) => r.toString()).toList()};
+      print(jsonEncode(state));
+      File('/tmp/qp-pdf-sidebar-probes.jsonl').writeAsStringSync('${jsonEncode(state)}\n', mode: FileMode.append);
+      if (page == 125 && !visible && !File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').readAsStringSync().contains('## PDF-06')) {
+        File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').writeAsStringSync('''
+
+## PDF-06 — large-document sidebar scrolls away from the active page
+
+**Open. Medium. 250-page widget probe and native observation.**
+
+Set the active page to 125 in a standard 140px thumbnail sidebar. The selected
+tile is outside the visible viewport after scrolling settles. Native random
+jumps also showed page 125 in the header while the sidebar displayed pages
+118–124. `_onActivePageChanged` assumes 195px per item; actual tiles occupy
+about 201.25px, so the position error grows with page index. The widget probe
+uses null thumbnail images to isolate layout; native rendering uses PDFium.
+Evidence: `sidebar-probes.jsonl`, `250 page random jump 125` native record.
+''', mode: FileMode.append);
+      }
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+}

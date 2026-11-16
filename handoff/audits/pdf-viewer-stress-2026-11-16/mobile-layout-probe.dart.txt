@@ -1,0 +1,59 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/documents/document_provider.dart';
+import 'package:quitepaper/core/documents/presentation/document_viewer_screen.dart';
+import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
+import 'package:quitepaper/core/uri/resource_resolver.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'document_viewer_zoom_test.dart' show FakeZoomDocumentService;
+
+void main() {
+  testWidgets('observe PDF toolbar at narrow mobile widths', (tester) async {
+    final doc = pw.Document()..addPage(pw.Page(build: (_) => pw.Text('Audit')));
+    final bytes = await doc.save();
+    final resolution = ResourceResolution.available(QuietPaperUri.document('layout-audit'),
+      ResolvedDocumentInfo(documentId: 'layout-audit', pdfBytes: bytes, pageCount: 1,
+        byteSize: bytes.length, sha256: 'audit', title: 'Mobile PDF Audit'));
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    for (final width in [320.0, 360.0, 390.0, 600.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      await tester.pumpWidget(ProviderScope(overrides: [documentServiceProvider.overrideWithValue(FakeZoomDocumentService())],
+        child: MaterialApp(theme: AppTheme.light().copyWith(platform: TargetPlatform.android),
+          home: DocumentViewerScreen(key: ValueKey(width), documentId: 'layout-audit', initialResolution: resolution))));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      final errors = <String>[];
+      Object? exception;
+      while ((exception = tester.takeException()) != null) { errors.add(exception.toString()); }
+      final title = find.text('Mobile PDF Audit');
+      final rect = tester.getRect(title);
+      final state = {'probe': 'mobile-toolbar-layout', 'width': width, 'titleWidth': rect.width,
+        'errors': errors, 'viewerPresent': find.byType(SfPdfViewer).evaluate().isNotEmpty};
+      print(jsonEncode(state));
+      File('/tmp/qp-pdf-layout-probes.jsonl').writeAsStringSync('${jsonEncode(state)}\n', mode: FileMode.append);
+      if (width == 320 && (rect.width <= 0 || errors.isNotEmpty)) {
+        File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').writeAsStringSync('''
+
+## PDF-08 — narrow mobile toolbar has no room for the document title
+
+**Open. Medium. Android-themed widget layout probe; physical mobile untested.**
+
+At 320 logical pixels, the PDF toolbar's always-visible actions consume the
+available width and the document title has zero width. The title and page-count
+context are not readable. This probe uses the real viewer widget with a fake
+document resolver, not an Android device. Evidence: `layout-probes.jsonl` and
+the retained layout probe source. Compare 360, 390 and 600 logical pixel results.
+''', mode: FileMode.append);
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 800));
+    }
+  });
+}
