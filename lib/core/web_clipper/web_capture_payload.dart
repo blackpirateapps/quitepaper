@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// Strategy used to acquire webpage content.
 enum WebAcquisitionMethod {
@@ -58,8 +58,8 @@ class WebCapturePayload {
   /// Effective URL for resolving relative links and asset paths.
   String get effectiveUrl =>
       (canonicalUrl != null && canonicalUrl!.trim().isNotEmpty)
-          ? canonicalUrl!
-          : (finalUrl.isNotEmpty ? finalUrl : requestedUrl);
+      ? canonicalUrl!
+      : (finalUrl.isNotEmpty ? finalUrl : requestedUrl);
 
   /// Approximate byte size of the captured raw HTML string.
   int get htmlByteSize => html.length;

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clip to Quiet Paper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><span class="mark" aria-hidden="true">q.</span><div><h1>Quiet Paper</h1><p>Keep something worth reading.</p></div></header>
+  <form id="clip-form">
+    <label for="title">Title</label>
+    <input id="title" maxlength="4096" autocomplete="off">
+    <label for="mode">Save</label>
+    <select id="mode"><option value="article">Article</option><option value="page">Whole page</option><option value="selection">Selected text</option></select>
+    <label for="tags">Tags <span>(optional, comma separated)</span></label>
+    <input id="tags" placeholder="reading, research" autocomplete="off">
+    <button id="save" type="submit">Save web clip</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <footer>Saves the loaded page to your Linux notebook. Images stay as source links; only text and links are available offline.</footer>
+  <details><summary>Connection setup</summary><p>Install the native host using the extension README. Your extension ID:</p><code id="extension-id"></code></details>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -6801,3 +6801,76 @@ Cleanup: all three isolated audit process groups were terminated. The normal
 `flutter build linux --debug --no-pub -t lib/main.dart` target rebuilt successfully.
 Application source and normal executable regression tests are unchanged; temporary
 probe targets are retained only as `.dart.txt` audit artifacts.
+
+## 299. Linux browser web clipper over native messaging (November 17, 2026)
+
+Created `feat/linux-browser-web-clipper` after reading the handoff. Added a browser
+extension under `extensions/browser/` with shared popup, background and capture
+sources plus separate Manifest V3 Chrome and Firefox manifests. Article,
+whole-page and selected-text capture operate on the loaded top-level DOM,
+including authenticated and dynamically inserted text. Title and comma-separated
+tags can be edited before saving. Only `activeTab`, `scripting` and
+`nativeMessaging` permissions are requested. Page access is user initiated.
+
+Captures are cloned into an inactive document so preparing image nodes does not
+start resource loads. Hidden content, forms, scripts, frames and unsafe links are
+removed before serialization. The extension does not fetch the page, use a reader
+proxy, inspect cookies, load external parsers or open a local HTTP server.
+
+Added `CliBrowserHost` and `qp browser-host`, with native-endian length-prefixed
+UTF-8 JSON framing, an 8 MiB inbound limit, partial/multiple-frame handling,
+protocol/field validation, safe URL handling and a second sanitization pass.
+The host calls the existing `HtmlToMarkdownConverter` and transactional
+`CliDatabase.createNote`, retaining note history, search indexes, tags and the
+normal sync queue. Domain tags use `web/example-com` because the CLI tag parser
+rejects dots. Invalid custom tags produce an error instead of being dropped.
+Stdout contains framed responses only; no password prompts, editor, page/image
+acquisition or automatic cloud upload occurs. The desktop app syncs queued clips
+when it runs, or users can invoke `qp sync` explicitly.
+
+Web capture/model annotations now import `package:meta` instead of Flutter, making
+the shared converter usable from the native CLI. The converter JSON-quotes YAML
+scalars, including source, author and tags, so browser metadata containing quotes,
+backslashes or line breaks cannot inject frontmatter properties. Existing in-app
+clipper behavior remains covered by its service regressions.
+
+The standard-library-only `manage.py` builds unpacked directories and ZIPs and
+registers a compiled CLI per Linux user. It writes an executable private launcher,
+explicit Chrome extension origin allowlists and Firefox/LibreWolf add-on IDs;
+supports XDG paths, repeatable Chrome IDs, custom manifest directories and an
+optional database override; and quotes executable/database paths safely. The CLI
+is built with `dart build cli` so its SQLite native assets remain in the bundle.
+Build/load/install instructions and limitations are in the extension README;
+HANDOFF and the platform/web clipper domain guides link the new path.
+
+Validation:
+
+- `flutter analyze` and final `flutter analyze --no-pub`: no issues.
+- All **19 relevant Flutter tests pass** in `cli_browser_host_test.dart`,
+  `cli_runner_test.dart` and `web_clipper_service_test.dart`. Coverage includes
+  captured private content, metadata, search/history/sync mutations, unsafe URL
+  removal, frontmatter injection, invalid requests and tags, fragmented Unicode
+  messages, multiple frames, malformed JSON and oversized/truncated frames.
+- **3 Python build/installer tests** and **5 JavaScript background tests** pass.
+  They cover both manifest variants, packaging, permission scope, allowlists,
+  shell-safe paths, source validation, DOM handoff, size limits and host errors.
+- A separate **live headless Firefox fixture check passes** with a disposable
+  profile and cookie-gated page. It captures dynamically inserted Unicode text,
+  article/page/selection modes, relative URLs, hidden/form filtering and selection
+  errors. The article is requested once and a non-cacheable image is requested
+  once, including after captures. The fixture server is then shut down and the
+  captured content saves through the built native CLI to a temporary database,
+  with one queued mutation. A ping response arrives while stdin remains open,
+  verifying the host does not wait for EOF to reply. All temporary processes and
+  fixture data are cleaned up.
+- Native CLI bundle and both extension bundles build successfully. No full test
+  suite was run. Real Chrome-family extension installation, popup/native host
+  browser handshake, store signing/publication and sandboxed browser packages
+  remain outside this automated pass.
+
+Scope: this version stores text and remote image links, without downloading image
+bytes/CSS or attaching an HTML snapshot. Images can require the original session
+and are not available offline. Frames, shadow DOM and content not loaded in the
+current page are not captured. Firefox development loading is temporary until a
+signed distribution exists. The pre-existing untracked smart-tables plan is left
+untouched and excluded from this feature's commit.

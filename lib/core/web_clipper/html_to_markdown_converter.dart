@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:html/dom.dart' as dom;
 import 'package:intl/intl.dart';
 import 'web_clipper_models.dart';
@@ -42,14 +43,19 @@ class HtmlToMarkdownConverter {
     // 1. YAML Frontmatter
     buffer.writeln('---');
     buffer.writeln('title: ${_escapeYaml(metadata.title)}');
-    buffer.writeln('source: "${metadata.sourceUrl}"');
+    buffer.writeln('source: ${_escapeYaml(metadata.sourceUrl)}');
     if (metadata.author != null && metadata.author!.trim().isNotEmpty) {
-      buffer.writeln('author: "${metadata.author!.trim()}"');
+      buffer.writeln('author: ${_escapeYaml(metadata.author!.trim())}');
     }
     final createdDate = metadata.publishedDate ?? DateTime.now();
-    buffer.writeln('created: "${DateFormat('yyyy-MM-dd').format(createdDate)}"');
-    if (metadata.description != null && metadata.description!.trim().isNotEmpty) {
-      buffer.writeln('description: ${_escapeYaml(metadata.description!.trim())}');
+    buffer.writeln(
+      'created: "${DateFormat('yyyy-MM-dd').format(createdDate)}"',
+    );
+    if (metadata.description != null &&
+        metadata.description!.trim().isNotEmpty) {
+      buffer.writeln(
+        'description: ${_escapeYaml(metadata.description!.trim())}',
+      );
     }
 
     final allTags = <String>{
@@ -62,7 +68,7 @@ class HtmlToMarkdownConverter {
       for (final tag in allTags) {
         final sanitized = tag.replaceAll('#', '').trim();
         if (sanitized.isNotEmpty) {
-          buffer.writeln('  - $sanitized');
+          buffer.writeln('  - ${_escapeYaml(sanitized)}');
         }
       }
     }
@@ -74,7 +80,9 @@ class HtmlToMarkdownConverter {
       final sizeStr = snapshotSizeBytes != null && snapshotSizeBytes > 0
           ? ' • ${_formatBytes(snapshotSizeBytes)}'
           : '';
-      buffer.writeln('> 🌐 **Original Web Snapshot Attached**$sizeStr — [View Web Snapshot →](qp://document/$snapshotDocumentId)');
+      buffer.writeln(
+        '> 🌐 **Original Web Snapshot Attached**$sizeStr — [View Web Snapshot →](qp://document/$snapshotDocumentId)',
+      );
       buffer.writeln();
     }
 
@@ -91,7 +99,12 @@ class HtmlToMarkdownConverter {
     return buffer.toString();
   }
 
-  String _convertNode(dom.Node node, {int listDepth = 0, bool isOrdered = false, int itemIndex = 1}) {
+  String _convertNode(
+    dom.Node node, {
+    int listDepth = 0,
+    bool isOrdered = false,
+    int itemIndex = 1,
+  }) {
     if (node is dom.Text) {
       return _cleanText(node.text);
     }
@@ -159,7 +172,9 @@ class HtmlToMarkdownConverter {
         final codeText = (codeEl != null ? codeEl.text : el.text).trim();
         final langClass = codeEl?.className ?? el.className;
         var lang = '';
-        final match = RegExp(r'language-([a-zA-Z0-9_\-]+)').firstMatch(langClass);
+        final match = RegExp(
+          r'language-([a-zA-Z0-9_\-]+)',
+        ).firstMatch(langClass);
         if (match != null) {
           lang = match.group(1) ?? '';
         }
@@ -176,7 +191,10 @@ class HtmlToMarkdownConverter {
         for (final child in el.children) {
           if (child.localName?.toLowerCase() == 'li') {
             final indent = '  ' * listDepth;
-            final text = _childrenToText(child, listDepth: listDepth + 1).trim();
+            final text = _childrenToText(
+              child,
+              listDepth: listDepth + 1,
+            ).trim();
             buf.writeln('$indent- $text');
           }
         }
@@ -189,7 +207,12 @@ class HtmlToMarkdownConverter {
         for (final child in el.children) {
           if (child.localName?.toLowerCase() == 'li') {
             final indent = '  ' * listDepth;
-            final text = _childrenToText(child, listDepth: listDepth + 1, isOrdered: true, itemIndex: idx).trim();
+            final text = _childrenToText(
+              child,
+              listDepth: listDepth + 1,
+              isOrdered: true,
+              itemIndex: idx,
+            ).trim();
             buf.writeln('$indent$idx. $text');
             idx++;
           }
@@ -211,7 +234,12 @@ class HtmlToMarkdownConverter {
       case 'picture':
         final img = el.querySelector('img');
         if (img != null) {
-          return _convertNode(img, listDepth: listDepth, isOrdered: isOrdered, itemIndex: itemIndex);
+          return _convertNode(
+            img,
+            listDepth: listDepth,
+            isOrdered: isOrdered,
+            itemIndex: itemIndex,
+          );
         }
         return '';
 
@@ -254,12 +282,14 @@ class HtmlToMarkdownConverter {
   }) {
     final buf = StringBuffer();
     for (final node in el.nodes) {
-      buf.write(_convertNode(
-        node,
-        listDepth: listDepth,
-        isOrdered: isOrdered,
-        itemIndex: itemIndex,
-      ));
+      buf.write(
+        _convertNode(
+          node,
+          listDepth: listDepth,
+          isOrdered: isOrdered,
+          itemIndex: itemIndex,
+        ),
+      );
     }
     return buf.toString();
   }
@@ -272,12 +302,19 @@ class HtmlToMarkdownConverter {
     for (final row in rows) {
       final cells = row.querySelectorAll('th, td');
       if (cells.isEmpty) continue;
-      tableData.add(cells.map((c) => _childrenToText(c).trim().replaceAll('\n', ' ')).toList());
+      tableData.add(
+        cells
+            .map((c) => _childrenToText(c).trim().replaceAll('\n', ' '))
+            .toList(),
+      );
     }
 
     if (tableData.isEmpty) return '';
 
-    final maxCols = tableData.fold<int>(0, (max, row) => row.length > max ? row.length : max);
+    final maxCols = tableData.fold<int>(
+      0,
+      (max, row) => row.length > max ? row.length : max,
+    );
     if (maxCols == 0) return '';
 
     final buf = StringBuffer('\n\n');
@@ -318,11 +355,9 @@ class HtmlToMarkdownConverter {
   }
 
   String _escapeYaml(String value) {
-    if (value.contains('\n') || value.contains('"') || value.contains(':') || value.contains('#')) {
-      final escaped = value.replaceAll('"', r'\"').replaceAll('\n', ' ');
-      return '"$escaped"';
-    }
-    return '"$value"';
+    // JSON strings are valid YAML quoted scalars, including backslashes,
+    // control characters and browser-supplied multiline metadata.
+    return jsonEncode(value);
   }
 
   String _formatBytes(int bytes) {

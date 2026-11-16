@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import 'cli_database.dart';
 import 'cli_workspace.dart';
 import 'commands/attach_command.dart';
+import 'commands/browser_host_command.dart';
 import 'cli_formatters.dart';
 import 'commands/delete_command.dart';
 import 'commands/edit_command.dart';
@@ -37,6 +38,7 @@ class CliRunner extends CommandRunner<int> {
       );
 
     addCommand(AttachCommand(_getWorkspace));
+    addCommand(BrowserHostCommand(_getDb));
     addCommand(AttachmentsCommand(_getWorkspace));
     addCommand(SyncCommand(_getWorkspace));
     addCommand(ListCommand(_getDb));
@@ -148,6 +150,9 @@ class CliRunner extends CommandRunner<int> {
     );
     stdout.writeln(
       '  sync                Retry uploading pending notes and images',
+    );
+    stdout.writeln(
+      '  browser-host        Receive web clips from the browser extension',
     );
     stdout.writeln(
       '  ${CliFormatters.cyan('tags')}    (t)        List all tags with note counts',

@@ -1,0 +1,26 @@
+:root { color-scheme: light dark; font: 14px/1.5 system-ui, sans-serif; color: #38352f; background: #f8f6f0; }
+* { box-sizing: border-box; }
+body { width: 350px; margin: 0; padding: 24px; }
+header { display: flex; gap: 14px; align-items: center; margin-bottom: 24px; }
+.mark { font: italic 42px Georgia, serif; color: #9c563d; }
+h1 { font: 23px Georgia, serif; margin: 0; }
+header p { font-size: 12px; color: #777269; margin: 3px 0 0; }
+label { display: block; margin: 14px 0 6px; font-weight: 600; font-size: 12px; }
+label span { font-weight: 400; color: #777269; }
+input, select, button { width: 100%; padding: 10px; border-radius: 5px; font: inherit; }
+input, select { color: inherit; background: #fffdf8; border: 1px solid #d8d3c8; }
+:focus-visible { outline: 2px solid #9c563d; outline-offset: 2px; }
+button { margin-top: 22px; border: 0; color: white; background: #91513c; cursor: pointer; }
+button:disabled { opacity: .6; cursor: default; }
+#status { overflow-wrap: anywhere; margin: 14px 0; }
+#status[data-error="true"] { color: #b13527; }
+footer, details { font-size: 11px; color: #777269; }
+details { margin-top: 14px; }
+summary { cursor: pointer; }
+code { overflow-wrap: anywhere; user-select: all; }
+@media (prefers-color-scheme: dark) {
+  :root { color: #e8e3d9; background: #24231f; }
+  input, select { background: #2f2d28; border-color: #514d44; }
+  header p, footer, details, label span { color: #b7b0a4; }
+  #status[data-error="true"] { color: #ffb5a9; }
+}

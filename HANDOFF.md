@@ -47,6 +47,15 @@ and [engineering log 277](handoff/latest-logs.md#277-release-version-bump-to-163
 
 ## Latest Linux CLI Work
 
+The new Linux browser extension captures the **loaded page DOM** in Chrome-family
+and Firefox-family browsers and sends it directly to `qp browser-host` over native
+messaging. Article, whole-page and selection modes reuse web clip Markdown output,
+with local notes, source metadata, tags and the regular sync queue. There is no
+page refetch, reader proxy, cookie transfer or local HTTP server. This version
+saves text and remote image links; image/CSS archives and HTML snapshots are not
+included. Build/load/registration instructions are in the
+[extension README](extensions/browser/README.md); see engineering log 299.
+
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image
 upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-image-attachments)

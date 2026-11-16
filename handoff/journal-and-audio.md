@@ -46,6 +46,26 @@ Quiet Paper includes voice memo capabilities for ambient thoughts and audio jour
 
 ## 3. Web Clipper & Snapshot Engine
 
+### Linux browser extension capture
+
+The [browser extension](../extensions/browser/README.md) adds a separate acquisition
+path for Chrome-family and Firefox-family browsers: a user action captures the
+already loaded top-level DOM, including authenticated/dynamically rendered text,
+and sends sanitized HTML to `qp browser-host` through native messaging. Article,
+whole-page and selected-text modes are available with title/tag editing. An
+inactive document holds cloned DOM nodes to avoid resource loads during capture.
+Forms, hidden elements, scripts and unsafe URLs are removed in the browser; the
+CLI validates and sanitizes again before calling `HtmlToMarkdownConverter`.
+
+The native host deliberately bypasses URL scanning, image probing/downloading and
+snapshot generation: none of these may fetch a logged-in page or its resources
+again. It saves a normal web clip note with source/author/date metadata, `clipped`
+and normalized `web/example-com` tags, history/search entries and sync mutations.
+Local save works with the desktop app closed and no network access. Text is
+available offline; images remain remote links and there is no attached HTML
+snapshot in this version. Frames, shadow DOM and content not loaded into the DOM
+are not captured. Existing in-app clipper behavior below is unchanged.
+
 The web clipper ([`lib/features/web_clipper/`](file:///home/dog/git/quitepaper/lib/features/web_clipper/) and [`lib/core/web_clipper/`](file:///home/dog/git/quitepaper/lib/core/web_clipper/)) allows users to save articles and web pages with maximum fidelity.
 
 ### Dual-Fidelity Snapshots

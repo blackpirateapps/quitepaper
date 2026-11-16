@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Quiet Paper Web Clipper",
+  "version": "0.1.0",
+  "description": "Save the page you are reading directly to Quiet Paper on Linux.",
+  "permissions": ["activeTab", "scripting", "nativeMessaging"],
+  "action": {"default_popup": "popup.html", "default_title": "Clip to Quiet Paper"},
+  "background": {"scripts": ["background.js"]},
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "web-clipper@quietpaper.app",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {"required": ["none"]}
+    }
+  }
+}

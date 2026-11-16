@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 import 'web_capture_payload.dart';
 
 /// Metadata extracted from a web page or article.
