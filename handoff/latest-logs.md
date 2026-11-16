@@ -6738,3 +6738,19 @@ visual_editor_stability_test.dart (15), and dual_mode_editor_screen_test.dart (2
 The full suite was not run. The native audit process group was closed and the
 ordinary `lib/main.dart` Linux debug bundle rebuilt successfully. Rendered Math
 parity and the original audit's broader coverage limits remain outside this pass.
+
+
+## 297. Trace reported CI code-insertion focus failure to the existing correction (November 16, 2026)
+
+The reported failure in the Visual code insertion/history test at line 172
+matches an intermediate source revision, including `59cdc03`. The generic
+focus-gain selection reconciliation could overwrite the code insertion's AST
+caret. The existing `74aa61a` correction limits reconciliation to pointer taps.
+Its [GitHub Test & Analyze run](https://github.com/blackpirateapps/quitepaper/actions/runs/43818439696)
+succeeded and explicitly records the reported test passing. Production code is
+already corrected; the audit verification and HANDOFF now link this evidence.
+
+Validation on current source `53539aa`: `flutter analyze --no-pub` has no issues;
+`flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart
+test/editor/visual_editor_stability_test.dart` passes 37 tests. No full suite
+was run locally. Latest-commit CI was still in progress during investigation.

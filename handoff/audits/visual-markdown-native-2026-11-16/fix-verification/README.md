@@ -51,3 +51,20 @@ attachment/speech/export/table/platform coverage limits also remain unchanged.
 
 The isolated audit process group was terminated after verification. The ordinary
 `lib/main.dart` Linux debug bundle was rebuilt successfully afterward.
+
+
+## CI code-insertion focus follow-up
+
+The reported code-insertion focus failure at test line 172 matches the
+intermediate version around `59cdc03`. Publishing the field selection on every
+focus gain could overwrite the AST's programmatic code-block destination.
+`74aa61a` restricts reconciliation to tap completion, preserving programmatic
+focus. The [GitHub run for that correction](https://github.com/blackpirateapps/quitepaper/actions/runs/43818439696)
+completed successfully; its log explicitly records the reported Visual code
+insertion/history test passing. No additional production change was needed.
+
+Rechecked source `53539aa`: `flutter analyze --no-pub` is clean;
+`flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart
+test/editor/visual_editor_stability_test.dart` passes all 37 relevant tests.
+The full suite was not rerun locally. Newer CI runs were still in progress when
+this follow-up was recorded; the successful run cited above is for `74aa61a`.

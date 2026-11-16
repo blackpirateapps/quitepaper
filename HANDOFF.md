@@ -64,7 +64,11 @@ commit and resolution in the [tracked audit](handoff/audits/visual-markdown-nati
 [Native replay evidence](handoff/audits/visual-markdown-native-2026-11-16/fix-verification/README.md)
 records all eight passing with no Flutter runtime errors. Analysis is clean and
 52 relevant tests pass across per-fix runs; the full suite was left to CI.
-Visual Math uses an editable math fenced block. See engineering logs 287–296.
+Visual Math uses an editable math fenced block. See engineering logs 287–297.
+The code-insertion focus failure reported at test line 172 matches the intermediate
+caret changes, corrected in `74aa61a`; that test passes in the correction's
+[GitHub test run](https://github.com/blackpirateapps/quitepaper/actions/runs/43818439696).
+Current-branch follow-up checks pass all 37 tests in the two relevant editor files.
 
 The four original Visual/Markdown toolbar audit findings were fixed. Divider
 insertion focuses its continuation paragraph; Visual code insertion focuses the
