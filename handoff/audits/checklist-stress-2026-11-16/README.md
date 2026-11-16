@@ -149,7 +149,9 @@ Evidence: phase 1 case 13, `Visual edit nested checklist then save` and
 
 ## CL-08 — Super Editor merges nested tasks and discards their checkbox state
 
-**Open. High. Native fresh-process save and widget parse confirmation.**
+Resolution: The math-aware Markdown loading and structured-paste boundary now parses each task row before CommonMark can fold descendants into one parent element. Each task retains independent text, inline formatting, two/four-space nesting and completion state. Parser round trips and actual Super Editor edit/save regressions cover the audited fixture. Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 63 passed.
+
+**Fixed.** High. Native fresh-process save and widget parse confirmation.
 
 1. Open the same Parent/Child/checked Grandchild/Sibling fixture in Super Editor.
 2. Edit Sibling, then inspect the saved Markdown.

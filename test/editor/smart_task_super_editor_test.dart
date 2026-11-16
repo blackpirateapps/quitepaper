@@ -6,6 +6,7 @@ import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/math/quiet_math_parser.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/smart_task_controller.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
@@ -47,6 +48,41 @@ void main() {
       ),
     );
   }
+
+  for (final spaces in [2, 4]) {
+    test('CL-08 nested task parse/serialize preserves states at $spaces spaces', () {
+      final indent = ' ' * spaces;
+      final source = '- [ ] **Parent**\n$indent- [ ] Child\n$indent$indent- [x] Grandchild\n- [ ] Sibling';
+      final doc = deserializeQuietMathDocument(source);
+      final tasks = List.generate(doc.nodeCount, doc.getNodeAt).cast<TaskNode>();
+      expect(tasks.map((t) => t.text.toPlainText()), ['Parent', 'Child', 'Grandchild', 'Sibling']);
+      expect(tasks.map((t) => t.indent), [0, spaces ~/ 2, spaces, 0]);
+      expect(tasks.map((t) => t.isComplete), [false, false, true, false]);
+      expect(tasks.first.text.hasAttributionAt(0, attribution: boldAttribution), isTrue);
+      expect(serializeDocumentToMarkdown(doc, customNodeSerializers: [const QuietTaskNodeSerializer()]).trimRight(), source);
+    });
+  }
+
+  testWidgets('CL-08 nested task edits save every task and completion state', (tester) async {
+    final controller = QuietSuperEditorController();
+    String? saved;
+    await tester.pumpWidget(buildTestWidget(
+      markdown: '- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Sibling',
+      controller: controller, onChanged: (value) => saved = value,
+    ));
+    await tester.pumpAndSettle();
+    final task = controller.editor!.document.getNodeAt(3)! as TaskNode;
+    controller.editor!.execute([ChangeSelectionRequest(
+      DocumentSelection.collapsed(position: DocumentPosition(
+        nodeId: task.id, nodePosition: const TextNodePosition(offset: 7),
+      )), SelectionChangeType.placeCaret, SelectionReason.userInteraction,
+    )]);
+    controller.insertSnippet('x');
+    await tester.pumpAndSettle();
+    expect(saved, contains('- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Siblingx'));
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
 
   group('SmartTaskController Unit Tests', () {
     test('findTaskBlocks finds isolated contiguous task blocks', () {
