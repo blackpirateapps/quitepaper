@@ -3,6 +3,16 @@
 Date: 2026-11-15
 Branch: fix/visual-markdown-editor-input
 
+## Native re-audit checkpoint — 2026-11-16
+
+The native audit is being repeated against the four fixes. Four additional bugs
+are confirmed so far: stale Visual document selection after clicking a later
+paragraph, lost focus after Visual code language selection, lost focus after
+Markdown toolbar undo/redo, and a disposed-controller crash when switching an
+active Visual field to Markdown. Full reproductions, evidence, excluded harness
+artifacts, provisional observations and exact resume steps are preserved in
+[`handoff/audits/visual-markdown-native-2026-11-16/README.md`](handoff/audits/visual-markdown-native-2026-11-16/README.md).
+
 ## Scope and method
 
 Exercise the actual EditorScreen in a native Linux window using an isolated

@@ -55,6 +55,12 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Native Formatting Toolbar Audit
 
+**Native re-audit in progress (2026-11-16): four additional bugs confirmed.**
+See the durable [audit checkpoint](handoff/audits/visual-markdown-native-2026-11-16/README.md)
+for reproduction steps, captured evidence, provisional observations and the exact
+state needed to resume after compaction. It includes the required restoration of
+the ordinary Linux build after the temporary audit window is closed.
+
 All four confirmed Visual/Markdown toolbar audit findings are fixed. Divider
 insertion focuses its continuation paragraph; Visual code insertion focuses the
 code field and persists code/language edits; Visual toolbar and keyboard history

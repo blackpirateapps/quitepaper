@@ -1,0 +1,21 @@
+from qp_native_audit_driver import *
+
+reset('visual', 'Before\n- [ ] task\nTail')
+field(text='Tail')
+key('End', 'CTRL')
+label('Divider (Ctrl+Alt+-)', 'tooltip')
+type_text('after')
+record('recheck visual divider immediate typing')
+screenshot('/tmp/qp-native-audit-divider.png')
+
+reset('visual')
+field()
+label('Insert Options (Table, Link, Media)', 'tooltip')
+label('Code Block', 'text')
+type_text('print')
+record('recheck visual code immediate typing')
+screenshot('/tmp/qp-native-audit-visual-code.png')
+label('Plain Text', 'text')
+time.sleep(.6)
+record('visual code language menu')
+

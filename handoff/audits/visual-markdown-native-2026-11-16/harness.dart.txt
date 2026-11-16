@@ -1,0 +1,149 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
+import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
+
+final hostKey = GlobalKey<_AuditHostState>();
+final captureKey = GlobalKey();
+final errors = <Map<String, Object?>>[];
+late NotesRepository repository;
+late ProviderContainer container;
+int sequence = 0;
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+  final database = AppDatabase.memory();
+  repository = DriftNotesRepository(database);
+  container = ProviderContainer(overrides: [
+    databaseProvider.overrideWithValue(database),
+    notesRepositoryProvider.overrideWithValue(repository),
+    sharedPreferencesProvider.overrideWithValue(prefs),
+  ]);
+  FlutterError.onError = (details) {
+    errors.add({'case': sequence, 'error': details.exceptionAsString(), 'stack': details.stack.toString()});
+    FlutterError.presentError(details);
+  };
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    errors.add({'case': sequence, 'error': error.toString(), 'stack': stack.toString()});
+    stderr.writeln('$error\n$stack');
+    return true;
+  };
+  final now = DateTime.now();
+  await repository.saveNote(Note(id: 'audit-reference', title: 'Other note', content: 'Reference note', createdAt: now, updatedAt: now));
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: RepaintBoundary(key: captureKey, child: MaterialApp(
+      title: 'Quiet Paper Native Audit', theme: AppTheme.light(),
+      home: _AuditHost(key: hostKey),
+    )),
+  ));
+  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 38917);
+  stdout.writeln('NATIVE_AUDIT_READY 127.0.0.1:38917');
+  await for (final request in server) {
+    try {
+      if (request.uri.path == '/reset') {
+        final input = jsonDecode(await utf8.decoder.bind(request).join()) as Map<String, dynamic>;
+        await hostKey.currentState!.reset(input);
+      }
+      if (request.uri.path == '/screenshot') {
+        final boundary = captureKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final snapshot = await boundary.toImage(pixelRatio: 1);
+        final bytes = await snapshot.toByteData(format: ui.ImageByteFormat.png);
+        request.response.headers.contentType = ContentType('image', 'png');
+        request.response.add(bytes!.buffer.asUint8List());
+        snapshot.dispose();
+      } else {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(await inspect()));
+      }
+    } catch (error, stack) {
+      request.response.statusCode = 500;
+      request.response.write(jsonEncode({'error': error.toString(), 'stack': stack.toString()}));
+    }
+    await request.response.close();
+  }
+}
+
+class _AuditHost extends StatefulWidget {
+  const _AuditHost({super.key});
+  @override
+  State<_AuditHost> createState() => _AuditHostState();
+}
+
+class _AuditHostState extends State<_AuditHost> {
+  Note? note;
+  Future<void> reset(Map<String, dynamic> input) async {
+    setState(() => note = null);
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    final style = input['style'] == 'markdown' ? EditorEditingStyle.markdown : EditorEditingStyle.wysiwyg;
+    await container.read(editorEditingStyleProvider.notifier).setEditingStyle(style);
+    sequence++;
+    final now = DateTime.now();
+    final next = Note(id: 'native-audit-$sequence', title: input['title'] as String? ?? 'Audit $sequence',
+      content: input['content'] as String? ?? '', createdAt: now, updatedAt: now);
+    await repository.saveNote(next);
+    setState(() => note = next);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+  }
+  @override
+  Widget build(BuildContext context) => note == null ? const Scaffold(body: Text('Native editor audit — isolated database'))
+      : EditorScreen(key: ValueKey(note!.id), note: note!, autoFocusBody: false);
+}
+
+List<double>? rect(Element element) {
+  try {
+    final render = element.findRenderObject();
+    if (render is! RenderBox || !render.attached || !render.hasSize) return null;
+    final offset = render.localToGlobal(Offset.zero);
+    return [offset.dx, offset.dy, render.size.width, render.size.height];
+  } catch (_) { return null; }
+}
+
+Future<Map<String, Object?>> inspect() async {
+  final fields = <Map<String, Object?>>[];
+  final labels = <Map<String, Object?>>[];
+  final rich = <Map<String, Object?>>[];
+  void visit(Element element) {
+    final widget = element.widget;
+    if (widget is EditableText) {
+      final value = widget.controller.value;
+      final ancestors = <String>[];
+      element.visitAncestorElements((ancestor) {
+        ancestors.add(ancestor.widget.runtimeType.toString());
+        return ancestors.length < 12;
+      });
+      fields.add({'text': value.text, 'base': value.selection.baseOffset,
+        'extent': value.selection.extentOffset, 'focus': widget.focusNode.hasPrimaryFocus,
+        'readOnly': widget.readOnly, 'rect': rect(element), 'ancestors': ancestors});
+    }
+    if (widget is Tooltip) labels.add({'kind': 'tooltip', 'text': widget.message ?? widget.richMessage?.toPlainText(), 'rect': rect(element)});
+    if (widget is Text) labels.add({'kind': 'text', 'text': widget.data ?? widget.textSpan?.toPlainText(), 'rect': rect(element)});
+    if (widget is RichEditorSurface) {
+      final controller = widget.controller;
+      rich.add({'document': controller.document.toJson(), 'markdown': controller.toMarkdown(),
+        'selection': controller.selection.toString(), 'canUndo': controller.canUndo, 'canRedo': controller.canRedo});
+    }
+    element.visitChildren(visit);
+  }
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+  final id = hostKey.currentState?.note?.id;
+  final saved = id == null ? null : await repository.getNoteById(id);
+  return {'case': sequence, 'noteId': id, 'fields': fields, 'labels': labels,
+    'rich': rich, 'savedTitle': saved?.title, 'savedContent': saved?.content,
+    'errors': errors, 'focus': FocusManager.instance.primaryFocus?.debugLabel};
+}

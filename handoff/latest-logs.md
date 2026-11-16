@@ -6600,3 +6600,30 @@ The final full-suite command uses `flutter test --concurrency=2`: a default-work
 attempt timed out two existing image-upload tests whose real I/O/encryption work
 is only given fixed 200–300 ms waits. The lower-concurrency run passed those tests
 without changing their waits, assertions, or application behavior.
+
+## 285. Native Visual/Markdown re-audit checkpoint (November 16, 2026)
+
+Re-ran actual GTK/Wayland EditorScreen interactions against `1bc137c`, using an
+in-memory note database, mock preferences, temporary XDG directories and a
+separate D-Bus session. Original code insertion and Visual history fixes passed
+native checks; divider continuation passes once its document selection is
+synchronized. Heading/style/list coverage and committed table cell edits passed.
+
+Four additional failures are confirmed: Visual click-only selection can point at
+the wrong block, choosing a Visual code language loses typing focus, Markdown
+toolbar history loses typing focus, and changing an active Visual field to
+Markdown attaches the toolbar to a disposed controller and breaks rendering.
+
+The durable checkpoint is
+`handoff/audits/visual-markdown-native-2026-11-16/README.md`, with raw observations,
+exception stacks, application-only screenshots, the exact harness/driver,
+provisional observations, excluded automation artifacts and explicit resume steps.
+Updated HANDOFF.md and the root toolbar audit to link it. No new production fixes
+are included. A second isolated process is alive for remaining clean-process
+checks; the regular Linux bundle still must be restored before finishing.
+
+Static analysis passed and all 55 relevant editor tests passed across
+`visual_editor_stability_test.dart`, `dual_mode_editor_screen_test.dart`,
+`code_block_overlay_test.dart`, `desktop_toolbar_and_shortcuts_test.dart` and
+`markdown_table_widget_test.dart`. No full suite was requested for this audit.
+This entry is a checkpoint and will be updated with final native coverage.
