@@ -58,6 +58,39 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
 
+    for (final code in [false, true]) {
+      testWidgets('Active Visual ${code ? "code" : "paragraph"} switches to a live Markdown field', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'active-mode-$code', title: 'Mode',
+          content: code ? 'Before\n```dart\nprint(1)\n```' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final active = find.descendant(of: find.byType(code ? RichCodeBlock : RichTextEditor), matching: find.byType(EditableText));
+        await tester.enterText(active, code ? 'print(1)x' : 'mode probe');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('More options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Markdown'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(RichTextEditor), findsNothing);
+        final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+        final editor = tester.widget<EditableText>(body);
+        expect(editor.controller.text, contains(code ? 'print(1)x' : 'mode probe'));
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(tester.getTopLeft(body).dy, lessThan(600));
+        final text = '${editor.controller.text}!';
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: text,
+          selection: TextSelection.collapsed(offset: text.length)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        expect((await repository.getNoteById(note.id))!.content, text);
+        await finishTest(tester);
+      });
+    }
+
     testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
       final now = DateTime.now();
       final note = Note(id: 'visual-math-json', title: 'Math', content: '',

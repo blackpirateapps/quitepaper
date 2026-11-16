@@ -17,7 +17,7 @@ installed application were not changed.
 | Finding | Priority | Confirmed behavior | Status |
 | --- | --- | --- | --- |
 | 12 | Critical | Visual Math persists invalid JSON and raises Stack Overflow | Fixed |
-| 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Open |
+| 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Fixed |
 | 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Open |
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Open |
 | 6 | Medium | Visual code language selection loses typing focus | Open |
@@ -134,6 +134,9 @@ Likely investigation area: Markdown branches of `EditorScreen._undo` / `_redo`
 restore values but do not explicitly restore the active body input focus.
 
 ## Confirmed new finding 8 — Switching an active Visual field to Markdown crashes
+
+**Fixed (2026-11-16).** EditorScreen resets the active controller and focus target to the persistent source buffer before conversion can dispose Visual paragraphs or code fields. The destination body receives focus after mounting. Regressions edit both field types, switch through the actual menu, verify visible layout, type immediately, and check persistence. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 15 passed Native evidence above/below describes the original failure; see the resolution log 288.
+
 
 Severity: high; the editor becomes unusable/offscreen.
 

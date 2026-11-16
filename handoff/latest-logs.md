@@ -6656,3 +6656,10 @@ Linux debug bundle no longer contains the audit-only executable.
 Audit finding 12: Visual toolbar and keyboard Math actions now insert a supported editable math fenced block through RichDocumentController. Source JSON is never passed to Markdown insertion helpers. Malformed JSON-like input falls back to Markdown parsing once instead of recurring between setContent and setMarkdown. Controller and EditorScreen regressions cover saved JSON, reopening, and undo/redo.
 
 Validation: flutter analyze: no issues; flutter test test/editor/rich_document_controller_test.dart test/editor/dual_mode_editor_screen_test.dart: 28 passed. Full test suite was not run.
+
+
+## 288. Detach Visual targets before changing editor mode (November 16, 2026)
+
+Audit finding 8: EditorScreen resets the active controller and focus target to the persistent source buffer before conversion can dispose Visual paragraphs or code fields. The destination body receives focus after mounting. Regressions edit both field types, switch through the actual menu, verify visible layout, type immediately, and check persistence.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 15 passed. Full test suite was not run.

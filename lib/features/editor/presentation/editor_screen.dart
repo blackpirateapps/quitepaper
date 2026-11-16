@@ -4650,6 +4650,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
     if (currentStyle == newStyle) return;
 
+    // Segment controllers belong to the outgoing surface. Detach every toolbar
+    // listener before source conversion can replace or dispose those fields.
+    _activeTargetFocusNode?.unfocus();
+    _setActiveTarget(_contentController, _contentFocusNode);
+
+
     if (currentStyle == EditorEditingStyle.wysiwyg && newStyle != EditorEditingStyle.wysiwyg) {
       if (_richDocumentController != null) {
         final md = _richDocumentController!.toMarkdown();
@@ -4666,6 +4672,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     notifier.setPerNoteEditingStyle(newStyle);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _contentFocusNode.requestFocus();
+    });
   }
 
   void _showOverflowMenu(
