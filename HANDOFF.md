@@ -55,10 +55,16 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Native Formatting Toolbar Audit
 
-**Native re-audit fixes (2026-11-16): 8/8 findings fixed.** See the
-[tracked audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md)
-for each resolution, regressions and original native evidence. Latest fix: finding 10,
-Keep Visual note-link query and autocomplete in the active field. Validation uses static analysis and relevant tests only.
+**Native re-audit fixes (2026-11-16): all 8/8 findings fixed and verified.**
+Math preserves valid JSON and accepts immediate input; active-field mode switches
+retain live controllers; native clicks synchronize the document caret; code
+language selection and Markdown history restore focus; Tag and Link Note keep
+their insertion carets and autocomplete works. Each finding has a separate fix
+commit and resolution in the [tracked audit](handoff/audits/visual-markdown-native-2026-11-16/README.md).
+[Native replay evidence](handoff/audits/visual-markdown-native-2026-11-16/fix-verification/README.md)
+records all eight passing with no Flutter runtime errors. Analysis is clean and
+52 relevant tests pass across per-fix runs; the full suite was left to CI.
+Visual Math uses an editable math fenced block. See engineering logs 287–296.
 
 The four original Visual/Markdown toolbar audit findings were fixed. Divider
 insertion focuses its continuation paragraph; Visual code insertion focuses the

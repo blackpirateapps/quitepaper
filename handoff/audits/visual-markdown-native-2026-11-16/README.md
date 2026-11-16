@@ -1,8 +1,12 @@
 # Native Visual / Markdown re-audit — final report
 
 Date: 2026-11-16. Branch: `fix/visual-markdown-editor-input`.
-Audited application source: `1bc137c`. Status: audit complete. Fix progress is tracked in the table and resolution notes
-below; the original audit evidence is retained. Original audit findings 1–4 and their fixes remain in
+Original audited application source: `1bc137c`. **All eight findings are fixed**
+and pass native replay against `443bc87`. See the
+[fix verification report](fix-verification/README.md) for saved-content evidence,
+replay scripts, automated checks and remaining coverage limits. The original
+audit evidence and reproductions below are retained as historical records.
+Original findings 1–4 remain in
 [`../../../EDITOR_TOOLBAR_AUDIT.md`](../../../EDITOR_TOOLBAR_AUDIT.md).
 
 ## Outcome and priorities
@@ -290,9 +294,9 @@ source controller, Math uses the generic Markdown formatter fallback, and
 JSON-like decode failures recurse between the two controller entry points.
 
 Do not exercise this against personal notes. The reproduction used only an
-isolated in-memory synthetic note. No production fix has been applied here.
+isolated in-memory synthetic note. This describes the original failure; the resolution is recorded above.
 
-## Work completed and coverage limits
+## Original audit coverage and limits
 
 | Area | Native result / coverage |
 | --- | --- |
@@ -331,7 +335,7 @@ in the original audit, not new verification in this pass.
   confirmed in a clean process as findings 9–10. Math input loss was independently
   confirmed in phase two, and persisted JSON corruption in phase three.
 
-## Future work
+## Original fix plan (completed; retained for context)
 
 1. **Fix finding 12 first.** Route Visual Math through a supported document edit
    and keep saved RichDocument JSON valid. Eliminate recursive fallback on malformed
@@ -355,7 +359,7 @@ in the original audit, not new verification in this pass.
    export, math rendering/conversion parity, broader table operations and other
    platforms. Use isolated data and fresh processes after any runtime failure.
 
-## Validation and final environment state
+## Original audit validation and environment state
 
 - `flutter analyze`: **no issues**.
 - **55 relevant tests passed** across `visual_editor_stability_test.dart`,

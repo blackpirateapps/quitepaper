@@ -35,6 +35,12 @@ The editor supports three editing styles:
 - Text fields publish their current selection after tap focus settles, because native
   clicks may deliver selection before focus. Programmatic focus retains AST intent. Toolbar edits then use that caret.
 
+- Text mutations received while a toolbar menu owns focus also publish their
+  resulting selection to the AST. Selection-only notifications still require
+  field focus. Tag and note-link prompts keep the caret after their markers;
+  Visual note-link edits rely on rich-field autosave for canonical JSON.
+- Code language selection and cancellation restore the code field and its caret.
+  Markdown toolbar history normalizes invalid snapshot carets and focuses the body.
 - Visual toolbar and keyboard undo/redo use `RichDocumentController` snapshots,
   including ordinary text-span edits and caret positions. History restoration
   marks the document dirty for autosave. The toolbar observes the persistent

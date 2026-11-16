@@ -8,7 +8,7 @@ Branch: fix/visual-markdown-editor-input
 The native audit found eight additional bugs. **8/8 are now fixed**; current
 statuses, fix details and original reproduction evidence are tracked in
 [the native audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md).
-Validation for these fixes uses analysis and relevant tests only.
+All eight also pass [native replay](handoff/audits/visual-markdown-native-2026-11-16/fix-verification/README.md) with no Flutter runtime errors. Validation uses analysis and relevant tests only.
 
 ## Scope and method
 

@@ -6718,3 +6718,23 @@ Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/edit
 Audit finding 10: Link Note benefits from the unfocused text-edit selection synchronization added for finding 9. It now also avoids publishing the older source buffer from the Visual prompt; rich field autosave owns canonical persistence. Regressions enter Other after the brackets in empty and mixed notes, verify the saved query, select Other note from autocomplete, and check its saved target and surrounding formatting.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 22 passed. Full test suite was not run.
+
+
+## 296. Verify all eight audit fixes with native Linux input (November 16, 2026)
+
+All findings 5–12 pass their original native sequences against `443bc87` in an
+isolated GTK/Wayland EditorScreen. Evidence and replay scripts are preserved in
+[the fix verification report](audits/visual-markdown-native-2026-11-16/fix-verification/README.md).
+Twenty observations cover twelve synthetic cases, including one excluded picker
+animation click and a deliberate repeat. All Flutter error arrays are empty.
+Math JSON integrity/input, click-only divider placement, code language choice
+and cancellation, plain/code Markdown history, Tag input, note-link query and
+autocomplete, and active paragraph/code mode switches all pass. The audit table,
+HANDOFF and editor guide now describe the final behavior and remaining limits.
+
+Validation: clean `flutter analyze --no-pub`; all 52 distinct relevant tests pass
+across per-fix runs in rich_document_controller_test.dart (15),
+visual_editor_stability_test.dart (15), and dual_mode_editor_screen_test.dart (22).
+The full suite was not run. The native audit process group was closed and the
+ordinary `lib/main.dart` Linux debug bundle rebuilt successfully. Rendered Math
+parity and the original audit's broader coverage limits remain outside this pass.
