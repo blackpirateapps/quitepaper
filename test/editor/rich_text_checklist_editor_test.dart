@@ -35,6 +35,30 @@ void main() {
       );
     }
 
+    for (final reversed in [false, true]) {
+      testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
+        controller.setMarkdown('- [x] AlphaBeta\n- [ ] Neighbor');
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
+        final field = tester.widget<EditableText>(find.byType(EditableText).first);
+        field.focusNode.requestFocus();
+        await tester.pump();
+        field.controller.selection = TextSelection(
+          baseOffset: reversed ? 7 : 2,
+          extentOffset: reversed ? 2 : 7,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), '- [x] Al\n- [ ] ta\n- [ ] Neighbor');
+        expect(controller.selection.base.blockIndex, 1);
+        expect(controller.selection.base.offset, 0);
+        controller.undo();
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), '- [x] AlphaBeta\n- [ ] Neighbor');
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
     testWidgets('1. Toggling checklist on empty paragraph renders RichChecklistEditor widget', (tester) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();

@@ -185,3 +185,7 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
    - Append detailed entries to **[`handoff/latest-logs.md`](handoff/latest-logs.md)**.
    - Include: numbered section, motivation, architectural design, modified files, and test verification results.
 3. **Keep domain guides updated**: If introducing a new architectural pattern or subsystem, update the corresponding file in [`handoff/`](handoff/).
+
+### CL-01 checklist audit fix — Replace selected task text on Enter
+
+Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed. Full suite left to GitHub Actions.

@@ -1,7 +1,7 @@
 # Checklist adversarial audit — November 16, 2026
 
 Branch: `fix/visual-markdown-editor-input`. Application source: `daad621`.
-**Status: audit complete; 12 confirmed findings remain open. No production fixes.**
+**Status: fixes in progress; see individual resolutions below.**
 
 Ten findings have native Linux reproductions. Two are confirmed through Flutter's
 IME/composition test channel; real Android/iOS or CJK input-method sessions were
@@ -48,7 +48,7 @@ that were subsequently narrowed or excluded here.
 
 ## Findings and priorities
 
-Every finding is **Open**. No fixes were attempted in this pass.
+Resolutions are recorded under each finding. Historical evidence below describes the audited source.
 
 | ID | Severity | Mode | Finding | Verification |
 | --- | --- | --- | --- | --- |
@@ -195,7 +195,9 @@ Tail intact (phase 3 case 10). Earlier Backspace checks followed the Home mutati
 
 ## CL-01 — Enter ignores the selected replacement range
 
-**Open. Medium. Native and widget confirmation, both selection directions.**
+Resolution: Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed.
+
+**Fixed.** Medium. Native and widget confirmation, both selection directions.
 
 In task `AlphaBeta`, select offsets 2–7 (`phaBe`) and press Enter. Expected rows
 are `Al`, `ta`; the selected letters should be removed. Forward selection produces

@@ -328,7 +328,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   KeyEventResult _handleEnter(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl) {
     if (widget.readOnly) return KeyEventResult.ignored;
     final sel = ctrl.selection;
-    final cursorOffset = sel.isValid ? sel.baseOffset.clamp(0, block.plainText.length) : block.plainText.length;
+    final cursorOffset = sel.isValid ? sel.start.clamp(0, block.plainText.length) : block.plainText.length;
 
     // If checklist item is empty: exit checklist -> converts to paragraph
     if (block.plainText.trim().isEmpty) {
@@ -346,7 +346,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       blockIndex: blockIndex,
       blockId: block.id,
       offset: cursorOffset,
-    ));
+    ), replacementEnd: sel.isValid ? sel.end : cursorOffset);
 
     widget.onChanged?.call(widget.controller.toMarkdown());
     return KeyEventResult.handled;

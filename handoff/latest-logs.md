@@ -6801,3 +6801,9 @@ Cleanup: all three isolated audit process groups were terminated. The normal
 `flutter build linux --debug --no-pub -t lib/main.dart` target rebuilt successfully.
 Application source and normal executable regression tests are unchanged; temporary
 probe targets are retained only as `.dart.txt` audit artifacts.
+
+## 299. CL-01: Replace selected task text on Enter (November 16, 2026)
+
+Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo.
+
+Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed. Full suite left to GitHub Actions.

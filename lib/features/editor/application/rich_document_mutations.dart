@@ -516,8 +516,9 @@ abstract final class RichDocumentMutations {
   /// Returns a record with the updated [RichDocument] and resulting [RichDocumentPosition].
   static (RichDocument, RichDocumentPosition) handleEnter(
     RichDocument doc,
-    RichDocumentPosition position,
-  ) {
+    RichDocumentPosition position, {
+    int? replacementEnd,
+  }) {
     if (doc.blocks.isEmpty) {
       final newDoc = RichDocument.empty();
       return (newDoc, const RichDocumentPosition(blockIndex: 0, blockId: '', offset: 0));
@@ -551,7 +552,10 @@ abstract final class RichDocumentMutations {
         );
       }
       // Non-empty checklist item -> split or create new unchecked checklist item below
-      final (leftSpans, rightSpans) = _splitSpansAtOffset(block.spans, offset);
+      final (leftSpans, _) = _splitSpansAtOffset(block.spans, offset);
+      final (_, rightSpans) = _splitSpansAtOffset(
+        block.spans, (replacementEnd ?? offset).clamp(offset, block.plainText.length),
+      );
       final newBlock = ChecklistItemBlock(
         id: _uuid.v4(),
         isChecked: false,

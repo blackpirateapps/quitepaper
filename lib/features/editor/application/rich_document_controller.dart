@@ -626,8 +626,10 @@ class RichDocumentController extends ChangeNotifier {
     );
   }
 
-  void handleEnterAt(RichDocumentPosition position) {
-    final (newDoc, newPos) = RichDocumentMutations.handleEnter(_document, position);
+  void handleEnterAt(RichDocumentPosition position, {int? replacementEnd}) {
+    final (newDoc, newPos) = RichDocumentMutations.handleEnter(
+      _document, position, replacementEnd: replacementEnd,
+    );
     _typingAttributes = TextAttributes.none;
     _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
   }
