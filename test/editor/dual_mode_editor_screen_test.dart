@@ -154,6 +154,51 @@ void main() {
       });
     }
 
+    for (final mixed in [false, true]) {
+      testWidgets('Visual Link Note keeps the query after brackets and completes with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final reference = Note(id: 'reference-$mixed', title: 'Other note', content: 'Reference',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(reference);
+        final note = Note(id: 'visual-note-link-$mixed', title: 'Links',
+          content: mixed ? '**Before**\n- [ ] task\nTail ' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == (mixed ? 'Tail ' : ''));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Link Note').last);
+        await tester.pumpAndSettle();
+        final prefix = mixed ? 'Tail [[' : '[[';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}Other',
+          selection: TextSelection.collapsed(offset: prefix.length + 5)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        var doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}Other');
+        expect(find.text('Other note'), findsOneWidget);
+        await tester.tap(find.text('Other note'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, contains('qp://note/${reference.id}'));
+        expect(doc.blocks.last.plainText, isNot(contains('[[')));
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
     testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
       final now = DateTime.now();
       final note = Note(id: 'visual-math-json', title: 'Math', content: '',

@@ -6711,3 +6711,10 @@ Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/edit
 Audit finding 9: RichTextEditor now publishes the selection accompanying a text mutation even while a toolbar menu owns focus. Selection-only notifications still require field focus. This keeps the inserted hashtag caret in the AST before reconciliation. Regressions type nativeaudit immediately in empty and mixed-list notes, check saved text and retain surrounding bold formatting.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/visual_editor_stability_test.dart: 35 passed. Full test suite was not run.
+
+
+## 295. Keep Visual note-link query and autocomplete in the active field (November 16, 2026)
+
+Audit finding 10: Link Note benefits from the unfocused text-edit selection synchronization added for finding 9. It now also avoids publishing the older source buffer from the Visual prompt; rich field autosave owns canonical persistence. Regressions enter Other after the brackets in empty and mixed notes, verify the saved query, select Other note from autocomplete, and check its saved target and surrounding formatting.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 22 passed. Full test suite was not run.

@@ -23,7 +23,7 @@ installed application were not changed.
 | 6 | Medium | Visual code language selection loses typing focus | Fixed |
 | 7 | Medium | Markdown toolbar undo/redo loses typing focus | Fixed |
 | 9 | Medium | Visual Tag saves the name before `#` | Fixed |
-| 10 | Medium | Visual Link Note saves the query before `[[` | Open |
+| 10 | Medium | Visual Link Note saves the query before `[[` | Fixed |
 
 ## Durable evidence
 
@@ -207,6 +207,9 @@ subsequent document/field reconciliation appears to restore an older selection.
 Do not assume the fix is identical to finding 5 without testing both paths.
 
 ## Confirmed new finding 10 — Visual Link Note puts the query before `[[`
+
+**Fixed (2026-11-16).** Link Note benefits from the unfocused text-edit selection synchronization added for finding 9. It now also avoids publishing the older source buffer from the Visual prompt; rich field autosave owns canonical persistence. Regressions enter Other after the brackets in empty and mixed notes, verify the saved query, select Other note from autocomplete, and check its saved target and surrounding formatting. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 22 passed Native evidence above/below describes the original failure; see the resolution log 295.
+
 
 Severity: medium; the insertion workflow cannot form the intended note link.
 

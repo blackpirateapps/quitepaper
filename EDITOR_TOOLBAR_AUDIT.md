@@ -5,7 +5,7 @@ Branch: fix/visual-markdown-editor-input
 
 ## Completed native re-audit — 2026-11-16
 
-The native audit found eight additional bugs. **7/8 are now fixed**; current
+The native audit found eight additional bugs. **8/8 are now fixed**; current
 statuses, fix details and original reproduction evidence are tracked in
 [the native audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md).
 Validation for these fixes uses analysis and relevant tests only.

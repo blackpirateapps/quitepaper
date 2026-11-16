@@ -1410,7 +1410,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         selection: TextSelection.collapsed(offset: offset + 2),
       );
     }
-    _onContentChanged();
+    // Visual text edits already commit through the rich field. Its autosave
+    // publishes canonical JSON; the source buffer can still contain older text.
+    if (!_isWysiwyg) _onContentChanged();
   }
 
 
