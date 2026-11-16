@@ -27,6 +27,11 @@ The editor supports three editing styles:
   including ordinary text-span edits and caret positions. History restoration
   marks the document dirty for autosave. The toolbar observes the persistent
   source buffer, because segment controllers may be disposed during restoration.
+- Visual code fields register their surface-owned focus node and publish their
+  active text controller. Code insertion selects the new block, and code/language
+  edits resolve the block by ID and commit directly to the AST. External history
+  updates reconcile code text/selection after the frame without losing unchanged
+  IME composition or reparsing the document.
 - Visual text/checklist segments use stable block-ID keys. Text-segment focus
   nodes live for the surface lifetime and are pruned after block removal. A plain
   document uses the same segment layout as a mixed document. The supplied body

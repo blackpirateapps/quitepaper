@@ -10,10 +10,12 @@ import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/domain/rich_document.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_code_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
@@ -55,6 +57,58 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 800));
     }
+
+    testWidgets('Visual code insertion focuses, types, saves and restores code history', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'visual-code-insertion', title: 'Code', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText)));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Code Block'));
+      await tester.pumpAndSettle();
+      final codeField = find.descendant(of: find.byType(RichCodeBlock), matching: find.byType(EditableText));
+      final code = tester.widget<EditableText>(codeField);
+      expect(code.focusNode.hasPrimaryFocus, isTrue);
+      expect(code.controller.selection, const TextSelection.collapsed(offset: 0));
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'print', selection: TextSelection.collapsed(offset: 5),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(codeField).controller.text, 'print');
+      await tester.pump(const Duration(milliseconds: 800));
+      final saved = (await repository.getNoteById(note.id))!;
+      final doc = RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>);
+      expect(doc.blocks.whereType<CodeBlock>().single.code, 'print');
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(codeField).controller.text, isEmpty);
+      await tester.tap(find.byTooltip('Redo'));
+      await tester.pumpAndSettle();
+      final restored = tester.widget<EditableText>(codeField);
+      expect(restored.controller.text, 'print');
+      expect(restored.controller.selection, const TextSelection.collapsed(offset: 5));
+      expect(restored.focusNode.hasPrimaryFocus, isTrue);
+      await tester.tap(find.text('Plain Text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dart'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      final languageSave = (await repository.getNoteById(note.id))!;
+      final languageDoc = RichDocument.fromJson(jsonDecode(languageSave.content) as Map<String, dynamic>);
+      final languageBlock = languageDoc.blocks.whereType<CodeBlock>().single;
+      expect(languageBlock.language, 'dart');
+      expect(languageBlock.code, 'print');
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
 
     testWidgets('Visual toolbar undo and redo retain a live body input and save history', (tester) async {
       final now = DateTime.now();

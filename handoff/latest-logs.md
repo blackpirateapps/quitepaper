@@ -6557,3 +6557,22 @@ the audit finding. Validation: `flutter analyze` and the full `flutter test` sui
 Use default test concurrency: an experimental eight-worker run hit the existing
 300 ms tag-parser threshold at 302 ms and timed out an image-dialog test. The
 default-concurrency run passed those checks without changing their assertions.
+
+## 283. Visual code insertion focus and persisted editing (November 16, 2026)
+
+Audit finding 2 reproduced with actual EditorScreen menu insertion. The controller
+now selects the inserted code block. `rich_editor_surface.dart` registers its
+focus destination; `rich_code_block.dart` uses the surface-owned node, publishes
+the active target, and synchronizes valid caret/range selections after mounting
+and history changes. Unchanged composing ranges survive reconciliation.
+
+The code and language handlers previously constructed new block lists but never
+committed them, then reparsed unchanged Markdown. They now resolve the current
+block by stable ID and commit its code/language directly to the AST. Edits are
+undoable and flow through normal autosave without discarding changes or siblings.
+
+`dual_mode_editor_screen_test.dart` inserts through the toolbar menu, types `print`
+through the existing input connection, waits for autosave, checks persisted code,
+then verifies undo/redo text, focus and caret restoration and persisted language
+selection. Updated HANDOFF.md, the editor lifecycle guide and audit finding.
+Validation: `flutter analyze` and the full `flutter test` suite.

@@ -65,7 +65,8 @@ the same document history, text edits are recorded, and restored content is save
 The toolbar observes the persistent source buffer instead of disposable segment
 controllers. Finding 1 is also fixed: divider insertion creates and selects its
 continuation paragraph, including before another block. See engineering logs
-281–282.
+281–282. Finding 2 is fixed as well: Visual code insertion focuses the code field,
+and code/language edits persist in the AST with undo/redo. See engineering log 283.
 
 ## Latest Visual and Markdown Editor Stability
 

@@ -7,6 +7,7 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../../core/syntax/presentation/language_selector_sheet.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../domain/rich_block.dart';
+import '../../domain/document_selection.dart';
 import '../../application/rich_document_controller.dart';
 
 /// Specialized code block widget in Quiet Paper's Visual editor surface.
@@ -22,12 +23,17 @@ class RichCodeBlock extends StatefulWidget {
     required this.block,
     required this.blockIndex,
     required this.controller,
+    required this.focusNode,
+    this.onActiveTargetChanged,
     this.readOnly = false,
   });
 
   final CodeBlock block;
   final int blockIndex;
   final RichDocumentController controller;
+  final FocusNode focusNode;
+  final void Function(TextEditingController controller, FocusNode focusNode)?
+  onActiveTargetChanged;
   final bool readOnly;
 
   @override
@@ -36,23 +42,69 @@ class RichCodeBlock extends StatefulWidget {
 
 class _RichCodeBlockState extends State<RichCodeBlock> {
   late final TextEditingController _codeTextController;
-  late final FocusNode _codeFocusNode;
+  bool _isSyncing = false;
   bool _copied = false;
 
   @override
   void initState() {
     super.initState();
-    _codeTextController = TextEditingController(text: widget.block.code);
-    _codeFocusNode = FocusNode();
+    _codeTextController = TextEditingController.fromValue(
+      TextEditingValue(
+        text: widget.block.code,
+        selection: const TextSelection.collapsed(offset: 0),
+      ),
+    );
     _codeTextController.addListener(_onCodeChanged);
+    widget.focusNode.addListener(_onFocusChanged);
+    _scheduleSync();
   }
 
   @override
   void didUpdateWidget(RichCodeBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.block.code != widget.block.code &&
-        _codeTextController.text != widget.block.code) {
-      _codeTextController.text = widget.block.code;
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_onFocusChanged);
+      widget.focusNode.addListener(_onFocusChanged);
+    }
+    _scheduleSync();
+  }
+
+  void _scheduleSync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final selection = widget.controller.selection;
+      final current = _codeTextController.value;
+      final text = widget.block.code;
+      final selected =
+          selection.base.blockId == widget.block.id &&
+          selection.extent.blockId == widget.block.id;
+      final updated = current.copyWith(
+        text: text,
+        selection: TextSelection(
+          baseOffset:
+              (selected ? selection.base.offset : current.selection.baseOffset)
+                  .clamp(0, text.length),
+          extentOffset:
+              (selected
+                      ? selection.extent.offset
+                      : current.selection.extentOffset)
+                  .clamp(0, text.length),
+        ),
+        composing: current.text == text ? current.composing : TextRange.empty,
+      );
+      _isSyncing = true;
+      try {
+        if (updated != current) _codeTextController.value = updated;
+      } finally {
+        _isSyncing = false;
+      }
+    });
+  }
+
+  void _onFocusChanged() {
+    if (widget.focusNode.hasFocus) {
+      widget.onActiveTargetChanged?.call(_codeTextController, widget.focusNode);
+      _onCodeChanged();
     }
   }
 
@@ -60,20 +112,39 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
   void dispose() {
     _codeTextController.removeListener(_onCodeChanged);
     _codeTextController.dispose();
-    _codeFocusNode.dispose();
+    widget.focusNode.removeListener(_onFocusChanged);
     super.dispose();
   }
 
   void _onCodeChanged() {
-    if (_codeTextController.text != widget.block.code) {
-      final updated = widget.block.copyWith(code: _codeTextController.text);
-      final newBlocks = List<RichBlock>.from(widget.controller.document.blocks);
-      if (widget.blockIndex < newBlocks.length) {
-        newBlocks[widget.blockIndex] = updated;
-        widget.controller.setMarkdown(
-          widget.controller.toMarkdown(),
-        );
-      }
+    if (_isSyncing || widget.readOnly || !widget.focusNode.hasFocus) return;
+    final document = widget.controller.document;
+    final index = document.findBlockIndexById(widget.block.id);
+    if (index < 0 || document.blocks[index] is! CodeBlock) return;
+    final block = document.blocks[index] as CodeBlock;
+    final value = _codeTextController.value;
+    if (!value.selection.isValid) return;
+    final selection = RichDocumentSelection(
+      base: RichDocumentPosition(
+        blockIndex: index,
+        blockId: block.id,
+        offset: value.selection.baseOffset,
+      ),
+      extent: RichDocumentPosition(
+        blockIndex: index,
+        blockId: block.id,
+        offset: value.selection.extentOffset,
+      ),
+    );
+    if (value.text != block.code) {
+      final blocks = List<RichBlock>.from(document.blocks);
+      blocks[index] = block.copyWith(code: value.text);
+      widget.controller.setDocument(
+        document.copyWith(blocks: blocks),
+        newSelection: selection,
+      );
+    } else {
+      widget.controller.updateSelection(selection);
     }
   }
 
@@ -84,12 +155,15 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
       currentLanguageId: widget.block.language,
       title: 'Select Code Language',
     );
-    if (selected != null) {
-      final updated = widget.block.copyWith(language: selected.id);
-      final newBlocks = List<RichBlock>.from(widget.controller.document.blocks);
-      if (widget.blockIndex < newBlocks.length) {
-        newBlocks[widget.blockIndex] = updated;
-        widget.controller.setMarkdown(widget.controller.toMarkdown());
+    if (mounted && selected != null) {
+      final document = widget.controller.document;
+      final index = document.findBlockIndexById(widget.block.id);
+      if (index >= 0 && document.blocks[index] is CodeBlock) {
+        final blocks = List<RichBlock>.from(document.blocks);
+        blocks[index] = (blocks[index] as CodeBlock).copyWith(
+          language: selected.id,
+        );
+        widget.controller.setDocument(document.copyWith(blocks: blocks));
       }
     }
   }
@@ -107,7 +181,9 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final lang = widget.block.language.isEmpty ? 'Plain Text' : widget.block.language;
+    final lang = widget.block.language.isEmpty
+        ? 'Plain Text'
+        : widget.block.language;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -132,10 +208,15 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
             child: Row(
               children: [
                 InkWell(
-                  onTap: widget.readOnly ? null : () => _changeLanguage(context),
+                  onTap: widget.readOnly
+                      ? null
+                      : () => _changeLanguage(context),
                   borderRadius: AppRadii.borderSm,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -148,7 +229,11 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
                         ),
                         if (!widget.readOnly) ...[
                           const SizedBox(width: 4),
-                          Icon(Icons.arrow_drop_down, size: 14, color: colors.textTertiary),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            size: 14,
+                            color: colors.textTertiary,
+                          ),
                         ],
                       ],
                     ),
@@ -170,7 +255,7 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: TextField(
               controller: _codeTextController,
-              focusNode: _codeFocusNode,
+              focusNode: widget.focusNode,
               readOnly: widget.readOnly,
               maxLines: null,
               style: AppTypography.editorCode.copyWith(

@@ -186,12 +186,16 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
             ),
           );
         } else if (block is CodeBlock) {
+          final node = _focusFor(block.id);
+          _textTargets[block.id] = node;
           segments.add(
             RichCodeBlock(
               key: ValueKey(block.id),
               block: block,
               blockIndex: i,
               controller: widget.controller,
+              focusNode: node,
+              onActiveTargetChanged: widget.onActiveTargetChanged,
               readOnly: widget.readOnly,
             ),
           );

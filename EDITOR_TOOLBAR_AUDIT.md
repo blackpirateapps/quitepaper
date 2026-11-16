@@ -53,6 +53,12 @@ Evidence: `/tmp/qp-toolbar-results.jsonl`, steps `visual divider` and
 
 ## Confirmed finding 2 — Insert Code Block drops keyboard focus
 
+**Fixed (2026-11-16).** Insertion selects the new code block. Its field participates
+in surface focus routing and active-target publication, with a valid selection.
+Code and language changes now commit the updated block to the authoritative AST
+instead of discarding the copy and reparsing unchanged Markdown. EditorScreen
+coverage inserts via the menu, types without clicking, saves, and restores history.
+
 Severity: high for keyboard workflow. Mode: Visual.
 
 In the sample note, open Insert Options → Code Block, then immediately type

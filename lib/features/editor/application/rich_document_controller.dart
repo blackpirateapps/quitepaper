@@ -591,13 +591,16 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void insertCodeBlock({String language = '', String code = ''}) {
+    final index = (currentBlockIndex + 1).clamp(0, _document.blocks.length);
+    final document = RichDocumentMutations.insertCodeBlock(
+      _document, currentBlockIndex, language: language, code: code,
+    );
+    _typingAttributes = TextAttributes.none;
     _commitMutation(
-      RichDocumentMutations.insertCodeBlock(
-        _document,
-        currentBlockIndex,
-        language: language,
-        code: code,
-      ),
+      document,
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: index, blockId: document.blocks[index].id, offset: 0,
+      )),
     );
   }
 
