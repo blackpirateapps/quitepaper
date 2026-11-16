@@ -52,7 +52,7 @@ void main() {
     );
   }
 
-  testWidgets('focus gain publishes a native selection made before field focus', (tester) async {
+  testWidgets('native tap publishes a selection made before field focus', (tester) async {
     cleanUp(tester);
     controller.setMarkdown('Before\n- [ ] task\nTail');
     await tester.pumpWidget(surface());
@@ -61,6 +61,8 @@ void main() {
     expect(tail.focusNode.hasFocus, isFalse);
     tail.controller.selection = const TextSelection.collapsed(offset: 4);
     expect(controller.selection.extent.blockIndex, 0);
+    final textField = find.ancestor(of: field('Tail'), matching: find.byType(TextField));
+    tester.widget<TextField>(textField).onTap!();
     tail.focusNode.requestFocus();
     await tester.pump();
     expect(controller.selection.extent.blockIndex, 2);

@@ -48,7 +48,7 @@ observations are excluded as described below.
 
 ## Confirmed new finding 5 — Visual click leaves the document caret on another block
 
-**Fixed (2026-11-16).** RichTextEditor reconciles its field selection on focus gain, covering native selection-before-focus ordering. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed Native evidence above/below describes the original failure; see the resolution log 289.
+**Fixed (2026-11-16).** RichTextEditor reconciles its field selection after native tap focus settles, covering selection-before-focus ordering while preserving programmatic caret destinations. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed Native evidence above/below describes the original failure; see the resolution log 289.
 
 
 Severity: high; formatting/insertion can affect the wrong part of the note.

@@ -74,9 +74,6 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
   void _onFocusChanged() {
     if (widget.focusNode.hasFocus) {
-      // Native taps can update selection before focus notifications arrive.
-      // Publish that caret now, before a toolbar action reads the document.
-      _onTextControllerChanged();
       widget.onActiveTargetChanged?.call(_textController, widget.focusNode);
     }
   }
@@ -296,6 +293,11 @@ class _RichTextEditorState extends State<RichTextEditor> {
           ),
           onTap: () {
             widget.onActiveTargetChanged?.call(_textController, widget.focusNode);
+            // A native tap can set selection before its focus request is applied.
+            // Reconcile after focus settles; programmatic focus keeps AST intent.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && widget.focusNode.hasFocus) _onTextControllerChanged();
+            });
           },
           contextMenuBuilder: (context, editableTextState) {
             final rawButtonItems = editableTextState.contextMenuButtonItems;

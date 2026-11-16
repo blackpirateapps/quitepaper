@@ -6670,3 +6670,16 @@ Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/edit
 Audit finding 5: RichTextEditor reconciles its field selection on focus gain, covering native selection-before-focus ordering. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed. Full test suite was not run.
+
+
+## 290. Preserve programmatic focus destinations during tap reconciliation (November 16, 2026)
+
+Finding 5 follow-up: reconciling every focus gain could overwrite document selections
+chosen by title submission or code insertion. Restrict reconciliation to the
+TextField tap callback after focus settles. The regression simulates native
+selection-before-focus and taps explicitly. Existing EditorScreen code insertion
+and title submission tests also run to protect their programmatic destinations.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub
+test/editor/visual_editor_stability_test.dart test/editor/dual_mode_editor_screen_test.dart:
+30 passed. Full suite was not run.
