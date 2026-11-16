@@ -197,3 +197,7 @@ ChecklistItemBlock now stores indentation with backward-compatible JSON defaults
 ### CL-03 checklist audit fix — Join tasks with forward Delete
 
 Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed. Full suite left to GitHub Actions.
+
+### CL-04 checklist audit fix — Keep checklist toolbar markers and insertion caret
+
+Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON. flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed. Full suite left to GitHub Actions.

@@ -15,6 +15,7 @@ import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_checklist_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_code_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
@@ -176,6 +177,86 @@ void main() {
         await tester.tap(find.text('Link Note').last);
         await tester.pumpAndSettle();
         final prefix = mixed ? 'Tail [[' : '[[';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}Other',
+          selection: TextSelection.collapsed(offset: prefix.length + 5)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        var doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}Other');
+        expect(find.text('Other note'), findsOneWidget);
+        await tester.tap(find.text('Other note'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, contains('qp://note/${reference.id}'));
+        expect(doc.blocks.last.plainText, isNot(contains('[[')));
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
+    for (final mixed in [false]) {
+      testWidgets('CL-04 checklist Tag keeps its caret after the marker with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'checklist-tag-$mixed', title: 'Tags',
+          content: '- [ ] Task ',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.descendant(of: find.byType(RichChecklistEditor), matching: find.byType(EditableText));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tag').last);
+        await tester.pumpAndSettle();
+        const prefix = 'Task #';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}nativeaudit',
+          selection: TextSelection.collapsed(offset: prefix.length + 11)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        final doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}nativeaudit');
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
+    for (final mixed in [false]) {
+      testWidgets('CL-04 checklist Link Note keeps the query after brackets and completes with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final reference = Note(id: 'reference-$mixed', title: 'Other note', content: 'Reference',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(reference);
+        final note = Note(id: 'checklist-note-link-$mixed', title: 'Links',
+          content: '- [ ] Task ',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.descendant(of: find.byType(RichChecklistEditor), matching: find.byType(EditableText));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Link Note').last);
+        await tester.pumpAndSettle();
+        const prefix = 'Task [[';
         final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
         final updated = tester.widget<EditableText>(target);
         expect(updated.focusNode.hasPrimaryFocus, isTrue);

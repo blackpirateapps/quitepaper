@@ -261,7 +261,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   void _onTextChanged(String blockId, _ChecklistItemTextController ctrl) {
     if (_isInternalUpdate || _isReconcilingStructure) return;
     final fn = _focusNodes[blockId];
-    if (fn == null || !fn.hasFocus) return;
+    if (fn == null) return;
 
     final doc = widget.controller.document;
     final blockIndex = doc.blocks.indexWhere((b) => b.id == blockId);
@@ -270,7 +270,9 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     if (block is! ChecklistItemBlock) return;
 
     final newText = ctrl.text;
-    if (newText != block.plainText) {
+    final textChanged = newText != block.plainText;
+    if (!fn.hasFocus && !textChanged) return;
+    if (textChanged) {
       _isInternalUpdate = true;
       try {
         final updatedSpans = _spliceSpans(

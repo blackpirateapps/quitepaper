@@ -214,7 +214,9 @@ split without deleting the selected range.
 
 ## CL-04 — checklist Tag and Link Note markers disappear
 
-**Open. Medium. Two native menu/typing/save reproductions.**
+Resolution: Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON. Validation: flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed.
+
+**Fixed.** Medium. Two native menu/typing/save reproductions.
 
 1. In a Visual task containing `Task `, click its end.
 2. Choose Insert Options → Tag, then type `nativeaudit` without clicking again.
