@@ -5,6 +5,35 @@ import 'package:quitepaper/features/editor/application/markdown_text_input_forma
 void main() {
   const formatter = MarkdownTextInputFormatter();
 
+  for (final entry in <String, String>{
+    '> - [ ] Alpha': '> - [ ] ',
+    '> > - [x] Alpha': '> > - [ ] ',
+    '1. [ ] Alpha': '2. [ ] ',
+    '  9) [X] Alpha': '  10) [ ] ',
+    '> 3. [x] Alpha': '> 4. [ ] ',
+  }.entries) {
+    test('CL-07 continues compound task ${entry.key}', () {
+      final text = entry.key;
+      final result = formatter.formatEditUpdate(
+        TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length)),
+        TextEditingValue(text: '$text\n', selection: TextSelection.collapsed(offset: text.length + 1)),
+      );
+      expect(result.text, '$text\n${entry.value}');
+      expect(result.selection.extentOffset, result.text.length);
+    });
+  }
+  for (final reversed in [false, true]) {
+    test('CL-07 selected task text is replaced and continuation retained reverse=$reversed', () {
+      const text = '- [ ] AlphaBeta';
+      final result = formatter.formatEditUpdate(
+        TextEditingValue(text: text, selection: TextSelection(baseOffset: reversed ? 13 : 8, extentOffset: reversed ? 8 : 13)),
+        const TextEditingValue(text: '- [ ] Al\nta', selection: TextSelection.collapsed(offset: 9)),
+      );
+      expect(result.text, '- [ ] Al\n- [ ] ta');
+      expect(result.selection.extentOffset, 15);
+    });
+  }
+
   group('MarkdownTextInputFormatter - Smart Checklists', () {
     test('continues checklist on Enter: - [ ] Task -> - [ ] Task\\n- [ ] ', () {
       const oldVal = TextEditingValue(

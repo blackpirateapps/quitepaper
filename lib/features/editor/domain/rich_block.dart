@@ -52,6 +52,7 @@ abstract class RichBlock {
       case 'checklist_item':
         return ChecklistItemBlock(
           id: id,
+          indent: (json['indent'] as num?)?.toInt() ?? 0,
           isChecked: json['isChecked'] == true,
           spans: _parseSpansJson(json['spans']),
         );
@@ -280,22 +281,28 @@ class ChecklistItemBlock extends RichBlock {
   const ChecklistItemBlock({
     required super.id,
     required this.isChecked,
+    this.indent = 0,
     this.spans = const [],
   });
 
   factory ChecklistItemBlock.fromText(
     String text, {
     bool isChecked = false,
+    int indent = 0,
     String? id,
   }) =>
       ChecklistItemBlock(
         id: id ?? _uuid.v4(),
         isChecked: isChecked,
+        indent: indent,
         spans: [RichInlineSpan(text: text)],
       );
 
   /// Whether the task is checked / completed.
   final bool isChecked;
+
+  /// Nesting level, serialized as two spaces per level.
+  final int indent;
 
   @override
   final List<RichInlineSpan> spans;
@@ -309,11 +316,13 @@ class ChecklistItemBlock extends RichBlock {
   ChecklistItemBlock copyWith({
     String? id,
     bool? isChecked,
+    int? indent,
     List<RichInlineSpan>? spans,
   }) {
     return ChecklistItemBlock(
       id: id ?? this.id,
       isChecked: isChecked ?? this.isChecked,
+      indent: indent ?? this.indent,
       spans: spans ?? this.spans,
     );
   }
@@ -326,6 +335,7 @@ class ChecklistItemBlock extends RichBlock {
         'type': 'checklist_item',
         'id': id,
         'isChecked': isChecked,
+        'indent': indent,
         'spans': spans.map((s) => s.toJson()).toList(),
       };
 
@@ -336,10 +346,11 @@ class ChecklistItemBlock extends RichBlock {
           runtimeType == other.runtimeType &&
           id == other.id &&
           isChecked == other.isChecked &&
+          indent == other.indent &&
           listEquals(spans, other.spans);
 
   @override
-  int get hashCode => Object.hash(id, isChecked, Object.hashAll(spans));
+  int get hashCode => Object.hash(id, isChecked, indent, Object.hashAll(spans));
 
   @override
   String toString() =>

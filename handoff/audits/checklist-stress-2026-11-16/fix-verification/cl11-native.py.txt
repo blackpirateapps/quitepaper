@@ -1,0 +1,14 @@
+from qp_checklist_helpers3 import *
+prepare()
+for folded in [False, True]:
+    reset('super', '- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail' if folded else '- [ ] Task\n\nTail')
+    if folded: click([254,276,40,30],.08)
+    else:
+        r=api()['tasks'][0]['rect'];click([r[0],r[1]+r[3]+6,40,30],.08)
+    time.sleep(.8)
+    before=record('CL-11 before Home folded='+str(folded))
+    assert before['super'][0]['nodes'][-1]['text']=='Tail'
+    assert (before['super'][0]['nodes'][-1]['id']+': 0') in before['super'][0]['selection'],before['super'][0]['selection']
+    key('Home');time.sleep(1)
+    s=evaluate('CL-11 native Home folded='+str(folded),'Tail stays exact; caret at zero; no runtime errors',lambda s:s['super'][0]['nodes'][-1]['text']=='Tail' and (s['super'][0]['nodes'][-1]['id']+': 0') in s['super'][0]['selection'] and not s['errors'])
+    assert s['super'][0]['nodes'][-1]['text']=='Tail',s['super'][0]['nodes'][-1]

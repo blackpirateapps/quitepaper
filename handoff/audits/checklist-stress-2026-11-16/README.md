@@ -1,16 +1,18 @@
 # Checklist adversarial audit — November 16, 2026
 
 Branch: `fix/visual-markdown-editor-input`. Application source: `daad621`.
-**Status: audit complete; 12 confirmed findings remain open. No production fixes.**
+**Status: all 12 findings fixed in independent commits; see resolutions below.**
 
-Ten findings have native Linux reproductions. Two are confirmed through Flutter's
+The original audit reproduced ten findings through native Linux input. Two were confirmed through Flutter's
 IME/composition test channel; real Android/iOS or CJK input-method sessions were
 not run. Severity and platform limits below are part of each finding.
 
-The most serious failures affect persisted content without raising Flutter errors:
-rapid checklist creation loses/reassigns letters, paste uses the wrong position,
-Visual drops nesting, Super Editor merges child tasks into parent text, and native
-Super Editor Home duplicates a paragraph. Prioritize these before cosmetic work.
+The historical reproductions below describe source `daad621`. Each finding now
+starts with its resolution and relevant verification. Per-fix `flutter analyze`
+and relevant tests pass; full-suite testing is left to GitHub Actions. Native
+acceptance replays for CL-09, CL-10, CL-11 and CL-12 preserve exact content, caret
+and saved-state evidence in [fix-verification](fix-verification/README.md).
+Physical mobile/CJK sessions and release performance remain outside this pass.
 
 ## Method and evidence
 
@@ -48,7 +50,7 @@ that were subsequently narrowed or excluded here.
 
 ## Findings and priorities
 
-Every finding is **Open**. No fixes were attempted in this pass.
+Resolutions are recorded under each finding. Historical evidence below describes the audited source.
 
 | ID | Severity | Mode | Finding | Verification |
 | --- | --- | --- | --- | --- |
@@ -67,7 +69,9 @@ Every finding is **Open**. No fixes were attempted in this pass.
 
 ## CL-09 — rapid creation loses/reassigns task-label characters
 
-**Open. High. Native Linux debug build; release/device performance unmeasured.**
+Resolution: Enter resolves live task models and moves the existing mounted TextField, controller and focus node into the continuation row. Linux splits on the ordered IME newline so hardware Enter cannot overtake earlier printable input; queued old-buffer updates are rebased after the split. Native 41-task creation now preserves every exact label, focus and persisted JSON, with zero Flutter errors; durable evidence is in fix-verification/cl09-native.jsonl.gz. Validation: flutter analyze: no issues; checklist and Visual stability tests: 35 passed; native rapid-creation acceptance passed.
+
+**Fixed.** High. Native Linux debug build; release/device performance unmeasured.
 
 1. In a new Visual note, create a task containing `Seed` and place the caret at its end.
 2. Repeat Enter followed immediately by `t1`, Enter followed by `t2`, and so on.
@@ -97,7 +101,9 @@ and a safe way to preserve early input have not been established.
 
 ## CL-10 — paste lands at the wrong checklist position
 
-**Open. High. Native repeat, persisted and reopened.**
+Resolution: Visual snippet insertion now splices parsed blocks into the AST selection, preserving styled prefix/suffix spans, checkbox/nesting metadata, unaffected block identities and the resulting caret. It replaces forward/reverse cross-task selections in one undo step. Native clipboard paste, delayed autosave and reopening now preserve the exact audited task order/state; evidence is in fix-verification/cl10-native.jsonl.gz. Validation: flutter analyze: no issues; rich controller and dual-mode editor tests: 43 passed; native paste/reopen acceptance passed.
+
+**Fixed.** High. Native repeat, persisted and reopened.
 
 1. Open Visual content `- [ ] Alpha` followed by `- [ ] Neighbor`.
 2. Click Alpha and press End. Put `\n- [ ] Beta\n- [x] Gamma` on the clipboard.
@@ -123,7 +129,9 @@ position mapping or a proper AST replacement operation, including selections.
 
 ## CL-02 — Visual nested task hierarchy is lost on save
 
-**Open. High. Native and parser/serializer confirmation.**
+Resolution: ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing. Validation: flutter analyze: no issues; parser/serializer and checklist tests: 31 passed.
+
+**Fixed.** High. Native and parser/serializer confirmation.
 
 Open this fixture in Visual, edit Sibling, and wait for autosave:
 
@@ -147,7 +155,9 @@ Evidence: phase 1 case 13, `Visual edit nested checklist then save` and
 
 ## CL-08 — Super Editor merges nested tasks and discards their checkbox state
 
-**Open. High. Native fresh-process save and widget parse confirmation.**
+Resolution: The math-aware Markdown loading and structured-paste boundary now parses each task row before CommonMark can fold descendants into one parent element. Each task retains independent text, inline formatting, two/four-space nesting and completion state. Parser round trips and actual Super Editor edit/save regressions cover the audited fixture. Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 63 passed.
+
+**Fixed.** High. Native fresh-process save and widget parse confirmation.
 
 1. Open the same Parent/Child/checked Grandchild/Sibling fixture in Super Editor.
 2. Edit Sibling, then inspect the saved Markdown.
@@ -172,7 +182,9 @@ deserializer's task/list conversion, not only SmartTaskController's sorting guar
 
 ## CL-11 — native Home mutates text after a checklist
 
-**Open. High. Repeated in a fresh process; release/non-Linux behavior unverified.**
+Resolution: A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz. Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed.
+
+**Fixed.** High. Repeated in a fresh process; release/non-Linux behavior unverified.
 
 1. In Super Editor open a task followed by a plain paragraph `Tail`.
 2. Click near Tail's left edge. Inspected selection is already offset zero.
@@ -195,7 +207,9 @@ Tail intact (phase 3 case 10). Earlier Backspace checks followed the Home mutati
 
 ## CL-01 — Enter ignores the selected replacement range
 
-**Open. Medium. Native and widget confirmation, both selection directions.**
+Resolution: Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed.
+
+**Fixed.** Medium. Native and widget confirmation, both selection directions.
 
 In task `AlphaBeta`, select offsets 2–7 (`phaBe`) and press Enter. Expected rows
 are `Al`, `ta`; the selected letters should be removed. Forward selection produces
@@ -210,7 +224,9 @@ split without deleting the selected range.
 
 ## CL-04 — checklist Tag and Link Note markers disappear
 
-**Open. Medium. Two native menu/typing/save reproductions.**
+Resolution: Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON. Validation: flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed.
+
+**Fixed.** Medium. Two native menu/typing/save reproductions.
 
 1. In a Visual task containing `Task `, click its end.
 2. Choose Insert Options → Tag, then type `nativeaudit` without clicking again.
@@ -227,7 +243,9 @@ the menu owns focus; later reconciliation can restore the older task text.
 
 ## CL-05 — IME Enter never continues/exits the checklist
 
-**Open. High for mobile workflow. Widget IME channel only; no native phone test.**
+Resolution: Visual checklist IME updates split styled text into unchecked continuation tasks or exit an empty task into a paragraph. Multiline edits preserve neighbors and indentation, move focus/caret to the resulting block, and commit as one undo step. Widget IME-channel cases cover continuation, empty exit and multiline continuation/exit; physical phones remain untested. Validation: flutter analyze: no issues; checklist and Visual stability tests: 33 passed.
+
+**Fixed.** High for mobile workflow. Widget IME channel only; no native phone test.
 
 Through the platform text-input channel, send `Alpha\n` to a Visual task containing
 Alpha. Expected: Alpha plus a new unchecked task. Actual: one task whose span
@@ -247,7 +265,9 @@ not be used as a passing control for this IME behavior.
 
 ## CL-06 — composition-confirming Enter splits a task
 
-**Open. Medium. Widget composing-range simulation only.**
+Resolution: Hardware Enter no longer invokes checklist structure edits while the row has a nonempty composing range. The IME-channel regression checks unchanged content/composition, then verifies Enter resumes continuation after composition ends. Physical CJK keyboards remain outside this widget validation scope. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 14 passed.
+
+**Fixed.** Medium. Widget composing-range simulation only.
 
 Focus a Visual task `Alpha`, set a nonempty composing range over its text, then
 send hardware Enter. Expected: the IME can confirm composition without the app
@@ -260,7 +280,9 @@ than claiming a native-language input test passed.
 
 ## CL-03 — forward Delete stops at task boundaries
 
-**Open. Medium. Native and widget confirmation.**
+Resolution: Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed.
+
+**Fixed.** Medium. Native and widget confirmation.
 
 Place the caret at the end of First in two adjacent tasks First / Second, then
 press Delete. Expected: `FirstSecond` in one task. Actual: no document change.
@@ -273,7 +295,9 @@ Delete path across their separate text fields.
 
 ## CL-07 — Markdown continuation removes task status from the new line
 
-**Open. Medium. Native and formatter confirmation.**
+Resolution: Markdown smart Enter recognizes checkbox markers inside quote and numbered prefixes, resets new tasks to unchecked and increments numbered tasks. Enter replacing a forward/reverse selection now deletes that range and preserves task continuation; regression cases cover compound prefixes and ordered delimiters. Validation: flutter analyze: no issues; markdown_smart_editing_test.dart: 14 passed.
+
+**Fixed.** Medium. Native and formatter confirmation.
 
 At the end of `> - [ ] Alpha`, press Enter. Expected continuation: `> - [ ] `.
 Actual: `> `. At the end of `1. [ ] Alpha`, expected `2. [ ] `; actual `2. `.
@@ -289,7 +313,9 @@ That selection-continuation behavior needs an explicit product decision/regressi
 
 ## CL-12 — long-list Down navigation loses focus advances
 
-**Open. Medium, native debug build. Performance/release scope unresolved.**
+Resolution: Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start. Validation: flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed.
+
+**Fixed.** Medium, native debug build. Performance/release scope unresolved.
 
 Load 250 short Visual tasks, click Task 0000 and place the caret at its end.
 Send ten Down keypresses with 350ms extra settling time after each.
@@ -378,7 +404,7 @@ checkbox clicks during simultaneous autosave/route changes; complete export;
 very large Super Editor native scrolling; all possible mixed table/code/task
 boundaries. These remain follow-up work, not implied passes.
 
-## Validation and environment cleanup
+## Original audit validation and environment cleanup
 
 `flutter analyze --no-pub`: **no issues**, recorded in `analysis.log`.
 
@@ -405,7 +431,7 @@ All three isolated audit process groups were terminated. The ordinary
 the normal bundle no longer contains the audit server/harness. Source files for
 the app and normal executable tests were not changed.
 
-Suggested next pass: fix persisted input/paste/nesting/Home failures first, then
-selection and IME handling, then continuation and navigation. Add a true
-regression for each intended behavior, mark its finding fixed only after testing,
-and keep the native reproductions as acceptance checks.
+The subsequent fix pass resolved every confirmed finding. Individual resolutions
+and [fix-verification](fix-verification/README.md) document the final behavior,
+per-fix checks and native acceptance evidence. Historical exclusions and platform
+limits above are retained; they are not implied passes.

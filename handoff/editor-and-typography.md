@@ -78,15 +78,40 @@ The editor supports three editing styles:
   EditableText state and the focused native input client. Read-only overlays
   retain the same layout while suppressing their interactive pills.
 
-### Checklist audit caveats (November 16, 2026)
+### Checklist audit resolutions (November 16, 2026)
 
-The [adversarial checklist audit](audits/checklist-stress-2026-11-16/README.md)
-records 12 open findings. In particular, runtime task sorting's nested-list guard
-does not guarantee that nested Markdown loads safely: Visual drops indentation,
-and Super Editor's loading path can merge child task text into the parent. Native
-rapid row creation, source-position-based paste and Home input also expose content
-integrity failures absent from the passing existing tests. Consult the report's
-reproductions and platform limits before treating these paths as verified.
+The [checklist audit](audits/checklist-stress-2026-11-16/README.md) has twelve
+resolved findings, each with regression coverage and an independent fix commit.
+
+- `ChecklistItemBlock.indent` persists hierarchy through Markdown, JSON and Enter;
+  old JSON defaults to zero. Row padding displays that hierarchy. Super Editor
+  uses `QuietTaskBlockSyntax` before CommonMark task grouping so nested tasks
+  retain separate text, depth, formatting and completion state.
+- Visual snippet insertion splices parsed blocks at the AST selection. It never
+  indexes Markdown using a plain-text document offset. Prefix/suffix spans,
+  unaffected block identities, task metadata, resulting caret and one-step Undo
+  are preserved, including forward/reverse cross-task selections.
+- Checklist Enter replaces the selected range; forward Delete joins the next
+  task. Toolbar text edits are accepted while menus own focus. Composing Enter
+  remains with the input method; committed platform newlines continue tasks or
+  exit an empty task into a paragraph in one mutation.
+- Linux printable input and hardware events can arrive through different queues.
+  Linux task splitting uses the ordered IME newline, and rebases queued updates
+  containing a consumed row prefix. Structural continuation reparents the same
+  TextField/controller/focus node into the new row to retain the native client.
+- Boundary arrows accept key repeats, publish their destination immediately and
+  exchange the active client with the destination field. Checklist selection-only
+  notifications skip full-surface reconstruction and unchanged span invalidation,
+  keeping large-list navigation responsive while retaining wrapped-line behavior.
+- `QuietLinuxHomePlugin` consumes plain/Shift Home after applying line navigation,
+  including when the caret is already at the boundary. Falling through there
+  allowed the native IME's synthetic `. ` prefix and buffer to mutate saved text.
+  Modified Home combinations keep their existing handling.
+
+[Native evidence and replay scripts](audits/checklist-stress-2026-11-16/fix-verification/README.md)
+cover the four input/persistence/navigation risks. Other fixes have parser,
+controller, widget IME and actual EditorScreen toolbar/autosave regressions.
+Physical Android/iOS/CJK sessions and release profiling were not performed.
 
 ## 2. SuperEditor Components & Smart Widgets
 

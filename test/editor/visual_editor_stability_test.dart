@@ -52,6 +52,39 @@ void main() {
     );
   }
 
+  testWidgets('CL-12 each Down press and repeat advances focus in 250 tasks', (tester) async {
+    cleanUp(tester);
+    controller.setMarkdown(List.generate(250, (i) => '- [ ] Task ${i.toString().padLeft(4, '0')}').join('\n'));
+    await tester.pumpWidget(surface());
+    await tester.pumpAndSettle();
+    final firstState = tester.state<EditableTextState>(field('Task 0000'));
+    final first = firstState.widget;
+    first.focusNode.requestFocus();
+    await tester.pump();
+    first.controller.selection = const TextSelection.collapsed(offset: 9);
+    for (var i = 1; i <= 10; i++) {
+      if (i == 1) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      } else {
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowDown);
+      }
+      await tester.pumpAndSettle();
+      final target = tester.widget<EditableText>(field('Task ${i.toString().padLeft(4, '0')}'));
+      expect(target.focusNode.hasPrimaryFocus, isTrue, reason: 'Down event $i');
+      expect(tester.state<EditableTextState>(field('Task ${i.toString().padLeft(4, '0')}')), same(firstState));
+      expect(controller.selection.base.blockIndex, i);
+      expect(controller.selection.base.offset, 9);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+    for (var i = 9; i >= 0; i--) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(controller.selection.base.blockIndex, i);
+      expect(tester.widget<EditableText>(field('Task ${i.toString().padLeft(4, '0')}')).focusNode.hasPrimaryFocus, isTrue);
+    }
+    expect(controller.document.blocks.map((b) => b.plainText), List.generate(250, (i) => 'Task ${i.toString().padLeft(4, '0')}'));
+  });
+
   testWidgets('native tap publishes a selection made before field focus', (tester) async {
     cleanUp(tester);
     controller.setMarkdown('Before\n- [ ] task\nTail');

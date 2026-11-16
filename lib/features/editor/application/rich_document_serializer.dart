@@ -44,7 +44,7 @@ class RichDocumentSerializer {
     if (block is ChecklistItemBlock) {
       final mark = block.isChecked ? 'x' : ' ';
       final text = serializeInlines(block.spans);
-      return '- [$mark] $text';
+      return '${'  ' * block.indent}- [$mark] $text';
     }
 
     if (block is BulletedListItemBlock) {

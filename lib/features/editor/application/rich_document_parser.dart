@@ -174,6 +174,7 @@ class RichDocumentParser {
         final text = checklistMatch.group(3) ?? '';
         blocks.add(ChecklistItemBlock(
           id: _uuid.v4(),
+          indent: ((checklistMatch.group(1) ?? '').replaceAll('\t', '    ').length / 2).floor(),
           isChecked: isChecked,
           spans: parseInlines(text),
         ));

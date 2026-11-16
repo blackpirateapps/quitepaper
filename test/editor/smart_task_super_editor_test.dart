@@ -6,6 +6,7 @@ import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/math/quiet_math_parser.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/super_editor/smart_task_controller.dart';
 import 'package:quitepaper/features/settings/application/typography_provider.dart';
 import 'package:quitepaper/features/settings/domain/typography_settings.dart';
@@ -46,6 +47,75 @@ void main() {
         ),
       ),
     );
+  }
+
+  for (final spaces in [2, 4]) {
+    test('CL-08 nested task parse/serialize preserves states at $spaces spaces', () {
+      final indent = ' ' * spaces;
+      final source = '- [ ] **Parent**\n$indent- [ ] Child\n$indent$indent- [x] Grandchild\n- [ ] Sibling';
+      final doc = deserializeQuietMathDocument(source);
+      final tasks = List.generate(doc.nodeCount, doc.getNodeAt).cast<TaskNode>();
+      expect(tasks.map((t) => t.text.toPlainText()), ['Parent', 'Child', 'Grandchild', 'Sibling']);
+      expect(tasks.map((t) => t.indent), [0, spaces ~/ 2, spaces, 0]);
+      expect(tasks.map((t) => t.isComplete), [false, false, true, false]);
+      expect(tasks.first.text.hasAttributionAt(0, attribution: boldAttribution), isTrue);
+      expect(serializeDocumentToMarkdown(doc, customNodeSerializers: [const QuietTaskNodeSerializer()]).trimRight(), source);
+    });
+  }
+
+  testWidgets('CL-08 nested task edits save every task and completion state', (tester) async {
+    final controller = QuietSuperEditorController();
+    String? saved;
+    await tester.pumpWidget(buildTestWidget(
+      markdown: '- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Sibling',
+      controller: controller, onChanged: (value) => saved = value,
+    ));
+    await tester.pumpAndSettle();
+    final task = controller.editor!.document.getNodeAt(3)! as TaskNode;
+    controller.editor!.execute([ChangeSelectionRequest(
+      DocumentSelection.collapsed(position: DocumentPosition(
+        nodeId: task.id, nodePosition: const TextNodePosition(offset: 7),
+      )), SelectionChangeType.placeCaret, SelectionReason.userInteraction,
+    )]);
+    controller.insertSnippet('x');
+    await tester.pumpAndSettle();
+    expect(saved, contains('- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Siblingx'));
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
+
+  for (final folded in [false, true]) {
+    testWidgets('CL-11 Linux Home consumes boundary keys without text changes folded=$folded', (tester) async {
+      final controller = QuietSuperEditorController();
+      final focus = FocusNode();
+      String? saved;
+      await tester.pumpWidget(buildTestWidget(
+        markdown: folded ? '- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail' : '- [ ] Task\n\nTail',
+        controller: controller, focusNode: focus, onChanged: (value) => saved = value,
+      ));
+      await tester.pumpAndSettle();
+      final tail = controller.editor!.document.last as ParagraphNode;
+      for (final offset in [0, 4]) {
+        controller.editor!.execute([ChangeSelectionRequest(
+          DocumentSelection.collapsed(position: DocumentPosition(nodeId: tail.id, nodePosition: TextNodePosition(offset: offset))),
+          SelectionChangeType.placeCaret, SelectionReason.userInteraction,
+        )]);
+        focus.requestFocus();
+        await tester.pumpAndSettle();
+        final beforeSaved = saved;
+        final handled = await tester.sendKeyDownEvent(LogicalKeyboardKey.home);
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.home);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+        expect(handled, isTrue);
+        expect(tail.text.toPlainText(), 'Tail');
+        expect(controller.composer!.selection!.extent.nodePosition, const TextNodePosition(offset: 0));
+        expect(saved, beforeSaved);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.dispose();
+      focus.dispose();
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   }
 
   group('SmartTaskController Unit Tests', () {
