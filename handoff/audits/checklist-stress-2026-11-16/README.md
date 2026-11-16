@@ -283,7 +283,9 @@ Delete path across their separate text fields.
 
 ## CL-07 — Markdown continuation removes task status from the new line
 
-**Open. Medium. Native and formatter confirmation.**
+Resolution: Markdown smart Enter recognizes checkbox markers inside quote and numbered prefixes, resets new tasks to unchecked and increments numbered tasks. Enter replacing a forward/reverse selection now deletes that range and preserves task continuation; regression cases cover compound prefixes and ordered delimiters. Validation: flutter analyze: no issues; markdown_smart_editing_test.dart: 14 passed.
+
+**Fixed.** Medium. Native and formatter confirmation.
 
 At the end of `> - [ ] Alpha`, press Enter. Expected continuation: `> - [ ] `.
 Actual: `> `. At the end of `1. [ ] Alpha`, expected `2. [ ] `; actual `2. `.
