@@ -9,6 +9,7 @@ import '../../application/rich_document_controller.dart';
 import '../../domain/document_selection.dart';
 import '../../domain/markdown_styles.dart';
 import '../../domain/rich_block.dart';
+import '../../domain/rich_document.dart';
 import '../../domain/rich_inline.dart';
 import '../../domain/text_attributes.dart';
 
@@ -57,6 +58,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   bool _isInternalUpdate = false;
   bool _isReconcilingStructure = false;
   RichDocumentSelection? _lastFocusSelection;
+  RichDocument? _lastSyncedDocument;
 
   @override
   void initState() {
@@ -96,6 +98,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     _isInternalUpdate = true;
     try {
       final doc = widget.controller.document;
+      _lastSyncedDocument = doc;
       final currentBlockIds = <String>{};
 
       for (final idx in widget.blockIndices) {
@@ -117,6 +120,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
           }
         } else {
           final ctrl = _controllers[block.id]!;
+          final blockChanged = ctrl.block != block;
           ctrl.block = block;
           if (ctrl.text != block.plainText) {
             final sel = ctrl.selection;
@@ -127,7 +131,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 extentOffset: sel.extentOffset.clamp(0, block.plainText.length),
               ),
             );
-          } else if (rebuildSpans) {
+          } else if (rebuildSpans && blockChanged) {
             ctrl.markNeedsRebuild();
           }
         }
@@ -170,6 +174,10 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     // The parent rebuild supplies current indices after structural edits.
     // Reading the old indices here can dispose or update the wrong item.
     final doc = widget.controller.document;
+    if (identical(doc, _lastSyncedDocument)) {
+      _checkSelectionFocus();
+      return;
+    }
     final ids = widget.blockIndices
         .where((index) => index < doc.blocks.length && doc.blocks[index] is ChecklistItemBlock)
         .map((index) => doc.blocks[index].id)
@@ -353,6 +361,9 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     if (target.id == sourceId || target is! ChecklistItemBlock) return;
     // Reparent the mounted TextField along with its controller and FocusNode.
     // Native key events continue through the same IME client across the split.
+    final displacedController = _controllers.remove(target.id);
+    final displacedNode = _focusNodes.remove(target.id);
+    if (displacedNode != null) displacedNode.removeListener(_focusListeners.remove(target.id)!);
     final node = _focusNodes.remove(sourceId)!;
     node.removeListener(_focusListeners.remove(sourceId)!);
     _controllers.remove(sourceId);
@@ -364,6 +375,19 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     final wasInternalUpdate = _isInternalUpdate;
     _isInternalUpdate = true;
     try {
+      // Navigation exchanges the inactive target field with the active client,
+      // keeping focus usable even if another key arrives before the next frame.
+      if (displacedController != null && displacedNode != null) {
+        final source = widget.controller.document.blocks.firstWhere((b) => b.id == sourceId) as ChecklistItemBlock;
+        displacedController.block = source;
+        displacedController.value = TextEditingValue(text: source.plainText,
+          selection: TextSelection.collapsed(offset: source.plainText.length));
+        _controllers[sourceId] = displacedController;
+        _focusNodes[sourceId] = displacedNode;
+        void onSourceFocus() => _onFocusChanged(sourceId, displacedController, displacedNode);
+        _focusListeners[sourceId] = onSourceFocus;
+        displacedNode.addListener(onSourceFocus);
+      }
       if (rebaseNativeUpdates) {
         final consumedLength = (ctrl.text.length - target.plainText.length).clamp(0, ctrl.text.length);
         ctrl.consumedNativePrefix = (ctrl.consumedNativePrefix ?? '') + ctrl.text.substring(0, consumedLength);
@@ -518,8 +542,20 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       final y = targetRender.localToGlobal(boundary.center).dy;
       offset = targetRender.getPositionForPoint(Offset(x, y)).offset.clamp(0, ctrl.text.length);
     }
-    ctrl.selection = TextSelection.collapsed(offset: offset);
-    node.requestFocus();
+    // Publish the destination before the asynchronous focus notification can
+    // reconcile an older row selection over this navigation request.
+    _isInternalUpdate = true;
+    try {
+      ctrl.selection = TextSelection.collapsed(offset: offset);
+      widget.controller.updateSelection(RichDocumentSelection.collapsed(
+        RichDocumentPosition(blockIndex: widget.blockIndices[target], blockId: targetId, offset: offset),
+      ));
+      _moveInputClient(currentId, _controllers[currentId]!);
+    } finally {
+      _isInternalUpdate = false;
+    }
+    setState(() {});
+    widget.onActiveTargetChanged?.call(_controllers[targetId]!, _focusNodes[targetId]!);
     return KeyEventResult.handled;
   }
 
@@ -549,7 +585,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
           padding: EdgeInsets.only(left: block.indent * 24.0, top: 2, bottom: 2),
           child: Focus(
             onKeyEvent: (node, event) {
-              if (event is KeyDownEvent) {
+              if (event is KeyDownEvent || event is KeyRepeatEvent) {
                 final liveId = ctrl.block.id;
                 final liveIndex = widget.controller.document.blocks.indexWhere((b) => b.id == liveId);
                 if (liveIndex < 0) return KeyEventResult.ignored;
@@ -561,15 +597,15 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 } else if (event.logicalKey == LogicalKeyboardKey.delete) {
                   return _handleDelete(liveIndex, liveBlock, ctrl);
                 } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
-                  return _handleBackspace(liveIndex, i, liveBlock, ctrl);
+                  return _handleBackspace(liveIndex, widget.blockIndices.indexOf(liveIndex), liveBlock, ctrl);
                 } else if (!HardwareKeyboard.instance.isShiftPressed &&
                     !HardwareKeyboard.instance.isControlPressed &&
                     !HardwareKeyboard.instance.isMetaPressed &&
                     !HardwareKeyboard.instance.isAltPressed) {
                   if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                    return _moveVertically(i, up: true);
+                    return _moveVertically(widget.blockIndices.indexOf(liveIndex), up: true);
                   } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                    return _moveVertically(i, up: false);
+                    return _moveVertically(widget.blockIndices.indexOf(liveIndex), up: false);
                   }
                 }
               }

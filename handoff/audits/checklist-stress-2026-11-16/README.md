@@ -309,7 +309,9 @@ That selection-continuation behavior needs an explicit product decision/regressi
 
 ## CL-12 — long-list Down navigation loses focus advances
 
-**Open. Medium, native debug build. Performance/release scope unresolved.**
+Resolution: Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start. Validation: flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed.
+
+**Fixed.** Medium, native debug build. Performance/release scope unresolved.
 
 Load 250 short Visual tasks, click Task 0000 and place the caret at its end.
 Send ten Down keypresses with 350ms extra settling time after each.
