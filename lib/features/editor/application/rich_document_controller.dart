@@ -141,6 +141,8 @@ class RichDocumentController extends ChangeNotifier {
     final target = _undoStack.last;
     _document = target.document;
     _selection = target.selection;
+    _isDirty = true;
+    _updateTypingAttributesFromSelection();
     notifyListeners();
     onDocumentChanged?.call(_document);
   }
@@ -151,6 +153,8 @@ class RichDocumentController extends ChangeNotifier {
     _undoStack.add(target);
     _document = target.document;
     _selection = target.selection;
+    _isDirty = true;
+    _updateTypingAttributesFromSelection();
     notifyListeners();
     onDocumentChanged?.call(_document);
   }
@@ -162,6 +166,10 @@ class RichDocumentController extends ChangeNotifier {
   void updateSelection(RichDocumentSelection newSelection) {
     if (_selection != newSelection) {
       _selection = newSelection;
+      if (_undoStack.isNotEmpty && _undoStack.last.document == _document) {
+        _undoStack[_undoStack.length - 1] =
+            _EditorSnapshot(document: _document, selection: _selection);
+      }
       _updateTypingAttributesFromSelection();
       notifyListeners();
     }
@@ -233,7 +241,7 @@ class RichDocumentController extends ChangeNotifier {
         return;
       } catch (_) {}
     }
-    setMarkdown(content);
+    _setMarkdownSource(content);
   }
 
   /// Sets the entire document from a Markdown source string.
@@ -242,6 +250,10 @@ class RichDocumentController extends ChangeNotifier {
       setContent(markdown);
       return;
     }
+    _setMarkdownSource(markdown);
+  }
+
+  void _setMarkdownSource(String markdown) {
     var bodyMarkdown = markdown;
     if (stripFrontmatter) {
       final fmDoc = FrontmatterEditorHelper.parse(markdown);
@@ -557,7 +569,17 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void insertHorizontalRule() {
-    _commitMutation(RichDocumentMutations.insertHorizontalRule(_document, currentBlockIndex));
+    final continuationIndex = (currentBlockIndex + 1).clamp(0, _document.blocks.length) + 1;
+    final document = RichDocumentMutations.insertHorizontalRule(_document, currentBlockIndex);
+    _typingAttributes = TextAttributes.none;
+    _commitMutation(
+      document,
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: continuationIndex,
+        blockId: document.blocks[continuationIndex].id,
+        offset: 0,
+      )),
+    );
   }
 
   void insertDivider() => insertHorizontalRule();
@@ -573,14 +595,24 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void insertCodeBlock({String language = '', String code = ''}) {
-    _commitMutation(
-      RichDocumentMutations.insertCodeBlock(
-        _document,
-        currentBlockIndex,
-        language: language,
-        code: code,
-      ),
+    final index = (currentBlockIndex + 1).clamp(0, _document.blocks.length);
+    final document = RichDocumentMutations.insertCodeBlock(
+      _document, currentBlockIndex, language: language, code: code,
     );
+    _typingAttributes = TextAttributes.none;
+    _commitMutation(
+      document,
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: index, blockId: document.blocks[index].id, offset: 0,
+      )),
+    );
+  }
+
+  /// Fenced math is a supported, lossless Visual source block.
+  void insertMathBlock() {
+    insertCodeBlock(language: 'math', code: 'equation');
+    // Select the placeholder in the new input, so the next keystroke replaces it.
+    updateSelection(_selection.copyWith(extent: _selection.extent.copyWith(offset: 8)));
   }
 
   void insertImage({required String path, String alt = ''}) {
@@ -633,10 +665,7 @@ class RichDocumentController extends ChangeNotifier {
 
     final newBlocks = List<RichBlock>.from(_document.blocks);
     newBlocks[blockIndex] = updated;
-    _document = _document.copyWith(blocks: newBlocks);
-    _isDirty = true;
-    notifyListeners();
-    onDocumentChanged?.call(_document);
+    _commitMutation(_document.copyWith(blocks: newBlocks));
   }
 
   // ===========================================================================

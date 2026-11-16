@@ -533,6 +533,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         if (widget.superController != null) {
           widget.superController!.insertMathBlock();
           widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
+          widget.richController!.insertMathBlock();
         } else {
           _applyHelperFormat(MarkdownHelper.insertMathBlock);
         }
@@ -907,6 +909,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         if (widget.superController != null) {
           widget.superController!.insertMathBlock();
           widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
+          widget.richController!.insertMathBlock();
         } else {
           _applyHelperFormat(MarkdownHelper.insertMathBlock);
         }
@@ -1103,20 +1107,20 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                       tooltip: isDesktop ? 'Undo (Ctrl+Z)' : 'Undo',
                       isEnabled: widget.superController != null
                           ? widget.superController!.canUndo
-                          : widget.canUndo,
+                          : (widget.richController?.canUndo ?? widget.canUndo),
                       onPressed: widget.superController != null
                           ? widget.superController!.undo
-                          : (widget.onUndo ?? () {}),
+                          : (widget.richController?.undo ?? widget.onUndo ?? () {}),
                     ),
                     _ToolbarButton(
                       icon: PhosphorIconsRegular.arrowUUpRight,
                       tooltip: isDesktop ? 'Redo (Ctrl+Y)' : 'Redo',
                       isEnabled: widget.superController != null
                           ? widget.superController!.canRedo
-                          : widget.canRedo,
+                          : (widget.richController?.canRedo ?? widget.canRedo),
                       onPressed: widget.superController != null
                           ? widget.superController!.redo
-                          : (widget.onRedo ?? () {}),
+                          : (widget.richController?.redo ?? widget.onRedo ?? () {}),
                     ),
                   ],
                 ),

@@ -8,9 +8,10 @@
 
 Quiet Paper emphasizes an editorial, distraction-free writing environment inspired by Bear Notes and iA Writer. 
 
-The editor supports two modes:
-1. **Markdown Source Mode**: Raw markdown text editing with syntax highlighting, live formatting toolbar, cycling heading hotkeys, and inline previews.
-2. **Visual Editor (SuperEditor)**: Native Flutter document tree editor powered by `super_editor`, featuring rich AST nodes, interactive checklists, code blocks, and typewriter scrolling.
+The editor supports three editing styles:
+1. **Markdown Source Mode**: Raw Markdown editing with syntax highlighting and specialized table fields.
+2. **Visual Editor** (`wysiwyg`): `RichEditorSurface`, `RichTextEditor`, and `RichChecklistEditor` edit an authoritative `RichDocument` AST.
+3. **Super Editor**: The separate `super_editor` document editor, including smart checklists, math, native code blocks, and typewriter scrolling.
 
 ### Key Architectural Invariants
 - **Content is Canonical**: The user's text and formatting are preserved without loss.
@@ -19,6 +20,73 @@ The editor supports two modes:
 - **On-Demand Mode Conversion**: Conversion between Markdown text and the SuperEditor AST occurs only when explicitly switching modes.
 
 ---
+
+### Visual and Markdown input lifecycle
+
+- Visual Math insertion uses a `CodeBlock(language: 'math')` in the existing
+  AST. Its TeX source is editable with the established code input; insertion
+  selects the placeholder and focus routes to that block. JSON persistence and
+  fenced Markdown conversion are lossless. This is source editing in Visual
+  mode; Super Editor retains its separate rendered formula component.
+- Malformed JSON-like source falls back to Markdown parsing once. `setContent`
+  and `setMarkdown` must never recursively delegate failed decoding.
+- Before changing editor mode, reset active field targets to the persistent
+  source buffer so the destination toolbar cannot observe disposed controllers.
+- Text fields publish their current selection after tap focus settles, because native
+  clicks may deliver selection before focus. Programmatic focus retains AST intent. Toolbar edits then use that caret.
+
+- Text mutations received while a toolbar menu owns focus also publish their
+  resulting selection to the AST. Selection-only notifications still require
+  field focus. Tag and note-link prompts keep the caret after their markers;
+  Visual note-link edits rely on rich-field autosave for canonical JSON.
+- Code language selection and cancellation restore the code field and its caret.
+  Markdown toolbar history normalizes invalid snapshot carets and focuses the body.
+- Visual toolbar and keyboard undo/redo use `RichDocumentController` snapshots,
+  including ordinary text-span edits and caret positions. History restoration
+  marks the document dirty for autosave. The toolbar observes the persistent
+  source buffer, because segment controllers may be disposed during restoration.
+- Visual code fields register their surface-owned focus node and publish their
+  active text controller. Code insertion selects the new block, and code/language
+  edits resolve the block by ID and commit directly to the AST. External history
+  updates reconcile code text/selection after the frame without losing unchanged
+  IME composition or reparsing the document.
+- Visual text/checklist segments use stable block-ID keys. Text-segment focus
+  nodes live for the surface lifetime and are pruned after block removal. A plain
+  document uses the same segment layout as a mixed document. The supplied body
+  focus node belongs to the first text/checklist field, including checklist-first
+  notes, so title submission always targets a mounted editable field.
+- The surface rebuild supplies current segment indices before text reconciliation.
+  Checklist callbacks resolve their current index by block ID. Structural changes
+  suppress automatic sibling-focus publication until the selected destination is
+  mounted. Focus requests and checklist selections revalidate the current document
+  selection before applying; focused ranges and unchanged IME composition survive
+  synchronization. IME list continuation keeps canonical document offsets after
+  list markers are inserted.
+- Wrapped checklist Up/Down navigation stays within the current text field until
+  its first/last visual line; crossing into an adjacent task preserves the visual
+  column. Modified arrow keys retain Flutter's selection/navigation behavior.
+- Rendered editable spans must have the same UTF-16 length as the text controller.
+  Link enhancement is a field suffix action, outside the editable span stream;
+  no unbacked `WidgetSpan` may shift hit testing or caret offsets.
+- Markdown source notifications are compared with the last observed source text.
+  Selection/style-only notifications must never deserialize the older autosave
+  buffer over pending visual edits. Markdown text segments around tables use
+  ordinal keys, independent of changing character offsets, and the first text
+  segment uses the supplied body focus node.
+- Markdown code overlays always keep the editor in the same Stack child slot.
+  Adding/removing the first/last fence only changes overlay pills, preserving
+  EditableText state and the focused native input client. Read-only overlays
+  retain the same layout while suppressing their interactive pills.
+
+### Checklist audit caveats (November 16, 2026)
+
+The [adversarial checklist audit](audits/checklist-stress-2026-11-16/README.md)
+records 12 open findings. In particular, runtime task sorting's nested-list guard
+does not guarantee that nested Markdown loads safely: Visual drops indentation,
+and Super Editor's loading path can merge child task text into the parent. Native
+rapid row creation, source-position-based paste and Home input also expose content
+integrity failures absent from the passing existing tests. Consult the report's
+reproductions and platform limits before treating these paths as verified.
 
 ## 2. SuperEditor Components & Smart Widgets
 

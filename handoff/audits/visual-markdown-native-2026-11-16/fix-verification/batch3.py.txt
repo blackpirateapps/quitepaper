@@ -1,0 +1,56 @@
+from qp_native_fixes_driver import *
+
+def healthy(s):
+    assert not s['errors'],s['errors']
+
+def insert(name):
+    label('Insert Options (Table, Link, Media)','tooltip')
+    label(name,'text')
+
+reset('visual')
+field()
+insert('Tag')
+type_text('nativeaudit')
+s=record('fix9 Visual Tag immediate native typing')
+healthy(s)
+assert json.loads(s['savedContent'])['blocks'][0]['spans'][0]['text']=='#nativeaudit'
+
+reset('visual')
+field()
+insert('Link Note')
+type_text('Other')
+s=record('fix10 Visual Link Note immediate native query')
+healthy(s)
+assert json.loads(s['savedContent'])['blocks'][0]['spans'][0]['text']=='[[Other'
+label('Other note','text')
+s=record('fix10 native note-link autocomplete selection')
+healthy(s)
+assert 'qp://note/audit-reference' in s['savedContent'] and '[[' not in s['savedContent']
+
+reset('visual')
+field()
+type_text('mode probe')
+label('More options','tooltip')
+time.sleep(.8)
+label('Edit Markdown','text')
+time.sleep(.8)
+type_text('x')
+s=record('fix8 active paragraph switch and immediate native typing')
+healthy(s)
+assert 'mode probe' in s['savedContent'] and 'x' in s['savedContent']
+assert all(f['rect'][1]<1000 for f in s['fields'])
+
+reset('visual','Before\n```dart\nprint(1)\n```')
+field(text='print(1)')
+key('End')
+type_text('x')
+label('More options','tooltip')
+time.sleep(.8)
+label('Edit Markdown','text')
+time.sleep(.8)
+type_text('y')
+s=record('fix8 active code switch and immediate native typing')
+healthy(s)
+assert 'print(1)x' in s['savedContent'] and 'y' in s['savedContent']
+assert all(f['rect'][1]<1000 for f in s['fields'])
+print('BATCH3 PASSED',flush=True)

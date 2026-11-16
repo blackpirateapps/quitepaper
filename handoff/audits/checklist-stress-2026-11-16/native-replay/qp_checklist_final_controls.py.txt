@@ -1,0 +1,34 @@
+from qp_checklist_helpers3 import *
+
+reset('visual','- [ ] A\n- [ ] B\n- [ ] C\n- [ ] D')
+field(text='A');key('End');time.sleep(1)
+for expected in ['B','C','D']:
+    key('Down');time.sleep(1)
+    evaluate('Single Down small-list target '+expected,'focus moves to '+expected,lambda s:any(f['focus'] and f['text']==expected for f in s['fields']))
+
+reset('super','- [ ] Task\n\nTail')
+s=api();print('CONTROL_NODE_COUNT',len(s['super'][0]['nodes']),flush=True)
+r=s['tasks'][0]['rect'];click([r[0],r[1]+r[3]+6,40,30],.08);time.sleep(1)
+record('Valid nonfolded Tail click before Home');key('Home');time.sleep(1)
+evaluate('Valid Super Home paragraph control','Tail remains exactly Tail',lambda s:s['super'][0]['nodes'][-1]['text']=='Tail')
+
+reset('super','- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail')
+click([254,276,40,30],.08);time.sleep(1);record('Valid folded Tail click without Home');key('BackSpace');time.sleep(1)
+evaluate('Valid folded Backspace without Home','Tail survives and Four is revealed',lambda s:s['super'][0]['nodes'][-1]['text']=='Tail' and any(t['text']=='Four' and not t['hidden'] for t in s['tasks']))
+
+md='\n'.join('- [ ] Task '+str(i).zfill(4) for i in range(250))
+reset('visual',md);click([1165,650,14,24]);time.sleep(1);field(text='Task 0249');key('End');time.sleep(.7);type_text('x');time.sleep(1)
+s=record('Last-row precise control before toolbar undo')
+label('Undo (Ctrl+Z)','tooltip');time.sleep(1)
+evaluate('250-task toolbar undo control','all 250 original rows restored',lambda s:texts(s)==['Task '+str(i).zfill(4) for i in range(250)])
+label('Redo (Ctrl+Y)','tooltip');time.sleep(1)
+evaluate('250-task toolbar redo control','only last task has x',lambda s:texts(s)==['Task '+str(i).zfill(4) for i in range(249)]+['Task 0249x'])
+# The focus destination may scroll, so locate the actual checkbox icon anew.
+s=api();f=next(f for f in s['fields'] if f['text']=='Task 0249x');icons=[i for i in s['icons'] if i['codePoint']==58462 and abs(i['rect'][1]-(f['rect'][1]+2.5))<2]
+print('PRECISE_CHECKBOX',icons,flush=True)
+if icons:
+    click(icons[0]['rect']);time.sleep(1)
+    s=evaluate('250-task precise final checkbox control','last task is checked and no rows lost',lambda s:len(blocks(s))==250 and blocks(s)[-1]['isChecked'])
+    reset('visual',s['savedContent'])
+    evaluate('250-task precise reopen completion','checked final task survives save/reopen',lambda s:len(blocks(s))==250 and blocks(s)[-1]['isChecked'])
+print('FINAL CONTROLS COMPLETE',flush=True)

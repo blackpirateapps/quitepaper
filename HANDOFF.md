@@ -53,6 +53,63 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## Checklist Stress Audit — 12 Open Findings
+
+The [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
+against `daad621` found **12 open bugs**: ten reproduced with native Linux input,
+two confirmed through widget IME/composition probes. High-priority failures include
+lost/reassigned task labels during rapid creation, paste at the wrong position,
+Visual hierarchy loss, Super Editor merging nested tasks and losing checkbox state,
+and native Home mutating a paragraph after a checklist. Enter selections, toolbar
+markers inside tasks, IME continuation, forward Delete, Markdown continuation and
+large-list arrow navigation also have findings. **Audit only; no fixes applied.**
+
+Coverage includes a [250-task fixture](handoff/audits/checklist-stress-2026-11-16/large-checklist-250.md),
+50/250/1,000-task widget stress cases, native loading up to 1,250 tasks,
+93 native observations in three isolated processes, saved-content/reopen checks,
+and 34 adversarial probe executions. All 82 existing relevant tests and analysis
+pass; no full local suite was run. The report distinguishes confirmed failures,
+invalid/inconclusive probes and platform limits. Native audit processes are closed
+and the ordinary Linux bundle is restored. See engineering log 298.
+
+## Native Formatting Toolbar Audit
+
+**Native re-audit fixes (2026-11-16): all 8/8 findings fixed and verified.**
+Math preserves valid JSON and accepts immediate input; active-field mode switches
+retain live controllers; native clicks synchronize the document caret; code
+language selection and Markdown history restore focus; Tag and Link Note keep
+their insertion carets and autocomplete works. Each finding has a separate fix
+commit and resolution in the [tracked audit](handoff/audits/visual-markdown-native-2026-11-16/README.md).
+[Native replay evidence](handoff/audits/visual-markdown-native-2026-11-16/fix-verification/README.md)
+records all eight passing with no Flutter runtime errors. Analysis is clean and
+52 relevant tests pass across per-fix runs; the full suite was left to CI.
+Visual Math uses an editable math fenced block. See engineering logs 287–297.
+The code-insertion focus failure reported at test line 172 matches the intermediate
+caret changes, corrected in `74aa61a`; that test passes in the correction's
+[GitHub test run](https://github.com/blackpirateapps/quitepaper/actions/runs/43818439696).
+Current-branch follow-up checks pass all 37 tests in the two relevant editor files.
+
+The four original Visual/Markdown toolbar audit findings were fixed. Divider
+insertion focuses its continuation paragraph; Visual code insertion focuses the
+code field and persists code/language edits; Visual toolbar and keyboard history
+share document snapshots without observing disposed segment controllers; Markdown
+code overlays preserve the text field and its input connection when fences appear
+or disappear. Reproductions, regression coverage, original native audit scope and
+sample artifacts remain in [`EDITOR_TOOLBAR_AUDIT.md`](EDITOR_TOOLBAR_AUDIT.md).
+See engineering logs 281–285 in [`handoff/latest-logs.md`](handoff/latest-logs.md).
+
+## Latest Visual and Markdown Editor Stability
+
+Visual mode now retains text-field focus and caret positions around mixed lists,
+resolves checklist edits by block ID, and transfers keyboard input into paragraphs
+after leaving a checklist. Source selection changes no longer roll back pending
+visual text. Markdown fields around tables retain their input connections, and
+inline links preserve editing offsets. Native title-to-body and click-to-body
+keyboard input passed on this laptop under Hyprland/Wayland in both modes. The
+installed app was **1.6.2+456**; the fixed regular Linux debug build is in
+`build/linux/x64/debug/bundle/`. See
+[engineering log 279](handoff/latest-logs.md#279-visual-and-markdown-editor-focus-caret-and-linux-input-stability-november-15-2026).
+
 ## Latest Super Editor Polish
 
 Super Editor smart checklists now preserve the Android keyboard and visible caret

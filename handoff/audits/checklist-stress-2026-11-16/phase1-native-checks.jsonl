@@ -1,0 +1,41 @@
+{"case": 2, "step": "Visual Enter at offset 0", "expected": "split exact content and focus new unchecked task", "pass": true, "errorCount": 0}
+{"case": 3, "step": "Visual Enter at offset 4", "expected": "split exact content and focus new unchecked task", "pass": true, "errorCount": 0}
+{"case": 4, "step": "Visual Enter at offset 9", "expected": "split exact content and focus new unchecked task", "pass": true, "errorCount": 0}
+{"case": 5, "step": "Visual Enter replaces selected range reversed=False", "expected": "selected phaBe is removed, producing Al and ta", "pass": false, "errorCount": 0}
+{"case": 6, "step": "Visual Enter replaces selected range reversed=True", "expected": "selected phaBe is removed, producing Al and ta", "pass": false, "errorCount": 0}
+{"case": 7, "step": "Visual Backspace start '- [ ] First\\n- [ ] Second'", "expected": "all letters survive and a live field retains focus", "pass": true, "errorCount": 0}
+{"case": 8, "step": "Visual Backspace start 'Paragraph\\n- [ ] Second'", "expected": "all letters survive and a live field retains focus", "pass": true, "errorCount": 0}
+{"case": 9, "step": "Visual Backspace start '- [ ] First\\n- [ ] '", "expected": "all letters survive and a live field retains focus", "pass": true, "errorCount": 0}
+{"case": 10, "step": "Visual Backspace start '- [ ] '", "expected": "all letters survive and a live field retains focus", "pass": true, "errorCount": 0}
+{"case": 11, "step": "Visual forward Delete at row end", "expected": "joins First and Second in one task", "pass": false, "errorCount": 0}
+{"case": 12, "step": "Visual whitespace-only task Enter", "expected": "exits to paragraph and keeps First", "pass": true, "errorCount": 0}
+{"case": 13, "step": "Visual edit nested checklist then save", "expected": "child indentation remains in canonical representation", "pass": false, "errorCount": 0}
+{"case": 14, "step": "Visual Tag insertion inside checklist row", "expected": "saves Task #nativeaudit", "pass": false, "errorCount": 0}
+{"case": 15, "step": "Markdown Enter continuation '- [ ] Alpha'", "expected": "'- [ ] Alpha\\n- [ ] '", "pass": true, "errorCount": 0}
+{"case": 16, "step": "Markdown Enter continuation '- [x] Alpha'", "expected": "'- [x] Alpha\\n- [ ] '", "pass": true, "errorCount": 0}
+{"case": 17, "step": "Markdown Enter continuation '  - [ ] Alpha'", "expected": "'  - [ ] Alpha\\n  - [ ] '", "pass": true, "errorCount": 0}
+{"case": 18, "step": "Markdown Enter continuation '> - [ ] Alpha'", "expected": "'> - [ ] Alpha\\n> - [ ] '", "pass": false, "errorCount": 0}
+{"case": 19, "step": "Markdown Enter continuation '1. [ ] Alpha'", "expected": "'1. [ ] Alpha\\n2. [ ] '", "pass": false, "errorCount": 0}
+{"case": 20, "step": "Markdown empty task exits and types", "expected": "- [ ] First followed by plain Tail", "pass": true, "errorCount": 0}
+{"case": 21, "step": "Markdown Backspace at second task line start", "expected": "all content survives a native join", "pass": true, "errorCount": 0}
+{"case": 22, "step": "Markdown Enter replaces selection reversed=False", "expected": "selected phaBe removed", "pass": true, "errorCount": 0}
+{"case": 23, "step": "Markdown Enter replaces selection reversed=True", "expected": "selected phaBe removed", "pass": true, "errorCount": 0}
+{"case": 24, "step": "Visual Link Note inside checklist row", "expected": "Task [[Other query survives", "pass": false, "errorCount": 0}
+{"case": 25, "step": "Visual structured checklist paste into row", "expected": "three distinct tasks plus Neighbor", "pass": true, "errorCount": 0}
+{"case": 26, "step": "Visual 81 tasks created by repeated Enter and typing", "expected": "81 tasks with no lost item text", "pass": false, "errorCount": 0}
+{"case": 26, "step": "Visual large-list double Enter exits checklist", "expected": "81 tasks followed by plain Tail", "pass": false, "errorCount": 0}
+{"case": 27, "step": "Super nested checklist parse indent=2", "expected": "four task nodes with child and checked grandchild", "pass": false, "errorCount": 0}
+{"case": 28, "step": "Super nested checklist parse indent=4", "expected": "four task nodes with child and checked grandchild", "pass": false, "errorCount": 0}
+{"case": 29, "step": "Super Enter selection reversed=False", "expected": "selected phaBe is removed", "pass": true, "errorCount": 0}
+{"case": 30, "step": "Super Enter selection reversed=True", "expected": "selected phaBe is removed", "pass": true, "errorCount": 0}
+{"case": 31, "step": "Super forward Delete task boundary", "expected": "all letters remain in one task", "pass": true, "errorCount": 0}
+{"case": 32, "step": "Super expand completed checklist", "expected": "all four completed tasks visible", "pass": true, "errorCount": 0}
+{"case": 32, "step": "Super Backspace below folded completed tasks", "expected": "Tail survives, tasks reveal before merging", "pass": false, "errorCount": 0}
+{"case": 33, "step": "Super native checkbox completion", "expected": "First moves below active tasks and remains checked", "pass": true, "errorCount": 0}
+{"case": 33, "step": "Super completion toolbar undo", "expected": "restores task order and unchecked state", "pass": true, "errorCount": 0}
+{"case": 34, "step": "Visual 250 tasks loaded natively", "expected": "all 250 tasks and live first-row input", "pass": true, "errorCount": 0}
+{"case": 34, "step": "Visual native arrows reach middle task", "expected": "Task 0124 owns focus after Down navigation", "pass": false, "errorCount": 0}
+{"case": 34, "step": "Visual 250 task middle Enter Backspace", "expected": "all content identical after insert and remove", "pass": true, "errorCount": 0}
+{"case": 34, "step": "Visual native edit final task after scrolling 250 rows", "expected": "last task changes and all 249 other tasks remain exact", "pass": false, "errorCount": 0}
+{"case": 34, "step": "Visual last-row undo in 250-task checklist", "expected": "all 250 original tasks restored", "pass": true, "errorCount": 0}
+{"case": 34, "step": "Visual last-row redo in 250-task checklist", "expected": "only last row edited again", "pass": false, "errorCount": 0}

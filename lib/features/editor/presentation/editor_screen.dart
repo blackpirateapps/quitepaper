@@ -432,19 +432,42 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   void _undo() {
+    if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.undo();
+      return;
+    }
     final result = _undoRedoManager.undo(_contentController.value);
     if (result != null) {
-      _contentController.value = result;
-      _onContentChanged();
+      _restoreMarkdownHistory(result);
     }
   }
 
   void _redo() {
+    if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.redo();
+      return;
+    }
     final result = _undoRedoManager.redo(_contentController.value);
     if (result != null) {
-      _contentController.value = result;
-      _onContentChanged();
+      _restoreMarkdownHistory(result);
     }
+  }
+
+  void _restoreMarkdownHistory(TextEditingValue value) {
+    final selection = value.selection;
+    _setActiveTarget(_contentController, _contentFocusNode);
+    _contentController.value = value.copyWith(
+      selection: selection.isValid
+          ? TextSelection(
+              baseOffset: selection.baseOffset.clamp(0, value.text.length),
+              extentOffset: selection.extentOffset.clamp(0, value.text.length),
+              affinity: selection.affinity,
+              isDirectional: selection.isDirectional,
+            )
+          : TextSelection.collapsed(offset: value.text.length),
+    );
+    _onContentChanged();
+    _contentFocusNode.requestFocus();
   }
 
   void _onRemoveTag(String tag) {
@@ -944,6 +967,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _superEditorController.insertMathBlock();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.insertMathBlock();
     } else {
       _applyFormattingHelper(MarkdownHelper.insertMathBlock);
     }
@@ -1385,7 +1410,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         selection: TextSelection.collapsed(offset: offset + 2),
       );
     }
-    _onContentChanged();
+    // Visual text edits already commit through the rich field. Its autosave
+    // publishes canonical JSON; the source buffer can still contain older text.
+    if (!_isWysiwyg) _onContentChanged();
   }
 
 
@@ -2323,7 +2350,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     return FormattingToolbar(
-      controller: _activeTargetController ?? _contentController,
+      // Visual formatting and history read the AST. Its transient segment
+      // controllers can be disposed during structural history restoration.
+      controller: isWysiwyg ? _contentController : (_activeTargetController ?? _contentController),
       focusNode: _activeTargetFocusNode ?? _contentFocusNode,
       richController: isWysiwyg ? _richDocumentController : null,
       superController: isSuperEditor ? _superEditorController : null,
@@ -4638,6 +4667,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final currentStyle = ref.read(editorProviderFamily(_editorParams)).effectiveEditingStyle(globalStyle);
     if (currentStyle == newStyle) return;
 
+    // Segment controllers belong to the outgoing surface. Detach every toolbar
+    // listener before source conversion can replace or dispose those fields.
+    _activeTargetFocusNode?.unfocus();
+    _setActiveTarget(_contentController, _contentFocusNode);
+
+
     if (currentStyle == EditorEditingStyle.wysiwyg && newStyle != EditorEditingStyle.wysiwyg) {
       if (_richDocumentController != null) {
         final md = _richDocumentController!.toMarkdown();
@@ -4654,6 +4689,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     notifier.setPerNoteEditingStyle(newStyle);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _contentFocusNode.requestFocus();
+    });
   }
 
   void _showOverflowMenu(

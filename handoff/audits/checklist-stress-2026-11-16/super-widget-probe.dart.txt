@@ -1,0 +1,81 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:super_editor/super_editor.dart';
+import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/features/editor/application/quiet_super_editor_controller.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/quiet_task_component.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/super_editor/smart_task_controller.dart';
+
+final out=File('/tmp/qp-checklist-super-widget-results.jsonl');
+void main(){
+  out.writeAsStringSync('');
+  void probe(String name,String md,Future<void> Function(WidgetTester,QuietSuperEditorController,FocusNode,void Function(String,bool,[Object?])) action){
+    testWidgets('AUDIT Super $name',(t)async{
+      final c=QuietSuperEditorController();final f=FocusNode();final watch=Stopwatch()..start();
+      final checks=<Map<String,Object?>>[];
+      void check(String name,bool pass,[Object? details])=>checks.add({'check':name,'pass':pass,'details':details});
+      addTearDown(()async{await t.pumpWidget(const SizedBox.shrink());await t.pump(const Duration(seconds:1));c.dispose();f.dispose();});
+      await t.pumpWidget(ProviderScope(child:MaterialApp(theme:ThemeData.light().copyWith(extensions:[AppColors.light]),home:Scaffold(body:QuietSuperEditor(initialMarkdown:md,controller:c,focusNode:f,onChanged:(_){ })))));
+      await t.pumpAndSettle();
+      try{await action(t,c,f,check);}catch(e,st){check('probe execution',false,'$e\n$st');}
+      final errors=<String>[];Object? e;while((e=t.takeException())!=null){errors.add('$e');}
+      watch.stop();final doc=c.editor!.document;
+      final row={'case':name,'checks':checks,'runtimeErrors':errors,'elapsedMs':watch.elapsedMilliseconds,
+        'selection':c.composer?.selection.toString(),'markdown':serializeDocumentToMarkdown(doc),
+        'nodes':[for(final n in doc){'type':n.runtimeType.toString(),'text':n is TextNode?n.text.toPlainText():'',if(n is TaskNode)'indent':n.indent,if(n is TaskNode)'checked':n.isComplete}]};
+      out.writeAsStringSync('${jsonEncode(row)}\n',mode:FileMode.append);
+      print('AUDIT_RESULT Super $name ${jsonEncode({'checks':checks,'runtimeErrors':errors,'elapsedMs':watch.elapsedMilliseconds})}');
+    },variant:TargetPlatformVariant.only(TargetPlatform.linux));
+  }
+  Future<void> select(WidgetTester t,QuietSuperEditorController c,FocusNode f,int index,int start,[int? end])async{
+    final node=c.editor!.document.getNodeAt(index)!;
+    c.editor!.execute([ChangeSelectionRequest(DocumentSelection(base:DocumentPosition(nodeId:node.id,nodePosition:TextNodePosition(offset:start)),extent:DocumentPosition(nodeId:node.id,nodePosition:TextNodePosition(offset:end??start))),SelectionChangeType.placeCaret,SelectionReason.userInteraction)]);
+    f.requestFocus();await t.pumpAndSettle();
+  }
+  for(final range in [(0,0),(4,4),(9,9),(2,7),(7,2)]){
+    probe('Enter-${range.$1}-${range.$2}','- [ ] AlphaBeta\n- [ ] Neighbor',(t,c,f,check)async{
+      await select(t,c,f,0,range.$1,range.$2);await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      final nodes=c.editor!.document.whereType<TextNode>().map((n)=>n.text.toPlainText()).toList();
+      final start=range.$1<range.$2?range.$1:range.$2;final end=range.$1>range.$2?range.$1:range.$2;
+      check('Enter deletes range and preserves surrounding text',nodes.join('|')=='${'AlphaBeta'.substring(0,start)}|${'AlphaBeta'.substring(end)}|Neighbor',nodes);
+    });
+  }
+  for(final checked in [false,true]){
+    probe('Enter-empty-checked-$checked','- [ ] First\n- [${checked?'x':' '}] ',(t,c,f,check)async{
+      await select(t,c,f,1,0);await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('Enter exits empty task',c.editor!.document.last is ParagraphNode&&c.editor!.document.last is! TaskNode,c.editor!.document.last.runtimeType.toString());
+    });
+  }
+  probe('nested-roundtrip','- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Sibling',(t,c,f,check)async{
+    check('nested task indentation retained',c.editor!.document.whereType<TaskNode>().map((n)=>n.indent).join(',')=='0,1,2,0',serializeDocumentToMarkdown(c.editor!.document));
+  });
+  probe('folded-boundary-repeat','- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail',(t,c,f,check)async{
+    await select(t,c,f,c.editor!.document.nodeCount-1,0);await t.sendKeyEvent(LogicalKeyboardKey.backspace);await t.pumpAndSettle();
+    check('first Backspace reveals and preserves Tail',c.editor!.document.last is ParagraphNode&&(c.editor!.document.last as ParagraphNode).text.toPlainText()=='Tail',serializeDocumentToMarkdown(c.editor!.document));
+    await t.sendKeyEvent(LogicalKeyboardKey.backspace);await t.pumpAndSettle();
+    check('second Backspace never loses Tail letters',serializeDocumentToMarkdown(c.editor!.document).contains('Tail'));
+  });
+  for(final count in [50,250,1000]){
+    final md=List.generate(count,(i)=>'- [ ] Task ${i.toString().padLeft(4,'0')}').join('\n');
+    probe('large-$count',md,(t,c,f,check)async{
+      check('all tasks loaded',c.editor!.document.whereType<TaskNode>().length==count);
+      final before=serializeDocumentToMarkdown(c.editor!.document);
+      await select(t,c,f,count~/2,9);await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('middle Enter adds one task',c.editor!.document.whereType<TaskNode>().length==count+1,c.editor!.document.nodeCount);
+      await t.sendKeyEvent(LogicalKeyboardKey.backspace);await t.pumpAndSettle();
+      check('Backspace preserves all task letters',c.editor!.document.whereType<TextNode>().map((n)=>n.text.toPlainText()).join()==List.generate(count,(i)=>'Task ${i.toString().padLeft(4,'0')}').join());
+      c.undo();await t.pumpAndSettle();c.undo();await t.pumpAndSettle();
+      check('undo pair restores initial note',serializeDocumentToMarkdown(c.editor!.document)==before);
+      final tasks=SmartTaskController.findTaskBlocks(c.editor!.document).first;
+      final vm=t.widgetList<QuietTaskComponent>(find.byType(QuietTaskComponent)).first.viewModel;
+      vm.setComplete!(true);await t.pumpAndSettle();
+      check('completion preserves task population',c.editor!.document.whereType<TaskNode>().length==count&&tasks.length==count);
+      c.undo();await t.pumpAndSettle();check('completion undo restores note',serializeDocumentToMarkdown(c.editor!.document)==before);
+    });
+  }
+}

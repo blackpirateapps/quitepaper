@@ -1,0 +1,14 @@
+from qp_checklist_driver import *
+CHECKS=pathlib.Path('/tmp/qp-checklist-native-checks.jsonl')
+def evaluate(step,expected,predicate):
+    s=record(step)
+    item={'case':s['case'],'step':step,'expected':expected,'pass':bool(predicate(s)),'errorCount':len(s['errors'])}
+    with CHECKS.open('a') as f:f.write(json.dumps(item)+'\n')
+    print('CHECK',json.dumps(item),flush=True)
+    if s['errors']:raise RuntimeError('Stop after runtime failure; restart isolated process')
+    return s
+
+def blocks(s):return s['rich'][0]['document']['blocks']
+def texts(s):return [''.join(span['text'] for span in b.get('spans',[])) for b in blocks(s)]
+def choose(name):
+    label('Insert Options (Table, Link, Media)','tooltip');time.sleep(.8);label(name,'text');time.sleep(.8)

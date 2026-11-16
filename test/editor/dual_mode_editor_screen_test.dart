@@ -10,10 +10,12 @@ import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/editor/application/rich_document_serializer.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/domain/rich_document.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_code_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
@@ -56,6 +58,346 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
 
+    for (final code in [false, true]) {
+      testWidgets('Active Visual ${code ? "code" : "paragraph"} switches to a live Markdown field', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'active-mode-$code', title: 'Mode',
+          content: code ? 'Before\n```dart\nprint(1)\n```' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final active = find.descendant(of: find.byType(code ? RichCodeBlock : RichTextEditor), matching: find.byType(EditableText));
+        await tester.enterText(active, code ? 'print(1)x' : 'mode probe');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('More options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit Markdown'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(RichTextEditor), findsNothing);
+        final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+        final editor = tester.widget<EditableText>(body);
+        expect(editor.controller.text, contains(code ? 'print(1)x' : 'mode probe'));
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(tester.getTopLeft(body).dy, lessThan(600));
+        final text = '${editor.controller.text}!';
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: text,
+          selection: TextSelection.collapsed(offset: text.length)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        expect((await repository.getNoteById(note.id))!.content, text);
+        await finishTest(tester);
+      });
+    }
+
+    testWidgets('Empty Visual Math insertion connects input and selects the formula', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'visual-math-input', title: 'Math', content: '',
+        createdAt: now, updatedAt: now, tags: []);
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(RichTextEditor), matching: find.byType(EditableText)));
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Math Formula'));
+      await tester.pumpAndSettle();
+      final formulaField = find.descendant(of: find.byType(RichCodeBlock), matching: find.byType(EditableText));
+      final formula = tester.widget<EditableText>(formulaField);
+      expect(formula.focusNode.hasPrimaryFocus, isTrue);
+      expect(formula.controller.selection, const TextSelection(baseOffset: 0, extentOffset: 8));
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'x',
+        selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(formulaField).controller.value.composing, const TextRange(start: 0, end: 1));
+      await tester.pump(const Duration(milliseconds: 800));
+      final doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+      expect(doc.blocks.whereType<CodeBlock>().single.code, 'x');
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
+    for (final mixed in [false, true]) {
+      testWidgets('Visual Tag keeps its caret after the marker with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'visual-tag-$mixed', title: 'Tags',
+          content: mixed ? '**Before**\n- [ ] task\nTail ' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == (mixed ? 'Tail ' : ''));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tag').last);
+        await tester.pumpAndSettle();
+        final prefix = mixed ? 'Tail #' : '#';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}nativeaudit',
+          selection: TextSelection.collapsed(offset: prefix.length + 11)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        final doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}nativeaudit');
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
+    for (final mixed in [false, true]) {
+      testWidgets('Visual Link Note keeps the query after brackets and completes with mixed=$mixed', (tester) async {
+        final now = DateTime.now();
+        final reference = Note(id: 'reference-$mixed', title: 'Other note', content: 'Reference',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(reference);
+        final note = Note(id: 'visual-note-link-$mixed', title: 'Links',
+          content: mixed ? '**Before**\n- [ ] task\nTail ' : '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note));
+        await tester.pumpAndSettle();
+        final body = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == (mixed ? 'Tail ' : ''));
+        await tester.tap(body);
+        await tester.pumpAndSettle();
+        final editor = tester.widget<EditableText>(body);
+        editor.controller.selection = TextSelection.collapsed(offset: editor.controller.text.length);
+        await tester.tap(find.byTooltip('Insert...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Link Note').last);
+        await tester.pumpAndSettle();
+        final prefix = mixed ? 'Tail [[' : '[[';
+        final target = find.byWidgetPredicate((w) => w is EditableText && w.controller.text == prefix);
+        final updated = tester.widget<EditableText>(target);
+        expect(updated.focusNode.hasPrimaryFocus, isTrue);
+        expect(updated.controller.selection.extentOffset, prefix.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${prefix}Other',
+          selection: TextSelection.collapsed(offset: prefix.length + 5)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        var doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, '${prefix}Other');
+        expect(find.text('Other note'), findsOneWidget);
+        await tester.tap(find.text('Other note'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        doc = RichDocument.fromJson(jsonDecode((await repository.getNoteById(note.id))!.content) as Map<String, dynamic>);
+        expect(doc.blocks.last.plainText, contains('qp://note/${reference.id}'));
+        expect(doc.blocks.last.plainText, isNot(contains('[[')));
+        if (mixed) expect(doc.blocks.first.spans.first.attributes.isBold, isTrue);
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
+    testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'visual-math-json', title: 'Math', content: '',
+        createdAt: now, updatedAt: now, tags: []);
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(RichTextEditor), matching: find.byType(EditableText));
+      await tester.enterText(body, 'Math existing body');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(jsonDecode((await repository.getNoteById(note.id))!.content), isA<Map<String, dynamic>>());
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Math Formula'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      final saved = (await repository.getNoteById(note.id))!;
+      final doc = RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>);
+      expect(doc.blocks.first.plainText, 'Math existing body');
+      expect(doc.blocks.whereType<CodeBlock>().single.language, 'math');
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
+    for (final fenced in [false, true]) {
+      testWidgets('Markdown toolbar history restores input focus with code=$fenced', (tester) async {
+        final now = DateTime.now();
+        final note = Note(id: 'markdown-history-$fenced', title: 'History', content: '',
+          createdAt: now, updatedAt: now, tags: []);
+        await repository.saveNote(note);
+        await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: EditorEditingStyle.markdown));
+        await tester.pumpAndSettle();
+        final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+        final text = fenced ? '```dart\nhistory probe\n```' : 'history probe';
+        await tester.enterText(body, text);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Undo'));
+        await tester.pumpAndSettle();
+        var editor = tester.widget<EditableText>(body);
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(editor.controller.selection.isValid, isTrue);
+        await tester.tap(find.byTooltip('Redo'));
+        await tester.pumpAndSettle();
+        editor = tester.widget<EditableText>(body);
+        expect(editor.focusNode.hasPrimaryFocus, isTrue);
+        expect(editor.controller.text, text);
+        expect(editor.controller.selection.extentOffset, text.length);
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: '${text}x',
+          selection: TextSelection.collapsed(offset: text.length + 1)));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 800));
+        expect((await repository.getNoteById(note.id))!.content, '${text}x');
+        expect(tester.takeException(), isNull);
+        await finishTest(tester);
+      });
+    }
+
+    testWidgets('Markdown first code insertion keeps the field and accepts immediate typing', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'markdown-code-insertion', title: 'Markdown code', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: EditorEditingStyle.markdown));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+      await tester.tap(body);
+      await tester.pump();
+      final originalState = tester.state<EditableTextState>(body);
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Code Block'));
+      await tester.pumpAndSettle();
+      expect(tester.state<EditableTextState>(body), same(originalState));
+      final editor = tester.widget<EditableText>(body);
+      expect(editor.focusNode.hasPrimaryFocus, isTrue);
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      final value = editor.controller.value;
+      expect(value.text, contains('```'));
+      expect(value.selection.isValid, isTrue);
+      final typed = value.text.replaceRange(value.selection.start, value.selection.end, 'print');
+      tester.testTextInput.updateEditingValue(TextEditingValue(
+        text: typed, selection: TextSelection.collapsed(offset: value.selection.start + 5),
+      ));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(editor.controller.text, typed);
+      expect((await repository.getNoteById(note.id))!.content, typed);
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
+    testWidgets('Visual code insertion focuses, types, saves and restores code history', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'visual-code-insertion', title: 'Code', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText)));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Code Block'));
+      await tester.pumpAndSettle();
+      final codeField = find.descendant(of: find.byType(RichCodeBlock), matching: find.byType(EditableText));
+      final code = tester.widget<EditableText>(codeField);
+      expect(code.focusNode.hasPrimaryFocus, isTrue);
+      expect(code.controller.selection, const TextSelection.collapsed(offset: 0));
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'print', selection: TextSelection.collapsed(offset: 5),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(codeField).controller.text, 'print');
+      await tester.pump(const Duration(milliseconds: 800));
+      final saved = (await repository.getNoteById(note.id))!;
+      final doc = RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>);
+      expect(doc.blocks.whereType<CodeBlock>().single.code, 'print');
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(codeField).controller.text, isEmpty);
+      await tester.tap(find.byTooltip('Redo'));
+      await tester.pumpAndSettle();
+      final restored = tester.widget<EditableText>(codeField);
+      expect(restored.controller.text, 'print');
+      expect(restored.controller.selection, const TextSelection.collapsed(offset: 5));
+      expect(restored.focusNode.hasPrimaryFocus, isTrue);
+      await tester.tap(find.text('Plain Text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dart'));
+      await tester.pumpAndSettle();
+      final afterLanguage = tester.widget<EditableText>(codeField);
+      expect(afterLanguage.focusNode.hasPrimaryFocus, isTrue);
+      expect(afterLanguage.controller.selection, const TextSelection.collapsed(offset: 5));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'printx',
+        selection: TextSelection.collapsed(offset: 6)));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      final languageSave = (await repository.getNoteById(note.id))!;
+      final languageDoc = RichDocument.fromJson(jsonDecode(languageSave.content) as Map<String, dynamic>);
+      final languageBlock = languageDoc.blocks.whereType<CodeBlock>().single;
+      expect(languageBlock.language, 'dart');
+      expect(languageBlock.code, 'printx');
+      await tester.tap(find.text('dart'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final afterCancel = tester.widget<EditableText>(codeField);
+      expect(afterCancel.focusNode.hasPrimaryFocus, isTrue);
+      expect(afterCancel.controller.selection, const TextSelection.collapsed(offset: 6));
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
+    testWidgets('Visual toolbar undo and redo retain a live body input and save history', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'visual-toolbar-history', title: 'History', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+      await tester.enterText(body, 'undo probe');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<EditableText>(body).controller.text, isEmpty);
+      await tester.tap(find.byTooltip('Redo'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final restored = tester.widget<EditableText>(body);
+      expect(restored.controller.text, 'undo probe');
+      expect(restored.focusNode.hasPrimaryFocus, isTrue);
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      expect(tester.getTopLeft(body).dy, lessThan(600));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'undo probe!', selection: TextSelection.collapsed(offset: 11),
+      ));
+      await tester.pumpAndSettle();
+      // Keyboard history must operate on the same snapshots as the toolbar.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(body).controller.text, 'undo probe');
+      final saved = (await repository.getNoteById(note.id))!;
+      expect(const RichDocumentSerializer().serialize(
+        RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>)), 'undo probe');
+      await finishTest(tester);
+    });
+
     for (final style in [EditorEditingStyle.wysiwyg, EditorEditingStyle.markdown]) {
       for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
         testWidgets('${style.label} title submission on ${platform.name} keeps body input connected', (tester) async {
@@ -93,6 +435,14 @@ void main() {
           expect(body.controller.selection, const TextSelection.collapsed(offset: 0));
           expect(tester.state<EditableTextState>(bodyField).renderEditable.showCursor.value, isTrue);
           expect(tester.testTextInput.hasAnyClients, isTrue);
+
+          if (platform == TargetPlatform.linux) {
+            expect(
+              await tester.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'b'),
+              isFalse,
+              reason: 'Printable keys must reach the Linux native text input',
+            );
+          }
 
           // Use the existing input connection, without tapping or refocusing the body.
           tester.testTextInput.updateEditingValue(const TextEditingValue(

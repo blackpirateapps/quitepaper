@@ -11,7 +11,6 @@ import '../../domain/markdown_styles.dart';
 import '../../domain/rich_block.dart';
 import '../../domain/rich_inline.dart';
 import '../../domain/text_attributes.dart';
-import 'link_enhance_button.dart';
 
 /// Dedicated visual editor widget for checklist task items in Quiet Paper's Visual mode.
 ///
@@ -29,6 +28,7 @@ class RichChecklistEditor extends StatefulWidget {
     super.key,
     required this.controller,
     required this.blockIndices,
+    this.focusNode,
     this.readOnly = false,
     this.onActiveTargetChanged,
     this.onChanged,
@@ -38,6 +38,7 @@ class RichChecklistEditor extends StatefulWidget {
 
   final RichDocumentController controller;
   final List<int> blockIndices;
+  final FocusNode? focusNode;
   final bool readOnly;
   final void Function(TextEditingController controller, FocusNode focusNode)? onActiveTargetChanged;
   final ValueChanged<String>? onChanged;
@@ -51,7 +52,11 @@ class RichChecklistEditor extends StatefulWidget {
 class _RichChecklistEditorState extends State<RichChecklistEditor> {
   final Map<String, _ChecklistItemTextController> _controllers = {};
   final Map<String, FocusNode> _focusNodes = {};
+  final Map<String, VoidCallback> _focusListeners = {};
+  final Set<FocusNode> _ownedFocusNodes = {};
   bool _isInternalUpdate = false;
+  bool _isReconcilingStructure = false;
+  RichDocumentSelection? _lastFocusSelection;
 
   @override
   void initState() {
@@ -68,15 +73,16 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       oldWidget.controller.removeListener(_onDocumentControllerChanged);
       widget.controller.addListener(_onDocumentControllerChanged);
     }
-    _syncItems();
+    _syncItems(rebuildSpans: false);
     _checkSelectionFocus();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onDocumentControllerChanged);
-    for (final fn in _focusNodes.values) {
-      fn.dispose();
+    for (final entry in _focusNodes.entries) {
+      entry.value.removeListener(_focusListeners[entry.key]!);
+      if (_ownedFocusNodes.remove(entry.value)) entry.value.dispose();
     }
     for (final ctrl in _controllers.values) {
       ctrl.dispose();
@@ -86,7 +92,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     super.dispose();
   }
 
-  void _syncItems() {
+  void _syncItems({bool rebuildSpans = true}) {
     _isInternalUpdate = true;
     try {
       final doc = widget.controller.document;
@@ -104,12 +110,11 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
             contextGetter: () => context,
             stylesGetter: () => widget.controller.styles,
           );
-          ctrl.addListener(() => _onTextChanged(idx, block.id, ctrl));
+          ctrl.addListener(() => _onTextChanged(block.id, ctrl));
           _controllers[block.id] = ctrl;
-
-          final fn = FocusNode();
-          fn.addListener(() => _onFocusChanged(idx, block.id, ctrl, fn));
-          _focusNodes[block.id] = fn;
+          if (widget.controller.selection.base.blockId == block.id) {
+            _lastFocusSelection = null;
+          }
         } else {
           final ctrl = _controllers[block.id]!;
           ctrl.block = block;
@@ -122,8 +127,29 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 extentOffset: sel.extentOffset.clamp(0, block.plainText.length),
               ),
             );
-          } else {
+          } else if (rebuildSpans) {
             ctrl.markNeedsRebuild();
+          }
+        }
+
+        final externalNode = idx == 0 ? widget.focusNode : null;
+        final existingNode = _focusNodes[block.id];
+        if (existingNode == null ||
+            (externalNode != null && existingNode != externalNode) ||
+            (externalNode == null && !_ownedFocusNodes.contains(existingNode))) {
+          if (existingNode != null) {
+            existingNode.removeListener(_focusListeners.remove(block.id)!);
+            if (_ownedFocusNodes.remove(existingNode)) existingNode.dispose();
+          }
+          final ctrl = _controllers[block.id]!;
+          final node = externalNode ?? FocusNode();
+          if (externalNode == null) _ownedFocusNodes.add(node);
+          void onFocus() => _onFocusChanged(block.id, ctrl, node);
+          _focusListeners[block.id] = onFocus;
+          node.addListener(onFocus);
+          _focusNodes[block.id] = node;
+          if (widget.controller.selection.base.blockId == block.id) {
+            _lastFocusSelection = null;
           }
         }
       }
@@ -131,7 +157,9 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       // Clean up removed blocks
       final removedIds = _controllers.keys.where((id) => !currentBlockIds.contains(id)).toList();
       for (final id in removedIds) {
-        _focusNodes[id]?.dispose();
+        final node = _focusNodes[id];
+        node?.removeListener(_focusListeners.remove(id)!);
+        if (node != null && _ownedFocusNodes.remove(node)) node.dispose();
         _focusNodes.remove(id);
         _controllers[id]?.dispose();
         _controllers.remove(id);
@@ -145,20 +173,21 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     if (_isInternalUpdate) return;
     if (!mounted) return;
 
+    // The parent rebuild supplies current indices after structural edits.
+    // Reading the old indices here can dispose or update the wrong item.
     final doc = widget.controller.document;
-    final currentIds = <String>{};
-    for (final idx in widget.blockIndices) {
-      if (idx < doc.blocks.length) currentIds.add(doc.blocks[idx].id);
-    }
-    final idsChanged = !setEquals(currentIds, _controllers.keys.toSet());
-
-    if (idsChanged) {
-      setState(() {
-        _syncItems();
+    final ids = widget.blockIndices
+        .where((index) => index < doc.blocks.length && doc.blocks[index] is ChecklistItemBlock)
+        .map((index) => doc.blocks[index].id)
+        .toSet();
+    if (!setEquals(ids, _controllers.keys.toSet())) {
+      _isReconcilingStructure = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _isReconcilingStructure = false;
       });
-    } else {
-      _syncItems();
+      return;
     }
+    _syncItems();
 
     _checkSelectionFocus();
   }
@@ -166,27 +195,44 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   void _checkSelectionFocus() {
     if (_isInternalUpdate) return;
     final sel = widget.controller.selection;
+    if (sel == _lastFocusSelection) return;
+    _lastFocusSelection = sel;
     final doc = widget.controller.document;
     final blockIdx = sel.base.blockIndex;
     if (widget.blockIndices.contains(blockIdx) && blockIdx < doc.blocks.length) {
       final block = doc.blocks[blockIdx];
       final fn = _focusNodes[block.id];
       final ctrl = _controllers[block.id];
-      if (fn != null && ctrl != null && !fn.hasFocus) {
+      if (fn != null && ctrl != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || fn.hasFocus) return;
-          fn.requestFocus();
-          ctrl.selection = TextSelection.collapsed(
-            offset: sel.base.offset.clamp(0, ctrl.text.length),
+          if (!mounted || widget.readOnly ||
+              widget.controller.selection != sel ||
+              _focusNodes[block.id] != fn) {
+            return;
+          }
+          final selection = TextSelection(
+            baseOffset: sel.base.offset.clamp(0, ctrl.text.length),
+            extentOffset: sel.extent.offset.clamp(0, ctrl.text.length),
+            affinity: sel.affinity,
           );
+          // Apply before focus listeners publish the previous local caret.
+          _isInternalUpdate = true;
+          try {
+            if (ctrl.selection != selection) ctrl.selection = selection;
+            if (!fn.hasFocus) fn.requestFocus();
+          } finally {
+            _isInternalUpdate = false;
+          }
           widget.onActiveTargetChanged?.call(ctrl, fn);
         });
       }
     }
   }
 
-  void _onFocusChanged(int blockIndex, String blockId, _ChecklistItemTextController ctrl, FocusNode fn) {
-    if (fn.hasFocus && !_isInternalUpdate) {
+  void _onFocusChanged(String blockId, _ChecklistItemTextController ctrl, FocusNode fn) {
+    if (fn.hasFocus && !_isInternalUpdate && !_isReconcilingStructure) {
+      final blockIndex = widget.controller.document.blocks.indexWhere((b) => b.id == blockId);
+      if (blockIndex < 0) return;
       final offset = ctrl.selection.isValid ? ctrl.selection.baseOffset : ctrl.text.length;
       final currentSel = widget.controller.selection;
       if (currentSel.base.blockIndex != blockIndex ||
@@ -212,13 +258,14 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     }
   }
 
-  void _onTextChanged(int blockIndex, String blockId, _ChecklistItemTextController ctrl) {
-    if (_isInternalUpdate) return;
+  void _onTextChanged(String blockId, _ChecklistItemTextController ctrl) {
+    if (_isInternalUpdate || _isReconcilingStructure) return;
     final fn = _focusNodes[blockId];
     if (fn == null || !fn.hasFocus) return;
 
     final doc = widget.controller.document;
-    if (blockIndex >= doc.blocks.length) return;
+    final blockIndex = doc.blocks.indexWhere((b) => b.id == blockId);
+    if (blockIndex < 0) return;
     final block = doc.blocks[blockIndex];
     if (block is! ChecklistItemBlock) return;
 
@@ -369,40 +416,44 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     return KeyEventResult.handled;
   }
 
-  KeyEventResult _handleArrowUp(int itemPosition) {
-    if (itemPosition > 0) {
-      final prevBlockIdx = widget.blockIndices[itemPosition - 1];
-      final doc = widget.controller.document;
-      if (prevBlockIdx < doc.blocks.length) {
-        final prevBlock = doc.blocks[prevBlockIdx];
-        final prevFn = _focusNodes[prevBlock.id];
-        final prevCtrl = _controllers[prevBlock.id];
-        if (prevFn != null && prevCtrl != null) {
-          prevFn.requestFocus();
-          prevCtrl.selection = TextSelection.collapsed(offset: prevCtrl.text.length);
-          return KeyEventResult.handled;
-        }
-      }
-    }
-    return KeyEventResult.ignored;
+  bool _atVerticalBoundary(int position, {required bool up}) {
+    final block = widget.controller.document.blocks[widget.blockIndices[position]];
+    final ctrl = _controllers[block.id]!;
+    if (!ctrl.selection.isValid || !ctrl.selection.isCollapsed) return false;
+    final state = _focusNodes[block.id]?.context?.findAncestorStateOfType<EditableTextState>();
+    if (state == null) return ctrl.selection.extentOffset == (up ? 0 : ctrl.text.length);
+    final render = state.renderEditable;
+    final caret = render.getLocalRectForCaret(TextPosition(offset: ctrl.selection.extentOffset));
+    final boundary = render.getLocalRectForCaret(TextPosition(offset: up ? 0 : ctrl.text.length));
+    return (caret.top - boundary.top).abs() < 0.5;
   }
 
-  KeyEventResult _handleArrowDown(int itemPosition) {
-    if (itemPosition < widget.blockIndices.length - 1) {
-      final nextBlockIdx = widget.blockIndices[itemPosition + 1];
-      final doc = widget.controller.document;
-      if (nextBlockIdx < doc.blocks.length) {
-        final nextBlock = doc.blocks[nextBlockIdx];
-        final nextFn = _focusNodes[nextBlock.id];
-        final nextCtrl = _controllers[nextBlock.id];
-        if (nextFn != null && nextCtrl != null) {
-          nextFn.requestFocus();
-          nextCtrl.selection = TextSelection.collapsed(offset: nextCtrl.text.length);
-          return KeyEventResult.handled;
-        }
-      }
+  KeyEventResult _moveVertically(int position, {required bool up}) {
+    if (!_atVerticalBoundary(position, up: up)) return KeyEventResult.ignored;
+    final target = position + (up ? -1 : 1);
+    if (target < 0 || target >= widget.blockIndices.length) return KeyEventResult.ignored;
+    final doc = widget.controller.document;
+    final currentId = doc.blocks[widget.blockIndices[position]].id;
+    final targetId = doc.blocks[widget.blockIndices[target]].id;
+    final ctrl = _controllers[targetId]!;
+    final node = _focusNodes[targetId]!;
+    final currentState = _focusNodes[currentId]?.context?.findAncestorStateOfType<EditableTextState>();
+    final targetState = node.context?.findAncestorStateOfType<EditableTextState>();
+    var offset = up ? ctrl.text.length : 0;
+    if (currentState != null && targetState != null) {
+      final currentRender = currentState.renderEditable;
+      final targetRender = targetState.renderEditable;
+      final caret = currentRender.getLocalRectForCaret(
+        TextPosition(offset: _controllers[currentId]!.selection.extentOffset),
+      );
+      final boundary = targetRender.getLocalRectForCaret(TextPosition(offset: offset));
+      final x = currentRender.localToGlobal(caret.center).dx;
+      final y = targetRender.localToGlobal(boundary.center).dy;
+      offset = targetRender.getPositionForPoint(Offset(x, y)).offset.clamp(0, ctrl.text.length);
     }
-    return KeyEventResult.ignored;
+    ctrl.selection = TextSelection.collapsed(offset: offset);
+    node.requestFocus();
+    return KeyEventResult.handled;
   }
 
   @override
@@ -432,14 +483,20 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
           child: Focus(
             onKeyEvent: (node, event) {
               if (event is KeyDownEvent) {
-                if (event.logicalKey == LogicalKeyboardKey.enter) {
+                if ((event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
                   return _handleEnter(blockIdx, block, ctrl);
                 } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
                   return _handleBackspace(blockIdx, i, block, ctrl);
-                } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                  return _handleArrowUp(i);
-                } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                  return _handleArrowDown(i);
+                } else if (!HardwareKeyboard.instance.isShiftPressed &&
+                    !HardwareKeyboard.instance.isControlPressed &&
+                    !HardwareKeyboard.instance.isMetaPressed &&
+                    !HardwareKeyboard.instance.isAltPressed) {
+                  if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                    return _moveVertically(i, up: true);
+                  } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                    return _moveVertically(i, up: false);
+                  }
                 }
               }
               return widget.onKeyEvent?.call(node, event) ?? KeyEventResult.ignored;
@@ -734,26 +791,6 @@ class _ChecklistItemTextController extends TextEditingController {
       }
 
       result.add(TextSpan(text: span.text, style: spanStyle));
-
-      // Append editorial enhance button at trailing edge of web links if not checked
-      if (attr.hasLink &&
-          !block.isChecked &&
-          attr.linkUrl != null &&
-          (attr.linkUrl!.startsWith('http://') || attr.linkUrl!.startsWith('https://'))) {
-        final isLastInRun =
-            i == spans.length - 1 || spans[i + 1].attributes.linkUrl != attr.linkUrl;
-        if (isLastInRun) {
-          result.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: LinkEnhanceButton(
-                url: attr.linkUrl!,
-                onEnhanced: (newTitle) async {},
-              ),
-            ),
-          );
-        }
-      }
     }
 
     return result;

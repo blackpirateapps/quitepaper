@@ -136,7 +136,9 @@ class CodeBlockOverlayState extends State<CodeBlockOverlay> {
   Future<void> _onSelectLanguage(MarkdownCodeBlockInfo block) async {
     final selected = await LanguageSelectorSheet.show(
       context,
-      currentLanguageId: block.rawLanguage.isNotEmpty ? block.rawLanguage : null,
+      currentLanguageId: block.rawLanguage.isNotEmpty
+          ? block.rawLanguage
+          : null,
       title: 'Select Code Language',
     );
 
@@ -163,25 +165,25 @@ class CodeBlockOverlayState extends State<CodeBlockOverlay> {
       }
     });
 
-    if (_codeBlocks.isEmpty || widget.readOnly) {
-      return widget.child;
-    }
-
+    // Keep the field at the same element path when the first fence appears or
+    // the last fence disappears. Replacing it while its FocusNode stays focused
+    // can close the native text input connection after the replacement mounts.
     return Stack(
       clipBehavior: Clip.none,
       children: [
         widget.child,
-        for (final block in _codeBlocks)
-          if (_pillPositions.containsKey(block.openingFenceLineStart))
-            Positioned(
-              top: _pillPositions[block.openingFenceLineStart]! + 1.0,
-              right: 6.0,
-              child: CodeBlockLanguagePill(
-                language: block.rawLanguage,
-                enabled: !widget.readOnly,
-                onTap: () => _onSelectLanguage(block),
+        if (!widget.readOnly)
+          for (final block in _codeBlocks)
+            if (_pillPositions.containsKey(block.openingFenceLineStart))
+              Positioned(
+                top: _pillPositions[block.openingFenceLineStart]! + 1.0,
+                right: 6.0,
+                child: CodeBlockLanguagePill(
+                  language: block.rawLanguage,
+                  enabled: !widget.readOnly,
+                  onTap: () => _onSelectLanguage(block),
+                ),
               ),
-            ),
       ],
     );
   }

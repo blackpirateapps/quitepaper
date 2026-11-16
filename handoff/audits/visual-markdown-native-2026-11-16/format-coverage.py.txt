@@ -1,0 +1,34 @@
+from qp_native_audit_driver import *
+
+key('Escape')
+for style in ['visual', 'markdown']:
+    reset(style, 'heading')
+    field()
+    for level in range(1, 7):
+        label('Heading (Ctrl+Alt+1–6)', 'tooltip')
+        label('Heading ' + str(level), 'text')
+        record('coverage ' + style + ' heading ' + str(level))
+    label('Heading (Ctrl+Alt+1–6)', 'tooltip')
+    label('Paragraph (Normal)', 'text')
+    record('coverage ' + style + ' heading to paragraph')
+    for tooltip in ['Bold (Ctrl+B)', 'Italic (Ctrl+I)', 'Strikethrough (Ctrl+Shift+X)', 'Inline Code (Ctrl+`)']:
+        reset(style, 'format')
+        field()
+        key('a', 'CTRL')
+        label(tooltip, 'tooltip')
+        record('coverage ' + style + ' ' + tooltip)
+    for tooltip in ['Checklist (Ctrl+Shift+C)', 'Bullet List (Ctrl+Shift+8)', 'Numbered List (Ctrl+Shift+7)', 'Quote (Ctrl+Shift+.)']:
+        reset(style, 'item')
+        field()
+        label(tooltip, 'tooltip')
+        key('End', 'CTRL')
+        key('Return')
+        type_text('next')
+        record('coverage ' + style + ' continuation ' + tooltip)
+
+reset('visual', 'highlight')
+field()
+key('a', 'CTRL')
+label('All Formatting Options (Aa)', 'tooltip')
+print('format hub labels', [l for l in api()['labels'] if l['kind']=='text'], flush=True)
+record('coverage visual formatting hub')

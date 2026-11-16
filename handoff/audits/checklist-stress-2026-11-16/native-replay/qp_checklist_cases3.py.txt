@@ -1,0 +1,41 @@
+from qp_checklist_native_helpers import *
+
+def task(text):
+    targets=[t for t in api()['tasks'] if t['text']==text and not t['hidden']]
+    if not targets:raise ValueError('Missing visible task '+text)
+    click(targets[0]['rect'],.35)
+
+for indent in [2,4]:
+    initial='- [ ] Parent\n'+' '*indent+'- [ ] Child\n'+' '*(indent*2)+'- [x] Grandchild\n- [ ] Sibling'
+    reset('super',initial)
+    evaluate('Super nested checklist parse indent='+str(indent),'four task nodes with child and checked grandchild',lambda s:len([n for n in s['super'][0]['nodes'] if n['type']=='TaskNode'])==4 and any(n.get('checked') and n['text']=='Grandchild' for n in s['super'][0]['nodes']))
+
+for reversed in [False,True]:
+    reset('super','- [ ] AlphaBeta\n- [ ] Neighbor');task('AlphaBeta');key('Home')
+    for _ in range(7 if reversed else 2):key('Right')
+    for _ in range(5):key('Left' if reversed else 'Right','SHIFT')
+    key('Return')
+    evaluate('Super Enter selection reversed='+str(reversed),'selected phaBe is removed',lambda s:[n['text'] for n in s['super'][0]['nodes']]==['Al','ta','Neighbor'])
+
+reset('super','- [ ] First\n- [ ] Second');task('First');key('End');key('Delete')
+evaluate('Super forward Delete task boundary','all letters remain in one task',lambda s:[n['text'] for n in s['super'][0]['nodes']]==['FirstSecond'])
+
+reset('super','- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail')
+label('4 completed items','text');time.sleep(.8)
+s=evaluate('Super expand completed checklist','all four completed tasks visible',lambda s:len([t for t in s['tasks'] if t['complete'] and not t['hidden'] and not t['summary']])==4)
+# Collapse through the expanded header label if present.
+labels=[x for x in s['labels'] if x['kind']=='text' and 'completed' in (x.get('text') or '')]
+print('FOLD_LABELS',json.dumps(labels),flush=True)
+if labels:click(labels[0]['rect']);time.sleep(.8)
+# Click the paragraph through its rendered label, then delete upstream once.
+label('Tail','text');key('Home');key('BackSpace')
+evaluate('Super Backspace below folded completed tasks','Tail survives, tasks reveal before merging',lambda s:s['super'][0]['nodes'][-1]['text']=='Tail' and any(t['text']=='Four' and not t['hidden'] for t in s['tasks']))
+
+reset('super','- [ ] First\n- [ ] Second\n- [ ] Third')
+s=api();r=next(t['rect'] for t in s['tasks'] if t['text']=='First')
+click([r[0]+1,r[1]+2,20,20]);time.sleep(1)
+evaluate('Super native checkbox completion','First moves below active tasks and remains checked',lambda s:s['super'][0]['nodes'][-1]['text']=='First' and s['super'][0]['nodes'][-1].get('checked'))
+label('Undo (Ctrl+Z)','tooltip')
+evaluate('Super completion toolbar undo','restores task order and unchecked state',lambda s:[n['text'] for n in s['super'][0]['nodes']]==['First','Second','Third'] and not s['super'][0]['nodes'][0].get('checked'))
+
+print('BATCH3 COMPLETE',flush=True)

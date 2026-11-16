@@ -1,0 +1,50 @@
+from qp_native_fixes_driver import *
+
+def healthy(state):
+    assert not state['errors'], state['errors']
+
+def insert(name):
+    label('Insert Options (Table, Link, Media)', 'tooltip')
+    label(name, 'text')
+
+reset('visual')
+field()
+type_text('Math existing body')
+before=record('fix12 saved rich JSON before math')
+json.loads(before['savedContent'])
+insert('Math Formula')
+after=record('fix12 math AST insertion preserves JSON')
+healthy(after)
+doc=json.loads(after['savedContent'])
+assert doc['blocks'][0]['spans'][0]['text']=='Math existing body'
+assert any(b.get('language')=='math' for b in doc['blocks'])
+type_text('x')
+s=record('fix12 native formula typing after saved-note insertion')
+healthy(s)
+assert next(b for b in json.loads(s['savedContent'])['blocks'] if b.get('language')=='math')['code']=='x'
+
+reset('visual')
+field()
+insert('Math Formula')
+s=record('fix11 empty math input before typing')
+healthy(s)
+formula=next(f for f in s['fields'] if f['text']=='equation')
+assert formula['focus'] and formula['base']==0 and formula['extent']==8
+type_text('x')
+s=record('fix11 empty math accepts immediate native input')
+healthy(s)
+assert next(b for b in json.loads(s['savedContent'])['blocks'] if b.get('language')=='math')['code']=='x'
+
+reset('visual','Before\n- [ ] task\nTail')
+field(text='Tail')
+s=record('fix5 click Tail without arrow movement')
+healthy(s)
+assert 'block: 2' in s['rich'][0]['selection'] and 'offset: 4' in s['rich'][0]['selection']
+label('Divider (Ctrl+Alt+-)', 'tooltip')
+type_text('after')
+s=record('fix5 divider placement and immediate continuation')
+healthy(s)
+blocks=json.loads(s['savedContent'])['blocks']
+assert blocks[2]['spans'][0]['text']=='Tail' and blocks[3]['type']=='horizontal_rule'
+assert blocks[4]['spans'][0]['text']=='after'
+print('BATCH1 PASSED',flush=True)

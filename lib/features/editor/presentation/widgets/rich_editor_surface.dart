@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/rich_block.dart';
+import '../../domain/document_selection.dart';
 import '../../application/rich_document_controller.dart';
 import 'rich_attachment_block.dart';
 import 'rich_checklist_editor.dart';
@@ -49,9 +50,20 @@ class RichEditorSurface extends StatefulWidget {
 }
 
 class _RichEditorSurfaceState extends State<RichEditorSurface> {
+  final Map<String, FocusNode> _segmentFocusNodes = {};
+  final Map<String, FocusNode> _textTargets = {};
+  late RichDocumentSelection _lastSelection;
+  Type? _lastSelectionBlockType;
+
+  FocusNode _focusFor(String blockId) =>
+      _segmentFocusNodes.putIfAbsent(blockId, () => FocusNode());
   @override
   void initState() {
     super.initState();
+    _lastSelection = widget.controller.selection;
+    _lastSelectionBlockType = widget.controller.document.blocks
+        .where((block) => block.id == _lastSelection.extent.blockId)
+        .firstOrNull?.runtimeType;
     widget.controller.addListener(_onControllerChanged);
   }
 
@@ -67,32 +79,37 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
+    for (final node in _segmentFocusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final selection = widget.controller.selection;
+    final blockType = widget.controller.document.blocks
+        .where((block) => block.id == selection.extent.blockId)
+        .firstOrNull?.runtimeType;
+    if (selection != _lastSelection || blockType != _lastSelectionBlockType) {
+      _lastSelection = selection;
+      _lastSelectionBlockType = blockType;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.readOnly || widget.controller.selection != selection) return;
+        // Structural edits can move the caret from a checklist into a newly
+        // created paragraph. Focus it after its field has been mounted.
+        final node = _textTargets[selection.extent.blockId];
+        if (node != null && !node.hasFocus) node.requestFocus();
+      });
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final blocks = widget.controller.document.blocks;
-
-    // Fast-path: If all blocks are standard text blocks (excluding checklists), render one continuous RichTextEditor
-    final hasWidgetBlocks = blocks.any((b) => !b.isTextBlock || b is ChecklistItemBlock);
-    if (!hasWidgetBlocks) {
-      return RichTextEditor(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        readOnly: widget.readOnly,
-        hintText: widget.hintText,
-        onActiveTargetChanged: widget.onActiveTargetChanged,
-        onChanged: widget.onChanged,
-        onKeyEvent: widget.onKeyEvent,
-        onPaste: widget.onPaste,
-      );
-    }
+    _textTargets.clear();
 
     // Segmented layout: Group contiguous text blocks around non-text and checklist elements
     final segments = <Widget>[];
@@ -102,11 +119,17 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
     void flushTextSegment() {
       if (currentTextIndices.isNotEmpty) {
         final indicesCopy = List<int>.from(currentTextIndices);
+        final node = indicesCopy.first == 0
+            ? widget.focusNode
+            : _focusFor(blocks[indicesCopy.first].id);
+        for (final index in indicesCopy) {
+          _textTargets[blocks[index].id] = node;
+        }
         segments.add(
           RichTextEditor(
-            key: ValueKey('text_segment_${indicesCopy.first}'),
+            key: ValueKey('text_segment_${blocks[indicesCopy.first].id}'),
             controller: widget.controller,
-            focusNode: indicesCopy.first == 0 ? widget.focusNode : FocusNode(),
+            focusNode: node,
             blockIndices: indicesCopy,
             readOnly: widget.readOnly,
             hintText: indicesCopy.first == 0 ? widget.hintText : '',
@@ -125,7 +148,8 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
         final indicesCopy = List<int>.from(currentChecklistIndices);
         segments.add(
           RichChecklistEditor(
-            key: ValueKey('checklist_segment_${indicesCopy.first}'),
+            key: ValueKey('checklist_segment_${blocks[indicesCopy.first].id}'),
+            focusNode: indicesCopy.first == 0 ? widget.focusNode : null,
             controller: widget.controller,
             blockIndices: indicesCopy,
             readOnly: widget.readOnly,
@@ -162,12 +186,16 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
             ),
           );
         } else if (block is CodeBlock) {
+          final node = _focusFor(block.id);
+          _textTargets[block.id] = node;
           segments.add(
             RichCodeBlock(
               key: ValueKey(block.id),
               block: block,
               blockIndex: i,
               controller: widget.controller,
+              focusNode: node,
+              onActiveTargetChanged: widget.onActiveTargetChanged,
               readOnly: widget.readOnly,
             ),
           );
@@ -217,6 +245,17 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
 
     flushTextSegment();
     flushChecklistSegment();
+
+    final blockIds = blocks.map((block) => block.id).toSet();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final removed = _segmentFocusNodes.keys.where((id) => !blockIds.contains(id)).toList();
+      for (final id in removed) {
+        if (!widget.controller.document.blocks.any((block) => block.id == id)) {
+          _segmentFocusNodes.remove(id)?.dispose();
+        }
+      }
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

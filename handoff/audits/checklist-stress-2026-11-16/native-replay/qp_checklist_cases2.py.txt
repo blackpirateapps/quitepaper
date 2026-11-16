@@ -1,0 +1,47 @@
+from qp_checklist_driver import *
+CHECKS=pathlib.Path('/tmp/qp-checklist-native-checks.jsonl')
+def evaluate(step,expected,predicate):
+    s=record(step)
+    item={'case':s['case'],'step':step,'expected':expected,'pass':bool(predicate(s)),'errorCount':len(s['errors'])}
+    with CHECKS.open('a') as f:f.write(json.dumps(item)+'\n')
+    print('CHECK',json.dumps(item),flush=True)
+    if s['errors']:raise RuntimeError('Stop after runtime failure; restart isolated process')
+    return s
+
+def blocks(s):return s['rich'][0]['document']['blocks']
+def texts(s):return [''.join(span['text'] for span in b.get('spans',[])) for b in blocks(s)]
+def choose(name):
+    label('Insert Options (Table, Link, Media)','tooltip');time.sleep(.8);label(name,'text');time.sleep(.8)
+
+from qp_checklist_driver import *
+
+for initial,expected in [('- [ ] Alpha','- [ ] Alpha\n- [ ] '),('- [x] Alpha','- [x] Alpha\n- [ ] '),('  - [ ] Alpha','  - [ ] Alpha\n  - [ ] '),('> - [ ] Alpha','> - [ ] Alpha\n> - [ ] '),('1. [ ] Alpha','1. [ ] Alpha\n2. [ ] ')]:
+    reset('markdown',initial);field(text=initial);key('End');key('Return')
+    evaluate('Markdown Enter continuation '+repr(initial),repr(expected),lambda s:s['savedContent']==expected)
+
+reset('markdown','- [ ] First\n- [ ] ');field(text='- [ ] First\n- [ ] ');key('End');key('Return');type_text('Tail')
+evaluate('Markdown empty task exits and types','- [ ] First followed by plain Tail',lambda s:s['savedContent']=='- [ ] First\nTail')
+
+reset('markdown','- [ ] First\n- [ ] Second');field(text='- [ ] First\n- [ ] Second');key('Home');key('BackSpace')
+evaluate('Markdown Backspace at second task line start','all content survives a native join',lambda s:s['savedContent']=='- [ ] First- [ ] Second')
+
+for reversed in [False,True]:
+    initial='- [ ] AlphaBeta\n- [ ] Neighbor';reset('markdown',initial);field(text=initial);key('Home','CTRL')
+    for _ in range(13 if reversed else 8):key('Right')
+    for _ in range(5):key('Left' if reversed else 'Right','SHIFT')
+    key('Return');evaluate('Markdown Enter replaces selection reversed='+str(reversed),'selected phaBe removed',lambda s:'phaBe' not in s['savedContent'] and 'Neighbor' in s['savedContent'])
+
+reset('visual','- [ ] Task ');field(text='Task ');key('End');choose('Link Note');type_text('Other')
+evaluate('Visual Link Note inside checklist row','Task [[Other query survives',lambda s:texts(s)==['Task [[Other'])
+
+reset('visual','- [ ] Alpha\n- [ ] Neighbor');field(text='Alpha');key('End');api('/clipboard',{'text':'\n- [ ] Beta\n- [x] Gamma'});key('v','CTRL')
+evaluate('Visual structured checklist paste into row','three distinct tasks plus Neighbor',lambda s:len([b for b in blocks(s) if b['type']=='checklist_item'])==4 and texts(s)[-1]=='Neighbor')
+
+reset('visual','- [ ] Seed');field(text='Seed');key('End')
+for i in range(1,81):
+    key('Return');type_text('t'+str(i))
+    if i%20==0:record('Visual native creation '+str(i+1)+' tasks')
+evaluate('Visual 81 tasks created by repeated Enter and typing','81 tasks with no lost item text',lambda s:len(blocks(s))==81 and texts(s)==['Seed']+['t'+str(i) for i in range(1,81)])
+key('Return');key('Return');type_text('Tail')
+evaluate('Visual large-list double Enter exits checklist','81 tasks followed by plain Tail',lambda s:len(blocks(s))==82 and blocks(s)[-1]['type']=='paragraph' and texts(s)[-1]=='Tail')
+print('BATCH2 COMPLETE',flush=True)

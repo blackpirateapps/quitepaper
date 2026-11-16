@@ -1,0 +1,54 @@
+from qp_native_fixes_driver import *
+
+def healthy(state):
+    assert not state['errors'],state['errors']
+
+def insert(name):
+    label('Insert Options (Table, Link, Media)', 'tooltip')
+    label(name, 'text')
+
+reset('visual')
+field()
+insert('Code Block')
+type_text('print')
+label('Plain Text','text')
+time.sleep(1)
+label('Dart','text')
+time.sleep(1)
+type_text('x')
+s=record('fix6 code language choice retains native typing and caret')
+healthy(s)
+code=next(b for b in json.loads(s['savedContent'])['blocks'] if b['type']=='code_block')
+assert code['code']=='printx' and code['language']=='dart'
+label('dart','text')
+key('Escape')
+type_text('y')
+s=record('fix6 cancelled language picker restores native input')
+healthy(s)
+assert next(b for b in json.loads(s['savedContent'])['blocks'] if b['type']=='code_block')['code']=='printxy'
+
+reset('markdown')
+field()
+type_text('history probe')
+record('fix7 markdown before toolbar history')
+label('Undo (Ctrl+Z)','tooltip')
+s=record('fix7 markdown undo retains valid focused caret')
+healthy(s)
+assert any(f['focus'] and f['base']>=0 for f in s['fields'])
+label('Redo (Ctrl+Y)','tooltip')
+type_text('x')
+s=record('fix7 markdown redo accepts immediate native input')
+healthy(s)
+assert s['savedContent']=='history probex'
+
+reset('markdown')
+field()
+insert('Code Block')
+type_text('print')
+label('Undo (Ctrl+Z)','tooltip')
+label('Redo (Ctrl+Y)','tooltip')
+type_text('x')
+s=record('fix7 markdown code history retains native input')
+healthy(s)
+assert 'printx' in s['savedContent']
+print('BATCH2 PASSED',flush=True)

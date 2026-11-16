@@ -6404,3 +6404,400 @@ release entry as 277, renumbered the checklist entry to 278, and updated its
   claimed for this merge. The PR's existing CI checks passed before this
   documentation-only conflict resolution.
 - `git diff --check`: clean.
+
+## 279. Visual and Markdown editor focus, caret and Linux input stability (November 15, 2026)
+
+### Diagnosis
+
+This work targets the `wysiwyg` Visual editor and Markdown source editor, not
+Super Editor. The laptop's installed executable is `/opt/quitepaper/quitepaper`,
+whose bundled metadata reports **1.6.2+456**. It runs under Hyprland/Wayland and
+predates this checkout's title-to-body handling documented in section 275.
+
+Found and reproduced separate editing failures in the current source:
+
+- Visual text segments below checklists/widgets allocated a new `FocusNode` on
+  every rebuild. Index-based segment keys also recreated later fields after
+  insertion, and switching between the plain-document fast path and segmented
+  layout replaced the active editor subtree.
+- Checklist controller listeners captured creation-time block indices. Inserting
+  an item before an existing item could redirect subsequent edits to another
+  task. Reconciliation could dispose a focused checklist field before its new
+  paragraph destination was mounted, letting automatic sibling focus overwrite
+  the requested caret.
+- Source selection/style notifications compared an older debounced save buffer
+  against the current visual document and could reparse it over unsaved typing.
+- Checklist selection restoration ignored focused ranges and queued obsolete
+  caret requests. Up/Down always jumped to another task, even from the middle of
+  a wrapped item. Native numpad Enter was not handled like Enter in visual fields.
+- Link-enhancement `WidgetSpan`s introduced characters absent from the editing
+  buffer, shifting cursor and hit-testing offsets after links.
+- IME list continuation added canonical list markers, then interpreted raw IME
+  offsets against those new markers. Markdown table text fields used keys based
+  on changing source offsets, recreating their input connections during typing;
+  no table-segment field used the supplied body focus node.
+
+### Changes
+
+- Keep one segment layout for plain and mixed visual documents, stable block-ID
+  keys, and retained/disposed text focus nodes. Checklist-first notes attach the
+  supplied body focus node to the first actual task input.
+- Reconcile text after the surface supplies current indices. Resolve checklist
+  callbacks by stable ID, track ownership of external versus internal focus
+  nodes, and remove their listeners on replacement/disposal.
+- Restore structural destinations after mounting; suppress intermediate sibling
+  selection publication. Revalidate queued focus/selection requests, preserve
+  selected ranges and unchanged composition, and prevent inactive fields from
+  publishing selections. Preserve canonical caret positions after IME newlines.
+- Keep ordinary arrow movement within wrapped checklist items; move between
+  tasks only at visual boundaries, retaining the screen column. Leave modified
+  arrow keys to Flutter. Support numpad Enter alongside Enter.
+- Render only buffer-backed text in editable spans. Keep working text-link title
+  enhancement as a field suffix action outside the span stream; remove the
+  checklist's offset-shifting placeholder action, whose callback was a no-op.
+- Track actual source text changes, ignoring selection-only notifications.
+  Give Markdown table text segments stable ordinal keys and attach the supplied
+  body focus node to the first text segment, including a trailing empty field.
+
+Updated `markdown_editor.dart`, `rich_editor_surface.dart`, `rich_text_editor.dart`,
+`rich_checklist_editor.dart`, the screen regression tests, the new
+`visual_editor_stability_test.dart`, `HANDOFF.md`, and the editor guide.
+
+### Verification
+
+- `flutter analyze`: **no issues**.
+- Relevant tests only:
+  `flutter test --no-pub test/editor/visual_editor_stability_test.dart test/editor/markdown_editor_widget_test.dart test/editor/rich_text_checklist_editor_test.dart test/editor/rich_text_editor_formattings_test.dart test/editor/dual_mode_editor_screen_test.dart`
+  — **125 passed**. The full suite was not run.
+- Eleven stability tests were also run against the original four editor
+  source files: **10 failed**, confirming regressions for mixed-list typing,
+  shifted checklist callbacks, list exits, focused ranges, link offsets, pending
+  visual saves, checklist-first focus, IME continuation, wrapped navigation, and
+  Markdown table typing. Fixed files were restored byte for byte afterward.
+  A twelfth regression covers title editing without stale checklist refocusing.
+- Existing Linux screen tests additionally assert that printable hardware keys
+  remain unhandled by Flutter so they reach native text input.
+- Native Linux smoke tests used the actual `EditorScreen` in an isolated debug
+  window with an in-memory database and temporary preferences, separate from
+  the installed app and user notes. Hyprland dispatched normal-cadence native
+  keystrokes. Both Visual and Markdown passed title typing → Enter → body typing
+  → Enter → further typing, with focused body caret and saved content verified.
+  Separate tests clicked directly into each empty body and typed successfully.
+  These native checks cover basic input; mixed-list/IME edge cases use widget
+  regressions. Installed **1.6.2+456** was inspected but not replaced.
+- `flutter build linux --debug --no-pub -t lib/main.dart`: **passed**. The regular
+  app bundle is `build/linux/x64/debug/bundle/`; the temporary smoke harness was
+  closed, and the regular app target was rebuilt afterward.
+- `git diff --check`: clean.
+
+
+## 280. Native Visual and Markdown formatting toolbar audit (November 15, 2026)
+
+Exercised the actual EditorScreen in isolated Linux/Wayland windows using native
+mouse/keyboard events and an in-memory database. Captured findings immediately in
+`EDITOR_TOOLBAR_AUDIT.md` and preserved sample Markdown/Visual AST files under
+`handoff/audits/`. No editor behavior changes are included in this audit.
+
+Four failures reproduced: Visual divider insertion retains the previous caret;
+Visual code-block insertion drops focus; Visual toolbar Undo then Redo causes a
+disposed-controller exception; first Markdown code insertion retains apparent
+focus while losing subsequent typing. See the audit for minimal reproductions,
+evidence, suspected cause boundaries, and follow-up priorities.
+
+Inline styles, highlight, heading levels 1–6, paragraph conversion, and list/quote
+controls were exercised in both modes. Insert menus, valid web-link/table
+insertion, table-cell editor opening, note-link/tag syntax, attachment entry
+points, camera fallback, recording/discard, and dictation entry were checked.
+External attachment processing, actual transcription, math rendering parity,
+complete table editing, and mode/export round trips are explicitly not certified.
+Automation timing and URL-entry mistakes are documented separately from app bugs.
+
+Validation: `flutter analyze` reported no issues; all 12 focused
+`visual_editor_stability_test.dart` tests passed. These existing regressions do
+not cover the newly discovered toolbar sequences. No full test suite was run.
+Closed the temporary window and rebuilt the regular Linux app target afterward.
+Updated HANDOFF.md to link the durable audit. Installed app/user notes unchanged.
+
+## 281. Visual toolbar undo/redo controller lifecycle (November 16, 2026)
+
+Audit finding 3 reproduced as a disposed `_RichTextEditingController` exception
+in an actual EditorScreen widget regression. Toolbar undo previously restored
+serialized source snapshots, while keyboard undo used the AST. Restoring source
+could recreate segment IDs and dispose the controller still observed by the toolbar.
+
+`formatting_toolbar.dart` and `editor_screen.dart` now route Visual history to
+`RichDocumentController`; the toolbar observes the persistent source controller.
+`rich_document_controller.dart` records ordinary span edits in the same history,
+retains current snapshot selections, refreshes typing attributes on restoration,
+and marks undo/redo dirty so autosave persists restored documents. Markdown and
+Super Editor retain their own histories.
+
+Regression coverage in `dual_mode_editor_screen_test.dart` reproduces the original
+sequence, checks the restored body stays visible/focused with a live input client,
+types through that connection, mixes keyboard and toolbar history, and checks
+persisted content. Full-suite validation exposed two existing failures in
+`rich_text_in_memory_and_selection_test.dart`, confirmed again with the original
+branch controller. Their setup now explicitly places the end caret before Enter
+and focuses the field before setting its selection; assertions are unchanged.
+Validation: `flutter analyze` and the full `flutter test` suite.
+
+## 282. Visual divider continuation focus (November 16, 2026)
+
+Audit finding 1 reproduced in `visual_editor_stability_test.dart`: inserting a
+divider left focus above it; inserting before another checklist did not provide
+an ordinary continuation paragraph. `rich_document_mutations.dart` now inserts
+that paragraph with the divider. `rich_document_controller.dart` selects its
+start and clears typing attributes in the same history transaction. The existing
+surface focus reconciliation transfers input after mounting the paragraph.
+
+Two regressions cover terminal insertion and insertion before another checklist,
+immediate input below the rule without a click, preservation of preceding text,
+and atomic undo/redo with focus restored below the rule. Updated HANDOFF.md and
+the audit finding. Validation: `flutter analyze` and the full `flutter test` suite.
+Use default test concurrency: an experimental eight-worker run hit the existing
+300 ms tag-parser threshold at 302 ms and timed out an image-dialog test. The
+default-concurrency run passed those checks without changing their assertions.
+
+## 283. Visual code insertion focus and persisted editing (November 16, 2026)
+
+Audit finding 2 reproduced with actual EditorScreen menu insertion. The controller
+now selects the inserted code block. `rich_editor_surface.dart` registers its
+focus destination; `rich_code_block.dart` uses the surface-owned node, publishes
+the active target, and synchronizes valid caret/range selections after mounting
+and history changes. Unchanged composing ranges survive reconciliation.
+
+The code and language handlers previously constructed new block lists but never
+committed them, then reparsed unchanged Markdown. They now resolve the current
+block by stable ID and commit its code/language directly to the AST. Edits are
+undoable and flow through normal autosave without discarding changes or siblings.
+
+`dual_mode_editor_screen_test.dart` inserts through the toolbar menu, types `print`
+through the existing input connection, waits for autosave, checks persisted code,
+then verifies undo/redo text, focus and caret restoration and persisted language
+selection. Updated HANDOFF.md, the editor lifecycle guide and audit finding.
+Validation: `flutter analyze` and the full `flutter test` suite.
+
+## 284. Markdown first-code-block input connection (November 16, 2026)
+
+Audit finding 4's suspected subtree replacement was confirmed by two regressions:
+the first inserted code fence disposed the existing EditableText state while its
+FocusNode remained focused. `code_block_overlay.dart` now always returns its Stack
+with the editor as its first child. Fence presence and read-only mode control
+language pills without replacing the field. Adding/removing fences preserves the
+active native input connection.
+
+`dual_mode_editor_screen_test.dart` inserts the first code block through the real
+toolbar menu, checks field identity/focus/client, types without refocusing, and
+checks persisted Markdown after autosave. `code_block_overlay_test.dart` repeatedly
+adds/removes fences and types through the existing client, checking the same
+EditableText state survives. Both tests fail before the fix and pass afterward.
+
+Updated HANDOFF.md, the editor lifecycle guide and the audit to mark all four
+findings resolved while preserving original artifacts and native scope limits.
+Validation: `flutter analyze` and the full `flutter test` suite. Native Linux window
+interaction was not repeated during this fix pass.
+The final full-suite command uses `flutter test --concurrency=2`: a default-worker
+attempt timed out two existing image-upload tests whose real I/O/encryption work
+is only given fixed 200–300 ms waits. The lower-concurrency run passed those tests
+without changing their waits, assertions, or application behavior.
+
+## 285. Native Visual/Markdown re-audit: eight open findings (November 16, 2026)
+
+Completed a native GTK/Wayland audit against application commit `1bc137c`, using
+three isolated app processes, native Hyprland mouse/keyboard events, in-memory
+notes, mock preferences and temporary XDG directories. Personal notes and the
+installed application were not changed. Original Visual code insertion/history
+and Markdown first-code input fixes passed; divider continuation passes when the
+document caret is synchronized.
+
+Eight additional bugs remain open, numbered 5–12 to continue the original audit:
+
+- **12, critical:** Visual Math appends raw Markdown to saved RichDocument JSON,
+  persists invalid JSON and raises Stack Overflow in recursive parsing.
+- **8, high:** switching an active Visual field to Markdown observes a disposed
+  controller, breaks rendering and moves the body offscreen.
+- **5, high:** clicking a later Visual paragraph can leave the canonical caret on
+  an earlier block, so divider insertion affects the wrong location.
+- **11:** Visual Math in an empty note reports focus while losing native typing.
+- **6–7:** Visual language selection and Markdown toolbar undo/redo drop focus.
+- **9–10:** Visual Tag and Link Note leave the caret before their markers,
+  saving `nativeaudit#` and `Other[[` respectively.
+
+The final report at `handoff/audits/visual-markdown-native-2026-11-16/README.md`
+contains every reproduction, severity, expected/actual behavior, evidence step,
+likely investigation area, coverage limit and prioritized future work. Raw
+observations, error stacks, synthetic screenshots and the session harness/driver
+are preserved alongside it. The intermediate durable checkpoint was committed
+and pushed as `89de2af`; this follow-up finalizes the report and later evidence.
+
+Coverage includes headings 1–6/paragraph, inline styles/highlight, list/quote
+continuation, table insertion and cell edits/Tab/Done, fresh-process web links,
+and mode round trips. Attachment chooser/camera/speech entry points were not
+repeated; real imports, recording/transcription, model downloads, full export,
+complete math rendering parity and other platforms remain future coverage.
+Preliminary pointer timing and reset artifacts were excluded; post-crash
+observations were repeated in fresh processes before being promoted to findings.
+
+Future work: fix persisted JSON corruption first, then the mode-switch crash,
+then selection/input routing and remaining focus/marker bugs. Add a regression
+for each failure, update HANDOFF and commit each bug fix separately. Repeat the
+native sequences after fixing them. This audit introduces no production fixes.
+
+Validation: `flutter analyze` reported no issues; all **55 relevant editor tests**
+passed across visual stability, dual-mode EditorScreen, code overlays, desktop
+shortcuts and Markdown tables. No full suite was run, following current AGENTS.md.
+All audit windows/processes are closed. The normal application target was restored
+with `flutter build linux --debug --no-pub -t lib/main.dart` (**passed**), so the
+Linux debug bundle no longer contains the audit-only executable.
+
+
+## 287. Preserve Visual Math document integrity (November 16, 2026)
+
+Audit finding 12: Visual toolbar and keyboard Math actions now insert a supported editable math fenced block through RichDocumentController. Source JSON is never passed to Markdown insertion helpers. Malformed JSON-like input falls back to Markdown parsing once instead of recurring between setContent and setMarkdown. Controller and EditorScreen regressions cover saved JSON, reopening, and undo/redo.
+
+Validation: flutter analyze: no issues; flutter test test/editor/rich_document_controller_test.dart test/editor/dual_mode_editor_screen_test.dart: 28 passed. Full test suite was not run.
+
+
+## 288. Detach Visual targets before changing editor mode (November 16, 2026)
+
+Audit finding 8: EditorScreen resets the active controller and focus target to the persistent source buffer before conversion can dispose Visual paragraphs or code fields. The destination body receives focus after mounting. Regressions edit both field types, switch through the actual menu, verify visible layout, type immediately, and check persistence.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 15 passed. Full test suite was not run.
+
+
+## 289. Publish native click selection when Visual text gains focus (November 16, 2026)
+
+Audit finding 5: RichTextEditor reconciles its field selection on focus gain, covering native selection-before-focus ordering. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed. Full test suite was not run.
+
+
+## 290. Preserve programmatic focus destinations during tap reconciliation (November 16, 2026)
+
+Finding 5 follow-up: reconciling every focus gain could overwrite document selections
+chosen by title submission or code insertion. Restrict reconciliation to the
+TextField tap callback after focus settles. The regression simulates native
+selection-before-focus and taps explicitly. Existing EditorScreen code insertion
+and title submission tests also run to protect their programmatic destinations.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub
+test/editor/visual_editor_stability_test.dart test/editor/dual_mode_editor_screen_test.dart:
+30 passed. Full suite was not run.
+
+
+## 291. Connect Visual Math insertion to its formula input (November 16, 2026)
+
+Audit finding 11: The AST math insertion from finding 12 mounts the existing stable code input instead of restructuring a focused text field around raw math delimiters. Insertion now selects the equation placeholder. The empty-note EditorScreen regression types immediately through the input client, preserves IME composition, and verifies the saved formula.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/rich_document_controller_test.dart: 31 passed. Full test suite was not run.
+
+
+## 292. Restore code input after language selection (November 16, 2026)
+
+Audit finding 6: RichCodeBlock captures the code selection before opening the language picker, commits the chosen language by block ID, then restores the caret and code FocusNode after either selection or cancellation. Disposed, read-only, and removed blocks are guarded. The EditorScreen regression types printx immediately after selecting Dart, checks persistence, and verifies Escape cancellation focus.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 16 passed. Full test suite was not run.
+
+
+## 293. Restore Markdown history caret and keyboard focus (November 16, 2026)
+
+Audit finding 7: EditorScreen normalizes invalid snapshot selections to a valid caret and returns focus to the Markdown body after toolbar undo or redo. Plain and fenced-code regressions check both history actions, immediate input, restored caret and saved content.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 18 passed. Full test suite was not run.
+
+
+## 294. Keep the Visual Tag caret after its marker (November 16, 2026)
+
+Audit finding 9: RichTextEditor now publishes the selection accompanying a text mutation even while a toolbar menu owns focus. Selection-only notifications still require field focus. This keeps the inserted hashtag caret in the AST before reconciliation. Regressions type nativeaudit immediately in empty and mixed-list notes, check saved text and retain surrounding bold formatting.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/visual_editor_stability_test.dart: 35 passed. Full test suite was not run.
+
+
+## 295. Keep Visual note-link query and autocomplete in the active field (November 16, 2026)
+
+Audit finding 10: Link Note benefits from the unfocused text-edit selection synchronization added for finding 9. It now also avoids publishing the older source buffer from the Visual prompt; rich field autosave owns canonical persistence. Regressions enter Other after the brackets in empty and mixed notes, verify the saved query, select Other note from autocomplete, and check its saved target and surrounding formatting.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 22 passed. Full test suite was not run.
+
+
+## 296. Verify all eight audit fixes with native Linux input (November 16, 2026)
+
+All findings 5–12 pass their original native sequences against `443bc87` in an
+isolated GTK/Wayland EditorScreen. Evidence and replay scripts are preserved in
+[the fix verification report](audits/visual-markdown-native-2026-11-16/fix-verification/README.md).
+Twenty observations cover twelve synthetic cases, including one excluded picker
+animation click and a deliberate repeat. All Flutter error arrays are empty.
+Math JSON integrity/input, click-only divider placement, code language choice
+and cancellation, plain/code Markdown history, Tag input, note-link query and
+autocomplete, and active paragraph/code mode switches all pass. The audit table,
+HANDOFF and editor guide now describe the final behavior and remaining limits.
+
+Validation: clean `flutter analyze --no-pub`; all 52 distinct relevant tests pass
+across per-fix runs in rich_document_controller_test.dart (15),
+visual_editor_stability_test.dart (15), and dual_mode_editor_screen_test.dart (22).
+The full suite was not run. The native audit process group was closed and the
+ordinary `lib/main.dart` Linux debug bundle rebuilt successfully. Rendered Math
+parity and the original audit's broader coverage limits remain outside this pass.
+
+
+## 297. Trace reported CI code-insertion focus failure to the existing correction (November 16, 2026)
+
+The reported failure in the Visual code insertion/history test at line 172
+matches an intermediate source revision, including `59cdc03`. The generic
+focus-gain selection reconciliation could overwrite the code insertion's AST
+caret. The existing `74aa61a` correction limits reconciliation to pointer taps.
+Its [GitHub Test & Analyze run](https://github.com/blackpirateapps/quitepaper/actions/runs/43818439696)
+succeeded and explicitly records the reported test passing. Production code is
+already corrected; the audit verification and HANDOFF now link this evidence.
+
+Validation on current source `53539aa`: `flutter analyze --no-pub` has no issues;
+`flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart
+test/editor/visual_editor_stability_test.dart` passes 37 tests. No full suite
+was run locally. Latest-commit CI was still in progress during investigation.
+
+
+## 298. Adversarial checklist audit across Visual, Markdown and Super Editor (November 16, 2026)
+
+Audited source `daad621` on `fix/visual-markdown-editor-input`. The
+[final checklist audit](audits/checklist-stress-2026-11-16/README.md) records **12 open
+findings**, complete reproductions, priorities, saved-content evidence and limits.
+No production fixes were attempted. Ten findings reproduce through real native
+Linux input; two use Flutter's platform text-input/composing-range test channel.
+
+Highest risks: rapid Enter/type creation loses or moves task-label characters;
+paste applies a plain AST caret offset to Markdown source and persists the wrong
+placement; Visual drops task indentation; Super Editor merges nested task text
+and loses child completion state; native Home after a checklist inserts extra
+paragraph text. Other findings cover Enter over a selection, missing Tag/Link Note
+markers in checklist fields, IME Enter/composition, forward Delete, quoted/numbered
+Markdown task continuation and large-list Down navigation. All statuses remain Open.
+
+Coverage: 93 native observations across 50 cases in three fresh isolated processes;
+34 adversarial automated probe executions (41 result records); 50/250/1,000-row
+widget stress; actual native creation up to 81 rows, loading 1,000 Visual tasks,
+and safe source fallback at 1,250 lines. A paced 31-row native creation control
+preserves every label, whereas rapid fresh-process 41-row creation does not.
+Native paste misplacement survives a four-second autosave wait and reopening.
+
+Durable artifacts include compressed raw native snapshots, readable summaries,
+checks with original expectations, exact harness/replay scripts, widget probe
+sources/results, a 250-task Markdown fixture, synthetic screenshots, baseline
+logs and working notes. Incomplete final-row native history/completion and fallback
+input checks remain explicitly inconclusive; fixture/setup errors are excluded.
+Native folded Backspace without Home passes; the Home corruption is separate.
+Release timing, physical mobile keyboards, real CJK input, cross-row selection,
+Unicode stress and broader mixed-block/export cases remain follow-up coverage.
+
+Validation: `flutter analyze --no-pub` reports no issues. All **82 existing relevant
+tests pass** across rich_text_checklist_editor_test.dart,
+visual_editor_stability_test.dart, markdown_smart_editing_test.dart,
+smart_task_super_editor_test.dart, markdown_checklist_helper_test.dart,
+editor_preview_checklist_integration_test.dart and
+wysiwyg_large_document_performance_test.dart. The observational probes intentionally
+record failing application expectations; their successful execution is not a claim
+that the intended behavior passed. No full test suite was run locally.
+
+Cleanup: all three isolated audit process groups were terminated. The normal
+`flutter build linux --debug --no-pub -t lib/main.dart` target rebuilt successfully.
+Application source and normal executable regression tests are unchanged; temporary
+probe targets are retained only as `.dart.txt` audit artifacts.
