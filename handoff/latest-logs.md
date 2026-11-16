@@ -6813,3 +6813,9 @@ Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11
 ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing.
 
 Validation: flutter analyze: no issues; parser/serializer and checklist tests: 31 passed. Full suite left to GitHub Actions.
+
+## 301. CL-03: Join tasks with forward Delete (November 16, 2026)
+
+Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior.
+
+Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed. Full suite left to GitHub Actions.

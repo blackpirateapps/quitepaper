@@ -416,6 +416,27 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     return KeyEventResult.handled;
   }
 
+  KeyEventResult _handleDelete(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl) {
+    if (widget.readOnly || !ctrl.selection.isValid ||
+        !ctrl.selection.isCollapsed || ctrl.selection.extentOffset != ctrl.text.length) {
+      return KeyEventResult.ignored;
+    }
+    final doc = widget.controller.document;
+    if (blockIndex + 1 >= doc.blocks.length) return KeyEventResult.ignored;
+    final next = doc.blocks[blockIndex + 1];
+    if (next is! ChecklistItemBlock) return KeyEventResult.ignored;
+    final blocks = List<RichBlock>.from(doc.blocks);
+    blocks[blockIndex] = block.copyWith(spans: [...block.spans, ...next.spans].normalized());
+    blocks.removeAt(blockIndex + 1);
+    widget.controller.setDocument(doc.copyWith(blocks: blocks),
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: blockIndex, blockId: block.id, offset: ctrl.text.length,
+      )),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
+    return KeyEventResult.handled;
+  }
+
   bool _atVerticalBoundary(int position, {required bool up}) {
     final block = widget.controller.document.blocks[widget.blockIndices[position]];
     final ctrl = _controllers[block.id]!;
@@ -486,6 +507,8 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 if ((event.logicalKey == LogicalKeyboardKey.enter ||
                     event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
                   return _handleEnter(blockIdx, block, ctrl);
+                } else if (event.logicalKey == LogicalKeyboardKey.delete) {
+                  return _handleDelete(blockIdx, block, ctrl);
                 } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
                   return _handleBackspace(blockIdx, i, block, ctrl);
                 } else if (!HardwareKeyboard.instance.isShiftPressed &&

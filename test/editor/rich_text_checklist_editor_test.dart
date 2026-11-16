@@ -48,6 +48,25 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    testWidgets('CL-03 forward Delete joins tasks and supports undo', (tester) async {
+      controller.setMarkdown('- [x] **First**\n- [ ] *Second*\n- [ ] Neighbor');
+      await tester.pumpWidget(buildTestApp());
+      await tester.pumpAndSettle();
+      final field = tester.widget<EditableText>(find.byType(EditableText).first);
+      field.focusNode.requestFocus();
+      await tester.pump();
+      field.controller.selection = const TextSelection.collapsed(offset: 5);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [x] **First***Second*\n- [ ] Neighbor');
+      expect(controller.selection.base.offset, 5);
+      expect(field.focusNode.hasFocus, isTrue);
+      controller.undo();
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [x] **First**\n- [ ] *Second*\n- [ ] Neighbor');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     for (final reversed in [false, true]) {
       testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
         controller.setMarkdown('- [x] AlphaBeta\n- [ ] Neighbor');

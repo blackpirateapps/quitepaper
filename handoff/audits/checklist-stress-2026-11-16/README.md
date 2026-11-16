@@ -264,7 +264,9 @@ than claiming a native-language input test passed.
 
 ## CL-03 — forward Delete stops at task boundaries
 
-**Open. Medium. Native and widget confirmation.**
+Resolution: Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed.
+
+**Fixed.** Medium. Native and widget confirmation.
 
 Place the caret at the end of First in two adjacent tasks First / Second, then
 press Delete. Expected: `FirstSecond` in one task. Actual: no document change.

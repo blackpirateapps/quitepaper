@@ -193,3 +193,7 @@ Visual checklist Enter uses the ordered replacement range, preserving styled pre
 ### CL-02 checklist audit fix — Preserve Visual task hierarchy
 
 ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing. flutter analyze: no issues; parser/serializer and checklist tests: 31 passed. Full suite left to GitHub Actions.
+
+### CL-03 checklist audit fix — Join tasks with forward Delete
+
+Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed. Full suite left to GitHub Actions.
