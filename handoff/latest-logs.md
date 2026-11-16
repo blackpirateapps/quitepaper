@@ -6576,3 +6576,27 @@ through the existing input connection, waits for autosave, checks persisted code
 then verifies undo/redo text, focus and caret restoration and persisted language
 selection. Updated HANDOFF.md, the editor lifecycle guide and audit finding.
 Validation: `flutter analyze` and the full `flutter test` suite.
+
+## 284. Markdown first-code-block input connection (November 16, 2026)
+
+Audit finding 4's suspected subtree replacement was confirmed by two regressions:
+the first inserted code fence disposed the existing EditableText state while its
+FocusNode remained focused. `code_block_overlay.dart` now always returns its Stack
+with the editor as its first child. Fence presence and read-only mode control
+language pills without replacing the field. Adding/removing fences preserves the
+active native input connection.
+
+`dual_mode_editor_screen_test.dart` inserts the first code block through the real
+toolbar menu, checks field identity/focus/client, types without refocusing, and
+checks persisted Markdown after autosave. `code_block_overlay_test.dart` repeatedly
+adds/removes fences and types through the existing client, checking the same
+EditableText state survives. Both tests fail before the fix and pass afterward.
+
+Updated HANDOFF.md, the editor lifecycle guide and the audit to mark all four
+findings resolved while preserving original artifacts and native scope limits.
+Validation: `flutter analyze` and the full `flutter test` suite. Native Linux window
+interaction was not repeated during this fix pass.
+The final full-suite command uses `flutter test --concurrency=2`: a default-worker
+attempt timed out two existing image-upload tests whose real I/O/encryption work
+is only given fixed 200–300 ms waits. The lower-concurrency run passed those tests
+without changing their waits, assertions, or application behavior.

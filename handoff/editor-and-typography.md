@@ -55,6 +55,10 @@ The editor supports three editing styles:
   buffer over pending visual edits. Markdown text segments around tables use
   ordinal keys, independent of changing character offsets, and the first text
   segment uses the supplied body focus node.
+- Markdown code overlays always keep the editor in the same Stack child slot.
+  Adding/removing the first/last fence only changes overlay pills, preserving
+  EditableText state and the focused native input client. Read-only overlays
+  retain the same layout while suppressing their interactive pills.
 
 ## 2. SuperEditor Components & Smart Widgets
 

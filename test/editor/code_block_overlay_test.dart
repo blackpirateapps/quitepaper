@@ -133,6 +133,30 @@ void main() {
   });
 
   group('CodeBlockOverlay and MarkdownEditor Integration', () {
+    testWidgets('adding and removing fences preserves the editable state and input client', (tester) async {
+      final controller = MarkdownEditingController();
+      final focus = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focus.dispose);
+      await tester.pumpWidget(buildWrapper(MarkdownEditor(controller: controller, focusNode: focus)));
+      await tester.tap(find.byType(EditableText));
+      await tester.pump();
+      final originalState = tester.state<EditableTextState>(find.byType(EditableText));
+      for (final text in ['```\ncode\n```', 'plain', '```dart\nprint()\n```', '']) {
+        controller.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+        await tester.pumpAndSettle();
+        expect(tester.state<EditableTextState>(find.byType(EditableText)), same(originalState));
+        expect(focus.hasPrimaryFocus, isTrue);
+        expect(tester.testTextInput.hasAnyClients, isTrue);
+        tester.testTextInput.updateEditingValue(TextEditingValue(
+          text: '${text}x', selection: TextSelection.collapsed(offset: text.length + 1),
+        ));
+        await tester.pumpAndSettle();
+        expect(controller.text, '${text}x');
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('renders language pill on code block in editor', (tester) async {
       final controller = MarkdownEditingController(
         text: '# Note\n\n```python\nprint("Hello")\n```\n',

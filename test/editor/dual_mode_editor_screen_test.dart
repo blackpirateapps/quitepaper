@@ -58,6 +58,42 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
 
+    testWidgets('Markdown first code insertion keeps the field and accepts immediate typing', (tester) async {
+      final now = DateTime.now();
+      final note = Note(
+        id: 'markdown-code-insertion', title: 'Markdown code', content: '',
+        createdAt: now, updatedAt: now, tags: [],
+      );
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note, initialGlobalStyle: EditorEditingStyle.markdown));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(MarkdownEditor), matching: find.byType(EditableText));
+      await tester.tap(body);
+      await tester.pump();
+      final originalState = tester.state<EditableTextState>(body);
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Code Block'));
+      await tester.pumpAndSettle();
+      expect(tester.state<EditableTextState>(body), same(originalState));
+      final editor = tester.widget<EditableText>(body);
+      expect(editor.focusNode.hasPrimaryFocus, isTrue);
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      final value = editor.controller.value;
+      expect(value.text, contains('```'));
+      expect(value.selection.isValid, isTrue);
+      final typed = value.text.replaceRange(value.selection.start, value.selection.end, 'print');
+      tester.testTextInput.updateEditingValue(TextEditingValue(
+        text: typed, selection: TextSelection.collapsed(offset: value.selection.start + 5),
+      ));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(editor.controller.text, typed);
+      expect((await repository.getNoteById(note.id))!.content, typed);
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
     testWidgets('Visual code insertion focuses, types, saves and restores code history', (tester) async {
       final now = DateTime.now();
       final note = Note(

@@ -55,18 +55,14 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Native Formatting Toolbar Audit
 
-A native Linux toolbar audit found four additional failures in Visual/Markdown
-modes: divider continuation focus, Visual code-block focus, a Visual undo/redo
-disposed-controller crash, and lost Markdown typing after first code insertion.
-Reproduction steps, scope limitations and sample artifacts are preserved in
-[`EDITOR_TOOLBAR_AUDIT.md`](EDITOR_TOOLBAR_AUDIT.md). These findings are recorded
-for follow-up. Finding 3 is now fixed: Visual toolbar and keyboard undo/redo use
-the same document history, text edits are recorded, and restored content is saved.
-The toolbar observes the persistent source buffer instead of disposable segment
-controllers. Finding 1 is also fixed: divider insertion creates and selects its
-continuation paragraph, including before another block. See engineering logs
-281–282. Finding 2 is fixed as well: Visual code insertion focuses the code field,
-and code/language edits persist in the AST with undo/redo. See engineering log 283.
+All four confirmed Visual/Markdown toolbar audit findings are fixed. Divider
+insertion focuses its continuation paragraph; Visual code insertion focuses the
+code field and persists code/language edits; Visual toolbar and keyboard history
+share document snapshots without observing disposed segment controllers; Markdown
+code overlays preserve the text field and its input connection when fences appear
+or disappear. Reproductions, regression coverage, original native audit scope and
+sample artifacts remain in [`EDITOR_TOOLBAR_AUDIT.md`](EDITOR_TOOLBAR_AUDIT.md).
+See engineering logs 281–284 in [`handoff/latest-logs.md`](handoff/latest-logs.md).
 
 ## Latest Visual and Markdown Editor Stability
 

@@ -12,7 +12,8 @@ Super Editor is excluded. Record confirmed failures here before fixing anything.
 ## Progress
 
 - Native Visual and Markdown test windows exercised.
-- Four confirmed findings recorded below; fixes intentionally not applied in this audit.
+- Four confirmed findings originally recorded without fixes. All four were fixed
+  on 2026-11-16 in separate commits; resolution notes accompany each finding.
 
 ## Coverage checklist
 
@@ -116,6 +117,12 @@ entry-point checks.
 
 ## Confirmed finding 4 — Markdown code insertion shows focus but drops typing
 
+**Fixed (2026-11-16).** CodeBlockOverlay always retains the same Stack and editor
+child position, including without fences and in read-only mode. Language pills
+remain conditional. Both new regressions reproduced the EditableText replacement
+before the fix and now pass: actual EditorScreen menu insertion/typing/autosave,
+and repeated fence addition/removal preserving the field state and input client.
+
 Severity: high. Mode: Markdown. Reproduced in a fresh process after hot restart.
 
 1. Click in an empty Markdown body.
@@ -146,8 +153,8 @@ rendering/conversion parity across modes has not been verified.
   The installed app and personal notes were not changed.
 - Recording started in the isolated window and was discarded. Dictation entry
   was invoked; actual transcription was not verified. No speech model downloaded.
-- No production fixes are included in this audit. Reproduce/fix the four findings
-  next, starting with the disposed-controller crash and both code-input failures.
+- The original audit included no production fixes. All four findings have since
+  been fixed; see each finding's resolution and engineering logs 281–284.
 - `flutter analyze`: no issues. Focused stability tests: all 12 passed. These
   existing tests do not cover the newly discovered toolbar sequences.
 
@@ -162,3 +169,12 @@ follow-up coverage. Additional Visual heading AST:
 
 The temporary audit window was closed. The regular `lib/main.dart` Linux target
 was rebuilt so the build directory does not retain the audit-only executable.
+
+## Fix verification — 2026-11-16
+
+Automated regressions cover all four findings, including focused continuation
+typing, persistent code/language edits, keyboard/toolbar history, saved content,
+and stable Markdown EditableText state/input across fence changes. Each fix has
+its own commit and handoff entry. Validation uses `flutter analyze` and the full
+`flutter test` suite. The original native Linux window audit has not been rerun;
+these fixes were reproduced and verified with Flutter widget regressions.
