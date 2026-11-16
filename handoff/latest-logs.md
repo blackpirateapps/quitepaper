@@ -6540,3 +6540,20 @@ persisted content. Full-suite validation exposed two existing failures in
 branch controller. Their setup now explicitly places the end caret before Enter
 and focuses the field before setting its selection; assertions are unchanged.
 Validation: `flutter analyze` and the full `flutter test` suite.
+
+## 282. Visual divider continuation focus (November 16, 2026)
+
+Audit finding 1 reproduced in `visual_editor_stability_test.dart`: inserting a
+divider left focus above it; inserting before another checklist did not provide
+an ordinary continuation paragraph. `rich_document_mutations.dart` now inserts
+that paragraph with the divider. `rich_document_controller.dart` selects its
+start and clears typing attributes in the same history transaction. The existing
+surface focus reconciliation transfers input after mounting the paragraph.
+
+Two regressions cover terminal insertion and insertion before another checklist,
+immediate input below the rule without a click, preservation of preceding text,
+and atomic undo/redo with focus restored below the rule. Updated HANDOFF.md and
+the audit finding. Validation: `flutter analyze` and the full `flutter test` suite.
+Use default test concurrency: an experimental eight-worker run hit the existing
+300 ms tag-parser threshold at 302 ms and timed out an image-dialog test. The
+default-concurrency run passed those checks without changing their assertions.

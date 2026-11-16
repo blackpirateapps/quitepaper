@@ -63,7 +63,9 @@ Reproduction steps, scope limitations and sample artifacts are preserved in
 for follow-up. Finding 3 is now fixed: Visual toolbar and keyboard undo/redo use
 the same document history, text edits are recorded, and restored content is saved.
 The toolbar observes the persistent source buffer instead of disposable segment
-controllers. See engineering log 281.
+controllers. Finding 1 is also fixed: divider insertion creates and selects its
+continuation paragraph, including before another block. See engineering logs
+281–282.
 
 ## Latest Visual and Markdown Editor Stability
 

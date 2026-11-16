@@ -424,9 +424,7 @@ abstract final class RichDocumentMutations {
     final insertIdx = (blockIndex + 1).clamp(0, doc.blocks.length);
     final newBlocks = List<RichBlock>.from(doc.blocks);
     newBlocks.insert(insertIdx, HorizontalRuleBlock.create(_uuid.v4()));
-    if (insertIdx == newBlocks.length - 1) {
-      newBlocks.add(ParagraphBlock.empty(_uuid.v4()));
-    }
+    newBlocks.insert(insertIdx + 1, ParagraphBlock.empty(_uuid.v4()));
     return doc.copyWith(blocks: newBlocks);
   }
 

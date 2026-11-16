@@ -565,7 +565,17 @@ class RichDocumentController extends ChangeNotifier {
   }
 
   void insertHorizontalRule() {
-    _commitMutation(RichDocumentMutations.insertHorizontalRule(_document, currentBlockIndex));
+    final continuationIndex = (currentBlockIndex + 1).clamp(0, _document.blocks.length) + 1;
+    final document = RichDocumentMutations.insertHorizontalRule(_document, currentBlockIndex);
+    _typingAttributes = TextAttributes.none;
+    _commitMutation(
+      document,
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: continuationIndex,
+        blockId: document.blocks[continuationIndex].id,
+        offset: 0,
+      )),
+    );
   }
 
   void insertDivider() => insertHorizontalRule();

@@ -31,6 +31,11 @@ Temporary harness: /tmp/qp_keyboard_smoke.dart
 
 ## Confirmed finding 1 — Divider insertion leaves typing above the divider
 
+**Fixed (2026-11-16).** Divider insertion now creates an ordinary continuation
+paragraph and selects it in the same undo transaction. The mounted surface moves
+keyboard focus there. Regressions cover terminal and middle-of-document insertion,
+typing through the existing input client, and undo/redo destination selection.
+
 Severity: medium. Mode: Visual. Native reproduction on this laptop.
 
 1. Write inline-formatted paragraphs and a checklist, followed by a bullet,

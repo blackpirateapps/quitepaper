@@ -6,6 +6,7 @@ import 'package:quitepaper/features/editor/application/markdown_editing_controll
 import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
 import 'package:quitepaper/features/editor/domain/document_selection.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/markdown_editor.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
 
@@ -49,6 +50,39 @@ void main() {
         ),
       ),
     );
+  }
+
+  for (final suffix in ['', '\n- [ ] Next task']) {
+    testWidgets('divider focuses its continuation paragraph before "$suffix"', (tester) async {
+      cleanUp(tester);
+      controller.setMarkdown('Before\n- [ ] task\nTail$suffix');
+      await tester.pumpWidget(surface());
+      await tester.pumpAndSettle();
+      await tester.tap(field('Tail'));
+      select(2, 4);
+      await tester.pump();
+      controller.insertHorizontalRule();
+      await tester.pumpAndSettle();
+      expect(controller.document.blocks[3], isA<HorizontalRuleBlock>());
+      expect(controller.document.blocks[4], isA<ParagraphBlock>());
+      final continuation = tester.widget<EditableText>(field(''));
+      expect(continuation.focusNode.hasPrimaryFocus, isTrue);
+      expect(continuation.controller.selection, const TextSelection.collapsed(offset: 0));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'after', selection: TextSelection.collapsed(offset: 5),
+      ));
+      await tester.pumpAndSettle();
+      expect(controller.document.blocks[2].plainText, 'Tail');
+      expect(controller.document.blocks[4].plainText, 'after');
+      controller.undo(); // Typing
+      controller.undo(); // Divider and its continuation paragraph
+      await tester.pumpAndSettle();
+      expect(controller.document.blocks.whereType<HorizontalRuleBlock>(), isEmpty);
+      controller.redo();
+      await tester.pumpAndSettle();
+      expect(controller.selection.extent.blockId, controller.document.blocks[4].id);
+      expect(tester.widget<EditableText>(field('')).focusNode.hasPrimaryFocus, isTrue);
+    });
   }
 
   testWidgets(
