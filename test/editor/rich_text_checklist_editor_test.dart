@@ -67,6 +67,29 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    testWidgets('CL-06 Enter leaves active IME composition to the input method', (tester) async {
+      controller.setMarkdown('- [ ] Alpha');
+      await tester.pumpWidget(buildTestApp());
+      await tester.pumpAndSettle();
+      await tester.showKeyboard(find.byType(TextField));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'Alpha', selection: TextSelection.collapsed(offset: 5),
+        composing: TextRange(start: 0, end: 5),
+      ));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [ ] Alpha');
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      expect(field.controller.value.composing, const TextRange(start: 0, end: 5));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'Alpha', selection: TextSelection.collapsed(offset: 5),
+      ));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.toMarkdown(), '- [ ] Alpha\n- [ ] ');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     for (final reversed in [false, true]) {
       testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
         controller.setMarkdown('- [x] AlphaBeta\n- [ ] Neighbor');

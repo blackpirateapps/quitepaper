@@ -329,6 +329,9 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
 
   KeyEventResult _handleEnter(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl) {
     if (widget.readOnly) return KeyEventResult.ignored;
+    if (ctrl.value.composing.isValid && !ctrl.value.composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
     final sel = ctrl.selection;
     final cursorOffset = sel.isValid ? sel.start.clamp(0, block.plainText.length) : block.plainText.length;
 

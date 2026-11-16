@@ -201,3 +201,7 @@ Forward Delete at a collapsed task-end caret merges the following task while ret
 ### CL-04 checklist audit fix — Keep checklist toolbar markers and insertion caret
 
 Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON. flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed. Full suite left to GitHub Actions.
+
+### CL-06 checklist audit fix — Let IME confirm composition before splitting tasks
+
+Hardware Enter no longer invokes checklist structure edits while the row has a nonempty composing range. The IME-channel regression checks unchanged content/composition, then verifies Enter resumes continuation after composition ends. Physical CJK keyboards remain outside this widget validation scope. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 14 passed. Full suite left to GitHub Actions.

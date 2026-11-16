@@ -253,7 +253,9 @@ not be used as a passing control for this IME behavior.
 
 ## CL-06 — composition-confirming Enter splits a task
 
-**Open. Medium. Widget composing-range simulation only.**
+Resolution: Hardware Enter no longer invokes checklist structure edits while the row has a nonempty composing range. The IME-channel regression checks unchanged content/composition, then verifies Enter resumes continuation after composition ends. Physical CJK keyboards remain outside this widget validation scope. Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 14 passed.
+
+**Fixed.** Medium. Widget composing-range simulation only.
 
 Focus a Visual task `Alpha`, set a nonempty composing range over its text, then
 send hardware Enter. Expected: the IME can confirm composition without the app
