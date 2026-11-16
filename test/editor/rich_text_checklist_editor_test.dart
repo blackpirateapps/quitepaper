@@ -90,6 +90,33 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    for (final entry in <String, String>{
+      'Alpha\n': '- [ ] Alpha\n- [ ] ',
+      '\n': '',
+      'Alpha\nBeta': '- [ ] Alpha\n- [ ] Beta',
+      'Alpha\n\nTail': '- [ ] Alpha\nTail',
+    }.entries) {
+      testWidgets('CL-05 platform multiline input ${entry.key} continues/exits tasks', (tester) async {
+        controller.setMarkdown('- [ ] Alpha\n- [ ] Neighbor');
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
+        await tester.showKeyboard(find.byType(TextField).first);
+        tester.testTextInput.updateEditingValue(TextEditingValue(
+          text: entry.key, selection: TextSelection.collapsed(offset: entry.key.length),
+        ));
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), '${entry.value}\n- [ ] Neighbor');
+        expect(controller.document.blocks.every((b) => !b.plainText.contains('\n')), isTrue);
+        final focused = tester.widgetList<EditableText>(find.byType(EditableText)).where((w) => w.focusNode.hasFocus).single;
+        expect(focused.controller.selection.extentOffset, focused.controller.text.length);
+        expect(focused.controller.text, controller.document.blocks[controller.selection.base.blockIndex].plainText);
+        controller.undo();
+        await tester.pumpAndSettle();
+        expect(controller.toMarkdown(), '- [ ] Alpha\n- [ ] Neighbor');
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
     for (final reversed in [false, true]) {
       testWidgets('CL-01 Enter replaces a ${reversed ? "reverse" : "forward"} selection', (tester) async {
         controller.setMarkdown('- [x] AlphaBeta\n- [ ] Neighbor');

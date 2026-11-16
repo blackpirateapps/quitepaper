@@ -643,6 +643,49 @@ class RichDocumentController extends ChangeNotifier {
     _commitMutation(newDoc, newSelection: RichDocumentSelection.collapsed(newPos));
   }
 
+  /// Reconcile a platform multiline edit as task continuation/exit in one undo step.
+  void updateChecklistInput(int blockIndex, List<RichInlineSpan> spans, {required int caretOffset}) {
+    final original = _document.blocks[blockIndex];
+    if (original is! ChecklistItemBlock) return;
+    final lines = <List<RichInlineSpan>>[[]];
+    for (final span in spans) {
+      final parts = span.text.split('\n');
+      for (var i = 0; i < parts.length; i++) {
+        if (i > 0) lines.add([]);
+        lines.last.add(span.copyWith(text: parts[i]));
+      }
+    }
+    final replacements = <RichBlock>[];
+    final starts = <int>[];
+    var task = true;
+    var rawOffset = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i].normalized();
+      final length = line.plainText.length;
+      if (task && i < lines.length - 1 && line.plainText.trim().isEmpty) {
+        task = false;
+      } else {
+        final id = replacements.isEmpty ? original.id : _uuid.v4();
+        replacements.add(task
+          ? original.copyWith(id: id, spans: line, isChecked: replacements.isEmpty ? original.isChecked : false)
+          : ParagraphBlock(id: id, spans: line));
+        starts.add(rawOffset);
+      }
+      rawOffset += length + 1;
+    }
+    var target = 0;
+    for (var i = 0; i < starts.length; i++) {
+      if (starts[i] <= caretOffset) target = i;
+    }
+    final blocks = List<RichBlock>.from(_document.blocks)
+      ..replaceRange(blockIndex, blockIndex + 1, replacements);
+    _typingAttributes = TextAttributes.none;
+    _commitMutation(_document.copyWith(blocks: blocks), newSelection: RichDocumentSelection.collapsed(
+      RichDocumentPosition(blockIndex: blockIndex + target, blockId: replacements[target].id,
+        offset: (caretOffset - starts[target]).clamp(0, replacements[target].plainText.length)),
+    ));
+  }
+
   void updateBlockSpans(int blockIndex, List<RichInlineSpan> newSpans) {
     if (blockIndex < 0 || blockIndex >= _document.blocks.length) return;
     final block = _document.blocks[blockIndex];

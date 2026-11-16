@@ -281,6 +281,12 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
           newText: newText,
           defaultAttributes: widget.controller.typingAttributes,
         );
+        if (newText.contains('\n') && ctrl.value.composing.isCollapsed) {
+          widget.controller.updateChecklistInput(blockIndex, updatedSpans,
+            caretOffset: ctrl.selection.isValid ? ctrl.selection.extentOffset : newText.length);
+          widget.onChanged?.call(widget.controller.toMarkdown());
+          return;
+        }
         widget.controller.updateBlockSpans(blockIndex, updatedSpans);
         ctrl.block = widget.controller.document.blocks[blockIndex] as ChecklistItemBlock;
         widget.onChanged?.call(widget.controller.toMarkdown());

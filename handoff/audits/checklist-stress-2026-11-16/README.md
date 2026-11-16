@@ -235,7 +235,9 @@ the menu owns focus; later reconciliation can restore the older task text.
 
 ## CL-05 — IME Enter never continues/exits the checklist
 
-**Open. High for mobile workflow. Widget IME channel only; no native phone test.**
+Resolution: Visual checklist IME updates split styled text into unchecked continuation tasks or exit an empty task into a paragraph. Multiline edits preserve neighbors and indentation, move focus/caret to the resulting block, and commit as one undo step. Widget IME-channel cases cover continuation, empty exit and multiline continuation/exit; physical phones remain untested. Validation: flutter analyze: no issues; checklist and Visual stability tests: 33 passed.
+
+**Fixed.** High for mobile workflow. Widget IME channel only; no native phone test.
 
 Through the platform text-input channel, send `Alpha\n` to a Visual task containing
 Alpha. Expected: Alpha plus a new unchecked task. Actual: one task whose span
