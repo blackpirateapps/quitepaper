@@ -5,20 +5,10 @@ Branch: fix/visual-markdown-editor-input
 
 ## Completed native re-audit — 2026-11-16
 
-The native audit was repeated against the four fixes. Eight additional bugs
-remain open: stale Visual document selection after clicking a later
-paragraph, lost focus after Visual code language selection, lost focus after
-Markdown toolbar undo/redo, and a disposed-controller crash when switching an
-active Visual field to Markdown. A fresh process also confirmed incorrect caret
-placement for Visual Tag and Link Note insertion, and Visual Math insertion
-showing focus while dropping native typing. A separate fresh-process Math test
-also confirmed persisted RichDocument JSON corruption and Stack Overflow
-(finding 12, critical). Full reproductions, evidence, excluded harness
-artifacts, completed coverage and prioritized future work are preserved in
-[`handoff/audits/visual-markdown-native-2026-11-16/README.md`](handoff/audits/visual-markdown-native-2026-11-16/README.md).
-All isolated audit processes are closed and the ordinary Linux bundle has been
-restored. Analysis is clean and all 55 relevant editor tests passed. No production
-fixes for the new findings are included in this audit.
+The native audit found eight additional bugs. **1/8 are now fixed**; current
+statuses, fix details and original reproduction evidence are tracked in
+[the native audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md).
+Validation for these fixes uses analysis and relevant tests only.
 
 ## Scope and method
 

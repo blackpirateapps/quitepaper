@@ -241,7 +241,7 @@ class RichDocumentController extends ChangeNotifier {
         return;
       } catch (_) {}
     }
-    setMarkdown(content);
+    _setMarkdownSource(content);
   }
 
   /// Sets the entire document from a Markdown source string.
@@ -250,6 +250,10 @@ class RichDocumentController extends ChangeNotifier {
       setContent(markdown);
       return;
     }
+    _setMarkdownSource(markdown);
+  }
+
+  void _setMarkdownSource(String markdown) {
     var bodyMarkdown = markdown;
     if (stripFrontmatter) {
       final fmDoc = FrontmatterEditorHelper.parse(markdown);
@@ -603,6 +607,9 @@ class RichDocumentController extends ChangeNotifier {
       )),
     );
   }
+
+  /// Fenced math is a supported, lossless Visual source block.
+  void insertMathBlock() => insertCodeBlock(language: 'math', code: 'equation');
 
   void insertImage({required String path, String alt = ''}) {
     _commitMutation(

@@ -58,6 +58,31 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
     }
 
+    testWidgets('Visual Math inserts into saved rich JSON without corrupting it', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'visual-math-json', title: 'Math', content: '',
+        createdAt: now, updatedAt: now, tags: []);
+      await repository.saveNote(note);
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      final body = find.descendant(of: find.byType(RichTextEditor), matching: find.byType(EditableText));
+      await tester.enterText(body, 'Math existing body');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(jsonDecode((await repository.getNoteById(note.id))!.content), isA<Map<String, dynamic>>());
+      await tester.tap(find.byTooltip('Insert...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Math Formula'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 800));
+      final saved = (await repository.getNoteById(note.id))!;
+      final doc = RichDocument.fromJson(jsonDecode(saved.content) as Map<String, dynamic>);
+      expect(doc.blocks.first.plainText, 'Math existing body');
+      expect(doc.blocks.whereType<CodeBlock>().single.language, 'math');
+      expect(tester.takeException(), isNull);
+      await finishTest(tester);
+    });
+
     testWidgets('Markdown first code insertion keeps the field and accepts immediate typing', (tester) async {
       final now = DateTime.now();
       final note = Note(

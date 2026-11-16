@@ -55,13 +55,10 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Native Formatting Toolbar Audit
 
-**Native re-audit (2026-11-16): eight additional bugs confirmed.** Visual Math
-insertion into an already-saved rich note corrupts persisted JSON and raises
-Stack Overflow; prioritize finding 12 in the linked report.
-The [final native audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md)
-preserves all eight open findings, reproductions, saved-content evidence, coverage
-limits and prioritized future work. All audit windows are closed and the ordinary
-Linux build is restored. Analysis is clean and 55 relevant editor tests passed.
+**Native re-audit fixes (2026-11-16): 1/8 findings fixed.** See the
+[tracked audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md)
+for each resolution, regressions and original native evidence. Latest fix: finding 12,
+Preserve Visual Math document integrity. Validation uses static analysis and relevant tests only.
 
 The four original Visual/Markdown toolbar audit findings were fixed. Divider
 insertion focuses its continuation paragraph; Visual code insertion focuses the

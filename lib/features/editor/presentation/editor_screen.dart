@@ -952,6 +952,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _superEditorController.insertMathBlock();
       final fn = _activeTargetFocusNode ?? _contentFocusNode;
       if (!fn.hasFocus) fn.requestFocus();
+    } else if (_isWysiwyg && _richDocumentController != null) {
+      _richDocumentController!.insertMathBlock();
     } else {
       _applyFormattingHelper(MarkdownHelper.insertMathBlock);
     }

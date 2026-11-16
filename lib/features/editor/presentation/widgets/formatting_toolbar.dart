@@ -533,6 +533,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         if (widget.superController != null) {
           widget.superController!.insertMathBlock();
           widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
+          widget.richController!.insertMathBlock();
         } else {
           _applyHelperFormat(MarkdownHelper.insertMathBlock);
         }
@@ -907,6 +909,8 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         if (widget.superController != null) {
           widget.superController!.insertMathBlock();
           widget.focusNode?.requestFocus();
+        } else if (widget.richController != null) {
+          widget.richController!.insertMathBlock();
         } else {
           _applyHelperFormat(MarkdownHelper.insertMathBlock);
         }

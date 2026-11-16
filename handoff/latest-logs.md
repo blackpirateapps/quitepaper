@@ -6649,3 +6649,10 @@ shortcuts and Markdown tables. No full suite was run, following current AGENTS.m
 All audit windows/processes are closed. The normal application target was restored
 with `flutter build linux --debug --no-pub -t lib/main.dart` (**passed**), so the
 Linux debug bundle no longer contains the audit-only executable.
+
+
+## 287. Preserve Visual Math document integrity (November 16, 2026)
+
+Audit finding 12: Visual toolbar and keyboard Math actions now insert a supported editable math fenced block through RichDocumentController. Source JSON is never passed to Markdown insertion helpers. Malformed JSON-like input falls back to Markdown parsing once instead of recurring between setContent and setMarkdown. Controller and EditorScreen regressions cover saved JSON, reopening, and undo/redo.
+
+Validation: flutter analyze: no issues; flutter test test/editor/rich_document_controller_test.dart test/editor/dual_mode_editor_screen_test.dart: 28 passed. Full test suite was not run.

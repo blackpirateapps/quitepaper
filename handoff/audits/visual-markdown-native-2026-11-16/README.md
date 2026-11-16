@@ -1,9 +1,8 @@
 # Native Visual / Markdown re-audit — final report
 
 Date: 2026-11-16. Branch: `fix/visual-markdown-editor-input`.
-Audited application source: `1bc137c`. Status: audit complete; eight newly
-confirmed bugs remain open. This pass records findings and evidence and does not
-implement their fixes. Original audit findings 1–4 and their fixes remain in
+Audited application source: `1bc137c`. Status: audit complete. Fix progress is tracked in the table and resolution notes
+below; the original audit evidence is retained. Original audit findings 1–4 and their fixes remain in
 [`../../../EDITOR_TOOLBAR_AUDIT.md`](../../../EDITOR_TOOLBAR_AUDIT.md).
 
 ## Outcome and priorities
@@ -17,7 +16,7 @@ installed application were not changed.
 
 | Finding | Priority | Confirmed behavior | Status |
 | --- | --- | --- | --- |
-| 12 | Critical | Visual Math persists invalid JSON and raises Stack Overflow | Open |
+| 12 | Critical | Visual Math persists invalid JSON and raises Stack Overflow | Fixed |
 | 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Open |
 | 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Open |
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Open |
@@ -236,6 +235,9 @@ The separate nonempty-JSON path was subsequently confirmed in a third healthy
 native process as finding 12 below.
 
 ## Confirmed new finding 12 — Visual Math corrupts persisted RichDocument JSON
+
+**Fixed (2026-11-16).** Visual toolbar and keyboard Math actions now insert a supported editable math fenced block through RichDocumentController. Source JSON is never passed to Markdown insertion helpers. Malformed JSON-like input falls back to Markdown parsing once instead of recurring between setContent and setMarkdown. Controller and EditorScreen regressions cover saved JSON, reopening, and undo/redo. Regression validation: flutter analyze: no issues; flutter test test/editor/rich_document_controller_test.dart test/editor/dual_mode_editor_screen_test.dart: 28 passed Native evidence above/below describes the original failure; see the resolution log 287.
+
 
 Severity: critical for data integrity. Prioritize this before the focus issues.
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
 import 'package:quitepaper/features/editor/domain/document_selection.dart';
@@ -11,6 +13,31 @@ void main() {
 
     setUp(() {
       controller = RichDocumentController();
+    });
+
+    test('Math insertion keeps saved JSON valid and reopens without loss', () {
+      controller.setMarkdown('Math existing body');
+      final saved = controller.toJsonString();
+      controller.setContent(saved);
+      controller.insertMathBlock();
+      expect(jsonDecode(controller.toJsonString()), isA<Map<String, dynamic>>());
+      final reopened = RichDocumentController(initialMarkdown: controller.toJsonString());
+      addTearDown(reopened.dispose);
+      expect(reopened.document.blocks.first.plainText, 'Math existing body');
+      expect(reopened.document.blocks.whereType<CodeBlock>().single.language, 'math');
+      expect(reopened.toMarkdown(), contains('```math\nequation\n```'));
+      controller.undo();
+      expect(controller.document.blocks.whereType<CodeBlock>(), isEmpty);
+      controller.redo();
+      expect(controller.toMarkdown(), reopened.toMarkdown());
+    });
+
+    test('Malformed JSON-like content falls back once without recursion', () {
+      final malformed = '${controller.toJsonString()}\n\\[\nequation\n\\]';
+      controller.setContent(malformed);
+      expect(jsonDecode(controller.toJsonString()), isA<Map<String, dynamic>>());
+      controller.setMarkdown(malformed);
+      expect(controller.toPlainText(), contains('equation'));
     });
 
     test('Initial state is single empty paragraph', () {
