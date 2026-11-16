@@ -1,0 +1,159 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/features/editor/application/rich_document_controller.dart';
+import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
+import 'package:quitepaper/features/editor/application/markdown_text_input_formatter.dart';
+import 'package:quitepaper/features/editor/domain/rich_block.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_editor_surface.dart';
+
+final output = File('/tmp/qp-checklist-widget-results.jsonl');
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  output.writeAsStringSync('');
+  void probe(String name, String markdown, Future<void> Function(WidgetTester, RichDocumentController, void Function(String,bool,[Object?])) action) {
+    testWidgets('AUDIT $name', (tester) async {
+      final c=RichDocumentController(initialMarkdown: markdown);
+      final focus=FocusNode();
+      final checks=<Map<String,Object?>>[];
+      final timer=Stopwatch()..start();
+      void check(String label,bool pass,[Object? details]) => checks.add({'check':label,'pass':pass,'details':details});
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        c.dispose();focus.dispose();
+      });
+      await tester.pumpWidget(MaterialApp(theme:AppTheme.light(),home:Scaffold(body:SingleChildScrollView(child:RichEditorSurface(controller:c,focusNode:focus)))));
+      await tester.pumpAndSettle();
+      try { await action(tester,c,check); } catch(e,st) { checks.add({'check':'probe execution','pass':false,'details':'$e\n$st'}); }
+      final errors=<String>[];
+      Object? error;
+      while ((error=tester.takeException())!=null) { errors.add(error.toString()); }
+      timer.stop();
+      final record={'case':name,'checks':checks,'runtimeErrors':errors,'elapsedMs':timer.elapsedMilliseconds,
+        'document':c.document.toJson(),'markdown':c.toMarkdown(),
+        'roundTrip':const RichDocumentParser().parse(c.toMarkdown()).toJson(),
+        'fields':[for(final f in tester.widgetList<EditableText>(find.byType(EditableText))) {'text':f.controller.text,'selection':f.controller.selection.toString(),'focus':f.focusNode.hasPrimaryFocus}]};
+      output.writeAsStringSync('${jsonEncode(record)}\n',mode:FileMode.append);
+      print('AUDIT_RESULT $name ${jsonEncode({'checks':checks,'runtimeErrors':errors,'elapsedMs':timer.elapsedMilliseconds})}');
+    });
+  }
+  Finder field(String text)=>find.byWidgetPredicate((w)=>w is EditableText && w.controller.text==text);
+  Future<EditableText> activate(WidgetTester t,String text,{TextSelection? selection}) async {
+    final f=field(text);await t.ensureVisible(f);await t.tap(f);await t.pumpAndSettle();
+    final edit=t.widget<EditableText>(f);
+    if(selection!=null){ edit.controller.selection=selection;await t.pump(); }
+    return edit;
+  }
+  for(final offset in [0,4,9]) {
+    probe('visual-enter-offset-$offset','- [ ] AlphaBeta\n- [ ] Neighbor',(t,c,check)async {
+      await activate(t,'AlphaBeta',selection:TextSelection.collapsed(offset:offset));
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('split retains exact text and neighbor',c.document.blocks.map((b)=>b.plainText).join('|')=='${'AlphaBeta'.substring(0,offset)}|${'AlphaBeta'.substring(offset)}|Neighbor');
+      check('new row owns native input',t.widgetList<EditableText>(find.byType(EditableText)).any((f)=>f.focusNode.hasPrimaryFocus && f.controller.text=='AlphaBeta'.substring(offset)));
+    });
+  }
+  for(final reversed in [false,true]) {
+    probe('visual-enter-selected-range-reversed-$reversed','- [ ] AlphaBeta\n- [ ] Neighbor',(t,c,check)async {
+      await activate(t,'AlphaBeta',selection:TextSelection(baseOffset:reversed?7:2,extentOffset:reversed?2:7));
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('Enter replaces selected phaBe',c.document.blocks.map((b)=>b.plainText).join('|')=='Al|ta|Neighbor',c.document.blocks.map((b)=>b.plainText).toList());
+    });
+  }
+  for(final text in ['', '   ']) {
+    probe('visual-empty-enter-${text.length}','- [ ] First\n- [ ] $text\n- [ ] Last',(t,c,check)async {
+      await activate(t,text);
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('empty task exits to paragraph',c.document.blocks[1] is ParagraphBlock);
+      check('neighbors preserved',c.document.blocks.first.plainText=='First'&&c.document.blocks.last.plainText=='Last');
+    });
+  }
+  probe('visual-ime-enter','- [ ] Alpha',(t,c,check)async {
+    await activate(t,'Alpha',selection:const TextSelection.collapsed(offset:5));
+    t.testTextInput.updateEditingValue(const TextEditingValue(text:'Alpha\n',selection:TextSelection.collapsed(offset:6)));
+    await t.pumpAndSettle();
+    check('IME Enter creates a second task',c.document.blocks.whereType<ChecklistItemBlock>().length==2,c.toMarkdown());
+  });
+  probe('visual-ime-empty-enter','- [ ] First\n- [ ] ',(t,c,check)async {
+    await activate(t,'');
+    t.testTextInput.updateEditingValue(const TextEditingValue(text:'\n',selection:TextSelection.collapsed(offset:1)));
+    await t.pumpAndSettle();
+    check('IME Enter exits empty task',c.document.blocks.last is ParagraphBlock,c.toMarkdown());
+  });
+  probe('visual-enter-during-composition','- [ ] Alpha',(t,c,check)async {
+    final e=await activate(t,'Alpha',selection:const TextSelection.collapsed(offset:5));
+    e.controller.value=const TextEditingValue(text:'Alpha',selection:TextSelection.collapsed(offset:5),composing:TextRange(start:0,end:5));
+    await t.pump();await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+    check('composition confirmation does not split row',c.document.blocks.length==1,c.toMarkdown());
+  });
+  probe('visual-multiline-input','- [ ] Alpha\n- [ ] Neighbor',(t,c,check)async {
+    await activate(t,'Alpha');
+    t.testTextInput.updateEditingValue(const TextEditingValue(text:'Alpha\nBeta\nGamma',selection:TextSelection.collapsed(offset:16)));
+    await t.pumpAndSettle();
+    final reparsed=const RichDocumentParser().parse(c.toMarkdown());
+    check('multiline input keeps same task structure on mode conversion',reparsed.blocks.whereType<ChecklistItemBlock>().length==c.document.blocks.whereType<ChecklistItemBlock>().length,c.toMarkdown());
+    check('all added lines are checklist items',c.document.blocks.whereType<ChecklistItemBlock>().length==4,c.document.blocks.length);
+  });
+  for(final initial in ['- [ ] First\n- [ ] Second','Paragraph\n- [ ] Second','- [ ] First\n- [ ] ','- [ ] ']) {
+    probe('visual-backspace-boundary-${initial.replaceAll('\n','/')} ',initial,(t,c,check)async {
+      final target=c.document.blocks.last.plainText;
+      await activate(t,target,selection:const TextSelection.collapsed(offset:0));
+      final before=c.document.blocks.map((b)=>b.plainText).join();
+      await t.sendKeyEvent(LogicalKeyboardKey.backspace);await t.pumpAndSettle();
+      check('Backspace preserves all letters',c.document.blocks.map((b)=>b.plainText).join()==before);
+      check('focus remains in live field',t.widgetList<EditableText>(find.byType(EditableText)).any((f)=>f.focusNode.hasPrimaryFocus));
+      c.undo();await t.pumpAndSettle();
+      check('undo restores original Markdown',c.toMarkdown()==initial,c.toMarkdown());
+    });
+  }
+  probe('visual-forward-delete-at-row-end','- [ ] First\n- [ ] Second',(t,c,check)async {
+    await activate(t,'First',selection:const TextSelection.collapsed(offset:5));
+    await t.sendKeyEvent(LogicalKeyboardKey.delete);await t.pumpAndSettle();
+    check('Delete joins following task',c.document.blocks.length==1&&c.document.blocks.first.plainText=='FirstSecond',c.toMarkdown());
+  });
+  probe('visual-repeated-enter-and-history','- [ ] Seed',(t,c,check)async {
+    await activate(t,'Seed',selection:const TextSelection.collapsed(offset:4));
+    await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+    await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+    check('second Enter exits new empty row',c.document.blocks.length==2&&c.document.blocks.last is ParagraphBlock);
+    c.undo();await t.pumpAndSettle();c.undo();await t.pumpAndSettle();
+    check('two undos return Seed',c.toMarkdown()=='- [ ] Seed');
+    c.redo();await t.pumpAndSettle();c.redo();await t.pumpAndSettle();
+    check('redo returns paragraph destination',c.document.blocks.last is ParagraphBlock);
+  });
+  probe('visual-nested-roundtrip','- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Sibling',(t,c,check)async {
+    check('nested indentation retained by Visual serializer',c.toMarkdown().contains('\n  - [ ] Child\n    - [x] Grandchild'),c.toMarkdown());
+  });
+  for(final count in [50,250,1000]) {
+    final md=List.generate(count,(i)=>'- [ ] Task ${i.toString().padLeft(4,'0')}').join('\n');
+    probe('visual-large-$count',md,(t,c,check)async {
+      check('all tasks mounted',c.document.blocks.whereType<ChecklistItemBlock>().length==count);
+      await activate(t,'Task ${(count~/2).toString().padLeft(4,'0')}',selection:const TextSelection.collapsed(offset:9));
+      final prior=c.toMarkdown();
+      await t.sendKeyEvent(LogicalKeyboardKey.enter);await t.pumpAndSettle();
+      check('middle Enter adds exactly one task',c.document.blocks.length==count+1,c.document.blocks.length);
+      await t.sendKeyEvent(LogicalKeyboardKey.backspace);await t.pumpAndSettle();
+      check('middle Backspace restores all original content',c.toMarkdown()==prior);
+      final last='Task ${(count-1).toString().padLeft(4,'0')}';
+      final e=await activate(t,last,selection:const TextSelection.collapsed(offset:9));
+      e.controller.value=TextEditingValue(text:'$last!',selection:const TextSelection.collapsed(offset:10));
+      await t.pumpAndSettle();
+      check('last task update targets correct block',c.document.blocks.last.plainText=='$last!');
+      c.undo();await t.pumpAndSettle();
+      check('undo last edit preserves every row',c.toMarkdown()==prior,c.document.blocks.length);
+    });
+  }
+  test('AUDIT Markdown formatter matrix',(){
+    const fmt=MarkdownTextInputFormatter();
+    for(final text in ['- [ ] AlphaBeta','- [x] AlphaBeta','  - [ ] AlphaBeta','> - [ ] AlphaBeta','1. [ ] AlphaBeta','- [ ] ','  - [ ] ','- [ ] Alpha\r\n- [ ] Beta']) {
+      final offset=text.contains('AlphaBeta')?text.indexOf('AlphaBeta')+4:text.length;
+      final old=TextEditingValue(text:text,selection:TextSelection.collapsed(offset:offset));
+      final input=TextEditingValue(text:text.replaceRange(offset,offset,'\n'),selection:TextSelection.collapsed(offset:offset+1));
+      final result=fmt.formatEditUpdate(old,input);
+      output.writeAsStringSync('${jsonEncode({'case':'markdown-enter-matrix','before':text,'offset':offset,'after':result.text,'selection':result.selection.toString()})}\n',mode:FileMode.append);
+    }
+  });
+}

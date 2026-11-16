@@ -1,0 +1,18 @@
+from qp_checklist_helpers3 import *
+prepare()
+reset('super','- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail')
+record('Fresh folded list before paragraph click')
+click([254,276,40,30],.08);time.sleep(.7);record('Fresh folded Tail clicked')
+key('Home');time.sleep(.7);record('Fresh folded Tail Home caret')
+key('BackSpace');time.sleep(.7)
+evaluate('Fresh folded Tail Backspace','Tail survives exactly and completed tasks reveal',lambda s:s['super'][0]['nodes'][-1]['text']=='Tail' and any(t['text']=='Four' and not t['hidden'] for t in s['tasks']))
+
+md='\n'.join('- [ ] Task '+str(i).zfill(4) for i in range(250))
+reset('visual',md);field(text='Task 0000');key('End')
+for i in range(10):key('Down');time.sleep(.35)
+evaluate('Slow Down navigation control 10 rows','Task 0010 owns focus after ten Down events',lambda s:any(f['focus'] and f['text']=='Task 0010' for f in s['fields']))
+s=api();print('SCROLLABLES',json.dumps(s['scrolls']),flush=True)
+# Hover the outer scrollbar to reveal its thumb for visual targeting.
+w=window();dispatch('hl.dsp.cursor.move({x='+str(w['at'][0]+1175)+',y='+str(w['at'][1]+200)+'})');time.sleep(.5)
+screenshot('/tmp/qp-checklist-large-scrollbar.png')
+print('FRESH3 READY FOR SCROLLBAR',flush=True)

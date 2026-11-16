@@ -53,6 +53,25 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## Checklist Stress Audit — 12 Open Findings
+
+The [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
+against `daad621` found **12 open bugs**: ten reproduced with native Linux input,
+two confirmed through widget IME/composition probes. High-priority failures include
+lost/reassigned task labels during rapid creation, paste at the wrong position,
+Visual hierarchy loss, Super Editor merging nested tasks and losing checkbox state,
+and native Home mutating a paragraph after a checklist. Enter selections, toolbar
+markers inside tasks, IME continuation, forward Delete, Markdown continuation and
+large-list arrow navigation also have findings. **Audit only; no fixes applied.**
+
+Coverage includes a [250-task fixture](handoff/audits/checklist-stress-2026-11-16/large-checklist-250.md),
+50/250/1,000-task widget stress cases, native loading up to 1,250 tasks,
+93 native observations in three isolated processes, saved-content/reopen checks,
+and 34 adversarial probe executions. All 82 existing relevant tests and analysis
+pass; no full local suite was run. The report distinguishes confirmed failures,
+invalid/inconclusive probes and platform limits. Native audit processes are closed
+and the ordinary Linux bundle is restored. See engineering log 298.
+
 ## Native Formatting Toolbar Audit
 
 **Native re-audit fixes (2026-11-16): all 8/8 findings fixed and verified.**

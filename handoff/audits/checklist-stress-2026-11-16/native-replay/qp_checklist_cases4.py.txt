@@ -1,0 +1,40 @@
+from qp_checklist_native_helpers import *
+
+count=250
+md='\n'.join('- [ ] Task '+str(i).zfill(4) for i in range(count))
+pathlib.Path('/home/dog/.codex/worktrees/cc5b/quitepaper/handoff/audits/checklist-stress-2026-11-16/large-checklist-250.md').write_text(md+'\n')
+reset('visual',md);field(text='Task 0000');key('End')
+evaluate('Visual 250 tasks loaded natively','all 250 tasks and live first-row input',lambda s:len(blocks(s))==250 and any(f['focus'] for f in s['fields']))
+for i in range(124):
+    key('Down')
+    if (i+1)%40==0:print('SCROLL_PROGRESS',i+1,flush=True)
+evaluate('Visual native arrows reach middle task','Task 0124 owns focus after Down navigation',lambda s:any(f['focus'] and f['text']=='Task 0124' for f in s['fields']))
+key('Return');key('BackSpace')
+evaluate('Visual 250 task middle Enter Backspace','all content identical after insert and remove',lambda s:s['rich'][0]['markdown']==md)
+for i in range(125):
+    key('Down')
+    if (i+1)%40==0:print('SCROLL_PROGRESS middle+',i+1,flush=True)
+key('End');type_text('x')
+s=evaluate('Visual native edit final task after scrolling 250 rows','last task changes and all 249 other tasks remain exact',lambda s:texts(s)==['Task '+str(i).zfill(4) for i in range(249)]+['Task 0249x'])
+key('z','CTRL')
+evaluate('Visual last-row undo in 250-task checklist','all 250 original tasks restored',lambda s:s['rich'][0]['markdown']==md)
+key('y','CTRL')
+evaluate('Visual last-row redo in 250-task checklist','only last row edited again',lambda s:texts(s)[-1]=='Task 0249x' and len(blocks(s))==250)
+s=api();target=next(f for f in s['fields'] if f['text']=='Task 0249x');r=target['rect']
+click([r[0]-28,r[1]+2,20,20])
+s=evaluate('Visual last-row completion in 250-task checklist','only final task checked and population preserved',lambda s:sum(b.get('isChecked',False) for b in blocks(s))==1 and blocks(s)[-1].get('isChecked') and len(blocks(s))==250)
+saved=s['savedContent'];reset('visual',saved)
+evaluate('Visual reopen saved 250-task checklist','checked last task and every row survives',lambda s:len(blocks(s))==250 and texts(s)[-1]=='Task 0249x' and blocks(s)[-1].get('isChecked'))
+
+short='\n'.join('- [ ] T'+str(i).zfill(4) for i in range(1000))
+reset('visual',short)
+evaluate('Visual 1000 short tasks loaded in EditorScreen','all 1000 tasks are visual, no errors',lambda s:len(blocks(s))==1000)
+field(text='T0000');key('End');key('Return');key('BackSpace')
+evaluate('Visual 1000 tasks first-row Enter Backspace','all 1000 original tasks survive',lambda s:s['rich'][0]['markdown']==short)
+
+threshold='\n'.join('- [ ] T'+str(i).zfill(4) for i in range(1250))
+reset('visual',threshold)
+s=evaluate('Visual 1250-line safe Markdown fallback','Visual surface absent and complete source retained',lambda s:not s['rich'] and any(f['text']==threshold for f in s['fields']))
+field(text=threshold);key('End','CTRL');type_text('x')
+evaluate('Typing after 1250-line fallback','complete source preserved with final x',lambda s:s['savedContent']==threshold+'x')
+print('BATCH4 COMPLETE',flush=True)

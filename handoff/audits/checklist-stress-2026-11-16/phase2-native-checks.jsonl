@@ -1,0 +1,5 @@
+{"case": 1, "step": "Fresh process 41 task rapid native creation", "expected": "all 41 expected task labels retained", "pass": false, "errorCount": 0}
+{"case": 2, "step": "Paced creation control 31 tasks", "expected": "all 31 expected task labels retained", "pass": true, "errorCount": 0}
+{"case": 3, "step": "Fresh paste after caret with long autosave wait", "expected": "Alpha, Beta, Gamma, Neighbor in that order and saved", "pass": false, "errorCount": 0}
+{"case": 4, "step": "Reopen native checklist paste saved content", "expected": "all pasted task labels survive reopening", "pass": false, "errorCount": 0}
+{"case": 5, "step": "Fresh Super nested task save", "expected": "four tasks retained, including checked grandchild", "pass": false, "errorCount": 0}

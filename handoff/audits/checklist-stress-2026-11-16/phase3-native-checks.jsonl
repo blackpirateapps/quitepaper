@@ -1,0 +1,21 @@
+{"case": 1, "step": "Fresh folded Tail Backspace", "expected": "Tail survives exactly and completed tasks reveal", "pass": false, "errorCount": 0}
+{"case": 2, "step": "Slow Down navigation control 10 rows", "expected": "Task 0010 owns focus after ten Down events", "pass": false, "errorCount": 0}
+{"case": 2, "step": "Actual final row edit in 250 tasks", "expected": "only Task 0249 gains x", "pass": true, "errorCount": 0}
+{"case": 2, "step": "Actual final-row undo in 250 tasks", "expected": "all 250 original task labels restored", "pass": false, "errorCount": 0}
+{"case": 2, "step": "Actual final-row redo in 250 tasks", "expected": "last row edited again without changing others", "pass": true, "errorCount": 0}
+{"case": 2, "step": "Actual final-row completion in 250 tasks", "expected": "only last task checked, all 250 retained", "pass": false, "errorCount": 0}
+{"case": 3, "step": "Reopen saved 250 tasks", "expected": "final edited checked task survives reopening", "pass": false, "errorCount": 0}
+{"case": 4, "step": "Native EditorScreen loads 1000 short tasks", "expected": "all 1000 remain in Visual mode", "pass": true, "errorCount": 0}
+{"case": 4, "step": "Native 1000-task Enter Backspace control", "expected": "all original 1000 tasks and text retained", "pass": true, "errorCount": 0}
+{"case": 5, "step": "1250-line Visual safe fallback", "expected": "full Markdown body present, Visual surface absent", "pass": true, "errorCount": 0}
+{"case": 5, "step": "Typing after 1250-task fallback", "expected": "full text with final x is saved", "pass": false, "errorCount": 0}
+{"case": 5, "step": "Corrected visible click after 1250-task fallback", "expected": "full source plus x saved", "pass": false, "errorCount": 0}
+{"case": 6, "step": "Super Home nonfolded paragraph control", "expected": "Home changes caret only, Tail text stays exact", "pass": false, "errorCount": 0}
+{"case": 7, "step": "Super folded Backspace without Home", "expected": "Tail preserved, completed tasks revealed", "pass": false, "errorCount": 0}
+{"case": 8, "step": "Single Down small-list target B", "expected": "focus moves to B", "pass": true, "errorCount": 0}
+{"case": 8, "step": "Single Down small-list target C", "expected": "focus moves to C", "pass": true, "errorCount": 0}
+{"case": 8, "step": "Single Down small-list target D", "expected": "focus moves to D", "pass": true, "errorCount": 0}
+{"case": 9, "step": "Valid Super Home paragraph control", "expected": "Tail remains exactly Tail", "pass": false, "errorCount": 0}
+{"case": 10, "step": "Valid folded Backspace without Home", "expected": "Tail survives and Four is revealed", "pass": true, "errorCount": 0}
+{"case": 11, "step": "250-task toolbar undo control", "expected": "all 250 original rows restored", "pass": true, "errorCount": 0}
+{"case": 11, "step": "250-task toolbar redo control", "expected": "only last task has x", "pass": false, "errorCount": 0}

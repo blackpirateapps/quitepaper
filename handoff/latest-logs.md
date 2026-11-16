@@ -6754,3 +6754,50 @@ Validation on current source `53539aa`: `flutter analyze --no-pub` has no issues
 `flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart
 test/editor/visual_editor_stability_test.dart` passes 37 tests. No full suite
 was run locally. Latest-commit CI was still in progress during investigation.
+
+
+## 298. Adversarial checklist audit across Visual, Markdown and Super Editor (November 16, 2026)
+
+Audited source `daad621` on `fix/visual-markdown-editor-input`. The
+[final checklist audit](audits/checklist-stress-2026-11-16/README.md) records **12 open
+findings**, complete reproductions, priorities, saved-content evidence and limits.
+No production fixes were attempted. Ten findings reproduce through real native
+Linux input; two use Flutter's platform text-input/composing-range test channel.
+
+Highest risks: rapid Enter/type creation loses or moves task-label characters;
+paste applies a plain AST caret offset to Markdown source and persists the wrong
+placement; Visual drops task indentation; Super Editor merges nested task text
+and loses child completion state; native Home after a checklist inserts extra
+paragraph text. Other findings cover Enter over a selection, missing Tag/Link Note
+markers in checklist fields, IME Enter/composition, forward Delete, quoted/numbered
+Markdown task continuation and large-list Down navigation. All statuses remain Open.
+
+Coverage: 93 native observations across 50 cases in three fresh isolated processes;
+34 adversarial automated probe executions (41 result records); 50/250/1,000-row
+widget stress; actual native creation up to 81 rows, loading 1,000 Visual tasks,
+and safe source fallback at 1,250 lines. A paced 31-row native creation control
+preserves every label, whereas rapid fresh-process 41-row creation does not.
+Native paste misplacement survives a four-second autosave wait and reopening.
+
+Durable artifacts include compressed raw native snapshots, readable summaries,
+checks with original expectations, exact harness/replay scripts, widget probe
+sources/results, a 250-task Markdown fixture, synthetic screenshots, baseline
+logs and working notes. Incomplete final-row native history/completion and fallback
+input checks remain explicitly inconclusive; fixture/setup errors are excluded.
+Native folded Backspace without Home passes; the Home corruption is separate.
+Release timing, physical mobile keyboards, real CJK input, cross-row selection,
+Unicode stress and broader mixed-block/export cases remain follow-up coverage.
+
+Validation: `flutter analyze --no-pub` reports no issues. All **82 existing relevant
+tests pass** across rich_text_checklist_editor_test.dart,
+visual_editor_stability_test.dart, markdown_smart_editing_test.dart,
+smart_task_super_editor_test.dart, markdown_checklist_helper_test.dart,
+editor_preview_checklist_integration_test.dart and
+wysiwyg_large_document_performance_test.dart. The observational probes intentionally
+record failing application expectations; their successful execution is not a claim
+that the intended behavior passed. No full test suite was run locally.
+
+Cleanup: all three isolated audit process groups were terminated. The normal
+`flutter build linux --debug --no-pub -t lib/main.dart` target rebuilt successfully.
+Application source and normal executable regression tests are unchanged; temporary
+probe targets are retained only as `.dart.txt` audit artifacts.

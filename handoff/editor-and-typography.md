@@ -78,6 +78,16 @@ The editor supports three editing styles:
   EditableText state and the focused native input client. Read-only overlays
   retain the same layout while suppressing their interactive pills.
 
+### Checklist audit caveats (November 16, 2026)
+
+The [adversarial checklist audit](audits/checklist-stress-2026-11-16/README.md)
+records 12 open findings. In particular, runtime task sorting's nested-list guard
+does not guarantee that nested Markdown loads safely: Visual drops indentation,
+and Super Editor's loading path can merge child task text into the parent. Native
+rapid row creation, source-position-based paste and Home input also expose content
+integrity failures absent from the passing existing tests. Consult the report's
+reproductions and platform limits before treating these paths as verified.
+
 ## 2. SuperEditor Components & Smart Widgets
 
 The visual editor resides in [`lib/features/editor/`](file:///home/dog/git/quitepaper/lib/features/editor/) and [`lib/core/syntax/`](file:///home/dog/git/quitepaper/lib/core/syntax/).
