@@ -52,6 +52,31 @@ void main() {
     );
   }
 
+  testWidgets('focus gain publishes a native selection made before field focus', (tester) async {
+    cleanUp(tester);
+    controller.setMarkdown('Before\n- [ ] task\nTail');
+    await tester.pumpWidget(surface());
+    await tester.pumpAndSettle();
+    final tail = tester.widget<EditableText>(field('Tail'));
+    expect(tail.focusNode.hasFocus, isFalse);
+    tail.controller.selection = const TextSelection.collapsed(offset: 4);
+    expect(controller.selection.extent.blockIndex, 0);
+    tail.focusNode.requestFocus();
+    await tester.pump();
+    expect(controller.selection.extent.blockIndex, 2);
+    expect(controller.selection.extent.offset, 4);
+    controller.insertHorizontalRule();
+    await tester.pumpAndSettle();
+    expect(controller.document.blocks[2].plainText, 'Tail');
+    expect(controller.document.blocks[3], isA<HorizontalRuleBlock>());
+    final continuation = tester.widget<EditableText>(field(''));
+    expect(continuation.focusNode.hasPrimaryFocus, isTrue);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'after',
+      selection: TextSelection.collapsed(offset: 5)));
+    await tester.pumpAndSettle();
+    expect(controller.document.blocks.last.plainText, 'after');
+  });
+
   for (final suffix in ['', '\n- [ ] Next task']) {
     testWidgets('divider focuses its continuation paragraph before "$suffix"', (tester) async {
       cleanUp(tester);

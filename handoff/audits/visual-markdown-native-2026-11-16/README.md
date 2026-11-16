@@ -18,7 +18,7 @@ installed application were not changed.
 | --- | --- | --- | --- |
 | 12 | Critical | Visual Math persists invalid JSON and raises Stack Overflow | Fixed |
 | 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Fixed |
-| 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Open |
+| 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Fixed |
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Open |
 | 6 | Medium | Visual code language selection loses typing focus | Open |
 | 7 | Medium | Markdown toolbar undo/redo loses typing focus | Open |
@@ -47,6 +47,9 @@ observations are excluded as described below.
 
 
 ## Confirmed new finding 5 — Visual click leaves the document caret on another block
+
+**Fixed (2026-11-16).** RichTextEditor reconciles its field selection on focus gain, covering native selection-before-focus ordering. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed Native evidence above/below describes the original failure; see the resolution log 289.
+
 
 Severity: high; formatting/insertion can affect the wrong part of the note.
 

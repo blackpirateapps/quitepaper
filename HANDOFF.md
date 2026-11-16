@@ -55,10 +55,10 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 
 ## Native Formatting Toolbar Audit
 
-**Native re-audit fixes (2026-11-16): 2/8 findings fixed.** See the
+**Native re-audit fixes (2026-11-16): 3/8 findings fixed.** See the
 [tracked audit report](handoff/audits/visual-markdown-native-2026-11-16/README.md)
-for each resolution, regressions and original native evidence. Latest fix: finding 8,
-Detach Visual targets before changing editor mode. Validation uses static analysis and relevant tests only.
+for each resolution, regressions and original native evidence. Latest fix: finding 5,
+Publish native click selection when Visual text gains focus. Validation uses static analysis and relevant tests only.
 
 The four original Visual/Markdown toolbar audit findings were fixed. Divider
 insertion focuses its continuation paragraph; Visual code insertion focuses the

@@ -74,6 +74,9 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
   void _onFocusChanged() {
     if (widget.focusNode.hasFocus) {
+      // Native taps can update selection before focus notifications arrive.
+      // Publish that caret now, before a toolbar action reads the document.
+      _onTextControllerChanged();
       widget.onActiveTargetChanged?.call(_textController, widget.focusNode);
     }
   }

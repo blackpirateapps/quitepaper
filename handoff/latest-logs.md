@@ -6663,3 +6663,10 @@ Validation: flutter analyze: no issues; flutter test test/editor/rich_document_c
 Audit finding 8: EditorScreen resets the active controller and focus target to the persistent source buffer before conversion can dispose Visual paragraphs or code fields. The destination body receives focus after mounting. Regressions edit both field types, switch through the actual menu, verify visible layout, type immediately, and check persistence.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 15 passed. Full test suite was not run.
+
+
+## 289. Publish native click selection when Visual text gains focus (November 16, 2026)
+
+Audit finding 5: RichTextEditor reconciles its field selection on focus gain, covering native selection-before-focus ordering. A regression simulates that ordering in a later paragraph, inserts a divider without arrows, and types into its continuation through the existing input client.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/visual_editor_stability_test.dart: 15 passed. Full test suite was not run.
