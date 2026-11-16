@@ -84,6 +84,40 @@ void main() {
     controller.dispose();
   });
 
+  for (final folded in [false, true]) {
+    testWidgets('CL-11 Linux Home consumes boundary keys without text changes folded=$folded', (tester) async {
+      final controller = QuietSuperEditorController();
+      final focus = FocusNode();
+      String? saved;
+      await tester.pumpWidget(buildTestWidget(
+        markdown: folded ? '- [ ] Active\n- [x] One\n- [x] Two\n- [x] Three\n- [x] Four\n\nTail' : '- [ ] Task\n\nTail',
+        controller: controller, focusNode: focus, onChanged: (value) => saved = value,
+      ));
+      await tester.pumpAndSettle();
+      final tail = controller.editor!.document.last as ParagraphNode;
+      for (final offset in [0, 4]) {
+        controller.editor!.execute([ChangeSelectionRequest(
+          DocumentSelection.collapsed(position: DocumentPosition(nodeId: tail.id, nodePosition: TextNodePosition(offset: offset))),
+          SelectionChangeType.placeCaret, SelectionReason.userInteraction,
+        )]);
+        focus.requestFocus();
+        await tester.pumpAndSettle();
+        final beforeSaved = saved;
+        final handled = await tester.sendKeyDownEvent(LogicalKeyboardKey.home);
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.home);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+        expect(handled, isTrue);
+        expect(tail.text.toPlainText(), 'Tail');
+        expect(controller.composer!.selection!.extent.nodePosition, const TextNodePosition(offset: 0));
+        expect(saved, beforeSaved);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.dispose();
+      focus.dispose();
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+  }
+
   group('SmartTaskController Unit Tests', () {
     test('findTaskBlocks finds isolated contiguous task blocks', () {
       final doc = MutableDocument(

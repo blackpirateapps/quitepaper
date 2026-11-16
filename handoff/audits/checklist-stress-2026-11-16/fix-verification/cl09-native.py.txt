@@ -1,0 +1,9 @@
+from qp_checklist_helpers3 import *
+prepare()
+reset('visual','- [ ] Seed')
+field(text='Seed');key('End')
+for i in range(1,41):
+    key('Return');type_text('t'+str(i))
+s=evaluate('CL-09 rapid native creation','Seed plus exact t1 through t40',lambda s:texts(s)==['Seed']+['t'+str(i) for i in range(1,41)])
+assert texts(s)==['Seed']+['t'+str(i) for i in range(1,41)], texts(s)
+assert not s['errors']

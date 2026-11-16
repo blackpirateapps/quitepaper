@@ -1,16 +1,18 @@
 # Checklist adversarial audit — November 16, 2026
 
 Branch: `fix/visual-markdown-editor-input`. Application source: `daad621`.
-**Status: fixes in progress; see individual resolutions below.**
+**Status: all 12 findings fixed in independent commits; see resolutions below.**
 
-Ten findings have native Linux reproductions. Two are confirmed through Flutter's
+The original audit reproduced ten findings through native Linux input. Two were confirmed through Flutter's
 IME/composition test channel; real Android/iOS or CJK input-method sessions were
 not run. Severity and platform limits below are part of each finding.
 
-The most serious failures affect persisted content without raising Flutter errors:
-rapid checklist creation loses/reassigns letters, paste uses the wrong position,
-Visual drops nesting, Super Editor merges child tasks into parent text, and native
-Super Editor Home duplicates a paragraph. Prioritize these before cosmetic work.
+The historical reproductions below describe source `daad621`. Each finding now
+starts with its resolution and relevant verification. Per-fix `flutter analyze`
+and relevant tests pass; full-suite testing is left to GitHub Actions. Native
+acceptance replays for CL-09, CL-10, CL-11 and CL-12 preserve exact content, caret
+and saved-state evidence in [fix-verification](fix-verification/README.md).
+Physical mobile/CJK sessions and release performance remain outside this pass.
 
 ## Method and evidence
 
@@ -180,7 +182,9 @@ deserializer's task/list conversion, not only SmartTaskController's sorting guar
 
 ## CL-11 — native Home mutates text after a checklist
 
-**Open. High. Repeated in a fresh process; release/non-Linux behavior unverified.**
+Resolution: A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz. Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed.
+
+**Fixed.** High. Repeated in a fresh process; release/non-Linux behavior unverified.
 
 1. In Super Editor open a task followed by a plain paragraph `Tail`.
 2. Click near Tail's left edge. Inspected selection is already offset zero.
@@ -400,7 +404,7 @@ checkbox clicks during simultaneous autosave/route changes; complete export;
 very large Super Editor native scrolling; all possible mixed table/code/task
 boundaries. These remain follow-up work, not implied passes.
 
-## Validation and environment cleanup
+## Original audit validation and environment cleanup
 
 `flutter analyze --no-pub`: **no issues**, recorded in `analysis.log`.
 
@@ -427,7 +431,7 @@ All three isolated audit process groups were terminated. The ordinary
 the normal bundle no longer contains the audit server/harness. Source files for
 the app and normal executable tests were not changed.
 
-Suggested next pass: fix persisted input/paste/nesting/Home failures first, then
-selection and IME handling, then continuation and navigation. Add a true
-regression for each intended behavior, mark its finding fixed only after testing,
-and keep the native reproductions as acceptance checks.
+The subsequent fix pass resolved every confirmed finding. Individual resolutions
+and [fix-verification](fix-verification/README.md) document the final behavior,
+per-fix checks and native acceptance evidence. Historical exclusions and platform
+limits above are retained; they are not implied passes.

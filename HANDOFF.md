@@ -53,24 +53,22 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
-## Checklist Stress Audit — 12 Open Findings
+## Checklist Stress Audit — All 12 Findings Fixed
 
-The [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
-against `daad621` found **12 open bugs**: ten reproduced with native Linux input,
-two confirmed through widget IME/composition probes. High-priority failures include
-lost/reassigned task labels during rapid creation, paste at the wrong position,
-Visual hierarchy loss, Super Editor merging nested tasks and losing checkbox state,
-and native Home mutating a paragraph after a checklist. Enter selections, toolbar
-markers inside tasks, IME continuation, forward Delete, Markdown continuation and
-large-list arrow navigation also have findings. **Audit only; no fixes applied.**
+All findings in the [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
+are fixed on `fix/visual-markdown-editor-input`, with a separate commit/push for
+each bug. Visual checklist selection replacement, nesting, forward Delete,
+Tag/Link Note markers, IME newline/composition, rapid native creation, paste and
+long-list navigation are covered, as are Markdown compound-task continuation,
+Super Editor nesting and Linux Home input.
 
-Coverage includes a [250-task fixture](handoff/audits/checklist-stress-2026-11-16/large-checklist-250.md),
-50/250/1,000-task widget stress cases, native loading up to 1,250 tasks,
-93 native observations in three isolated processes, saved-content/reopen checks,
-and 34 adversarial probe executions. All 82 existing relevant tests and analysis
-pass; no full local suite was run. The report distinguishes confirmed failures,
-invalid/inconclusive probes and platform limits. Native audit processes are closed
-and the ordinary Linux bundle is restored. See engineering log 298.
+[Native fix verification](handoff/audits/checklist-stress-2026-11-16/fix-verification/README.md)
+preserves exact-content acceptance evidence for rapid 41-task creation, clipboard
+paste/save/reopen, ten Down presses in 250 tasks, and Home after ordinary/folded
+lists. All these native checks have zero Flutter runtime errors. Per-fix analysis
+and relevant tests pass; the full suite is left to GitHub Actions. Physical mobile
+and CJK input methods and release-mode performance remain unverified. See logs
+299–310 for implementation and per-fix validation.
 
 ## Native Formatting Toolbar Audit
 
@@ -229,3 +227,7 @@ Visual snippet insertion now splices parsed blocks into the AST selection, prese
 ### CL-12 checklist audit fix — Keep long-list arrow navigation responsive and focused
 
 Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start. flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed. Full suite left to GitHub Actions.
+
+### CL-11 checklist audit fix — Consume Linux Home at the paragraph boundary
+
+A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz. flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed. Full suite left to GitHub Actions.

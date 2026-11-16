@@ -6867,3 +6867,16 @@ Validation: flutter analyze: no issues; rich controller and dual-mode editor tes
 Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start.
 
 Validation: flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed. Full suite left to GitHub Actions.
+
+## 310. CL-11: Consume Linux Home at the paragraph boundary (November 16, 2026)
+
+A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz.
+
+Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed. Full suite left to GitHub Actions.
+
+Final integration recheck: `flutter test --no-pub
+test/editor/editor_image_upload_compression_test.dart
+test/editor/dual_mode_editor_screen_test.dart` passes all 32 tests. This checks
+the image insertion test that timed out in an earlier CI run and rechecks actual
+EditorScreen integration after checklist reconciliation changes. No full local
+suite was run; GitHub Actions runs the full suite for each pushed fix.
