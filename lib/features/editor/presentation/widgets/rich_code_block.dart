@@ -150,6 +150,7 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
 
   Future<void> _changeLanguage(BuildContext context) async {
     if (widget.readOnly) return;
+    final selection = _codeTextController.selection;
     final selected = await LanguageSelectorSheet.show(
       context,
       currentLanguageId: widget.block.language,
@@ -166,6 +167,15 @@ class _RichCodeBlockState extends State<RichCodeBlock> {
         widget.controller.setDocument(document.copyWith(blocks: blocks));
       }
     }
+    if (!mounted || widget.readOnly ||
+        widget.controller.document.findBlockIndexById(widget.block.id) < 0) {
+      return;
+    }
+    _codeTextController.selection = TextSelection(
+      baseOffset: selection.baseOffset.clamp(0, _codeTextController.text.length),
+      extentOffset: selection.extentOffset.clamp(0, _codeTextController.text.length),
+    );
+    widget.focusNode.requestFocus();
   }
 
   Future<void> _copyCode() async {

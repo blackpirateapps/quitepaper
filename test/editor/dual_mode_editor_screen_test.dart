@@ -222,12 +222,25 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Dart'));
       await tester.pumpAndSettle();
+      final afterLanguage = tester.widget<EditableText>(codeField);
+      expect(afterLanguage.focusNode.hasPrimaryFocus, isTrue);
+      expect(afterLanguage.controller.selection, const TextSelection.collapsed(offset: 5));
+      tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'printx',
+        selection: TextSelection.collapsed(offset: 6)));
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 800));
       final languageSave = (await repository.getNoteById(note.id))!;
       final languageDoc = RichDocument.fromJson(jsonDecode(languageSave.content) as Map<String, dynamic>);
       final languageBlock = languageDoc.blocks.whereType<CodeBlock>().single;
       expect(languageBlock.language, 'dart');
-      expect(languageBlock.code, 'print');
+      expect(languageBlock.code, 'printx');
+      await tester.tap(find.text('dart'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final afterCancel = tester.widget<EditableText>(codeField);
+      expect(afterCancel.focusNode.hasPrimaryFocus, isTrue);
+      expect(afterCancel.controller.selection, const TextSelection.collapsed(offset: 6));
       expect(tester.takeException(), isNull);
       await finishTest(tester);
     });

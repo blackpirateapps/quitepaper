@@ -20,7 +20,7 @@ installed application were not changed.
 | 8 | High | Active Visual → Markdown switch uses a disposed controller and breaks rendering | Fixed |
 | 5 | High | Clicking a later Visual paragraph leaves the document caret on another block | Fixed |
 | 11 | High for keyboard input | Empty Visual Math insertion reports focus but drops typing | Fixed |
-| 6 | Medium | Visual code language selection loses typing focus | Open |
+| 6 | Medium | Visual code language selection loses typing focus | Fixed |
 | 7 | Medium | Markdown toolbar undo/redo loses typing focus | Open |
 | 9 | Medium | Visual Tag saves the name before `#` | Open |
 | 10 | Medium | Visual Link Note saves the query before `[[` | Open |
@@ -81,6 +81,9 @@ publishes the active target, while selection reconciliation in
 `_onTextControllerChanged` is gated on field focus. Check native click ordering.
 
 ## Confirmed new finding 6 — Visual code language selection loses typing focus
+
+**Fixed (2026-11-16).** RichCodeBlock captures the code selection before opening the language picker, commits the chosen language by block ID, then restores the caret and code FocusNode after either selection or cancellation. Disposed, read-only, and removed blocks are guarded. The EditorScreen regression types printx immediately after selecting Dart, checks persistence, and verifies Escape cancellation focus. Regression validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 16 passed Native evidence above/below describes the original failure; see the resolution log 292.
+
 
 Severity: medium; subsequent keystrokes are silently dropped.
 

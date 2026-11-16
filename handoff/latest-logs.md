@@ -6690,3 +6690,10 @@ test/editor/visual_editor_stability_test.dart test/editor/dual_mode_editor_scree
 Audit finding 11: The AST math insertion from finding 12 mounts the existing stable code input instead of restructuring a focused text field around raw math delimiters. Insertion now selects the equation placeholder. The empty-note EditorScreen regression types immediately through the input client, preserves IME composition, and verifies the saved formula.
 
 Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart test/editor/rich_document_controller_test.dart: 31 passed. Full test suite was not run.
+
+
+## 292. Restore code input after language selection (November 16, 2026)
+
+Audit finding 6: RichCodeBlock captures the code selection before opening the language picker, commits the chosen language by block ID, then restores the caret and code FocusNode after either selection or cancellation. Disposed, read-only, and removed blocks are guarded. The EditorScreen regression types printx immediately after selecting Dart, checks persistence, and verifies Escape cancellation focus.
+
+Validation: flutter analyze --no-pub: no issues; flutter test --no-pub test/editor/dual_mode_editor_screen_test.dart: 16 passed. Full test suite was not run.
