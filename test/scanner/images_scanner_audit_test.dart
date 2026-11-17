@@ -165,6 +165,20 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('IS-13 preloaded viewer opens and closes without build notifications', (tester) async {
+    final errors = <Object>[];
+    await runZonedGuarded(() async {
+      await tester.pumpWidget(app(ImageViewerModal(images: [
+        ViewerImageItem(url: 'https://fixture.invalid/preloaded.png', initialBytes: fixture()),
+      ])));
+      await frames(tester);
+      expect(find.byType(Image), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await frames(tester);
+    }, (error, stack) => errors.add(error));
+    expect(errors, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('IS-12 late gallery callback after disposal is ignored', (
     tester,
   ) async {
@@ -371,15 +385,14 @@ void main() {
       FilePicker.platform = picker;
       final bytes = fixture();
       final buildErrors = <Object>[];
-      // IS-13 is addressed separately; retain its known diagnostic for now.
       await runZonedGuarded(() async {
         await tester.pumpWidget(app(ImageViewerModal(images: [
           ViewerImageItem(url: 'https://fixture.invalid/image.png', initialBytes: bytes),
         ])));
         await tester.pump();
       }, (error, stack) => buildErrors.add(error));
-      expect(buildErrors, hasLength(1));
-      expect(buildErrors.single.toString(), contains('called during build'));
+      expect(buildErrors, isEmpty);
+      expect(tester.takeException(), isNull);
       await frames(tester);
       await tester.tap(find.text('Save Image'));
       for (var i = 0; i < 20; i++) {

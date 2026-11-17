@@ -660,3 +660,9 @@ Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suit
 Scanner capture, picker, file reads and preparation check mounting before continuing. Disposal invalidates pending preparation generations, and mode jobs ignore removed pages. The delayed-picker regression captures diagnostics and verifies no preparation or disposed-state mutation occurs.
 
 Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-13 image/scanner audit fix — November 17, 2026
+
+Viewer pages coalesce OCR/status notifications until after the current frame and check mounting before notifying the parent. Preloaded-network open/close and desktop-save regressions now assert zero build-phase diagnostics.
+
+Validation: 35 viewer/scanner regression tests passed. Flutter analysis clean. No full suite ran.

@@ -434,7 +434,7 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
                     }
                   },
                   onOcrStateChanged: () {
-                    if (index == _currentIndex) {
+                    if (mounted && index == _currentIndex) {
                       setState(() {});
                     }
                   },
@@ -610,6 +610,17 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
     }).catchError((_) {});
   }
 
+  bool _ocrNotificationScheduled = false;
+
+  void _notifyOcrStateChanged() {
+    if (!mounted || _ocrNotificationScheduled) return;
+    _ocrNotificationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ocrNotificationScheduled = false;
+      if (mounted) widget.onOcrStateChanged();
+    });
+  }
+
   Future<void> _loadImageAndOcr() async {
     if (!mounted) return;
     setState(() => _isLoading = _imageBytes == null);
@@ -686,7 +697,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
       }
     }
 
-    widget.onOcrStateChanged();
+    _notifyOcrStateChanged();
   }
 
   Future<void> _loadOcrDocument(String assetId) async {
@@ -718,7 +729,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
               _selection = _OcrTextSelection(page: doc.pages.first);
             }
           });
-          widget.onOcrStateChanged();
+          _notifyOcrStateChanged();
           return;
         }
       }
@@ -728,7 +739,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
 
     if (mounted) {
       setState(() => _isOcrLoading = false);
-      widget.onOcrStateChanged();
+      _notifyOcrStateChanged();
     }
   }
 

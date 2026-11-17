@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 12 fixed, 2 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 13 fixed, 1 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -159,11 +159,16 @@ Resolution: Scanner capture, picker, file reads and preparation check mounting b
 
 Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-13 — P2 — Opening a preloaded network image triggers a build-phase setState error (OPEN)
+### IS-13 — P2 — Opening a preloaded network image triggers a build-phase setState error (FIXED)
 
 Confirmed while executing Save Image probes with `ViewerImageItem(url: ..., initialBytes: ...)`: `_ViewerImagePageState.initState` synchronously calls `_loadImageAndOcr`; the preloaded network path has no await before `widget.onOcrStateChanged()`. The parent callback calls `setState` on `ImageViewerModal` while PageView is building its child. Flutter reports `setState() or markNeedsBuild() called during build`. Inline network images use preloaded bytes when opening the viewer, making this an ordinary entry path. The page remains visible in this debug reproduction; a total viewer failure is not asserted.
 
 Fix direction: defer parent notification until after the frame or make initial child state available without a parent mutation during build. Evidence: baseline exception stack points to `image_viewer_modal.dart:437`, `:688`, and `:575`; the explicit widget probes assert and record the diagnostic.
+
+
+Resolution: Viewer pages coalesce OCR/status notifications until after the current frame and check mounting before notifying the parent. Preloaded-network open/close and desktop-save regressions now assert zero build-phase diagnostics.
+
+Validation: 35 viewer/scanner regression tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-14 — P2 — Press-and-hold ORIGINAL still shows the selected scanner mode (OPEN)
 
