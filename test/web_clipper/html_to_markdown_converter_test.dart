@@ -7,6 +7,38 @@ void main() {
   group('HtmlToMarkdownConverter', () {
     const converter = HtmlToMarkdownConverter();
 
+    test('nested layout tables retain each paragraph and code block once', () {
+      final element = html_parser
+          .parseFragment(
+            '<table><tr><td><p>Outer introduction.</p>'
+            '<table><tr><td><h2>Article heading</h2><p>Unique article sentence.</p>'
+            '<pre><code>unique_example();</code></pre></td></tr></table>'
+            '<p>Outer conclusion.</p></td></tr></table>',
+          )
+          .children
+          .single;
+      final markdown = converter.convert(
+        cleanedElement: element,
+        metadata: const ExtractedArticleMetadata(
+          sourceUrl: 'https://example.com',
+          title: 'Layout article',
+          domain: 'example.com',
+        ),
+      );
+      for (final content in [
+        'Outer introduction.',
+        'Article heading',
+        'Unique article sentence.',
+        'unique_example();',
+        'Outer conclusion.',
+      ]) {
+        expect(content.allMatches(markdown).length, 1, reason: content);
+      }
+      expect(markdown, contains('## Article heading'));
+      expect(markdown, contains('```'));
+      expect(markdown, isNot(contains('| ---')));
+    });
+
     test('converts headings, formatting, lists, blockquotes, and tables', () {
       const htmlFragment = '''
 <div>
@@ -59,7 +91,12 @@ void main() {
       expect(markdown, isNot(contains('- clipped')));
       expect(markdown, isNot(contains('- example.com')));
       expect(markdown, contains('- technology'));
-      expect(markdown, contains('> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)'));
+      expect(
+        markdown,
+        contains(
+          '> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)',
+        ),
+      );
       expect(markdown, contains('## Introduction'));
       expect(markdown, contains('**bold**'));
       expect(markdown, contains('*italic*'));

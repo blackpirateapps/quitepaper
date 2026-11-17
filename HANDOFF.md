@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **11/16 fixed; 5 open**, with individual reports, resolutions and replayable evidence.
+records **12/16 fixed; 4 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -436,3 +436,9 @@ WC-04 follow-up: the Markdown converter also respects explicit tag selections in
 URL dialog actions wrap independently across lines when available width is insufficient, including when Continue adds a loading spinner. All actions stay within the dialog at 320, 360 and 392.7 dp.
 
 Validation: flutter analyze: clean; 4 focused URL dialog widget tests passed. No full suite ran.
+
+### WC-12 Android web clipper fix
+
+Nested and presentation/layout tables convert as document flow, preserving paragraphs, headings and fenced code once. Flat tables enumerate only direct row cells, preventing descendant-cell duplication while retaining ordinary data-table Markdown.
+
+Validation: flutter analyze: clean; 17 converter, scanner and service tests passed. No full suite ran.

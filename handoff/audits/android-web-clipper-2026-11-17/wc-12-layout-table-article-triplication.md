@@ -1,6 +1,6 @@
 # WC-12: Direct clipping repeats article text from nested layout tables
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -26,3 +26,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 
 - [`lib/core/web_clipper/html_to_markdown_converter.dart:267`](../../../lib/core/web_clipper/html_to_markdown_converter.dart#L267)
 - [`lib/core/web_clipper/html_to_markdown_converter.dart:273`](../../../lib/core/web_clipper/html_to_markdown_converter.dart#L273)
+
+## Resolution
+
+Nested and presentation/layout tables convert as document flow, preserving paragraphs, headings and fenced code once. Flat tables enumerate only direct row cells, preventing descendant-cell duplication while retaining ordinary data-table Markdown.
+
+Validation: flutter analyze: clean; 17 converter, scanner and service tests passed. No full suite ran.
