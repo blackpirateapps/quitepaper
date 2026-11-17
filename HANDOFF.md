@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **1/16 fixed; 15 open**, with individual reports, resolutions and replayable evidence.
+records **2/16 fixed; 14 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -374,3 +374,9 @@ replay: an earlier emulator/build attempt was stopped after a reported host cras
 Saved snapshot image sources now contain vault URLs; the viewer decrypts and embeds image bytes in memory for offline rendering, removing competing srcset references.
 
 Validation: flutter analyze: clean; 7 service, snapshot and image hydration tests passed. No full suite ran.
+
+### WC-02 Android web clipper fix
+
+Scan results retain prepared snapshot HTML, including inlined CSS, and saving reuses that HTML before rewriting downloaded image sources. The preview and saved snapshot now share the fetched styling.
+
+Validation: flutter analyze: clean; 13 service, scanner and snapshot tests passed. No full suite ran.

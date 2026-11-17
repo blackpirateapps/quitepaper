@@ -24,11 +24,13 @@ class WebClipperScanner {
     ArticleExtractor? extractor,
     HtmlToMarkdownConverter? markdownConverter,
     WebSnapshotGenerator? snapshotGenerator,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _extractor = extractor ?? const ArticleExtractor(),
-        _markdownConverter = markdownConverter ?? const HtmlToMarkdownConverter(),
-        _snapshotGenerator = snapshotGenerator ??
-            WebSnapshotGenerator(httpClient: httpClient ?? http.Client());
+  }) : _httpClient = httpClient ?? http.Client(),
+       _extractor = extractor ?? const ArticleExtractor(),
+       _markdownConverter =
+           markdownConverter ?? const HtmlToMarkdownConverter(),
+       _snapshotGenerator =
+           snapshotGenerator ??
+           WebSnapshotGenerator(httpClient: httpClient ?? http.Client());
 
   final http.Client _httpClient;
   final ArticleExtractor _extractor;
@@ -163,10 +165,9 @@ class WebClipperScanner {
     Object? directError;
 
     try {
-      directResponse = await _httpClient.get(
-        uri,
-        headers: _browserHeaders,
-      ).timeout(const Duration(seconds: 15));
+      directResponse = await _httpClient
+          .get(uri, headers: _browserHeaders)
+          .timeout(const Duration(seconds: 15));
     } catch (e) {
       directError = e;
     }
@@ -214,7 +215,10 @@ class WebClipperScanner {
         );
       }
       throw Exception(
-        'Failed to clip $domain: ${directError ?? fallbackError}'.replaceFirst('Exception: ', ''),
+        'Failed to clip $domain: ${directError ?? fallbackError}'.replaceFirst(
+          'Exception: ',
+          '',
+        ),
       );
     }
   }
@@ -225,16 +229,20 @@ class WebClipperScanner {
   ) async {
     final readerUri = Uri.parse('https://r.jina.ai/$targetUrl');
 
-    final readerResponse = await _httpClient.get(
-      readerUri,
-      headers: const {
-        'Accept': 'application/json',
-        'X-Return-Format': 'markdown',
-      },
-    ).timeout(const Duration(seconds: 20));
+    final readerResponse = await _httpClient
+        .get(
+          readerUri,
+          headers: const {
+            'Accept': 'application/json',
+            'X-Return-Format': 'markdown',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
 
     if (readerResponse.statusCode < 200 || readerResponse.statusCode >= 300) {
-      throw Exception('Reader service returned HTTP ${readerResponse.statusCode}');
+      throw Exception(
+        'Reader service returned HTTP ${readerResponse.statusCode}',
+      );
     }
 
     final rawBody = _decodeBody(readerResponse);
@@ -272,15 +280,19 @@ class WebClipperScanner {
             ? data['metadata'] as Map<String, dynamic>
             : <String, dynamic>{};
 
-        author = meta['author'] as String? ??
+        author =
+            meta['author'] as String? ??
             meta['twitter:creator'] as String? ??
             meta['twitter:site'] as String?;
-        leadImageUrl = meta['og:image'] as String? ??
+        leadImageUrl =
+            meta['og:image'] as String? ??
             meta['twitter:image'] as String? ??
             meta['twitter:image:src'] as String?;
-        siteName = meta['og:site_name'] as String? ?? meta['site_name'] as String?;
+        siteName =
+            meta['og:site_name'] as String? ?? meta['site_name'] as String?;
 
-        final pubDateStr = meta['article:published_time']?.toString() ??
+        final pubDateStr =
+            meta['article:published_time']?.toString() ??
             meta['date']?.toString() ??
             meta['pubdate']?.toString();
         if (pubDateStr != null && pubDateStr.isNotEmpty) {
@@ -324,7 +336,11 @@ class WebClipperScanner {
     }
 
     // Clean leading duplicate title in markdownBody if redundant
-    markdownBody = _cleanRedundantMarkdownHeader(markdownBody, title, cleanedTitle);
+    markdownBody = _cleanRedundantMarkdownHeader(
+      markdownBody,
+      title,
+      cleanedTitle,
+    );
 
     // Extract image candidates from markdown body and lead image
     final discoveredImages = _discoverImagesFromMarkdown(
@@ -358,7 +374,8 @@ class WebClipperScanner {
       extensionSet: md.ExtensionSet.gitHubFlavored,
     );
 
-    final syntheticRawHtml = '''
+    final syntheticRawHtml =
+        '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -380,7 +397,8 @@ class WebClipperScanner {
 ''';
 
     final doc = html_parser.parse(syntheticRawHtml);
-    final cleanedElement = doc.querySelector('article') ?? doc.body ?? doc.documentElement!;
+    final cleanedElement =
+        doc.querySelector('article') ?? doc.body ?? doc.documentElement!;
 
     return _compileScanResult(
       metadata: metadata,
@@ -413,7 +431,9 @@ class WebClipperScanner {
         final parts = rawTitle.split(sep);
         if (parts.length >= 2) {
           final candidate = parts.last.trim();
-          if (candidate.length >= 3 && candidate.length <= 40 && !candidate.contains('.')) {
+          if (candidate.length >= 3 &&
+              candidate.length <= 40 &&
+              !candidate.contains('.')) {
             return candidate;
           }
         }
@@ -422,10 +442,16 @@ class WebClipperScanner {
     return null;
   }
 
-  String _cleanRedundantMarkdownHeader(String markdown, String rawTitle, String cleanTitle) {
+  String _cleanRedundantMarkdownHeader(
+    String markdown,
+    String rawTitle,
+    String cleanTitle,
+  ) {
     var cleaned = markdown.trim();
     final firstLine = cleaned.split('\n').first.trim();
-    final strippedFirstLine = firstLine.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+    final strippedFirstLine = firstLine
+        .replaceFirst(RegExp(r'^#+\s*'), '')
+        .trim();
 
     if (strippedFirstLine == rawTitle.trim() ||
         strippedFirstLine == cleanTitle.trim() ||
@@ -448,14 +474,16 @@ class WebClipperScanner {
     if (leadImageUrl != null && leadImageUrl.trim().isNotEmpty) {
       final resolved = ClippedImageFilter.resolveUrl(leadImageUrl, sourceUri);
       if (ClippedImageFilter.isUsefulImageUrl(resolved)) {
-        images.add(ClippedImageCandidate(
-          rawUrl: leadImageUrl,
-          resolvedUrl: resolved,
-          altText: 'Lead Image',
-          isLeadImage: true,
-          isSelected: true,
-          estimatedSizeBytes: 350 * 1024,
-        ));
+        images.add(
+          ClippedImageCandidate(
+            rawUrl: leadImageUrl,
+            resolvedUrl: resolved,
+            altText: 'Lead Image',
+            isLeadImage: true,
+            isSelected: true,
+            estimatedSizeBytes: 350 * 1024,
+          ),
+        );
         seenUrls.add(resolved);
       }
     }
@@ -477,14 +505,16 @@ class WebClipperScanner {
         continue;
       }
 
-      images.add(ClippedImageCandidate(
-        rawUrl: rawSrc,
-        resolvedUrl: resolved,
-        altText: alt.isNotEmpty ? alt : 'Article image',
-        isLeadImage: false,
-        isSelected: true,
-        estimatedSizeBytes: 250 * 1024,
-      ));
+      images.add(
+        ClippedImageCandidate(
+          rawUrl: rawSrc,
+          resolvedUrl: resolved,
+          altText: alt.isNotEmpty ? alt : 'Article image',
+          isLeadImage: false,
+          isSelected: true,
+          estimatedSizeBytes: 250 * 1024,
+        ),
+      );
       seenUrls.add(resolved);
 
       // Bound discovery to the top 35 highest quality content images
@@ -534,14 +564,17 @@ class WebClipperScanner {
             leadImageMarkdown: leadImageMarkdown,
           );
 
-    final preliminarySnapshotHtml = await _snapshotGenerator.generateHtmlSnapshot(
-      rawHtml: rawHtml,
-      metadata: metadata,
-      cleanedElement: cleanedElement,
-    );
+    final preliminarySnapshotHtml = await _snapshotGenerator
+        .generateHtmlSnapshot(
+          rawHtml: rawHtml,
+          metadata: metadata,
+          cleanedElement: cleanedElement,
+        );
 
     final markdownSizeEstimate = utf8.encode(markdown).length;
-    final htmlSnapshotSizeEstimate = utf8.encode(preliminarySnapshotHtml).length;
+    final htmlSnapshotSizeEstimate = utf8
+        .encode(preliminarySnapshotHtml)
+        .length;
 
     return WebClipScanResult(
       metadata: metadata,
@@ -550,6 +583,7 @@ class WebClipperScanner {
       markdownBody: markdown,
       markdownSizeEstimate: markdownSizeEstimate,
       htmlSnapshotSizeEstimate: htmlSnapshotSizeEstimate,
+      preparedSnapshotHtml: preliminarySnapshotHtml,
       images: probedImages,
       isPageContentFallback: isPageContentFallback,
       acquisitionMethod: acquisitionMethod,
@@ -570,21 +604,26 @@ class WebClipperScanner {
 
         try {
           var uri = Uri.tryParse(candidate.resolvedUrl.trim());
-          if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+          if (uri == null ||
+              (!uri.isScheme('http') && !uri.isScheme('https'))) {
             try {
               uri = Uri.tryParse(Uri.encodeFull(candidate.resolvedUrl.trim()));
             } catch (_) {}
           }
 
           if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
-            final headRes = await _httpClient.head(
-              uri,
-              headers: {
-                'User-Agent': _browserHeaders['User-Agent']!,
-                if (uri.hasAuthority) 'Referer': '${uri.scheme}://${uri.authority}/',
-                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-              },
-            ).timeout(const Duration(milliseconds: 1500));
+            final headRes = await _httpClient
+                .head(
+                  uri,
+                  headers: {
+                    'User-Agent': _browserHeaders['User-Agent']!,
+                    if (uri.hasAuthority)
+                      'Referer': '${uri.scheme}://${uri.authority}/',
+                    'Accept':
+                        'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                  },
+                )
+                .timeout(const Duration(milliseconds: 1500));
 
             final cl = headRes.headers['content-length'];
             if (cl != null) {
@@ -608,9 +647,12 @@ class WebClipperScanner {
   String _decodeBody(http.Response response) {
     try {
       final contentType = response.headers['content-type'];
-      if (contentType != null && contentType.toLowerCase().contains('charset=')) {
-        final charsetMatch = RegExp(r'charset=([a-zA-Z0-9_\-]+)', caseSensitive: false)
-            .firstMatch(contentType);
+      if (contentType != null &&
+          contentType.toLowerCase().contains('charset=')) {
+        final charsetMatch = RegExp(
+          r'charset=([a-zA-Z0-9_\-]+)',
+          caseSensitive: false,
+        ).firstMatch(contentType);
         if (charsetMatch != null) {
           final charsetName = charsetMatch.group(1)?.toLowerCase();
           if (charsetName == 'latin1' || charsetName == 'iso-8859-1') {
@@ -624,4 +666,3 @@ class WebClipperScanner {
     }
   }
 }
-

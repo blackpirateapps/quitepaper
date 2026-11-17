@@ -134,7 +134,7 @@ class WebClipperService {
 
       try {
         final snapshotBytes = await _snapshotGenerator.generateSnapshotBytes(
-          rawHtml: scanResult.rawHtml,
+          rawHtml: scanResult.preparedSnapshotHtml ?? scanResult.rawHtml,
           metadata: metadata,
           cleanedElement: cleanedElement,
           localImageSources: {

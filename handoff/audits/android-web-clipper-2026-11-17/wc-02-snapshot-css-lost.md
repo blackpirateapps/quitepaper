@@ -1,6 +1,6 @@
 # WC-02: Default save drops CSS already fetched during scanning
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -28,3 +28,9 @@ The corresponding `WC-02` probe and its output are preserved in [evidence.md](ev
 - [`lib/core/web_clipper/web_clipper_scanner.dart:29`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L29)
 - [`lib/core/web_clipper/web_snapshot_generator.dart:80`](../../../lib/core/web_clipper/web_snapshot_generator.dart#L80)
 - [`lib/core/web_clipper/web_clipper_provider.dart:12`](../../../lib/core/web_clipper/web_clipper_provider.dart#L12)
+
+## Resolution
+
+Scan results retain prepared snapshot HTML, including inlined CSS, and saving reuses that HTML before rewriting downloaded image sources. The preview and saved snapshot now share the fetched styling.
+
+Validation: flutter analyze: clean; 13 service, scanner and snapshot tests passed. No full suite ran.

@@ -139,6 +139,40 @@ class FakeDocumentService implements DocumentService {
 
 void main() {
   group('WebClipperService', () {
+    test(
+      'default save retains CSS fetched during scan without refetching',
+      () async {
+        var cssRequests = 0;
+        final client = MockClient((request) async {
+          if (request.url.path.endsWith('.css')) {
+            cssRequests++;
+            return http.Response('body { color: purple; }', 200);
+          }
+          return http.Response(
+            '<link rel="stylesheet" href="/style.css">'
+            '<article><p>Offline article body content.</p></article>',
+            200,
+          );
+        });
+        final documents = FakeDocumentService();
+        final service = WebClipperService(
+          notesRepository: InMemoryNotesRepository(),
+          documentService: documents,
+          scanner: WebClipperScanner(httpClient: client),
+        );
+        final scan = await service.scanUrl('https://example.com/article');
+        await service.clipArticle(
+          scanResult: scan,
+          options: const WebClipperOptions(downloadImages: false),
+        );
+        final html = utf8.decode(documents.createdSnapshots.values.single);
+        expect(html, contains('body { color: purple; }'));
+        expect(html, isNot(contains('<link rel="stylesheet"')));
+        expect(cssRequests, 1);
+        expect(scan.copyWith().preparedSnapshotHtml, scan.preparedSnapshotHtml);
+      },
+    );
+
     test('clips basic article without images or snapshot', () async {
       final repository = InMemoryNotesRepository();
       final mockClient = MockClient((request) async {

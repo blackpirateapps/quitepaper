@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**Remediation in progress: 1/16 fixed; 15 open.**
+**Remediation in progress: 2/16 fixed; 14 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -13,7 +13,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | Finding | Priority | Bug |
 | --- | --- | --- |
 | **Fixed** [WC-01](wc-01-snapshot-image-sources.md) | P2 | Saved snapshots contain Markdown in image src attributes |
-| [WC-02](wc-02-snapshot-css-lost.md) | P2 | Default save drops CSS already fetched during scanning |
+| **Fixed** [WC-02](wc-02-snapshot-css-lost.md) | P2 | Default save drops CSS already fetched during scanning |
 | [WC-03](wc-03-snapshot-save-failure-hidden.md) | P2 | Snapshot storage failures are reported as successful clips |
 | [WC-04](wc-04-removed-tags-restored.md) | P2 | Removed default tags return when the article is saved |
 | [WC-05](wc-05-canonical-url-asset-base.md) | P2 | Browser capture uses the canonical URL as the asset base |
