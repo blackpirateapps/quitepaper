@@ -1,6 +1,6 @@
 # WC-06: Direct HTTP clipping resolves assets against the pre-redirect URL
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -26,3 +26,9 @@ The corresponding `WC-06` probe and its output are preserved in [evidence.md](ev
 
 - [`lib/core/web_clipper/web_clipper_scanner.dart:165`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L165)
 - [`lib/core/web_clipper/web_clipper_scanner.dart:178`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L178)
+
+## Resolution
+
+Direct acquisition follows a bounded HTTP redirect chain while retaining the final document URL. Extraction, source metadata, relative links, image probes and snapshot bases now use that final URL.
+
+Validation: flutter analyze: clean; 10 redirect, scanner and parity tests passed, including a real local HTTP redirect. No full suite ran.

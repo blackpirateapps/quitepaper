@@ -163,11 +163,14 @@ class WebClipperScanner {
     // 1. Try Direct HTTP fetch first
     http.Response? directResponse;
     Object? directError;
+    var documentUrl = targetUrl;
 
     try {
-      directResponse = await _httpClient
-          .get(uri, headers: _browserHeaders)
-          .timeout(const Duration(seconds: 15));
+      final fetched = await _fetchDocument(
+        uri,
+      ).timeout(const Duration(seconds: 15));
+      directResponse = fetched.response;
+      documentUrl = fetched.url.toString();
     } catch (e) {
       directError = e;
     }
@@ -178,7 +181,7 @@ class WebClipperScanner {
       final rawHtml = _decodeBody(directResponse);
       final extracted = _extractor.extract(
         htmlContent: rawHtml,
-        sourceUrl: targetUrl,
+        sourceUrl: documentUrl,
       );
 
       final extractedText = extracted.cleanedElement.text.trim();
@@ -221,6 +224,31 @@ class WebClipperScanner {
         ),
       );
     }
+  }
+
+  Future<({http.Response response, Uri url})> _fetchDocument(
+    Uri initialUrl,
+  ) async {
+    var url = initialUrl;
+    for (var redirects = 0; redirects <= 5; redirects++) {
+      final request = http.Request('GET', url)
+        ..followRedirects = false
+        ..headers.addAll(_browserHeaders);
+      final response = await http.Response.fromStream(
+        await _httpClient.send(request),
+      );
+      final location = response.headers['location'];
+      if ([301, 302, 303, 307, 308].contains(response.statusCode) &&
+          location != null) {
+        url = url.resolve(location);
+        if (!url.isScheme('http') && !url.isScheme('https')) {
+          throw const FormatException('Unsupported redirect URL');
+        }
+        continue;
+      }
+      return (response: response, url: url);
+    }
+    throw const FormatException('Too many webpage redirects');
   }
 
   Future<WebClipScanResult> _scanViaReaderFallback(
