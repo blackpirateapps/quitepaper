@@ -486,16 +486,16 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**9/10 fixed; 1 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**10/10 fixed; 0 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
 and stale rows after a failed context switch. Per-finding fixes and validation
 are recorded below and in the audit report.
 
-Existing notes and gesture tests pass **141 tests**. Another **21 audit probes**
-pass by confirming the documented failures and checking virtualization/responsive
-layouts; their passing status does not mean the findings are resolved. Native
+The original audit passed **141 existing notes/gesture tests** and **21 audit
+probes** that characterized failures and checked virtualization/responsive
+layouts. Those historical probes intentionally assert the old defects. Native
 Linux profile measurements use 10,000 synthetic notes and desktop/phone viewports.
 The report preserves sources, logs, screenshots, measurements and explicit limits.
 Only Linux was connected: Android widget tests exercise mobile behavior, but
@@ -555,3 +555,19 @@ Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 
 Full and paginated reads share a complete NoteEntity-to-Note mapper, including journalDate, shareId and shareUrl. Batch tag hydration remains unchanged. Regressions compare every persisted domain field across active, Archive and Trash reads, including journal/share flags and local pins.
 
 Validation: `flutter analyze`: no issues; database query and pin-scope files: 25 passed. No full suite ran.
+
+### NL-11 notes list fix — November 17, 2026
+
+New queries immediately clear old rows, counts and cursors, including destination, tag, sort and filter transitions. Query changes also end batch selection so old IDs cannot be acted on under the new query. Phone/desktop regressions assert empty loading/error collections, no actionable old rows, and successful Retry with the new predicates retained.
+
+Validation: `flutter analyze`: no issues; screen, recovery and selection regression files: 46 passed. No full suite ran.
+
+All ten notes list findings are resolved with separate commits and pushes on
+`audit/notes-list-2026-11-17`. Final combined validation passes **192 relevant
+notes and gesture tests** with clean Flutter analysis. Original characterization
+probes remain archived outside normal discovery; permanent acceptance tests
+verify the fixes. The Linux profile replay and its explicit mobile limits are in
+[fix verification](handoff/audits/notes-list-2026-11-17/fix-verification/README.md).
+No full suite ran.
+The normal Linux profile bundle was rebuilt from `lib/main.dart` after the
+isolated benchmark; its restore log is retained with the verification evidence.

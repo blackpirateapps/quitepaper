@@ -427,7 +427,11 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     _failedOperation = null;
 
     state = state.copyWith(
+      // Rows and cursor belong to the old query until this request succeeds.
+      notes: const [],
+      totalCount: 0,
       query: query,
+      isRefreshing: false,
       initialLoading: true,
       loadingMore: false,
       clearError: true,

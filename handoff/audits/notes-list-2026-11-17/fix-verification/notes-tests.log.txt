@@ -1,0 +1,335 @@
+00:00 +0: loading /home/dog/git/quitepaper/test/notes/note_security_service_test.dart
+00:00 +0: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService encrypts and decrypts note payload accurately with valid password
+00:00 +1: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService throws InvalidNotePasswordException when wrong password is used
+00:00 +2: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService isEncrypted returns false for normal markdown text
+00:00 +3: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: Note Model Password Protection Helpers isPasswordProtected, displayTitle, and previewSnippet for encrypted notes
+00:01 +4: loading /home/dog/git/quitepaper/test/notes/notes_domain_test.dart
+00:02 +4: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort default configuration is Recently Updated descending with pinnedFirst
+00:02 +5: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort serializes to and from JSON correctly
+00:02 +6: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort display names adapt to sort field and direction
+00:02 +7: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Today
+00:02 +8: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Yesterday
+00:02 +9: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Last 7 Days
+00:02 +10: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Last 30 Days
+00:02 +11: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for This Year
+00:02 +12: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Custom Range
+00:02 +13: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter empty filter reports isEmpty true and activeFilterCount 0
+00:02 +14: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter activeFilterCount aggregates all configured predicates accurately
+00:02 +15: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter clearAdvancedFilters resets predicates while optionally preserving tags
+00:02 +16: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter serializes to and from JSON
+00:02 +17: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesCursor extracts deterministic keys from Note
+00:02 +18: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesCursor serializes to and from JSON
+00:02 +19: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery default query initializes with active context and generation 0
+00:02 +20: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery resetPagination clears cursor and increments generation
+00:02 +21: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery nextPage updates cursor while preserving generation
+00:02 +22: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery serializes to and from JSON with version 1
+00:02 +23: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: SavedFilter serializes to and from JSON
+00:02 +24: loading /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart
+00:03 +24: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Updated sort DESC orders newest modified first with ID tie-breaker
+00:03 +25: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Created sort ASC orders oldest created first
+00:03 +26: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Title sort is case-insensitive NOCASE and supports duplicate titles
+00:03 +27: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Pinned first sorting partitions pinned notes ahead of unpinned notes
+00:03 +28: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Context Isolation filters notes by active, archive, and trash contexts
+00:03 +29: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering single tag filter returns matching notes
+00:04 +30: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering multiple tags with MatchMode.all (AND) requires all tags
+00:04 +31: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering multiple tags with MatchMode.any (OR) matches either tag
+00:04 +32: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering untaggedOnly returns notes with zero tag associations
+00:04 +33: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters content predicates filter code, checklists, tasks, and links
+00:04 +34: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters attachment and OCR filters query actual database relationships
+00:04 +35: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters security filter separates password protected notes
+00:04 +36: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: Large Dataset Keyset Pagination (125 Notes across 4 Batches) paginates 125 notes incrementally using keyset cursors without duplicate items
+00:04 +37: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NL-10: paginated and full snapshots agree on every persisted field in NotesContext.active
+00:04 +38: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NL-10: paginated and full snapshots agree on every persisted field in NotesContext.archive
+00:04 +39: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NL-10: paginated and full snapshots agree on every persisted field in NotesContext.trash
+00:04 +40: loading /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart
+00:06 +40: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesSortSheet Widget Tests renders sort options and selects Recently Created
+00:08 +41: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesSortSheet Widget Tests anchors to the bottom and respects maxWidth on tablet viewport
+00:08 +42: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesFilterSheet Widget Tests renders sections and allows toggling content filter and applying
+00:09 +43: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesFilterButton Widget Tests displays clean icon when count is 0 and badge when count > 0
+00:09 +44: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests takes 0 space when only standard tag is selected (no duplication)
+00:09 +45: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests renders active chips and removes individual filter on tap
+00:09 +46: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests collapses to max 2 chips plus +N when many advanced filters active
+00:09 +47: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests header title remains All Notes when a tag filter is active
+00:09 +48: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests notes list screen displays only 3 options (Create, Search, More) and exposes Sort & Filter in More menu
+00:10 +49: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests tablet middle pane displays only 3 options (Create, Search, More) with Phosphor icons
+00:10 +50: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests creates, lists, and applies saved smart view
+00:10 +51: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests deletes saved smart view with confirmation dialog and cancel/confirm
+00:11 +52: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests renames saved smart view
+00:11 +53: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests NotesFilterSheet renders Saved views button and opens SavedFiltersSheet
+00:12 +54: loading /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart
+00:13 +54: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) parses location, moment, mood, and weather into NoteMetadata
+00:13 +55: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) locked notes expose no journal metadata
+00:13 +56: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) cache hit returns the same instance
+00:13 +57: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) entry with no location frontmatter yields null location
+00:13 +58: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) empty-coordinate blank-address location is treated as absent
+00:13 +59: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) plain non-journal note has null journal metadata
+00:13 +60: loading /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart
+00:14 +60: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts title and preview from plain note
+00:14 +61: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests derives title from first line when title is empty
+00:14 +62: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts title and description from YAML frontmatter (Clipped Note)
+00:14 +63: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests strips Markdown syntax (headers, quotes, lists, checklists, formatting)
+00:14 +64: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts Markdown table preview cleanly into NoteTablePreview
+00:14 +65: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts text attachment metadata for PDFs, images, and files
+00:14 +66: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests protects password-protected note preview
+00:14 +67: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests caches extracted NoteMetadata and returns identical instance on cache hit
+00:14 +68: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests evicts oldest LRU entry when cache capacity exceeds maxCacheSize
+00:14 +69: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests fast-path heuristics correctly handle plain text notes with no special markers
+00:14 +70: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Classic Paper Light theme with distinct doc pill badge
+00:15 +71: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Classic Paper Dark theme
+00:15 +72: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Warm Paper Light theme
+00:15 +73: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Midnight Paper Dark theme
+00:15 +74: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders NoteMiniTablePreview in note tile for table notes
+00:15 +75: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests handles tap and tag tap callbacks
+00:16 +76: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders search query highlights correctly
+00:16 +77: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders pinned and password protected icons
+00:16 +78: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests renders Text File document sheet thumbnail with label
+00:16 +79: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests renders PDF thumbnail placeholder when loading or unavailable
+00:16 +80: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests clearThumbnailCaches executes cleanly
+00:16 +81: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteDateHeader Tests renders header with and without top divider
+00:16 +82: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile Desktop Context Menu Tests secondary tap shows context menu with duplicate option and invokes callback
+00:16 +83: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests stores, retrieves, and clears thumbnail byte buffers
+00:16 +84: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests deduplicates concurrent in-flight thumbnail resolution requests
+00:16 +85: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests enforces bounded LRU cache capacity when limit is reached
+00:16 +86: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests NoteThumbnailView maintains keep-alive and renders with downscaled cacheWidth/cacheHeight
+00:17 +87: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests persists thumbnails to disk and reloads them after RAM cache is cleared (simulating app restart)
+00:17 +88: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests evicts thumbnail from both RAM and disk caches
+00:17 +89: loading /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart
+00:18 +89: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage setPinnedInTag records the tag and persists on the note
+00:18 +90: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage unpinning a tag removes it from pinnedTags
+00:18 +91: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage a per-tag pin survives a content edit
+00:18 +92: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage removing the tag from content prunes its pin
+00:18 +93: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: ordering & grouping scope a per-tag pin floats inside its tag but NOT in All Notes
+00:19 +94: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: ordering & grouping scope a global pin floats in All Notes and inside a tag view
+00:19 +95: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation aggregates both global and per-tag pins
+00:19 +96: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation watchNotes(isPinned: true) aggregates global and per-tag pins
+00:19 +97: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation NotesQueryNotifier preserves pinnedOnly when clearAllFilters is called in Pinned destination
+00:19 +98: loading /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart
+00:20 +98: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions no Select text action in the app bar
+00:22 +99: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions long-press on mobile enters multi-select with note selected
+00:22 +100: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions Escape exits multi-select
+00:23 +101: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions destination change clears multi-select
+00:23 +102: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions batch archive moves selected notes out of All Notes
+00:24 +103: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions batch trash moves selected notes to trash
+00:24 +104: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions More menu Select notes enters multi-select
+00:25 +105: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: NoteListTile multi-select gestures desktop context menu includes Select and enters via callback
+00:25 +106: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: NoteListTile multi-select gestures long-press calls onEnterMultiSelect on non-desktop
+00:25 +107: loading /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart
+00:26 +107: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Race condition between loadMore and table updates never freezes loadingMore at true
+00:27 +108: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Multi-page pagination smoothly loads 100 notes without duplicates
+00:28 +109: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Debounced refresh preserves loaded note count and scroll depth
+00:28 +110: loading /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart
+00:30 +110: /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart: Notes Scroll Performance & Pre-warming Tests NoteMetadataExtractor.prewarmAll pre-populates LRU cache for all notes
+00:30 +111: /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart: Notes Scroll Performance & Pre-warming Tests NoteListTile uses localized hover notifier and RepaintBoundary
+00:31 +112: loading /home/dog/git/quitepaper/test/notes/note_metadata_cache_test.dart
+00:32 +112: /home/dog/git/quitepaper/test/notes/note_metadata_cache_test.dart: NL-03: same-time tag changes and same-length content refresh metadata
+00:32 +113: /home/dog/git/quitepaper/test/notes/note_metadata_cache_test.dart: NL-03: snippets, protection and exact ID invalidation remain isolated
+00:32 +114: /home/dog/git/quitepaper/test/notes/note_metadata_cache_test.dart: NL-08: repeated 600-note prewarm preserves useful cache instances
+00:32 +115: /home/dog/git/quitepaper/test/notes/note_metadata_cache_test.dart: NL-08: repeated 1000-note prewarm preserves useful cache instances
+00:32 +116: loading /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart
+00:33 +116: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-01 mobile: initial failure retries existing notes (variant: TargetPlatform.android)
+00:35 +117: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-01 mobile: successful empty query keeps empty state (variant: TargetPlatform.android)
+00:35 +118: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-01 desktop: initial failure retries existing notes (variant: TargetPlatform.linux)
+00:36 +119: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-01 desktop: successful empty query keeps empty state (variant: TargetPlatform.linux)
+00:37 +120: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-02 mobile: grouping preserves every sort and pin order (variant: TargetPlatform.android)
+00:38 +121: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-02 desktop: grouping preserves every sort and pin order (variant: TargetPlatform.linux)
+00:38 +122: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-02: grouping preserves sort and pins across real keyset pages
+00:39 +123: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-03 mobile: tag-only updates refresh tile metadata (variant: TargetPlatform.android)
+00:39 +124: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-03 desktop: tag-only updates refresh tile metadata (variant: TargetPlatform.linux)
+00:39 +125: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-04 mobile: refresh keeps a deep visible anchor (variant: TargetPlatform.android)
+00:43 +126: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-04 desktop: refresh keeps a deep visible anchor (variant: TargetPlatform.linux)
+00:45 +127: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-08 mobile: 600 notes parse only mounted rows (variant: TargetPlatform.android)
+00:46 +128: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-08 desktop: 600 notes parse only mounted rows (variant: TargetPlatform.linux)
+00:46 +129: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-08 mobile: 1000 notes parse only mounted rows (variant: TargetPlatform.android)
+00:46 +130: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-08 desktop: 1000 notes parse only mounted rows (variant: TargetPlatform.linux)
+00:46 +131: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 mobile: failed archive switch removes old rows and selection (variant: TargetPlatform.android)
+00:47 +132: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 mobile: failed trash switch removes old rows and selection (variant: TargetPlatform.android)
+00:47 +133: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 mobile: failed tag switch removes old rows and selection (variant: TargetPlatform.android)
+00:47 +134: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 mobile: failed sort switch removes old rows and selection (variant: TargetPlatform.android)
+00:47 +135: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 mobile: failed filter switch removes old rows and selection (variant: TargetPlatform.android)
+00:48 +136: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 desktop: failed archive switch removes old rows and selection (variant: TargetPlatform.linux)
+00:48 +137: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 desktop: failed trash switch removes old rows and selection (variant: TargetPlatform.linux)
+00:48 +138: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 desktop: failed tag switch removes old rows and selection (variant: TargetPlatform.linux)
+00:49 +139: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 desktop: failed sort switch removes old rows and selection (variant: TargetPlatform.linux)
+00:49 +140: /home/dog/git/quitepaper/test/notes/notes_list_audit_regression_test.dart: NL-11 desktop: failed filter switch removes old rows and selection (variant: TargetPlatform.linux)
+00:50 +141: loading /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart
+00:51 +141: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-04: refresh retains 440 loaded notes and continuation cursor
+00:52 +142: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-04: refresh retains 1000 loaded notes and continuation cursor
+00:52 +143: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: stale refresh is ignored oldFirst=false failure=false
+00:52 +144: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: stale refresh is ignored oldFirst=false failure=true
+00:52 +145: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: stale refresh is ignored oldFirst=true failure=false
+00:52 +146: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: stale refresh is ignored oldFirst=true failure=true
+00:52 +147: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: only the latest refresh/filter/sort request wins
+00:52 +148: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: completion after disposal never writes notifier state
+00:52 +149: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-05: stale load-more cleanup leaves the current page request locked
+00:52 +150: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-06: Retry repeats failed refresh hasMore=false
+00:52 +151: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-06: Retry repeats failed refresh hasMore=true
+00:52 +152: /home/dog/git/quitepaper/test/notes/notes_collection_recovery_test.dart: NL-06: Retry repeats failed initial and page operations
+00:53 +153: loading /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart
+00:54 +153: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: (setUpAll)
+00:54 +153: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: ZIP writes exact bytes to new desktop destination (variant: TargetPlatform.linux)
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_wrapped_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+Error: google_fonts was unable to load font Newsreader-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c228a2e40b98c10bc081f6b67e754fd61f86dbf253c1057bcf4a45d6185099a5.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font Newsreader-Italic because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/19c122c7d35354d83f86760437c4072428c570e3774f2a4cb848b7392c659da2.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/f833596d98e0e021dd43d993254658d0f32318f82f08afee0fc2e41c16ce9571.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/fc34426314d00825ccc768a0c4b1178fe704f04bd947882ef10c2b71b7e355e7.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+00:57 +154: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: ZIP writes exact bytes to existing desktop destination (variant: TargetPlatform.linux)
+Error: google_fonts was unable to load font Newsreader-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c228a2e40b98c10bc081f6b67e754fd61f86dbf253c1057bcf4a45d6185099a5.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font Newsreader-Italic because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/19c122c7d35354d83f86760437c4072428c570e3774f2a4cb848b7392c659da2.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/f833596d98e0e021dd43d993254658d0f32318f82f08afee0fc2e41c16ce9571.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/fc34426314d00825ccc768a0c4b1178fe704f04bd947882ef10c2b71b7e355e7.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+00:58 +155: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: ZIP picker cancellation (null) saves nothing (variant: TargetPlatform.linux)
+Error: google_fonts was unable to load font Newsreader-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c228a2e40b98c10bc081f6b67e754fd61f86dbf253c1057bcf4a45d6185099a5.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font Newsreader-Italic because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/19c122c7d35354d83f86760437c4072428c570e3774f2a4cb848b7392c659da2.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/f833596d98e0e021dd43d993254658d0f32318f82f08afee0fc2e41c16ce9571.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/fc34426314d00825ccc768a0c4b1178fe704f04bd947882ef10c2b71b7e355e7.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+00:58 +156: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: ZIP picker cancellation () saves nothing (variant: TargetPlatform.linux)
+Error: google_fonts was unable to load font Newsreader-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c228a2e40b98c10bc081f6b67e754fd61f86dbf253c1057bcf4a45d6185099a5.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font Newsreader-Italic because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/19c122c7d35354d83f86760437c4072428c570e3774f2a4cb848b7392c659da2.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/f833596d98e0e021dd43d993254658d0f32318f82f08afee0fc2e41c16ce9571.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/fc34426314d00825ccc768a0c4b1178fe704f04bd947882ef10c2b71b7e355e7.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+00:59 +157: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: write failure reports no success (variant: TargetPlatform.linux)
+Error: google_fonts was unable to load font Newsreader-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/c228a2e40b98c10bc081f6b67e754fd61f86dbf253c1057bcf4a45d6185099a5.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font Newsreader-Italic because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/19c122c7d35354d83f86760437c4072428c570e3774f2a4cb848b7392c659da2.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-SemiBold because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/f833596d98e0e021dd43d993254658d0f32318f82f08afee0fc2e41c16ce9571.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+Error: google_fonts was unable to load font JetBrainsMono-Regular because the following exception occurred:
+Exception: Failed to load font with url: https://fonts.gstatic.com/s/a/fc34426314d00825ccc768a0c4b1178fe704f04bd947882ef10c2b71b7e355e7.ttf
+
+There is likely something wrong with your test. Please see https://github.com/flutter/packages/blob/main/packages/google_fonts/example/test for examples of how to test with google_fonts.
+If troubleshooting doesn't solve the problem, please file an issue at https://github.com/flutter/flutter/issues/new/choose.
+
+00:59 +158: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: picker failure reports no success (variant: TargetPlatform.linux)
+01:00 +159: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: NL-09: mobile picker retains byte ownership (variant: TargetPlatform.android)
+01:00 +160: /home/dog/git/quitepaper/test/notes/notes_zip_export_test.dart: (tearDownAll)
+01:00 +160: loading /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart
+01:01 +160: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: renders tags in default order when no tag is selected
+01:03 +161: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: places selected tag immediately next to All when filter is active
+01:03 +162: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: selecting a tag from outside moves it next to All and tapping it deselects
+01:03 +163: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: tapping a tag chip filters in-place without changing currentDestinationProvider
+01:03 +164: loading /home/dog/git/quitepaper/test/features/notes/gestures_test.dart
+01:05 +164: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) phone pull focuses search after the slide and system Back restores notes
+01:07 +165: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) phone Back tap during opening closes search
+01:08 +166: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 720.0 with swipe true
+01:08 +167: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 720.0 with swipe false
+01:09 +168: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 1280.0 with swipe true
+01:09 +169: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 1280.0 with swipe false
+01:10 +170: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux Ctrl+F opens search with swipe disabled
+01:10 +171: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search survives switching between window layouts
+01:11 +172: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on notes list past threshold triggers SearchScreen navigation
+01:12 +173: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) a drag that starts mid-list and scrolls up into the top does NOT open search
+01:12 +174: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down below threshold springs back and does not open SearchScreen
+01:12 +175: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on empty state triggers SearchScreen navigation
+01:12 +176: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) verifies zero RefreshIndicator widgets are present on NotesScreen
+01:12 +177: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on tablet split-view triggers SearchScreen navigation
+01:13 +178: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) tapping Search icon in AppBar opens SearchScreen
+01:13 +179: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) swiping from left edge on phone opens sidebar navigation drawer
+01:13 +180: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on notes list when swipeDownToSearchNotes is disabled does not open SearchScreen
+01:14 +181: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) tapping back button on unveiled SearchScreen smoothly closes search and restores notes list
+01:14 +182: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) dragging down past threshold then dragging back up below threshold cancels search
+01:14 +183: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down past 180px continues tracking smoothly without getting stuck
+01:15 +184: loading /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart
+01:16 +184: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: pull moves the card once and commits at finger release
+01:18 +185: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: upward reversal consumes pull before scrolling notes
+01:18 +186: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: canceling a pointer above threshold restores the list
+01:18 +187: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: Back reverses opening from its current position
+01:18 +188: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: system Back dismisses inline search
+01:18 +189: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: toolbar opening during spring-back preserves card position
+01:18 +190: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: opening during closing preserves position and accepts later Back
+01:18 +191: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: mid-list flings retain normal scrolling without arming search
+01:19 +192: All tests passed!

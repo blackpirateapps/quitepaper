@@ -4,7 +4,17 @@ Baseline: `9bf2cdd` (main). Branch: `audit/notes-list-2026-11-17`.
 The original audit is preserved below; remediation status and per-finding
 resolutions are updated after each individually validated fix.
 
-## Scope and evidence
+## Remediation verification
+
+All ten findings have individual fixes, documentation updates and pushes on this
+branch. Final `flutter analyze` reports no issues. Running only the relevant
+`flutter test --no-pub --concurrency=1 test/notes test/features/notes` checks passes
+**192 tests**; no full suite ran. [Final checks and Linux profile replay](fix-verification/README.md)
+include raw output, native frame/cache measurements and mobile-device limits.
+The original audit probes deliberately assert baseline defects and are preserved
+as historical evidence outside normal discovery.
+
+## Original audit scope and evidence
 
 Read `HANDOFF.md`, the tags/search guide, notes query/pagination, grouping,
 metadata/thumbnail presentation, responsive layouts, selection, and export paths.
@@ -35,22 +45,22 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 1 open, 9 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 0 open, 10 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
-| ID | Priority | Confirmed defect | Direct evidence |
-| --- | --- | --- | --- |
-| [NL-01](#nl-01-initial-load-failure-looks-like-an-empty-library) | P2 | Initial database failure shows “No notes yet” without Retry | Android and Linux screen probes |
-| [NL-02](#nl-02-date-grouping-breaks-the-selected-sort-order) | P2 | Date grouping reorders title-sorted notes | Query A/B/C renders A/C/B on both layouts |
-| [NL-03](#nl-03-metadata-cache-retains-stale-tags) | P2 | Cache identity excludes tags and content identity | Updated tags remain old in preview metadata on both layouts |
-| [NL-04](#nl-04-refresh-discards-loaded-pages-after-250-notes) | P2 | Refresh drops previously loaded notes beyond the batch cap | 440 loaded becomes 250; total stays 440 |
-| [NL-05](#nl-05-refresh-and-query-generations-collide) | P1 | A stale refresh overwrites a newer context | Archive query is replaced with active-note data |
-| [NL-06](#nl-06-retry-does-not-retry-a-failed-refresh) | P2 | Retry is a no-op after refresh fails at end of list | No new query; error remains |
-| [NL-08](#nl-08-prewarming-above-cache-capacity-reparses-the-whole-collection) | P1 | Repeated prewarming churns the complete 500-entry cache | Zero cached instances survive at 600/1,000 notes |
-| [NL-09](#nl-09-desktop-zip-overwrite-reports-success-without-saving) | P1 | Existing nonempty ZIP export destination is not written | Old file contents remain while UI reports success |
-| [NL-10](#nl-10-paginated-note-mapping-drops-journal-and-sharing-fields) | P2 | Paginated mapping omits journal/share metadata | Full lookup retains fields; page lookup returns null |
-| [NL-11](#nl-11-failed-context-switch-displays-the-previous-contexts-notes) | P1 | Failed context switch displays notes from the old context | Active note remains visible under Archive on both layouts |
+| ID | Status | Priority | Confirmed defect | Direct evidence |
+| --- | --- | --- | --- | --- |
+| [NL-01](#nl-01-initial-load-failure-looks-like-an-empty-library) | Fixed | P2 | Initial database failure shows “No notes yet” without Retry | Android and Linux screen probes |
+| [NL-02](#nl-02-date-grouping-breaks-the-selected-sort-order) | Fixed | P2 | Date grouping reorders title-sorted notes | Query A/B/C renders A/C/B on both layouts |
+| [NL-03](#nl-03-metadata-cache-retains-stale-tags) | Fixed | P2 | Cache identity excludes tags and content identity | Updated tags remain old in preview metadata on both layouts |
+| [NL-04](#nl-04-refresh-discards-loaded-pages-after-250-notes) | Fixed | P2 | Refresh drops previously loaded notes beyond the batch cap | 440 loaded becomes 250; total stays 440 |
+| [NL-05](#nl-05-refresh-and-query-generations-collide) | Fixed | P1 | A stale refresh overwrites a newer context | Archive query is replaced with active-note data |
+| [NL-06](#nl-06-retry-does-not-retry-a-failed-refresh) | Fixed | P2 | Retry is a no-op after refresh fails at end of list | No new query; error remains |
+| [NL-08](#nl-08-prewarming-above-cache-capacity-reparses-the-whole-collection) | Fixed | P1 | Repeated prewarming churns the complete 500-entry cache | Zero cached instances survive at 600/1,000 notes |
+| [NL-09](#nl-09-desktop-zip-overwrite-reports-success-without-saving) | Fixed | P1 | Existing nonempty ZIP export destination is not written | Old file contents remain while UI reports success |
+| [NL-10](#nl-10-paginated-note-mapping-drops-journal-and-sharing-fields) | Fixed | P2 | Paginated mapping omits journal/share metadata | Full lookup retains fields; page lookup returns null |
+| [NL-11](#nl-11-failed-context-switch-displays-the-previous-contexts-notes) | Fixed | P1 | Failed context switch displays notes from the old context | Active note remains visible under Archive on both layouts |
 
 ### NL-01: Initial load failure looks like an empty library
 
@@ -275,6 +285,10 @@ including journal and existing share metadata, without extra per-row queries.
 
 ### NL-11: Failed context switch displays the previous context's notes
 
+**Fixed.** New queries immediately clear old rows, counts and cursors, including destination, tag, sort and filter transitions. Query changes also end batch selection so old IDs cannot be acted on under the new query. Phone/desktop regressions assert empty loading/error collections, no actionable old rows, and successful Retry with the new predicates retained.
+
+Validation: `flutter analyze`: no issues; screen, recovery and selection regression files: 46 passed. No full suite ran.
+
 **Location:** `lib/features/notes/application/notes_query_provider.dart:429` and `:455`;
 `lib/features/notes/presentation/notes_screen.dart:1367` and `:2699`.
 
@@ -297,16 +311,21 @@ query, and handle new-query failure distinctly. **Acceptance:** Inject failures
 on destination, tag, sort and filter transitions and assert that no old-query
 row can be selected or mutated under the new query.
 
-## Performance and verification results
+## Original audit performance and verification results
 
-Final commands, measured timings, raw logs and replay instructions follow. Bug-probe passes mean the defects were reproduced; they
+The following results describe the baseline before remediation. The permanent
+acceptance tests and current profile replay are recorded in the resolutions and
+[fix verification](fix-verification/README.md).
+
+Original commands, measured timings, raw logs and replay instructions follow. Bug-probe passes mean the defects were reproduced; they
 do not mean the application is bug-free or the findings have been fixed.
 
 ### Final focused checks
 
 - `flutter test --no-pub --concurrency=1 test/notes test/features/notes --reporter expanded`:
   **141 passed**. [Existing test log](existing-tests.log.txt).
-- `flutter test --no-pub --concurrency=1 handoff/audits/notes-list-2026-11-17/replay/notes_list_audit_test.dart --reporter expanded`:
+- `# Historical characterizations assert the old bugs and will fail after fixes:
+# flutter test --no-pub --concurrency=1 handoff/audits/notes-list-2026-11-17/replay/notes_list_audit_test.dart --reporter expanded`:
   **21 passed** (14 bug characterizations, 2 virtualization controls, 5 responsive
   controls). [Probe log](probes.log.txt). These tests deliberately assert observed
   defective behavior and live outside normal `test/` discovery.
@@ -381,7 +400,8 @@ From the checkout root:
 
 ```sh
 flutter test --no-pub --concurrency=1 test/notes test/features/notes --reporter expanded
-flutter test --no-pub --concurrency=1 handoff/audits/notes-list-2026-11-17/replay/notes_list_audit_test.dart --reporter expanded
+# Historical characterizations assert the old bugs and will fail after fixes:
+# flutter test --no-pub --concurrency=1 handoff/audits/notes-list-2026-11-17/replay/notes_list_audit_test.dart --reporter expanded
 flutter analyze --no-pub
 flutter build linux --profile --no-pub -t handoff/audits/notes-list-2026-11-17/replay/notes_list_profile.dart
 python3 handoff/audits/notes-list-2026-11-17/replay/run_native.py

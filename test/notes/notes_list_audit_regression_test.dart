@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_metadata_extractor.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/domain/notes_query.dart';
+import 'package:quitepaper/features/notes/domain/notes_filter.dart';
 import 'package:quitepaper/features/notes/domain/notes_sort.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/notes/presentation/notes_screen.dart';
@@ -422,6 +424,76 @@ void main() {
         expect(NoteMetadataExtractor.cacheSize, lessThan(80));
         expect(t.takeException(), isNull);
       });
+    }
+  }
+  for (final layout in {
+    'mobile': const Size(390, 844),
+    'desktop': const Size(1440, 900),
+  }.entries) {
+    for (final transition in ['archive', 'trash', 'tag', 'sort', 'filter']) {
+      auditWidgets(
+        'NL-11 ${layout.key}: failed $transition switch removes old rows and selection',
+        (t) async {
+          repo.intercept = (q) async =>
+              result(q, [note('old-query', title: 'Previous query note')]);
+          final c = await mount(t, layout.value);
+          if (layout.key == 'desktop') {
+            await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+            await t.tap(find.text('Previous query note'));
+            await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          } else {
+            await t.longPress(find.text('Previous query note'));
+          }
+          await t.pumpAndSettle();
+          expect(find.text('1 selected'), findsOneWidget);
+          final gate = Completer<NotesQueryResult>();
+          repo.intercept = (_) => gate.future;
+          switch (transition) {
+            case 'archive':
+              c.read(currentDestinationProvider.notifier).state =
+                  AppDestination.archive;
+            case 'trash':
+              c.read(currentDestinationProvider.notifier).state =
+                  AppDestination.trash;
+            case 'tag':
+              c.read(selectedTagFilterProvider.notifier).state = 'work';
+            case 'sort':
+              c
+                  .read(notesQueryProvider.notifier)
+                  .setSort(const NotesSort(field: SortField.title));
+            case 'filter':
+              c
+                  .read(notesQueryProvider.notifier)
+                  .toggleContentFilter(ContentFilter.hasLinks);
+          }
+          final pending = c.read(notesCollectionProvider);
+          expect(pending.notes, isEmpty);
+          expect(pending.totalCount, 0);
+          expect(pending.cursor, isNull);
+          expect(pending.initialLoading, isTrue);
+          await t.pump();
+          expect(find.text('Previous query note'), findsNothing);
+          expect(find.text('1 selected'), findsNothing);
+          gate.completeError(StateError('New query failed'));
+          await t.pumpAndSettle();
+          expect(c.read(notesCollectionProvider).notes, isEmpty);
+          expect(find.byType(NoteListTile), findsNothing);
+          expect(find.byType(NoteEmptyState), findsNothing);
+          expect(find.text("Couldn't load notes"), findsOneWidget);
+          final query = c.read(notesCollectionProvider).query;
+          repo.intercept = (q) async =>
+              result(q, [note('new-query', title: 'Recovered query note')]);
+          await t.tap(find.text('Retry'));
+          await t.pumpAndSettle();
+          expect(find.text('Recovered query note'), findsOneWidget);
+          final recovered = c.read(notesCollectionProvider);
+          expect(recovered.query.context, query.context);
+          expect(recovered.query.filter, query.filter);
+          expect(recovered.query.sort, query.sort);
+          expect(recovered.error, isNull);
+          expect(t.takeException(), isNull);
+        },
+      );
     }
   }
 }

@@ -24,3 +24,15 @@ application list uses lazy extraction. Raw metrics, window checks, build output
 and isolated runtime output accompany this file. Restore the ordinary profile
 entry point with `flutter build linux --profile --no-pub -t lib/main.dart` after
 running the harness.
+
+## Final remediation checks
+
+- `flutter analyze`: no issues; [raw output](analysis.log.txt).
+- `flutter test --no-pub --concurrency=1 test/notes test/features/notes`:
+  **192 passed**; [raw output](notes-tests.log.txt). This covers only notes and
+  notes gestures, not the full Flutter suite.
+- Each of the ten findings has permanent acceptance coverage and its own fix
+  commit/push. Historical defect-characterization probes are unchanged.
+- Restored the normal profile entry point with
+  `flutter build linux --profile --no-pub -t lib/main.dart` successfully;
+  [build log](restore-build.log.txt).

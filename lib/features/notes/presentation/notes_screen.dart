@@ -46,6 +46,7 @@ import '../application/notes_query_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
+import '../domain/notes_query.dart';
 import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
@@ -784,6 +785,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final colors = context.appColors;
     final screenWidth = MediaQuery.of(context).size.width;
     final isTabletLayout = screenWidth >= 900.0;
+
+    ref.listen<NotesQuery>(notesQueryProvider, (prev, next) {
+      if (prev != next && _isMultiSelecting) _exitMultiSelect();
+    });
 
     ref.listen<AppDestination>(currentDestinationProvider, (prev, next) {
       if (prev != next) {

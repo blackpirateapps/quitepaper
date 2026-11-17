@@ -7204,3 +7204,19 @@ Implementation and permanent regression coverage accompany this entry. See the
 reproduction and updated resolution.
 
 Validation: `flutter analyze`: no issues; database query and pin-scope files: 25 passed. No full suite ran.
+
+## 327. NL-11 Notes List Remediation (November 17, 2026)
+
+New queries immediately clear old rows, counts and cursors, including destination, tag, sort and filter transitions. Query changes also end batch selection so old IDs cannot be acted on under the new query. Phone/desktop regressions assert empty loading/error collections, no actionable old rows, and successful Retry with the new predicates retained.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; screen, recovery and selection regression files: 46 passed. No full suite ran.
+
+Final notes-list integration validation: all **192** relevant notes and gesture
+tests pass with `--concurrency=1`; Flutter analysis reports no issues. The full
+suite was not run. Historical probes remain separate from normal discovery.
+The normal Linux profile bundle was restored from `lib/main.dart`; final test,
+analysis and build logs are retained in the audit fix-verification directory.
