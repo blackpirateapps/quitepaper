@@ -8,6 +8,63 @@ void main() {
   group('ClippedImageFilter', () {
     final baseUri = Uri.parse('https://example.com/blog/article');
 
+    test(
+      'star subjects remain content while explicit rating icons are filtered',
+      () {
+        for (final alt in [
+          'A star cluster in a nebula',
+          'Stars above the mountains',
+          'Startup team photograph',
+          'Star',
+        ]) {
+          final image = html_parser
+              .parseFragment(
+                '<img src="/photo.jpg" '
+                'width="1200" height="800" alt="$alt">',
+              )
+              .children
+              .single;
+          expect(
+            ClippedImageFilter.isUsefulContentImage(image, baseUri: baseUri),
+            isTrue,
+            reason: alt,
+          );
+          expect(
+            ClippedImageFilter.isUsefulImageUrl(
+              'https://example.com/photo.jpg',
+              altText: alt,
+            ),
+            isTrue,
+          );
+        }
+        for (final alt in [
+          'rating star',
+          'Rating Stars',
+          'rating-star',
+          'star icon',
+        ]) {
+          expect(
+            ClippedImageFilter.isUsefulImageUrl(
+              'https://example.com/rating.png',
+              altText: alt,
+            ),
+            isFalse,
+          );
+        }
+        final tiny = html_parser
+            .parseFragment(
+              '<img src="/star.png" alt="Star" '
+              'width="16" height="16">',
+            )
+            .children
+            .single;
+        expect(
+          ClippedImageFilter.isUsefulContentImage(tiny, baseUri: baseUri),
+          isFalse,
+        );
+      },
+    );
+
     test('skips tiny decorative icons by dimension attributes', () {
       final doc = html_parser.parseFragment('''
         <div>
@@ -23,10 +80,22 @@ void main() {
       final pixel = doc.querySelector('#pixel')!;
       final content = doc.querySelector('#content')!;
 
-      expect(ClippedImageFilter.isUsefulContentImage(icon1, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(icon2, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(pixel, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(content, baseUri: baseUri), isTrue);
+      expect(
+        ClippedImageFilter.isUsefulContentImage(icon1, baseUri: baseUri),
+        isFalse,
+      );
+      expect(
+        ClippedImageFilter.isUsefulContentImage(icon2, baseUri: baseUri),
+        isFalse,
+      );
+      expect(
+        ClippedImageFilter.isUsefulContentImage(pixel, baseUri: baseUri),
+        isFalse,
+      );
+      expect(
+        ClippedImageFilter.isUsefulContentImage(content, baseUri: baseUri),
+        isTrue,
+      );
     });
 
     test('skips icons by CSS style dimensions and icon classes', () {
@@ -42,13 +111,24 @@ void main() {
       final classIcon = doc.querySelector('#class-icon')!;
       final heroImg = doc.querySelector('#hero-img')!;
 
-      expect(ClippedImageFilter.isUsefulContentImage(styledIcon, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(classIcon, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(heroImg, baseUri: baseUri), isTrue);
+      expect(
+        ClippedImageFilter.isUsefulContentImage(styledIcon, baseUri: baseUri),
+        isFalse,
+      );
+      expect(
+        ClippedImageFilter.isUsefulContentImage(classIcon, baseUri: baseUri),
+        isFalse,
+      );
+      expect(
+        ClippedImageFilter.isUsefulContentImage(heroImg, baseUri: baseUri),
+        isTrue,
+      );
     });
 
-    test('skips images in noisy parent containers (nav, button, share-bar)', () {
-      final doc = html_parser.parseFragment('''
+    test(
+      'skips images in noisy parent containers (nav, button, share-bar)',
+      () {
+        final doc = html_parser.parseFragment('''
         <div>
           <nav>
             <img id="nav-logo" src="https://example.com/nav-logo.svg" />
@@ -65,43 +145,104 @@ void main() {
         </div>
       ''');
 
-      final navLogo = doc.querySelector('#nav-logo')!;
-      final btnImg = doc.querySelector('#btn-img')!;
-      final shareImg = doc.querySelector('#share-img')!;
-      final articleChart = doc.querySelector('#article-chart')!;
+        final navLogo = doc.querySelector('#nav-logo')!;
+        final btnImg = doc.querySelector('#btn-img')!;
+        final shareImg = doc.querySelector('#share-img')!;
+        final articleChart = doc.querySelector('#article-chart')!;
 
-      expect(ClippedImageFilter.isUsefulContentImage(navLogo, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(btnImg, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(shareImg, baseUri: baseUri), isFalse);
-      expect(ClippedImageFilter.isUsefulContentImage(articleChart, baseUri: baseUri), isTrue);
-    });
+        expect(
+          ClippedImageFilter.isUsefulContentImage(navLogo, baseUri: baseUri),
+          isFalse,
+        );
+        expect(
+          ClippedImageFilter.isUsefulContentImage(btnImg, baseUri: baseUri),
+          isFalse,
+        );
+        expect(
+          ClippedImageFilter.isUsefulContentImage(shareImg, baseUri: baseUri),
+          isFalse,
+        );
+        expect(
+          ClippedImageFilter.isUsefulContentImage(
+            articleChart,
+            baseUri: baseUri,
+          ),
+          isTrue,
+        );
+      },
+    );
 
-    test('skips tracking and beacon URLs while keeping AVIF, WebP, SVG and JPEG', () {
-      expect(ClippedImageFilter.isUsefulImageUrl('https://google-analytics.com/collect?v=1'), isFalse);
-      expect(ClippedImageFilter.isUsefulImageUrl('https://example.com/track/1x1.gif'), isFalse);
-      expect(ClippedImageFilter.isUsefulImageUrl('https://example.com/telemetry/beacon'), isFalse);
+    test(
+      'skips tracking and beacon URLs while keeping AVIF, WebP, SVG and JPEG',
+      () {
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://google-analytics.com/collect?v=1',
+          ),
+          isFalse,
+        );
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://example.com/track/1x1.gif',
+          ),
+          isFalse,
+        );
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://example.com/telemetry/beacon',
+          ),
+          isFalse,
+        );
 
-      expect(ClippedImageFilter.isUsefulImageUrl('https://cdn.example.com/photo.avif'), isTrue);
-      expect(ClippedImageFilter.isUsefulImageUrl('https://cdn.example.com/photo.webp'), isTrue);
-      expect(ClippedImageFilter.isUsefulImageUrl('https://cdn.example.com/diagram.svg'), isTrue);
-      expect(ClippedImageFilter.isUsefulImageUrl('https://cdn.example.com/photo.jpg'), isTrue);
-    });
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://cdn.example.com/photo.avif',
+          ),
+          isTrue,
+        );
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://cdn.example.com/photo.webp',
+          ),
+          isTrue,
+        );
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://cdn.example.com/diagram.svg',
+          ),
+          isTrue,
+        );
+        expect(
+          ClippedImageFilter.isUsefulImageUrl(
+            'https://cdn.example.com/photo.jpg',
+          ),
+          isTrue,
+        );
+      },
+    );
 
-    test('evaluates data URIs by payload length (skips 1x1 spacer, keeps rich diagram)', () {
-      // Tiny 1x1 transparent GIF spacer (< 200 chars)
-      const tinySpacer = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-      expect(ClippedImageFilter.isUsefulImageUrl(tinySpacer), isFalse);
+    test(
+      'evaluates data URIs by payload length (skips 1x1 spacer, keeps rich diagram)',
+      () {
+        // Tiny 1x1 transparent GIF spacer (< 200 chars)
+        const tinySpacer =
+            'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        expect(ClippedImageFilter.isUsefulImageUrl(tinySpacer), isFalse);
 
-      // Rich SVG diagram data URI (> 200 chars)
-      final encodedSvg = Uri.encodeComponent(
-        '<svg width="800" height="400"><rect width="800" height="400" fill="#f0f0f0"/><text x="20" y="40">System Architecture</text></svg>' * 3,
-      );
-      final richSvgDataUri = 'data:image/svg+xml;utf8,$encodedSvg';
-      expect(ClippedImageFilter.isUsefulImageUrl(richSvgDataUri), isTrue);
-    });
+        // Rich SVG diagram data URI (> 200 chars)
+        final encodedSvg = Uri.encodeComponent(
+          '<svg width="800" height="400"><rect width="800" height="400" fill="#f0f0f0"/><text x="20" y="40">System Architecture</text></svg>' *
+              3,
+        );
+        final richSvgDataUri = 'data:image/svg+xml;utf8,$encodedSvg';
+        expect(ClippedImageFilter.isUsefulImageUrl(richSvgDataUri), isTrue);
+      },
+    );
 
-    test('extracts best image source from <picture> with AVIF, WebP, and fallback', () {
-      final doc = html_parser.parseFragment('''
+    test(
+      'extracts best image source from <picture> with AVIF, WebP, and fallback',
+      () {
+        final doc = html_parser.parseFragment('''
         <picture id="pic1">
           <source type="image/avif" srcset="https://example.com/hero-800.avif 800w, https://example.com/hero-1600.avif 1600w">
           <source type="image/webp" srcset="https://example.com/hero.webp">
@@ -109,12 +250,16 @@ void main() {
         </picture>
       ''');
 
-      final pic1 = doc.querySelector('#pic1')!;
-      final bestSource = ClippedImageFilter.extractBestImageSource(pic1, baseUri);
+        final pic1 = doc.querySelector('#pic1')!;
+        final bestSource = ClippedImageFilter.extractBestImageSource(
+          pic1,
+          baseUri,
+        );
 
-      // Should prioritize the highest resolution AVIF source
-      expect(bestSource, 'https://example.com/hero-1600.avif');
-    });
+        // Should prioritize the highest resolution AVIF source
+        expect(bestSource, 'https://example.com/hero-1600.avif');
+      },
+    );
 
     test('extracts best image from responsive srcset on <img> tag', () {
       final doc = html_parser.parseFragment('''
@@ -122,7 +267,10 @@ void main() {
       ''');
 
       final img1 = doc.querySelector('#img1')!;
-      final bestSource = ClippedImageFilter.extractBestImageSource(img1, baseUri);
+      final bestSource = ClippedImageFilter.extractBestImageSource(
+        img1,
+        baseUri,
+      );
 
       expect(bestSource, 'https://example.com/photo-1200.avif');
     });
@@ -134,21 +282,30 @@ void main() {
       // 1x1 tracker dimension
       final trackerBytes = Uint8List(50);
       expect(
-        ClippedImageFilter.isMeaningfulImageBytes(trackerBytes, intrinsicSize: const Size(1, 1)),
+        ClippedImageFilter.isMeaningfulImageBytes(
+          trackerBytes,
+          intrinsicSize: const Size(1, 1),
+        ),
         isFalse,
       );
 
       // 16x16 icon dimension
       final iconBytes = Uint8List(50);
       expect(
-        ClippedImageFilter.isMeaningfulImageBytes(iconBytes, intrinsicSize: const Size(16, 16)),
+        ClippedImageFilter.isMeaningfulImageBytes(
+          iconBytes,
+          intrinsicSize: const Size(16, 16),
+        ),
         isFalse,
       );
 
       // 800x600 content image
       final contentBytes = Uint8List(5000);
       expect(
-        ClippedImageFilter.isMeaningfulImageBytes(contentBytes, intrinsicSize: const Size(800, 600)),
+        ClippedImageFilter.isMeaningfulImageBytes(
+          contentBytes,
+          intrinsicSize: const Size(800, 600),
+        ),
         isTrue,
       );
     });

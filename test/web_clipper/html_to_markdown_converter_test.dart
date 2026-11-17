@@ -7,6 +7,72 @@ void main() {
   group('HtmlToMarkdownConverter', () {
     const converter = HtmlToMarkdownConverter();
 
+    test('figures preserve all code, illustrations, text and captions once', () {
+      final element = html_parser
+          .parseFragment(
+            '<div>'
+            '<figure><pre><code class="language-sh">hexo publish draft</code></pre>'
+            '<figcaption>Publish a draft</figcaption></figure>'
+            '<figure><img src="one.png" alt="One"><p>Additional explanation.</p>'
+            '<img src="two.png" alt="Two"><pre><code>hexo new photo</code></pre>'
+            '<figcaption>Photo examples</figcaption></figure></div>',
+          )
+          .children
+          .single;
+      final markdown = converter.convert(
+        cleanedElement: element,
+        metadata: const ExtractedArticleMetadata(
+          sourceUrl: 'https://example.com',
+          title: 'Code figures',
+          domain: 'example.com',
+        ),
+      );
+      expect(markdown, contains('```sh\nhexo publish draft\n```'));
+      for (final content in [
+        'hexo publish draft',
+        '*Publish a draft*',
+        '![One](one.png)',
+        '![Two](two.png)',
+        'Additional explanation.',
+        'hexo new photo',
+        '*Photo examples*',
+      ]) {
+        expect(content.allMatches(markdown).length, 1, reason: content);
+      }
+    });
+
+    test('nested layout tables retain each paragraph and code block once', () {
+      final element = html_parser
+          .parseFragment(
+            '<table><tr><td><p>Outer introduction.</p>'
+            '<table><tr><td><h2>Article heading</h2><p>Unique article sentence.</p>'
+            '<pre><code>unique_example();</code></pre></td></tr></table>'
+            '<p>Outer conclusion.</p></td></tr></table>',
+          )
+          .children
+          .single;
+      final markdown = converter.convert(
+        cleanedElement: element,
+        metadata: const ExtractedArticleMetadata(
+          sourceUrl: 'https://example.com',
+          title: 'Layout article',
+          domain: 'example.com',
+        ),
+      );
+      for (final content in [
+        'Outer introduction.',
+        'Article heading',
+        'Unique article sentence.',
+        'unique_example();',
+        'Outer conclusion.',
+      ]) {
+        expect(content.allMatches(markdown).length, 1, reason: content);
+      }
+      expect(markdown, contains('## Article heading'));
+      expect(markdown, contains('```'));
+      expect(markdown, isNot(contains('| ---')));
+    });
+
     test('converts headings, formatting, lists, blockquotes, and tables', () {
       const htmlFragment = '''
 <div>
@@ -56,10 +122,15 @@ void main() {
       expect(markdown, contains('title: "Essay on Coding"'));
       expect(markdown, contains('source: "https://example.com/essay"'));
       expect(markdown, contains('author: "Jane Doe"'));
-      expect(markdown, contains('- clipped'));
-      expect(markdown, contains('- example.com'));
+      expect(markdown, isNot(contains('- clipped')));
+      expect(markdown, isNot(contains('- example.com')));
       expect(markdown, contains('- technology'));
-      expect(markdown, contains('> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)'));
+      expect(
+        markdown,
+        contains(
+          '> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)',
+        ),
+      );
       expect(markdown, contains('## Introduction'));
       expect(markdown, contains('**bold**'));
       expect(markdown, contains('*italic*'));

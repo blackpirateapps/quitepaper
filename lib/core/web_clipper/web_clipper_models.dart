@@ -102,11 +102,13 @@ class WebClipScanResult {
     required this.htmlSnapshotSizeEstimate,
     required this.images,
     this.isPageContentFallback = false,
+    this.preparedSnapshotHtml,
     this.acquisitionMethod = WebAcquisitionMethod.directHttp,
   });
 
   final ExtractedArticleMetadata metadata;
   final String rawHtml;
+  final String? preparedSnapshotHtml;
   final String cleanedArticleHtml;
   final String markdownBody;
   final int markdownSizeEstimate;
@@ -125,6 +127,7 @@ class WebClipScanResult {
   WebClipScanResult copyWith({
     ExtractedArticleMetadata? metadata,
     String? rawHtml,
+    String? preparedSnapshotHtml,
     String? cleanedArticleHtml,
     String? markdownBody,
     int? markdownSizeEstimate,
@@ -136,6 +139,7 @@ class WebClipScanResult {
     return WebClipScanResult(
       metadata: metadata ?? this.metadata,
       rawHtml: rawHtml ?? this.rawHtml,
+      preparedSnapshotHtml: preparedSnapshotHtml ?? this.preparedSnapshotHtml,
       cleanedArticleHtml: cleanedArticleHtml ?? this.cleanedArticleHtml,
       markdownBody: markdownBody ?? this.markdownBody,
       markdownSizeEstimate: markdownSizeEstimate ?? this.markdownSizeEstimate,

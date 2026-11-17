@@ -57,9 +57,7 @@ class WebCapturePayload {
 
   /// Effective URL for resolving relative links and asset paths.
   String get effectiveUrl =>
-      (canonicalUrl != null && canonicalUrl!.trim().isNotEmpty)
-          ? canonicalUrl!
-          : (finalUrl.isNotEmpty ? finalUrl : requestedUrl);
+      finalUrl.trim().isNotEmpty ? finalUrl.trim() : requestedUrl;
 
   /// Approximate byte size of the captured raw HTML string.
   int get htmlByteSize => html.length;

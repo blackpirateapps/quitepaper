@@ -52,6 +52,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   device_info_plus: ^12.4.0
   package_info_plus: ^9.0.1
+  mime: ^2.0.0
   http: ^1.2.2
   crypto: ^3.0.6
   file_picker: ^8.3.7
@@ -85,6 +86,7 @@ dependencies:
   flutter_math_fork: ^0.7.4
 
 dev_dependencies:
+  webview_flutter_platform_interface: ^2.15.1
   flutter_test:
     sdk: flutter
 

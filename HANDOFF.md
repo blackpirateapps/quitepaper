@@ -344,6 +344,131 @@ completed checklist, search, and Linux CI fixes. The PDF audit is log 313; the
 integration and combined-branch validation are recorded in log 314. The document
 guide now reports all ten PDF findings resolved.
 
+
+## Android Web Clipper Audit — November 17, 2026
+
+The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
+records **16/16 fixed; 0 open**, with individual reports, resolutions and replayable evidence.
+The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
+ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
+image substitution, editor navigation after saving, and dropped repeated shares.
+
+The [USB follow-up](handoff/audits/android-web-clipper-2026-11-17/usb-device-follow-up/README.md)
+adds six: URL-dialog loading overflow, triplicated layout-table prose, documents
+reduced to an index appendix, missing code figures, star-alt photo filtering, and
+failed pages marked ready. Five new findings have physical-device/real-page
+evidence; the star-alt finding is component-only. Actual WebView/save interaction
+also confirms WC-09 and stale state confirms WC-07 on a Redmi K20 Pro, Android 16.
+The original audit made no application changes. Subsequent remediation fixes all 16 findings; per-finding resolutions and regression validation follow below.
+
+The original audit’s final `flutter analyze` was clean. Initial checks passed 42 clipper tests, 15 Quick
+Capture tests and ten probes; the USB follow-up passes 23 relevant existing tests
+and four focused probes, with concurrency 1. No full suite ran. Executable audit
+sources were archived in Markdown and removed. Temporary Android build settings
+were restored, and the separate audit app was uninstalled. The original installed
+Quiet Paper and its notes were left untouched. Use USB and serialized builds for
+replay: an earlier emulator/build attempt was stopped after a reported host crash.
+
+### WC-01 Android web clipper fix
+
+Saved snapshot image sources now contain vault URLs; the viewer decrypts and embeds image bytes in memory for offline rendering, removing competing srcset references.
+
+Validation: flutter analyze: clean; 7 service, snapshot and image hydration tests passed. No full suite ran.
+
+### WC-02 Android web clipper fix
+
+Scan results retain prepared snapshot HTML, including inlined CSS, and saving reuses that HTML before rewriting downloaded image sources. The preview and saved snapshot now share the fetched styling.
+
+Validation: flutter analyze: clean; 13 service, scanner and snapshot tests passed. No full suite ran.
+
+### WC-03 Android web clipper fix
+
+Snapshot write failures emit failed progress and propagate to the preview error handler. Saving stops before note persistence and never emits complete for the failed request.
+
+Validation: flutter analyze: clean; 7 service and preview tests passed, including injected vault failure. No full suite ran.
+
+### WC-04 Android web clipper fix
+
+The saved note and Markdown use exactly the preview tag selection. Default chips remain in the preview, but removing either or all chips is respected, including explicit empty tags in repository persistence.
+
+Validation: flutter analyze: clean; 10 service, browser acquisition and preview tests passed. No full suite ran.
+
+### WC-05 Android web clipper fix
+
+Browser payloads resolve resources and source metadata against the final loaded document URL. Canonical publication URLs remain metadata and no longer redirect relative images or hyperlinks to another origin.
+
+Validation: flutter analyze: clean; 16 scanner, browser controller and acquisition parity tests passed. No full suite ran.
+
+### WC-06 Android web clipper fix
+
+Direct acquisition follows a bounded HTTP redirect chain while retaining the final document URL. Extraction, source metadata, relative links, image probes and snapshot bases now use that final URL.
+
+Validation: flutter analyze: clean; 10 redirect, scanner and parity tests passed, including a real local HTTP redirect. No full suite ran.
+
+### WC-07 Android web clipper fix
+
+Browser state copyWith now distinguishes omitted transient messages from explicit null. Navigation and reset calls can clear old error/status messages while unrelated copies preserve them.
+
+Validation: flutter analyze: clean; 11 browser controller and screen tests passed. No full suite ran.
+
+### WC-08 Android web clipper fix
+
+Image download mappings and Markdown resolution retain full query identity. Query-free aliases and path-only fallbacks were removed, so a failed image cannot inherit another illustration. Regression coverage checks both persisted snapshot and Markdown.
+
+Validation: flutter analyze: clean; 9 service and downloader tests passed. No full suite ran.
+
+### WC-09 Android web clipper fix
+
+Browser previews return the saved note without opening an editor themselves. The browser resets processing state and replaces its own route with the saved editor in all three save paths. A route-observer regression verifies only the preview is popped and the replacement editor holds the saved note.
+
+Validation: flutter analyze: clean; 5 navigation, browser and preview widget tests passed. No full suite ran.
+
+### WC-10 Android web clipper fix
+
+Quick Capture queues distinct incoming requests while a capture route is open and opens them in FIFO order after that route closes. Duplicate active or queued shares are suppressed without discarding other URLs. Disposal clears queued session state.
+
+Validation: flutter analyze: clean; 16 coordinator, Quick Capture screen and normalizer tests passed. No full suite ran.
+
+WC-04 follow-up: the Markdown converter also respects explicit tag selections in YAML frontmatter. Service regressions now inspect YAML entries as well as the Note model, covering the second default-tag insertion path. Validation: flutter analyze clean; 11 service, converter and browser acquisition tests passed.
+
+### WC-11 Android web clipper fix
+
+URL dialog actions wrap independently across lines when available width is insufficient, including when Continue adds a loading spinner. All actions stay within the dialog at 320, 360 and 392.7 dp.
+
+Validation: flutter analyze: clean; 4 focused URL dialog widget tests passed. No full suite ran.
+
+### WC-12 Android web clipper fix
+
+Nested and presentation/layout tables convert as document flow, preserving paragraphs, headings and fenced code once. Flat tables enumerate only direct row cells, preventing descendant-cell duplication while retaining ordinary data-table Markdown.
+
+Validation: flutter analyze: clean; 17 converter, scanner and service tests passed. No full suite ran.
+
+### WC-13 Android web clipper fix
+
+Scored sections expand to a shared multi-section document container instead of discarding sibling chapters. Whole-body extraction is marked as fallback, and semantic sections/headings survive noise names such as Comments and Header Fields. A local replay of RFC 9110 retains all 154 h1/h2/h3 headings and all 161 pre blocks (previously 1 and 0).
+
+Validation: flutter analyze: clean; 15 permanent extraction/scanner/parity tests and one temporary RFC replay passed; temporary local-file probe removed. No full suite ran.
+
+### WC-14 Android web clipper fix
+
+Figure conversion preserves every child instead of selecting only the first image. Code-only and mixed-content figures retain fenced examples, explanatory text, all illustrations and italic captions exactly once.
+
+Validation: flutter analyze: clean; 12 converter, picture extraction and service tests passed. No full suite ran.
+
+### WC-15 Android web clipper fix
+
+Alt-text filtering no longer treats the substring star as decoration. Astronomy photos, Star labels and Startup descriptions survive both DOM and URL filtering; explicit rating-star labels and tiny icons remain excluded.
+
+Validation: flutter analyze: clean; 17 image-filter, picture extraction and scanner tests passed. No full suite ran.
+
+### WC-16 Android web clipper fix
+
+Main-frame load failures latch to the current navigation generation, cancel readiness/slow-load timers and keep Clip disabled. Late progress, finish and pending JavaScript callbacks cannot promote a failed page or replace its requested URL with a Chromium error URL. Retry/new navigation starts a fresh generation; subframe and cancellation errors remain nonfatal.
+
+Validation: flutter analyze: clean; 17 focused browser lifecycle, state, screen and save-navigation tests passed. No full suite ran.
+
+Android web clipper remediation complete: **16/16 fixed; 0 open**. Final combined web clipper and Quick Capture regression run: **92 passed**, serialized with `--concurrency=1`; Flutter analysis is clean. All fixes and progress updates were committed and pushed individually (WC-04 also has a YAML-frontmatter follow-up). No full suite, Android build or new physical-device replay was run.
+
 ## Main CI test stabilization — November 17, 2026
 
 The Test & Analyze run `44049227585` and Linux run `44049227588` at `810704c` both passed static analysis but failed the scanner document-viewer widget test because Syncfusion's 500ms tile callback remained pending. The former also failed the desktop PDF overwrite test when its fixed 150ms delay expired before the flushed file write completed and the success snackbar appeared.
@@ -351,3 +476,9 @@ The Test & Analyze run `44049227585` and Linux run `44049227588` at `810704c` bo
 The scanner test now unmounts the viewer and drains the deferred tile callback before exiting. PDF export tests use the existing bounded `pumpUntilFound` helper to wait for the actual success UI, allowing real filesystem work to complete; exact-byte equality, truncation of an existing longer file, cancellation and Downloads-fallback assertions remain intact. No application behavior or workflow checks were changed.
 
 Validation: reproduced the pending-timer failure before the fix; `flutter analyze --no-pub` reports no issues, and `flutter test --no-pub --concurrency=1 test/scanner/scanner_ui_test.dart test/documents/document_viewer_export_test.dart` passes all **8 tests**. No full suite ran locally.
+
+## PR #10 integration with main
+
+Merged the main-branch PDF viewer teardown and export-wait test fixes into the Android web clipper branch before merging PR #10. Resolved the HANDOFF append conflict by retaining both the completed 16-finding web clipper remediation and the main CI stabilization notes.
+
+Combined-branch validation: `flutter analyze` reports no issues; `flutter test --no-pub --concurrency=1 test/web_clipper test/quick_capture test/scanner/scanner_ui_test.dart test/documents/document_viewer_export_test.dart` passes **100 relevant tests**. No full suite ran locally. PR #10's previous CI failures were the two timing failures corrected in main's `201c5e3`; main's subsequent Test & Analyze run `44078219655` passed.

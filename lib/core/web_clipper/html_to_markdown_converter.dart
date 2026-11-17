@@ -47,16 +47,17 @@ class HtmlToMarkdownConverter {
       buffer.writeln('author: "${metadata.author!.trim()}"');
     }
     final createdDate = metadata.publishedDate ?? DateTime.now();
-    buffer.writeln('created: "${DateFormat('yyyy-MM-dd').format(createdDate)}"');
-    if (metadata.description != null && metadata.description!.trim().isNotEmpty) {
-      buffer.writeln('description: ${_escapeYaml(metadata.description!.trim())}');
+    buffer.writeln(
+      'created: "${DateFormat('yyyy-MM-dd').format(createdDate)}"',
+    );
+    if (metadata.description != null &&
+        metadata.description!.trim().isNotEmpty) {
+      buffer.writeln(
+        'description: ${_escapeYaml(metadata.description!.trim())}',
+      );
     }
 
-    final allTags = <String>{
-      'clipped',
-      if (metadata.domain.isNotEmpty) metadata.domain,
-      ...tags,
-    };
+    final allTags = tags.toSet();
     if (allTags.isNotEmpty) {
       buffer.writeln('tags:');
       for (final tag in allTags) {
@@ -74,7 +75,9 @@ class HtmlToMarkdownConverter {
       final sizeStr = snapshotSizeBytes != null && snapshotSizeBytes > 0
           ? ' • ${_formatBytes(snapshotSizeBytes)}'
           : '';
-      buffer.writeln('> 🌐 **Original Web Snapshot Attached**$sizeStr — [View Web Snapshot →](qp://document/$snapshotDocumentId)');
+      buffer.writeln(
+        '> 🌐 **Original Web Snapshot Attached**$sizeStr — [View Web Snapshot →](qp://document/$snapshotDocumentId)',
+      );
       buffer.writeln();
     }
 
@@ -91,7 +94,12 @@ class HtmlToMarkdownConverter {
     return buffer.toString();
   }
 
-  String _convertNode(dom.Node node, {int listDepth = 0, bool isOrdered = false, int itemIndex = 1}) {
+  String _convertNode(
+    dom.Node node, {
+    int listDepth = 0,
+    bool isOrdered = false,
+    int itemIndex = 1,
+  }) {
     if (node is dom.Text) {
       return _cleanText(node.text);
     }
@@ -159,7 +167,9 @@ class HtmlToMarkdownConverter {
         final codeText = (codeEl != null ? codeEl.text : el.text).trim();
         final langClass = codeEl?.className ?? el.className;
         var lang = '';
-        final match = RegExp(r'language-([a-zA-Z0-9_\-]+)').firstMatch(langClass);
+        final match = RegExp(
+          r'language-([a-zA-Z0-9_\-]+)',
+        ).firstMatch(langClass);
         if (match != null) {
           lang = match.group(1) ?? '';
         }
@@ -176,7 +186,10 @@ class HtmlToMarkdownConverter {
         for (final child in el.children) {
           if (child.localName?.toLowerCase() == 'li') {
             final indent = '  ' * listDepth;
-            final text = _childrenToText(child, listDepth: listDepth + 1).trim();
+            final text = _childrenToText(
+              child,
+              listDepth: listDepth + 1,
+            ).trim();
             buf.writeln('$indent- $text');
           }
         }
@@ -189,7 +202,12 @@ class HtmlToMarkdownConverter {
         for (final child in el.children) {
           if (child.localName?.toLowerCase() == 'li') {
             final indent = '  ' * listDepth;
-            final text = _childrenToText(child, listDepth: listDepth + 1, isOrdered: true, itemIndex: idx).trim();
+            final text = _childrenToText(
+              child,
+              listDepth: listDepth + 1,
+              isOrdered: true,
+              itemIndex: idx,
+            ).trim();
             buf.writeln('$indent$idx. $text');
             idx++;
           }
@@ -211,7 +229,12 @@ class HtmlToMarkdownConverter {
       case 'picture':
         final img = el.querySelector('img');
         if (img != null) {
-          return _convertNode(img, listDepth: listDepth, isOrdered: isOrdered, itemIndex: itemIndex);
+          return _convertNode(
+            img,
+            listDepth: listDepth,
+            isOrdered: isOrdered,
+            itemIndex: itemIndex,
+          );
         }
         return '';
 
@@ -224,13 +247,11 @@ class HtmlToMarkdownConverter {
         return '\n\n![$alt]($src)\n\n';
 
       case 'figure':
-        final img = el.querySelector('img');
-        final figcaption = el.querySelector('figcaption')?.text.trim();
-        final imgMarkdown = img != null ? _convertNode(img) : '';
-        if (figcaption != null && figcaption.isNotEmpty) {
-          return '$imgMarkdown\n*$figcaption*\n\n';
-        }
-        return imgMarkdown;
+        return _childrenToText(el, listDepth: listDepth);
+
+      case 'figcaption':
+        final caption = _childrenToText(el).trim();
+        return caption.isEmpty ? '' : '\n*$caption*\n\n';
 
       case 'table':
         return _convertTable(el);
@@ -254,30 +275,49 @@ class HtmlToMarkdownConverter {
   }) {
     final buf = StringBuffer();
     for (final node in el.nodes) {
-      buf.write(_convertNode(
-        node,
-        listDepth: listDepth,
-        isOrdered: isOrdered,
-        itemIndex: itemIndex,
-      ));
+      buf.write(
+        _convertNode(
+          node,
+          listDepth: listDepth,
+          isOrdered: isOrdered,
+          itemIndex: itemIndex,
+        ),
+      );
     }
     return buf.toString();
   }
 
   String _convertTable(dom.Element tableEl) {
+    // Nested/layout tables contain document flow rather than a flat grid.
+    if (tableEl.querySelector('table') != null ||
+        tableEl.attributes['role'] == 'presentation' ||
+        (tableEl.querySelector('th') == null &&
+            tableEl.querySelector('p, h1, h2, h3, h4, h5, h6, pre, article') !=
+                null)) {
+      return _childrenToText(tableEl);
+    }
     final rows = tableEl.querySelectorAll('tr');
     if (rows.isEmpty) return '';
 
     final tableData = <List<String>>[];
     for (final row in rows) {
-      final cells = row.querySelectorAll('th, td');
+      final cells = row.children
+          .where((cell) => cell.localName == 'th' || cell.localName == 'td')
+          .toList();
       if (cells.isEmpty) continue;
-      tableData.add(cells.map((c) => _childrenToText(c).trim().replaceAll('\n', ' ')).toList());
+      tableData.add(
+        cells
+            .map((c) => _childrenToText(c).trim().replaceAll('\n', ' '))
+            .toList(),
+      );
     }
 
     if (tableData.isEmpty) return '';
 
-    final maxCols = tableData.fold<int>(0, (max, row) => row.length > max ? row.length : max);
+    final maxCols = tableData.fold<int>(
+      0,
+      (max, row) => row.length > max ? row.length : max,
+    );
     if (maxCols == 0) return '';
 
     final buf = StringBuffer('\n\n');
@@ -318,7 +358,10 @@ class HtmlToMarkdownConverter {
   }
 
   String _escapeYaml(String value) {
-    if (value.contains('\n') || value.contains('"') || value.contains(':') || value.contains('#')) {
+    if (value.contains('\n') ||
+        value.contains('"') ||
+        value.contains(':') ||
+        value.contains('#')) {
       final escaped = value.replaceAll('"', r'\"').replaceAll('\n', ' ');
       return '"$escaped"';
     }

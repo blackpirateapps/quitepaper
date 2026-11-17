@@ -8,9 +8,7 @@ import 'web_clipper_models.dart';
 /// Generates self-contained, authentic offline HTML/CSS snapshot documents
 /// that preserve original webpage styling, layout, typography, and assets.
 class WebSnapshotGenerator {
-  WebSnapshotGenerator({
-    this.httpClient,
-  });
+  WebSnapshotGenerator({this.httpClient});
 
   final http.Client? httpClient;
 
@@ -45,7 +43,8 @@ class WebSnapshotGenerator {
 
     // 2. Ensure <meta charset="utf-8">
     if (head.querySelector('meta[charset]') == null) {
-      final charsetMeta = dom.Element.tag('meta')..attributes['charset'] = 'utf-8';
+      final charsetMeta = dom.Element.tag('meta')
+        ..attributes['charset'] = 'utf-8';
       head.nodes.insert(0, charsetMeta);
     }
 
@@ -88,21 +87,27 @@ class WebSnapshotGenerator {
         cssFutures.add(() async {
           try {
             final uri = Uri.tryParse(resolvedCssUrl);
-            if (uri != null && (uri.isScheme('http') || uri.isScheme('https'))) {
-              final res = await client.get(
-                uri,
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
-                  'Accept': 'text/css,*/*;q=0.1',
-                },
-              ).timeout(const Duration(seconds: 8));
+            if (uri != null &&
+                (uri.isScheme('http') || uri.isScheme('https'))) {
+              final res = await client
+                  .get(
+                    uri,
+                    headers: {
+                      'User-Agent':
+                          'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+                      'Accept': 'text/css,*/*;q=0.1',
+                    },
+                  )
+                  .timeout(const Duration(seconds: 8));
 
-              if (res.statusCode >= 200 && res.statusCode < 300 && res.body.trim().isNotEmpty) {
+              if (res.statusCode >= 200 &&
+                  res.statusCode < 300 &&
+                  res.body.trim().isNotEmpty) {
                 final inlinedCss = _rewriteCssUrls(res.body, resolvedCssUrl);
                 final styleElement = dom.Element.tag('style')
                   ..attributes['data-source-href'] = resolvedCssUrl
-                  ..text = '\n/* Inlined from $resolvedCssUrl */\n$inlinedCss\n';
+                  ..text =
+                      '\n/* Inlined from $resolvedCssUrl */\n$inlinedCss\n';
                 link.replaceWith(styleElement);
                 return;
               }
@@ -152,8 +157,10 @@ class WebSnapshotGenerator {
         final resolved = _resolveUrl(metadata.sourceUrl, src);
         if (localImageSources.containsKey(src)) {
           img.attributes['src'] = localImageSources[src]!;
+          img.attributes.remove('srcset');
         } else if (localImageSources.containsKey(resolved)) {
           img.attributes['src'] = localImageSources[resolved]!;
+          img.attributes.remove('srcset');
         } else if (!src.startsWith('data:') && !src.startsWith('qp://')) {
           img.attributes['src'] = resolved;
         }
