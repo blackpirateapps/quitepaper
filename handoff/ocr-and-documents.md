@@ -68,6 +68,8 @@ The OCR system lives in [`lib/core/ocr/`](file:///home/dog/git/quitepaper/lib/co
 ---
 
 ## Key References & Logs
+
+- Images and scanner audit (November 17, 2026): [14 open findings, pixel/async probes and Dart VM benchmarks](audits/images-scanner-2026-11-17/README.md). Covers scanner geometry, image previews/editing/compression, desktop image export and inline cache behavior; production fixes are not included. See log 328.
 - PDF Viewer Stress Audit (November 16, 2026): [10 resolved findings and evidence](audits/pdf-viewer-stress-2026-11-16/README.md), including pending-save/failed-exit annotation loss, thumbnail races and native debug stalls. The audit includes targeted stress coverage and explicit platform limits; all ten findings now have fixes and regression coverage. See [log 313](latest-logs.md#313-pdf-viewer-native-audit-and-targeted-stress-tests-november-16-2026).
 - Syncfusion PDF Viewer Migration: [Latest Logs, Section 215 & 217](latest-logs.md#215-feature-syncfusion-flutter-pdf-viewer-migration-with-non-destructive-dual-storage-october-2026)
 - Custom Floating Menu & PDF Search: [Latest Logs, Section 216](latest-logs.md#216-feature-quiet-paper-custom-floating-text-selection-menu--in-document-pdf-search-october-2026)

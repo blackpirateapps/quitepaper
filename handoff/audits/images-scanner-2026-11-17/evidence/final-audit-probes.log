@@ -1,0 +1,44 @@
+00:00 +0: loading /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart
+00:00 +0: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: IS-01 rotated rectangle exports blue instead of selected red
+IS-01 rectangle center=[0, 0, 254]; expected red [255,0,0]
+00:00 +1: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: IS-01 rotated quad exports blue instead of selected red
+IS-01 quad center=[0, 0, 254]; expected rotated red
+00:00 +2: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: IS-03 brightness preview lifts black, exported bitmap stays black
+IS-03 preview black=128.0, exported black=0
+00:00 +3: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: IS-05 synchronous preview preparation blocks queued callbacks
+IS-05 [{"sync_ms":1025.817,"total_ms":1026.179,"callback_before_return":false,"source_bytes":2091326,"preview_bytes":100984,"thumbnail_bytes":11613},{"sync_ms":924.647,"total_ms":924.733,"callback_before_return":false,"source_bytes":2091326,"preview_bytes":100984,"thumbnail_bytes":11613},{"sync_ms":947.774,"total_ms":947.858,"callback_before_return":false,"source_bytes":2091326,"preview_bytes":100984,"thumbnail_bytes":11613}]
+00:04 +4: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: landscape PDF page geometry measurement
+Landscape source aspect=1.5, PDF aspect=1.414285709246032, size=Size(841.9, 595.3)
+00:04 +5: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: animated GIF compression frame count measurement
+GIF input=1999 output=1009 compressed=true mime=image/jpeg frames=1
+00:04 +6: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/pixel_probe.dart: IS-08 eligible GIF loses animation without force
+IS-08 normal eligible GIF: input=880227 output=221421 frames=4 -> 1
+00:06 +7: loading /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart
+00:07 +7: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: (setUpAll)
+00:07 +7: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-02 review canvas ignores applied rectangular crop
+IS-02 review size unchanged=Size(120.0, 80.0), exported image=60x80
+00:08 +8: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-04 desktop Save Image no write (existing=false)
+IS-13 preloaded network viewer emitted build-phase setState diagnostic
+IS-04 success UI despite existing=false and no image write
+00:09 +9: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-04 desktop Save Image no write (existing=true)
+IS-13 preloaded network viewer emitted build-phase setState diagnostic
+IS-04 success UI despite existing=true and no image write
+00:09 +10: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-06 delayed auto-detection overwrites committed Full Page
+Camera initialization fallback: MissingPluginException(No implementation found for method availableCameras on channel plugins.flutter.io/camera)
+IS-06 Full Page was committed, then replaced by stale detector result
+00:10 +11: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-09 cached plaintext still displays when service becomes locked
+IS-09 cached asset renders while resolver is locked, resolve calls=1
+00:10 +12: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-10 200 unmounted image sources are all retained after engine eviction
+IS-10 all 200 distinct sources survive unmount and Flutter image cache clear
+00:14 +13: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-11 stale resolution replaces the new source pixels
+IS-11 current widget asset=B, actual displayed MemoryImage=A
+00:14 +14: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: IS-14 ORIGINAL comparison keeps the monochrome mode bitmap
+IS-14 ORIGINAL badge is visible but MemoryImage still contains monochrome bytes
+00:14 +15: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: late gallery callback after disposal is observed
+Camera initialization fallback: MissingPluginException(No implementation found for method availableCameras on channel plugins.flutter.io/camera)
+Gallery import error: setState() called after dispose(): _DocumentScannerScreenState#4ac50(lifecycle state: defunct, not mounted, ticker inactive)
+This error happens if you call setState() on a State object for a widget that no longer appears in the widget tree (e.g., whose parent widget no longer includes the widget in its build). This error can occur when code calls setState() from a timer, from an animation callback, or after an asynchronous operation (such as an awaited network request or other Future) completes after the widget has been removed from the tree.
+The preferred solution is to cancel the timer or stop listening to the animation in the dispose() callback. Another solution is to check the "mounted" property of this object before calling setState() to ensure the object is still in the tree.
+This error might indicate a memory leak if setState() is being called because another object is retaining a reference to this State object after it has been removed from the tree. To avoid memory leaks, consider breaking the reference to this object during dispose().
+00:15 +16: /home/dog/git/quitepaper/handoff/audits/images-scanner-2026-11-17/probes/widget_probe.dart: (tearDownAll)
+00:15 +16: All tests passed!

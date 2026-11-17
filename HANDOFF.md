@@ -571,3 +571,20 @@ verify the fixes. The Linux profile replay and its explicit mobile limits are in
 No full suite ran.
 The normal Linux profile bundle was rebuilt from `lib/main.dart` after the
 isolated benchmark; its restore log is retained with the verification evidence.
+
+## Images and Document Scanner Audit — November 17, 2026
+
+The [image/scanner audit](handoff/audits/images-scanner-2026-11-17/README.md)
+records **14 confirmed bugs, all open**, on `audit/images-scanner-2026-11-17`
+from `8724bf0`. Each finding was documented when discovered. Coverage includes
+crop/rotation correctness, preview/export parity, desktop image saves, GIF
+compression, async image/detector races, plaintext-cache access and retention,
+and scanner/viewer lifecycle errors. This branch contains audit documentation,
+reproduction sources and measured evidence; application behavior is unchanged.
+
+**114 relevant existing tests and 16 audit characterization probes pass.** The
+probes assert baseline defects and are kept outside normal test discovery;
+they are evidence, not acceptance tests for future fixes. The full suite was
+not run. Dart VM mode/encoding and multipage benchmarks and a Flutter 12 MP
+preparation measurement are retained with explicit Linux/JIT and device limits.
+Final Flutter analysis reports no issues. See engineering log 328 for scope and validation.

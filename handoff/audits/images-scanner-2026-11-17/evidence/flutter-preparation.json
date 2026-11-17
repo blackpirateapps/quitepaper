@@ -1,0 +1,26 @@
+[
+  {
+    "sync_ms": 1025.817,
+    "total_ms": 1026.179,
+    "callback_before_return": false,
+    "source_bytes": 2091326,
+    "preview_bytes": 100984,
+    "thumbnail_bytes": 11613
+  },
+  {
+    "sync_ms": 924.647,
+    "total_ms": 924.733,
+    "callback_before_return": false,
+    "source_bytes": 2091326,
+    "preview_bytes": 100984,
+    "thumbnail_bytes": 11613
+  },
+  {
+    "sync_ms": 947.774,
+    "total_ms": 947.858,
+    "callback_before_return": false,
+    "source_bytes": 2091326,
+    "preview_bytes": 100984,
+    "thumbnail_bytes": 11613
+  }
+]

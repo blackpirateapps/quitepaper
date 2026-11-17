@@ -7220,3 +7220,41 @@ tests pass with `--concurrency=1`; Flutter analysis reports no issues. The full
 suite was not run. Historical probes remain separate from normal discovery.
 The normal Linux profile bundle was restored from `lib/main.dart`; final test,
 analysis and build logs are retained in the audit fix-verification directory.
+
+## 328. Images and Document Scanner Bug and Performance Audit (November 17, 2026)
+
+Read the root handoff, OCR/documents guide, scanner geometry/preset contract and
+image/scanner implementations before creating `audit/images-scanner-2026-11-17`
+from active-branch baseline `8724bf0`. Findings were appended immediately to the
+[audit report](audits/images-scanner-2026-11-17/README.md). All **14 findings remain
+open**; this is an audit and evidence commit, with no production fixes.
+
+Eight P1 findings cover crop coordinates after rotation, tone preview/export
+mismatch, desktop image-save false success, synchronous full-resolution preview
+preparation, stale automatic crop overwrite, dropped GIF frames, inline cache
+lock-resolution bypass, and stale source pixels. Six P2 findings cover missing
+crop review, incorrect landscape PDF geometry, unbounded source-byte retention,
+late gallery callbacks after disposal, parent notifications during viewer build,
+and the ORIGINAL comparison retaining the baked scanner mode.
+
+Verification: **114 existing tests** in `test/scanner`, `test/image_processing`,
+the four image layout/dimension/inline/viewer files and two editor compression
+files pass, serialized with `--concurrency=1`. **16 additional characterization
+probes** pass against real pixel processing/PDF output and controlled async
+widget completions. Expected application diagnostics are asserted or retained;
+none is represented as a repaired behavior. Final `flutter analyze --no-pub`
+reports no issues. No full suite ran.
+
+Performance evidence includes 4000×3000 JPEG preview preparation (three measured
+calls, with source creation outside timing), 90 Dart VM pipeline/encode samples
+across six modes at 600/1600/2048px, and sequential 1/5/10-page Auto processing.
+The report records medians, sample p95, output sizes and process RSS, exact run
+commands, runtime/CPU and limitations. Flutter JIT/UI-isolate duration is distinct
+from native release frame timing. Physical cameras, Android/iOS, native mobile
+pickers, GPU/raster FPS, sustained thermal/load behavior and OCR-model latency
+were not exercised. No real user notes were changed. An unrelated pre-existing
+untracked prompt is excluded from the commit.
+
+Modified files: `HANDOFF.md`, this log, a reference in `ocr-and-documents.md`, and
+`handoff/audits/images-scanner-2026-11-17/` (report, three reproducible Dart sources,
+raw focused-test/analysis outputs and benchmark/environment JSON).
