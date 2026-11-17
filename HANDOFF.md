@@ -594,3 +594,9 @@ Final Flutter analysis reports no issues. See engineering log 328 for scope and 
 Rectangle crops and perspective quads now apply in oriented source coordinates before rotation in both processing paths. Four-rotation pixel regressions preserve the selected red region and output orientation.
 
 Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-02 image/scanner audit fix — November 17, 2026
+
+Review and adjustment canvases render bounded crop/dewarp previews, discard stale geometry jobs, and return to source framing for corner editing. Scanner review now supplies the selected document quad.
+
+Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.

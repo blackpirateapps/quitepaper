@@ -5,6 +5,7 @@ import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/image_processing/document_quad.dart';
 import '../../../../core/image_processing/image_adjustments.dart';
+import '../../../../core/image_processing/image_processor.dart';
 import 'interactive_crop_overlay.dart';
 import 'interactive_quad_overlay.dart';
 
@@ -65,6 +66,45 @@ class ScannerPreviewCanvas extends StatefulWidget {
 class _ScannerPreviewCanvasState extends State<ScannerPreviewCanvas> {
   final TransformationController _transformController = TransformationController();
   bool _isComparingOriginal = false;
+  Uint8List? _geometryBytes;
+  int _geometryGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareGeometry();
+  }
+
+  @override
+  void didUpdateWidget(ScannerPreviewCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.previewBytes != widget.previewBytes ||
+        oldWidget.adjustments.crop != widget.adjustments.crop ||
+        oldWidget.quad != widget.quad ||
+        oldWidget.isCropMode != widget.isCropMode) {
+      _prepareGeometry();
+    }
+  }
+
+  Future<void> _prepareGeometry() async {
+    final generation = ++_geometryGeneration;
+    _geometryBytes = null;
+    if (widget.isCropMode ||
+        ((widget.quad == null || widget.quad!.isFullFrame) &&
+            (widget.adjustments.crop == null ||
+                widget.adjustments.crop == ImageAdjustments.neutral.crop))) {
+      _geometryBytes = widget.previewBytes;
+      return;
+    }
+    final result = await const DartImageProcessor().processHighResolution(
+      widget.previewBytes,
+      ImageAdjustments(crop: widget.adjustments.crop),
+      maxDimension: DartImageProcessor.previewMaxDimension,
+      documentQuad: widget.quad,
+    );
+    if (!mounted || generation != _geometryGeneration) return;
+    setState(() => _geometryBytes = result.imageBytes);
+  }
 
   @override
   void dispose() {
@@ -142,11 +182,14 @@ class _ScannerPreviewCanvasState extends State<ScannerPreviewCanvas> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Image.memory(
-                        widget.previewBytes,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
+                      if (_geometryBytes != null || _isComparingOriginal)
+                        Image.memory(
+                          _isComparingOriginal ? widget.previewBytes : _geometryBytes!,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        )
+                      else
+                        const CircularProgressIndicator(),
                       // 2. Interactive Crop Overlay (rectangle) or Quad Overlay
                       if (widget.isCropMode && !_isComparingOriginal)
                         Positioned.fill(

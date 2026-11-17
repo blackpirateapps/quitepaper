@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 1 fixed, 13 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 2 fixed, 12 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -38,11 +38,16 @@ Resolution: Rectangle crops and perspective quads now apply in oriented source c
 
 Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-02 — P2 — Applied crops are absent from review previews (OPEN)
+### IS-02 — P2 — Applied crops are absent from review previews (FIXED)
 
 Confirmed in source: `ScannerPreviewCanvas` only reads `adjustments.crop` inside the interactive overlay when `isCropMode` is true; it never clips/renders the selected crop in review. `DocumentScannerScreen._buildActivePageCanvas` does not pass `page.documentQuad` at all. Applying either crop returns to the full uncropped photo, while final processing does apply the geometry. The scanner can also auto-select a quad without showing the resulting exported framing.
 
 Reproduce: select a half-page crop, Apply, inspect review and save. Expected: review shows the saved framing. Actual: full original framing in review, cropped final image. Fix direction: maintain a bounded geometrically transformed preview and share its coordinate contract with crop editing. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Review and adjustment canvases render bounded crop/dewarp previews, discard stale geometry jobs, and return to source framing for corner editing. Scanner review now supplies the selected document quad.
+
+Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-03 — P1 — Fine-tune preview and saved pixels use different color transforms (OPEN)
 
