@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **9/10 now fixed; 1 open.**
+against `5d869e9` found 10 confirmed bugs. **10/10 now fixed; 0 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -64,8 +64,9 @@ Coverage includes two isolated native Linux test windows, 58 recorded snapshots,
 a 250-page PDF, 100-annotation undo/redo/save/revert checks, 36 concurrent native
 thumbnail requests, and a new 2,500-request thumbnail service stress test.
 Native screenshots, raw records, probe sources and explicit limitations are in
-the report. The suspected reload-loss issue was ruled out. Only the 48 focused
-viewer/annotation/thumbnail/renderer tests were run; no full suite. The existing
+the report. The suspected reload-loss issue was ruled out. The original audit ran only 48 focused
+viewer/annotation/thumbnail/renderer tests; remediation validation is recorded per fix below.
+No full suite ran. The existing
 OCR test fixture now isolates annotation resolution and drains PDF startup work,
 removing database warnings. See log 299.
 
@@ -264,3 +265,10 @@ Validation: `flutter analyze`; `flutter test test/documents/document_viewer_expo
 Desktop picker destinations are now always written and flushed before reporting success, replacing and truncating existing content. Mobile native pickers continue to own writing their supplied bytes. Five export regressions verify exact output for new/existing files, both cancellation responses, and unavailable-picker fallback.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_export_test.dart`. No full suite ran.
+
+
+### PDF-05 fixed — November 17, 2026
+
+The header now uses the page total reported by the loaded PDF rather than stored metadata. A real four-page fixture deliberately reports one metadata page; navigation to page four shows Page 4 of 4. All nine related loading, save, and compact-layout tests pass.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart test/documents/document_viewer_layout_test.dart`. No full suite ran.

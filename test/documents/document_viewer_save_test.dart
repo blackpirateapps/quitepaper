@@ -52,12 +52,18 @@ class SaveThumbnails extends Fake implements PdfThumbnailService {
   Future<void> deleteThumbnails(String documentId) async {}
 }
 
-Future<void> openSaveViewer(WidgetTester tester, SaveService service) async {
+Future<void> openSaveViewer(
+  WidgetTester tester,
+  SaveService service, {
+  int actualPages = 1,
+}) async {
   SharedPreferences.setMockInitialValues({
     'setting_pdf_thumbnail_sidebar_open': false,
   });
-  final pdf = pw.Document()
-    ..addPage(pw.Page(build: (_) => pw.Text('Save test')));
+  final pdf = pw.Document();
+  for (var page = 0; page < actualPages; page++) {
+    pdf.addPage(pw.Page(build: (_) => pw.Text('Save test page ${page + 1}')));
+  }
   final bytes = await pdf.save();
   final resolution = ResourceResolution.available(
     QuietPaperUri.document('save-test'),

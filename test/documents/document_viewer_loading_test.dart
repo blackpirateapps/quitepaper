@@ -47,4 +47,37 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('header replaces stale metadata with the loaded PDF page total', (
+    tester,
+  ) async {
+    final platform = PdfViewerPlatform.instance as FakePdfViewerPlatform;
+    platform.pageCountToReturn = 4;
+    platform.heightsToReturn = List.filled(4, 842);
+    platform.widthsToReturn = List.filled(4, 595);
+    final service = SaveService();
+    await openSaveViewer(tester, service, actualPages: 4);
+    expect(
+      service.resolution.data!.pageCount,
+      1,
+    ); // deliberately stale metadata
+    final viewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+    for (
+      var attempt = 0;
+      attempt < 40 && viewer.controller!.pageCount == 0;
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(viewer.controller!.pageCount, 4);
+    viewer.controller!.jumpToPage(4);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.textContaining('Page 4 of 4 (4 pages)'), findsOneWidget);
+    expect(find.textContaining('Page 4 of 1'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 }

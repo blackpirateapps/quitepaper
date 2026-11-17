@@ -2,7 +2,7 @@
 
 PDF-09: fixed list extents and direct jumps bound thumbnail requests to eight per
 viewport; the pre-fix 16ms-frame regression requested 79 thumbnails for page 125
-(`navigation-before.log`). Concurrent thumbnail renders now share a native PDF
+(`navigation-before.txt`). Concurrent thumbnail renders now share a native PDF
 handle and page dimensions, with reference-counted cleanup. PNG compression runs
 on a worker isolate; raster safety limits use native dimensions directly.
 
@@ -22,3 +22,6 @@ were driver calibration failures, excluded from the final results.
 
 18 focused sidebar, renderer and raster-policy tests passed; static analysis was
 clean. No full suite ran. Sources are archived as non-executable text.
+
+The isolated native process was closed after verification. The ordinary
+`lib/main.dart` Linux debug bundle was rebuilt successfully after all fixes.

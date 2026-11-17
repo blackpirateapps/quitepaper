@@ -3,24 +3,24 @@
 Branch: `audit/pdf-viewer-stress-2026-11-16`. Application source: `5d869e9`.
 **Remediation: 1/10 fixed; 9 open.**
 
-Prioritize PDF-03 and PDF-04: both lose annotations after reopening. Findings
-were appended immediately when confirmed; this report consolidates those notes.
+All ten confirmed findings are fixed, each in a separate fix commit. Findings
+were appended when confirmed; original reproductions remain below their resolutions.
 PDF-02 was a suspected reload issue and is explicitly ruled out below.
 
 ## Findings and priorities
 
-| ID | Severity | Finding | Evidence scope |
-| --- | --- | --- | --- |
-| PDF-03 | High | Editing during a pending save loses the newer annotations | Native Save/Back; injected storage delay; real encrypted save/reopen |
-| PDF-04 | High | Back exits after failed autosave and loses annotations | Native Back; injected storage failure; reopen |
-| PDF-01 | Medium | In-flight thumbnails survive deletion and return stale images | Deterministic gated service probe |
-| PDF-06 | Medium | Long-PDF sidebar fails to keep the selected page visible | Native 250-page observation and isolated widget layout probe |
-| PDF-07 | Medium | Invalid PDF displays a blank canvas with no error/retry message | Native malformed-byte fixture |
-| PDF-08 | Medium | Narrow mobile toolbar overflows and hides document title | Android-themed widget probe, 320–600 logical pixels |
-| PDF-09 | Medium | Long-PDF navigation with sidebar open stalls for seconds | Native Linux debug stress; sidebar-closed control |
-| PDF-10 | Medium | Cancelling Save still creates a PDF in Downloads | Real viewer action; fake cancelled picker; temporary Downloads |
-| PDF-11 | Medium | Existing file is not overwritten despite a success message | Real viewer action; desktop-style picker; temporary existing file |
-| PDF-05 | Low | Header keeps an incorrect page total after the PDF loads | Native fixture with deliberately stale metadata |
+| ID | Status | Severity | Finding | Evidence scope |
+| --- | --- | --- | --- | --- |
+| PDF-03 | Fixed | High | Editing during a pending save loses the newer annotations | Native Save/Back; injected storage delay; real encrypted save/reopen |
+| PDF-04 | Fixed | High | Back exits after failed autosave and loses annotations | Native Back; injected storage failure; reopen |
+| PDF-01 | Fixed | Medium | In-flight thumbnails survive deletion and return stale images | Deterministic gated service probe |
+| PDF-06 | Fixed | Medium | Long-PDF sidebar fails to keep the selected page visible | Native 250-page observation and isolated widget layout probe |
+| PDF-07 | Fixed | Medium | Invalid PDF displays a blank canvas with no error/retry message | Native malformed-byte fixture |
+| PDF-08 | Fixed | Medium | Narrow mobile toolbar overflows and hides document title | Android-themed widget probe, 320–600 logical pixels |
+| PDF-09 | Fixed | Medium | Long-PDF navigation with sidebar open stalls for seconds | Native Linux debug stress; sidebar-closed control |
+| PDF-10 | Fixed | Medium | Cancelling Save still creates a PDF in Downloads | Real viewer action; fake cancelled picker; temporary Downloads |
+| PDF-11 | Fixed | Medium | Existing file is not overwritten despite a success message | Real viewer action; desktop-style picker; temporary existing file |
+| PDF-05 | Fixed | Low | Header keeps an incorrect page total after the PDF loads | Native fixture with deliberately stale metadata |
 
 ## Method and evidence
 
@@ -130,7 +130,7 @@ Linux build is restored; its result is retained in `normal-build.log`.
 
 ## PDF-01 — deleting thumbnails does not cancel in-flight generation
 
-**Fixed. (November 17, 2026). Medium. Deterministic service-level race probe.**
+**Fixed (November 17, 2026). Medium. Deterministic service-level race probe.**
 
 Resolution: Thumbnail requests carry a document generation. Deletion invalidates old renders, drains pending writes, and gates replacement requests until disk cleanup completes. Gated regressions verify replacement bytes, encrypted reload, and no recreation of deleted-document directories; all eight relevant cache tests pass.
 
@@ -148,7 +148,7 @@ ordering deterministic. Evidence: `thumbnail-probes.jsonl`, probe source.
 
 ## PDF-03 — edits during a pending save are lost and marked clean
 
-**Fixed. (November 17, 2026). High. Delayed-storage native save and reopen.**
+**Fixed (November 17, 2026). High. Delayed-storage native save and reopen.**
 
 Resolution: Annotation saves share a pending snapshot and track mutation revisions. Completing a save retains newer live annotations and dirty state; export uses the same serialized save path. The delayed-storage regression reopens the final PDF and verifies both annotations.
 
@@ -166,7 +166,7 @@ Evidence: native results `Delayed manual save` through `Reopen after editing`.
 
 ## PDF-04 — Back closes the viewer after a failed annotation save
 
-**Fixed. (November 17, 2026). High. Native Back, injected storage failure, reopen.**
+**Fixed (November 17, 2026). High. Native Back, injected storage failure, reopen.**
 
 Resolution: Back now waits until all annotation revisions are stored before closing. A storage failure keeps the viewer and edits open with a Retry action; repeated Back requests share the exit operation. Tests cover failure/retry and Back during a delayed save with newer edits.
 
@@ -183,7 +183,11 @@ after failed exit autosave`, runtime log injected failure.
 
 ## PDF-05 — header keeps stale page totals after PDF load
 
-**Open. Low. Stale-metadata fixture.**
+**Fixed (November 17, 2026). Low. Stale-metadata fixture.**
+
+Resolution: The header now uses the page total reported by the loaded PDF rather than stored metadata. A real four-page fixture deliberately reports one metadata page; navigation to page four shows Page 4 of 4. All nine related loading, save, and compact-layout tests pass.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart test/documents/document_viewer_layout_test.dart` passed. No full suite ran.
 
 Open a four-page PDF whose stored pageCount is 1 and jump to its fourth page.
 Syncfusion reports four pages and the sidebar shows four, but the header reads
@@ -194,7 +198,7 @@ native results `PDF actual page count` and `Navigate actual fourth page`.
 
 ## PDF-06 — large-document sidebar scrolls away from the active page
 
-**Fixed. (November 17, 2026). Medium. 250-page widget probe and native observation.**
+**Fixed (November 17, 2026). Medium. 250-page widget probe and native observation.**
 
 Resolution: The sidebar uses a fixed list item extent derived from its width and scaled label height, shared by tile layout and selected-page scrolling. All eight relevant tests pass, including 250-page jumps at three widths and two text scales with full selected-tile visibility.
 
@@ -210,7 +214,7 @@ Evidence: `sidebar-probes.jsonl`, `250 page random jump 125` native record.
 
 ## PDF-07 — malformed PDFs leave a blank viewer with no error or retry message
 
-**Fixed. (November 17, 2026). Medium. Native Linux invalid-PDF fixture.**
+**Fixed (November 17, 2026). Medium. Native Linux invalid-PDF fixture.**
 
 Resolution: Syncfusion load failures now set a visible document error, remove the blank viewer and zoom controls, and hide misleading page context. Try Again resolves and initializes the document afresh. The load-failure/retry regression and three annotation-save regressions pass.
 
@@ -228,7 +232,7 @@ Flutter exception, so the captured exception array remains empty.
 
 ## PDF-08 — narrow mobile toolbar has no room for the document title
 
-**Fixed. (November 17, 2026). Medium. Android-themed widget layout probe; physical mobile untested.**
+**Fixed (November 17, 2026). Medium. Android-themed widget layout probe; physical mobile untested.**
 
 Resolution: Toolbars below 768 pixels keep annotation tools, unsaved-annotation Save, and Document options visible; secondary actions remain in that menu. Clean and dirty layouts retain readable title width at 320/360/390/600 pixels without overflow. Four layout and four OCR action tests pass; physical-device validation remains outside this run.
 
@@ -243,7 +247,7 @@ the retained layout probe source. The title is only 22px wide at 390px; it has 2
 
 ## PDF-09 — large-document random navigation produces multi-second stalls
 
-**Fixed. (November 17, 2026). Medium, native Linux debug performance scope.**
+**Fixed (November 17, 2026). Medium, native Linux debug performance scope.**
 
 Resolution: Long jumps render only destination thumbnails; concurrent native renders share one PDF handle and dimension lookup, close on final release, and compress PNGs off the UI isolate. Native page sizes enforce the pixel budget without rescanning the PDF. All 18 focused tests pass. A fresh native Linux debug replay completes six jumps in 0.466–0.759s including 450ms intentional waits, with visible selected tiles and no Flutter errors; see fix-verification/README.md.
 
@@ -265,7 +269,7 @@ no precise root cause has been proven. Evidence: `native-stress-initial.log`,
 
 ## PDF-10 — cancelling Save PDF still writes a file to Downloads
 
-**Fixed. (November 17, 2026). Medium. Real viewer action with cancelled picker and isolated filesystem.**
+**Fixed (November 17, 2026). Medium. Real viewer action with cancelled picker and isolated filesystem.**
 
 Resolution: A normal null or empty picker response now returns immediately, with no filesystem fallback or saved notification. Only picker unavailability enters the Downloads fallback. Three isolated filesystem regressions cover both cancellation responses and successful fallback output.
 
@@ -280,7 +284,7 @@ Evidence: `export-probes.jsonl`, `cancel-pdf-save`. No user Downloads were touch
 
 ## PDF-11 — saving over an existing nonempty PDF reports success without writing
 
-**Fixed. (November 17, 2026). Medium. Real viewer action with path-only picker response.**
+**Fixed (November 17, 2026). Medium. Real viewer action with path-only picker response.**
 
 Resolution: Desktop picker destinations are now always written and flushed before reporting success, replacing and truncating existing content. Mobile native pickers continue to own writing their supplied bytes. Five export regressions verify exact output for new/existing files, both cancellation responses, and unavailable-picker fallback.
 
@@ -293,3 +297,12 @@ The probe returns an existing temporary path without writing bytes, matching
 desktop path-only pickers, and confirms the unrelated content survives unchanged.
 Evidence: `export-probes.jsonl`, `overwrite-existing-pdf`. The installed Linux FilePicker implementation returns a path and ignores its
 bytes argument, matching this simulation. Platform picker behavior was simulated; no native overwrite dialog or user file was used.
+
+
+## Remediation completion
+
+All 10 confirmed findings are marked fixed above. PDF-02 remains ruled out.
+Every fix includes a HANDOFF.md update, clean static analysis, relevant tests,
+and its own commit on the audit branch. The full suite was never run.
+The isolated native process was closed and the ordinary `lib/main.dart` Linux
+debug bundle was rebuilt successfully after verification.

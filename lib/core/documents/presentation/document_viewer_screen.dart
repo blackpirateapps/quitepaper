@@ -1281,7 +1281,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                         valueListenable: _selectedPageIndexNotifier,
                         builder: (context, pageIndex, _) {
                           return Text(
-                            'Page ${pageIndex + 1} of ${docInfo.pageCount} (${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
+                            'Page ${pageIndex + 1} of $_pageCount ($_pageCount ${_pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
                             style: TextStyle(
                               fontSize: 12,
                               color: colors.textSecondary,
