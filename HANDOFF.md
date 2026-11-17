@@ -343,3 +343,11 @@ Reconciled the PDF viewer remediation with current main while preserving the
 completed checklist, search, and Linux CI fixes. The PDF audit is log 313; the
 integration and combined-branch validation are recorded in log 314. The document
 guide now reports all ten PDF findings resolved.
+
+## Main CI test stabilization — November 17, 2026
+
+The Test & Analyze run `44049227585` and Linux run `44049227588` at `810704c` both passed static analysis but failed the scanner document-viewer widget test because Syncfusion's 500ms tile callback remained pending. The former also failed the desktop PDF overwrite test when its fixed 150ms delay expired before the flushed file write completed and the success snackbar appeared.
+
+The scanner test now unmounts the viewer and drains the deferred tile callback before exiting. PDF export tests use the existing bounded `pumpUntilFound` helper to wait for the actual success UI, allowing real filesystem work to complete; exact-byte equality, truncation of an existing longer file, cancellation and Downloads-fallback assertions remain intact. No application behavior or workflow checks were changed.
+
+Validation: reproduced the pending-timer failure before the fix; `flutter analyze --no-pub` reports no issues, and `flutter test --no-pub --concurrency=1 test/scanner/scanner_ui_test.dart test/documents/document_viewer_export_test.dart` passes all **8 tests**. No full suite ran locally.

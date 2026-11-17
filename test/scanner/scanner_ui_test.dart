@@ -153,6 +153,12 @@ void main() {
       expect(find.textContaining('3 pages'), findsOneWidget);
       expect(find.byIcon(Icons.download_rounded), findsOneWidget);
       expect(find.byIcon(Icons.share_rounded), findsOneWidget);
+
+      // Syncfusion schedules a 500ms tile callback when the viewer mounts.
+      // Dispose the viewer before draining it so asynchronous loads cannot mount
+      // another viewer after the drain and leave a timer behind.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
 
     testWidgets('QuietMarkdownPreview renders QuietDocumentCard for [Title](qp://document/UUID)', (tester) async {
