@@ -271,12 +271,6 @@ class DartImageProcessor implements ImageProcessor {
 
       img.Image processed = img.bakeOrientation(decoded);
 
-      // 1. Rotation
-      final turns = params.adjustments.rotationQuarterTurns % 4;
-      if (turns != 0) {
-        processed = img.copyRotate(processed, angle: turns * 90);
-      }
-
       // 2. Geometry: perspective dewarp of the detected/adjusted document quad,
       //    OR the rectangular crop (dewarp supersedes crop when present).
       if (params.documentQuad != null) {
@@ -302,6 +296,12 @@ class DartImageProcessor implements ImageProcessor {
             height: cropH,
           );
         }
+      }
+
+      // Rotate after source-coordinate geometry.
+      final turns = params.adjustments.rotationQuarterTurns % 4;
+      if (turns != 0) {
+        processed = img.copyRotate(processed, angle: turns * 90);
       }
 
       // 3. Downscale if exceeding maxDimension
@@ -399,12 +399,6 @@ class DartImageProcessor implements ImageProcessor {
         }
       }
 
-      // 2. Rotation
-      final turns = adjustments.rotationQuarterTurns % 4;
-      if (turns != 0) {
-        processed = img.copyRotate(processed, angle: turns * 90);
-      }
-
       // 3. Crop
       if (adjustments.crop != null && adjustments.crop != NormalizedRect.full) {
         final crop = adjustments.crop!;
@@ -422,6 +416,12 @@ class DartImageProcessor implements ImageProcessor {
             height: cropH,
           );
         }
+      }
+
+      // Rotate after source-coordinate crop.
+      final turns = adjustments.rotationQuarterTurns % 4;
+      if (turns != 0) {
+        processed = img.copyRotate(processed, angle: turns * 90);
       }
 
       // 4. Downscale final output if exceeding maxDimension

@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 14 open; no application fixes included.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 1 fixed, 13 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -27,11 +27,16 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 Source basenames refer to `lib/core/image_processing/`, `lib/core/attachments/presentation/`, `lib/core/pdf/`, or `lib/features/scanner/presentation/` (including `widgets/`) as appropriate. Line references are against baseline `8724bf0`.
 
-### IS-01 — P1 — Rotation changes the crop/dewarp coordinate system (OPEN)
+### IS-01 — P1 — Rotation changes the crop/dewarp coordinate system (FIXED)
 
 Confirmed in source: `ScannerPreviewCanvas` rotates the image and its crop/quad overlay together, so stored coordinates still refer to the unrotated image. `DartImageProcessor._executeHighResProcessing` instead rotates the bitmap first, then applies the unchanged normalized quad or rectangle. `ImageAdjustments.rotateRight/Left` does not transform those coordinates. A noncentral selected region therefore moves to a different physical region at export; dimensions can also change incorrectly. Affects both scanner perspective crop and ordinary image rectangular editing.
 
 Reproduce: select the upper-left part of a four-color image, rotate right and export. Expected: the selected upper-left content, rotated. Actual: a different region from the rotated bitmap. Fix direction: apply geometry in source coordinates before rotation, or transform all saved geometry consistently. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Rectangle crops and perspective quads now apply in oriented source coordinates before rotation in both processing paths. Four-rotation pixel regressions preserve the selected red region and output orientation.
+
+Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-02 — P2 — Applied crops are absent from review previews (OPEN)
 

@@ -588,3 +588,9 @@ they are evidence, not acceptance tests for future fixes. The full suite was
 not run. Dart VM mode/encoding and multipage benchmarks and a Flutter 12 MP
 preparation measurement are retained with explicit Linux/JIT and device limits.
 Final Flutter analysis reports no issues. See engineering log 328 for scope and validation.
+
+### IS-01 image/scanner audit fix — November 17, 2026
+
+Rectangle crops and perspective quads now apply in oriented source coordinates before rotation in both processing paths. Four-rotation pixel regressions preserve the selected red region and output orientation.
+
+Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full suite ran.
