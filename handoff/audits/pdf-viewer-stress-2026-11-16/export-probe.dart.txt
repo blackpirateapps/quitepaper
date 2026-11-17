@@ -1,0 +1,109 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/widgets.dart' as pw;
+// ignore: depend_on_referenced_packages
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/documents/document_provider.dart';
+import 'package:quitepaper/core/documents/presentation/document_viewer_screen.dart';
+import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
+import 'package:quitepaper/core/uri/resource_resolver.dart';
+import 'document_viewer_zoom_test.dart' show FakeZoomDocumentService;
+
+class Picker extends FilePicker {
+  String? result;
+  int calls = 0;
+  @override
+  Future<String?> saveFile({String? dialogTitle, String? fileName, String? initialDirectory,
+    FileType type = FileType.any, List<String>? allowedExtensions, Uint8List? bytes,
+    bool lockParentWindow = false}) async {calls++; return result;}
+}
+class Paths extends PathProviderPlatform {
+  Paths(this.path);
+  final String path;
+  @override
+  Future<String?> getDownloadsPath() async => path;
+  @override
+  Future<String?> getTemporaryPath() async => path;
+  @override
+  Future<String?> getApplicationSupportPath() async => path;
+}
+void report(String title, String body) {
+  if (File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').readAsStringSync().contains('## $title')) return;
+  File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').writeAsStringSync('\n\n## $title\n\n$body\n', mode: FileMode.append);
+}
+void main() {
+  testWidgets('observe cancel and overwrite in PDF export', (tester) async {
+    final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('qp-pdf-export-')))!;
+    addTearDown(() => directory.delete(recursive: true));
+    final previousPaths = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = Paths(directory.path);
+    addTearDown(() => PathProviderPlatform.instance = previousPaths);
+    final picker = Picker();
+    FilePicker.platform = picker;
+    final pdf = pw.Document()..addPage(pw.Page(build: (_) => pw.Text('Export audit content')));
+    final bytes = (await tester.runAsync(() => pdf.save()))!;
+    final res = ResourceResolution.available(QuietPaperUri.document('export-audit'),
+      ResolvedDocumentInfo(documentId: 'export-audit', pdfBytes: bytes, pageCount: 1,
+        byteSize: bytes.length, sha256: 'audit', title: 'Export audit'));
+    await tester.pumpWidget(ProviderScope(overrides: [documentServiceProvider.overrideWithValue(FakeZoomDocumentService())],
+      child: MaterialApp(theme: AppTheme.light().copyWith(platform: TargetPlatform.android),
+        home: DocumentViewerScreen(documentId: 'export-audit', initialResolution: res))));
+    await tester.pump(); await tester.pump(const Duration(milliseconds: 800));
+    final fallback = File('${directory.path}/Export audit.pdf');
+    await tester.runAsync(() async {
+      await tester.tap(find.byTooltip('Save PDF to storage'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+    final cancelCreatedFile = await tester.runAsync(() => fallback.exists());
+    final cancel = {'probe': 'cancel-pdf-save', 'pickerCalls': picker.calls,
+      'pickerResult': picker.result, 'fallbackCreatedAfterCancel': cancelCreatedFile};
+    print(jsonEncode(cancel));
+    File('/tmp/qp-pdf-export-probes.jsonl').writeAsStringSync('${jsonEncode(cancel)}\n', mode: FileMode.append);
+    if (cancelCreatedFile == true) {
+      report('PDF-10 — cancelling Save PDF still writes a file to Downloads', '''**Open. Medium. Real viewer action with cancelled picker and isolated filesystem.**
+
+Click Save PDF to storage and cancel the file picker (returns null). The viewer
+continues into its fallback and writes the PDF to Downloads anyway, then shows
+a saved notification. The probe redirects Downloads to a temporary directory
+and confirms the file exists after cancellation. `_savePdfToStorage` treats a
+cancelled picker like an unavailable picker; it should return on cancellation.
+Evidence: `export-probes.jsonl`, `cancel-pdf-save`. No user Downloads were touched.''');
+    }
+    final existing = File('${directory.path}/existing.pdf');
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).clearSnackBars();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.runAsync(() => existing.writeAsString('existing unrelated bytes'));
+    picker.result = existing.path;
+    await tester.runAsync(() async {
+      await tester.tap(find.byTooltip('Save PDF to storage'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+    final after = await tester.runAsync(() => existing.readAsString());
+    final overwrite = {'probe': 'overwrite-existing-pdf', 'pickerCalls': picker.calls,
+      'actualFileText': after, 'expectedPdfBytes': bytes.length,
+      'savedSuccessVisible': find.textContaining('Document saved:').evaluate().isNotEmpty};
+    print(jsonEncode(overwrite));
+    File('/tmp/qp-pdf-export-probes.jsonl').writeAsStringSync('${jsonEncode(overwrite)}\n', mode: FileMode.append);
+    if (after == 'existing unrelated bytes') {
+      report('PDF-11 — saving over an existing nonempty PDF reports success without writing', '''**Open. Medium. Real viewer action with path-only picker response.**
+
+Save to an existing nonempty file and confirm its replacement in a desktop-style
+picker. The viewer reports Document saved, but the existing bytes are unchanged.
+`_savePdfToStorage` writes only when the selected file does not exist or is empty.
+The probe returns an existing temporary path without writing bytes, matching
+desktop path-only pickers, and confirms the unrelated content survives unchanged.
+Evidence: `export-probes.jsonl`, `overwrite-existing-pdf`. Platform picker behavior
+was simulated; no native overwrite dialog or user file was used.''');
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+}

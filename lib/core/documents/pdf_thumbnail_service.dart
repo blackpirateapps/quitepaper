@@ -18,8 +18,8 @@ class PdfThumbnailService {
     DocumentCrypto? crypto,
     PdfPageRenderer? renderer,
     this.customDirectory,
-  })  : _crypto = crypto ?? DocumentCrypto(),
-        _renderer = renderer ?? const DefaultPdfPageRenderer();
+  }) : _crypto = crypto ?? DocumentCrypto(),
+       _renderer = renderer ?? const DefaultPdfPageRenderer();
 
   final KeyManager keyManager;
   final DocumentCrypto _crypto;
@@ -35,6 +35,12 @@ class PdfThumbnailService {
 
   /// In-flight thumbnail generation jobs to deduplicate concurrent requests.
   final Map<String, Future<Uint8List?>> _inFlightJobs = {};
+
+  final Map<String, int> _generations = {};
+  final Map<String, Future<void>> _deletions = {};
+
+  bool _isCurrent(String documentId, int generation) =>
+      (_generations[documentId] ?? 0) == generation;
 
   /// In-flight disk persistence jobs.
   final List<Future<void>> _pendingDiskWrites = [];
@@ -91,7 +97,8 @@ class PdfThumbnailService {
     }
 
     // Deduplicate concurrent requests for the exact same page
-    final jobKey = '$documentId:$pageIndex';
+    final generation = _generations[documentId] ?? 0;
+    final jobKey = '$documentId:$generation:$pageIndex';
     if (_inFlightJobs.containsKey(jobKey)) {
       return _inFlightJobs[jobKey];
     }
@@ -100,17 +107,20 @@ class PdfThumbnailService {
     _inFlightJobs[jobKey] = completer.future;
 
     _executeFetchThumbnail(
-      documentId: documentId,
-      pageIndex: pageIndex,
-      pdfBytes: pdfBytes,
-    ).then((bytes) {
-      _inFlightJobs.remove(jobKey);
-      completer.complete(bytes);
-    }).catchError((dynamic error) {
-      _inFlightJobs.remove(jobKey);
-      debugPrint('[PdfThumbnailService] Error fetching thumbnail: $error');
-      completer.complete(null);
-    });
+          documentId: documentId,
+          pageIndex: pageIndex,
+          pdfBytes: pdfBytes,
+          generation: generation,
+        )
+        .then((bytes) {
+          _inFlightJobs.remove(jobKey);
+          completer.complete(bytes);
+        })
+        .catchError((dynamic error) {
+          _inFlightJobs.remove(jobKey);
+          debugPrint('[PdfThumbnailService] Error fetching thumbnail: $error');
+          completer.complete(null);
+        });
 
     return completer.future;
   }
@@ -119,7 +129,10 @@ class PdfThumbnailService {
     required String documentId,
     required int pageIndex,
     required Uint8List pdfBytes,
+    required int generation,
   }) async {
+    await _deletions[documentId];
+    if (!_isCurrent(documentId, generation)) return null;
     final masterKey = _getMasterKey();
     final thumbFile = await _getThumbnailFile(documentId, pageIndex);
 
@@ -133,6 +146,7 @@ class PdfThumbnailService {
           documentId: '$documentId:thumb:$pageIndex',
         );
 
+        if (!_isCurrent(documentId, generation)) return null;
         _putInMemory(documentId, pageIndex, decryptedPng);
         return decryptedPng;
       } catch (e) {
@@ -141,12 +155,13 @@ class PdfThumbnailService {
         );
         // Clean up corrupt/stale thumbnail file to allow fresh re-rasterization
         try {
-          await thumbFile.delete();
+          if (_isCurrent(documentId, generation)) await thumbFile.delete();
         } catch (_) {}
       }
     }
 
     // 3. Low-DPI lazy rasterization
+    if (!_isCurrent(documentId, generation)) return null;
     try {
       final rendered = await _renderer.renderSinglePage(
         pdfBytes,
@@ -154,7 +169,7 @@ class PdfThumbnailService {
         dpi: thumbnailDpi,
       );
 
-      if (rendered == null) return null;
+      if (rendered == null || !_isCurrent(documentId, generation)) return null;
 
       final pngBytes = rendered.imageBytes;
       _putInMemory(documentId, pageIndex, pngBytes);
@@ -167,6 +182,7 @@ class PdfThumbnailService {
           masterKey: masterKey,
           documentId: documentId,
           pageIndex: pageIndex,
+          generation: generation,
         );
       }
 
@@ -190,12 +206,13 @@ class PdfThumbnailService {
     required Uint8List masterKey,
     required String documentId,
     required int pageIndex,
+    required int generation,
   }) {
     late final Future<void> job;
     job = Future<void>(() async {
       try {
         // Guard against saving if the document was deleted while rasterizing
-        if (!_memoryCache.containsKey(documentId)) return;
+        if (!_isCurrent(documentId, generation)) return;
 
         final encrypted = await _crypto.encryptDocument(
           plaintextBytes: plaintextBytes,
@@ -203,6 +220,7 @@ class PdfThumbnailService {
           documentId: '$documentId:thumb:$pageIndex',
         );
 
+        if (!_isCurrent(documentId, generation)) return;
         if (!await file.parent.exists()) {
           await file.parent.create(recursive: true);
         }
@@ -241,17 +259,30 @@ class PdfThumbnailService {
   }
 
   /// Permanently removes memory cache and encrypted disk thumbnails for [documentId].
-  Future<void> deleteThumbnails(String documentId) async {
+  Future<void> deleteThumbnails(String documentId) {
+    _generations[documentId] = (_generations[documentId] ?? 0) + 1;
     _memoryCache.remove(documentId);
-    try {
-      final dir = await getThumbnailDirectory(documentId, create: false);
-      if (await dir.exists()) {
-        await dir.delete(recursive: true);
+    final previous = _deletions[documentId];
+    late final Future<void> job;
+    job = () async {
+      try {
+        await previous;
+        // Drain writes already inside filesystem operations before deleting.
+        // New requests wait for this deletion before reading or writing cache.
+        await flushPendingWrites();
+        final dir = await getThumbnailDirectory(documentId, create: false);
+        if (await dir.exists()) await dir.delete(recursive: true);
+      } catch (e) {
+        debugPrint(
+          '[PdfThumbnailService] Failed to delete thumbnails for $documentId: $e',
+        );
+      } finally {
+        if (identical(_deletions[documentId], job)) {
+          _deletions.remove(documentId);
+        }
       }
-    } catch (e) {
-      debugPrint(
-        '[PdfThumbnailService] Failed to delete thumbnails for $documentId: $e',
-      );
-    }
+    }();
+    _deletions[documentId] = job;
+    return job;
   }
 }

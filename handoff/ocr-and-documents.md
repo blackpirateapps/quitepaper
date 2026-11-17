@@ -68,6 +68,7 @@ The OCR system lives in [`lib/core/ocr/`](file:///home/dog/git/quitepaper/lib/co
 ---
 
 ## Key References & Logs
+- PDF Viewer Stress Audit (November 16, 2026): [10 resolved findings and evidence](audits/pdf-viewer-stress-2026-11-16/README.md), including pending-save/failed-exit annotation loss, thumbnail races and native debug stalls. The audit includes targeted stress coverage and explicit platform limits; all ten findings now have fixes and regression coverage. See [log 313](latest-logs.md#313-pdf-viewer-native-audit-and-targeted-stress-tests-november-16-2026).
 - Syncfusion PDF Viewer Migration: [Latest Logs, Section 215 & 217](latest-logs.md#215-feature-syncfusion-flutter-pdf-viewer-migration-with-non-destructive-dual-storage-october-2026)
 - Custom Floating Menu & PDF Search: [Latest Logs, Section 216](latest-logs.md#216-feature-quiet-paper-custom-floating-text-selection-menu--in-document-pdf-search-october-2026)
 - DeepSeek-OCR Table Formatting & Ollama Integration: [Latest Logs, Section 211–214](latest-logs.md#211-deepseek-ocr-table-formatting--native-markdown-table-conversion-october-2026)

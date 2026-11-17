@@ -61,6 +61,23 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
+## PDF Viewer Stress Audit — Remediation
+
+The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
+against `5d869e9` found 10 confirmed bugs. **10/10 now fixed; 0 open.**
+Each fix has its own commit, focused regression coverage, and resolution in the
+audit report. Full-suite testing is excluded from this remediation.
+
+Coverage includes two isolated native Linux test windows, 58 recorded snapshots,
+a 250-page PDF, 100-annotation undo/redo/save/revert checks, 36 concurrent native
+thumbnail requests, and a new 2,500-request thumbnail service stress test.
+Native screenshots, raw records, probe sources and explicit limitations are in
+the report. The suspected reload-loss issue was ruled out. The original audit ran only 48 focused
+viewer/annotation/thumbnail/renderer tests; remediation validation is recorded per fix below.
+No full suite ran. The existing
+OCR test fixture now isolates annotation resolution and drains PDF startup work,
+removing database warnings. See log 313.
+
 ## Checklist Stress Audit — All 12 Findings Fixed
 
 All findings in the [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
@@ -246,3 +263,83 @@ Task boundary navigation handles repeated keys, publishes the destination synchr
 ### CL-11 checklist audit fix — Consume Linux Home at the paragraph boundary
 
 A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz. flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed. Full suite left to GitHub Actions.
+
+### PDF-03 fixed — November 17, 2026
+
+Annotation saves share a pending snapshot and track mutation revisions. Completing a save retains newer live annotations and dirty state; export uses the same serialized save path. The delayed-storage regression reopens the final PDF and verifies both annotations.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-04 fixed — November 17, 2026
+
+Back now waits until all annotation revisions are stored before closing. A storage failure keeps the viewer and edits open with a Retry action; repeated Back requests share the exit operation. Tests cover failure/retry and Back during a delayed save with newer edits.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-01 fixed — November 17, 2026
+
+Thumbnail requests carry a document generation. Deletion invalidates old renders, drains pending writes, and gates replacement requests until disk cleanup completes. Gated regressions verify replacement bytes, encrypted reload, and no recreation of deleted-document directories; all eight relevant cache tests pass.
+
+Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_invalidation_test.dart test/documents/pdf_thumbnail_service_test.dart test/documents/pdf_thumbnail_stress_test.dart`. No full suite ran.
+
+
+### PDF-06 fixed — November 17, 2026
+
+The sidebar uses a fixed list item extent derived from its width and scaled label height, shared by tile layout and selected-page scrolling. All eight relevant tests pass, including 250-page jumps at three widths and two text scales with full selected-tile visibility.
+
+Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_sidebar_test.dart test/documents/document_viewer_thumbnail_test.dart`. No full suite ran.
+
+
+### PDF-07 fixed — November 17, 2026
+
+Syncfusion load failures now set a visible document error, remove the blank viewer and zoom controls, and hide misleading page context. Try Again resolves and initializes the document afresh. The load-failure/retry regression and three annotation-save regressions pass.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-08 fixed — November 17, 2026
+
+Toolbars below 768 pixels keep annotation tools, unsaved-annotation Save, and Document options visible; secondary actions remain in that menu. Clean and dirty layouts retain readable title width at 320/360/390/600 pixels without overflow. Four layout and four OCR action tests pass; physical-device validation remains outside this run.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_layout_test.dart test/documents/document_viewer_ocr_menu_test.dart`. No full suite ran.
+
+
+### PDF-09 fixed — November 17, 2026
+
+Long jumps render only destination thumbnails; concurrent native renders share one PDF handle and dimension lookup, close on final release, and compress PNGs off the UI isolate. Native page sizes enforce the pixel budget without rescanning the PDF. All 18 focused tests pass. A fresh native Linux debug replay completes six jumps in 0.466–0.759s including 450ms intentional waits, with visible selected tiles and no Flutter errors; see fix-verification/README.md.
+
+Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_sidebar_test.dart test/pdf/syncfusion_pdf_page_renderer_test.dart test/documents/pdf_raster_policy_test.dart`. No full suite ran.
+
+
+### PDF-10 fixed — November 17, 2026
+
+A normal null or empty picker response now returns immediately, with no filesystem fallback or saved notification. Only picker unavailability enters the Downloads fallback. Three isolated filesystem regressions cover both cancellation responses and successful fallback output.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_export_test.dart`. No full suite ran.
+
+
+### PDF-11 fixed — November 17, 2026
+
+Desktop picker destinations are now always written and flushed before reporting success, replacing and truncating existing content. Mobile native pickers continue to own writing their supplied bytes. Five export regressions verify exact output for new/existing files, both cancellation responses, and unavailable-picker fallback.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_export_test.dart`. No full suite ran.
+
+
+### PDF-05 fixed — November 17, 2026
+
+The header now uses the page total reported by the loaded PDF rather than stored metadata. A real four-page fixture deliberately reports one metadata page; navigation to page four shows Page 4 of 4. All nine related loading, save, and compact-layout tests pass.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart test/documents/document_viewer_layout_test.dart`. No full suite ran.
+
+PDF remediation is complete: all ten fixes are pushed on
+`audit/pdf-viewer-stress-2026-11-16`. The audit summary and per-finding statuses
+are aligned at 10/10 fixed, and the ordinary Linux debug bundle is restored.
+
+### PR #9 integration — November 17, 2026
+
+Reconciled the PDF viewer remediation with current main while preserving the
+completed checklist, search, and Linux CI fixes. The PDF audit is log 313; the
+integration and combined-branch validation are recorded in log 314. The document
+guide now reports all ten PDF findings resolved.

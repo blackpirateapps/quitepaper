@@ -1,0 +1,92 @@
+from qp_pdf_driver import *
+REPORT=pathlib.Path('handoff/audits/pdf-viewer-stress-2026-11-16/README.md')
+def finding(title,body):
+    with REPORT.open('a') as f:f.write('\n\n## '+title+'\n\n'+body+'\n')
+    print('FINDING',title,flush=True)
+
+def clean(name='small'):
+    api('/config',{})
+    key('Escape');open_pdf(name)
+
+def count(s):return len(s['viewer']['annotations']) if s['viewer'] else None
+
+clean('mixed')
+api('/add',{'count':1})
+s=record('Reload before save has one unsaved annotation')
+assert count(s)==1
+menu('Reload Document');time.sleep(1.2)
+s=record('Reload after unsaved annotation')
+if count(s)==0:
+    finding('PDF-02 — Reload Document discards unsaved annotations', '''**Open. High. Native menu reproduction.**
+
+Open a clean PDF, add an annotation, then choose Document options → Reload
+Document. The annotation disappears without a save or discard prompt. One
+annotation before reload becomes zero after reload, while Save Annotations
+remains visible. `_loadDocument` reloads the last stored bytes without checking
+`_isDirty`. A synthetic annotation was inserted through the real viewer
+controller; the reload was a native pointer action. Evidence: native results,
+`Reload before save` / `Reload after unsaved annotation`.''')
+
+clean('small')
+api('/add',{'count':1})
+api('/config',{'delayMs':3000})
+label('Save Annotations','tooltip')
+s=record('Delayed manual save started with one annotation')
+assert s['saves'][-1].get('complete') is None
+api('/add',{'count':1})
+record('Second annotation created while save is pending')
+time.sleep(4)
+s=record('Manual save completes after second annotation')
+screenshot('native-save-race.png')
+api('/config',{})
+label('Back','tooltip');time.sleep(.5)
+open_pdf('small')
+s=record('Reopen after editing during delayed manual save')
+if count(s)==1:
+    finding('PDF-03 — edits during a pending save are lost and marked clean', '''**Open. High. Delayed-storage native save and reopen.**
+
+Add note A, start Save Annotations, then add note B before the storage write
+finishes. Both notes exist during the pending save. When the older snapshot
+finishes, the save handler clears dirty state and replaces the viewer source
+with that snapshot. Reopening contains only A: B is lost without a warning.
+The storage delay is injected (3 seconds); serialization, annotation events,
+real encrypted writes, Save click and Back click use production code. Root:
+`_manualSaveAnnotations` unconditionally clears `_isDirty` and installs its
+captured bytes after awaiting storage, without a mutation generation check.
+Evidence: native results `Delayed manual save` through `Reopen after editing`.''')
+
+clean('scan')
+api('/add',{'count':1})
+api('/config',{'fail':True})
+s=record('One dirty annotation before Back with injected storage failure')
+label('Back','tooltip');time.sleep(1)
+s=record('Back after annotation storage failure')
+api('/config',{})
+open_pdf('scan')
+r=record('Reopen after failed exit autosave')
+if s['viewer'] is None and count(r)==0:
+    finding('PDF-04 — Back closes the viewer after a failed annotation save', '''**Open. High. Native Back, injected storage failure, reopen.**
+
+Add an annotation, make storage fail, and press Back. The viewer closes despite
+the failed save; reopening has zero annotations. The failure appears only in
+debug output, with no retry/discard prompt. Real viewer annotations and native
+Back input were used; a FileSystemException was injected at the storage boundary.
+The PopScope callback always calls Navigator.pop after `_autoSaveIfDirty`, whose
+catch logs and swallows the error. It never verifies that dirty state cleared.
+Evidence: native results `One dirty annotation before Back` through `Reopen
+after failed exit autosave`, runtime log injected failure.''')
+
+clean('stale')
+s=record('PDF actual page count differs from imported metadata')
+api('/jump',{'page':4});s=record('Navigate actual fourth page with stale metadata')
+labels=[x['text'] or '' for x in s['labels'] if x['kind']=='text']
+if s['viewer']['pages']==4 and any('Page 4 of 1' in x for x in labels):
+    finding('PDF-05 — header keeps stale page totals after PDF load', '''**Open. Low. Stale-metadata fixture.**
+
+Open a four-page PDF whose stored pageCount is 1 and jump to its fourth page.
+Syncfusion reports four pages and the sidebar shows four, but the header reads
+`Page 4 of 1 (1 page)`. `onDocumentLoaded` updates `_pageCount`; the header instead
+reads `docInfo.pageCount`. This fixture deliberately injects stale metadata;
+a normal import creating incorrect metadata was not established. Evidence:
+native results `PDF actual page count` and `Navigate actual fourth page`.''')
+screenshot('native-stale-page-total.png')

@@ -1,0 +1,1 @@
+{"probe":"delete-inflight-source-replacement","expectedReplacementLastByte":2,"actualReplacementLastByte":1,"oldLastByte":1,"renderCalls":1,"diskRecreatedAfterDeletion":true}

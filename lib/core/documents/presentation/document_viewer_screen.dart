@@ -116,8 +116,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   Uint8List? _activePdfBytes;
   bool _isLoading = true;
+  String? _pdfLoadError;
   bool _hasAnnotatedDerivative = false;
-  bool _isSavingAnnotations = false;
+  Future<Uint8List>? _pendingAnnotationSave;
+  int _annotationRevision = 0;
+  bool _isExiting = false;
   PdfAnnotationMode _activeAnnotationMode = PdfAnnotationMode.none;
   PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
   int _pageCount = 1;
@@ -200,6 +203,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
     final bytes = annotatedBytes ?? docInfo.pdfBytes;
     setState(() {
+      _pdfLoadError = null;
       _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
       _hasAnnotatedDerivative = annotatedBytes != null;
       _activePdfBytes = bytes;
@@ -281,9 +285,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   void _toggleThumbnailSidebar() {
     final next = !_isThumbnailSidebarOpenNotifier.value;
     _isThumbnailSidebarOpenNotifier.value = next;
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setBool(_kPdfThumbnailSidebarPrefKey, next);
-    }).catchError((_) {});
+    SharedPreferences.getInstance()
+        .then((prefs) {
+          prefs.setBool(_kPdfThumbnailSidebarPrefKey, next);
+        })
+        .catchError((_) {});
   }
 
   void _handleTextSelectionChanged(PdfTextSelectionChangedDetails details) {
@@ -566,58 +572,92 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   void _onAnnotationMutated() {
     if (!mounted) return;
+    _annotationRevision++;
     _isDirtyNotifier.value = true;
   }
 
-  /// Automatically persists annotated PDF bytes back to encrypted storage if modified.
-  Future<void> _autoSaveIfDirty() async {
-    if (!_isDirty || _isSavingAnnotations) return;
-    _isSavingAnnotations = true;
-    try {
-      final savedList = await _pdfViewerController.saveDocument();
-      final savedBytes = Uint8List.fromList(savedList);
-      final docService = ref.read(documentServiceProvider);
-      await docService.saveAnnotatedDocument(
-        documentId: widget.documentId,
-        annotatedPdfBytes: savedBytes,
+  /// Saves one immutable snapshot. Later edits stay in the live viewer and dirty.
+  Future<Uint8List> _persistAnnotations() async {
+    if (_pendingAnnotationSave != null) return _pendingAnnotationSave!;
+    final revision = _annotationRevision;
+    final service = ref.read(documentServiceProvider);
+    final thumbnails = ref.read(pdfThumbnailServiceProvider);
+    final job = () async {
+      final savedBytes = Uint8List.fromList(
+        await _pdfViewerController.saveDocument(),
       );
-      _hasAnnotatedDerivative = true;
-      _isDirty = false;
-      _activePdfBytes = savedBytes;
-      _cachedPdfSource = BytePDFSource(savedBytes);
-      ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
-    } catch (e) {
-      debugPrint('[DocumentViewerScreen] Auto-save annotations failed: $e');
-    } finally {
-      _isSavingAnnotations = false;
-    }
-  }
-
-  /// Explicitly persists annotations with user feedback.
-  Future<void> _manualSaveAnnotations() async {
-    if (_isSavingAnnotations) return;
-    _isSavingAnnotations = true;
-    try {
-      final savedList = await _pdfViewerController.saveDocument();
-      final savedBytes = Uint8List.fromList(savedList);
-      final docService = ref.read(documentServiceProvider);
-      await docService.saveAnnotatedDocument(
+      await service.saveAnnotatedDocument(
         documentId: widget.documentId,
         annotatedPdfBytes: savedBytes,
       );
       if (mounted) {
         setState(() {
           _hasAnnotatedDerivative = true;
-          _isDirty = false;
+          _isDirty = _annotationRevision != revision;
           _activePdfBytes = savedBytes;
-          _cachedPdfSource = BytePDFSource(savedBytes);
+          // Keep the live PDF source: replacing it reloads an older snapshot
+          // and discards edits made while storage was pending.
         });
-        ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
+        thumbnails.deleteThumbnails(widget.documentId).ignore();
+      }
+      return savedBytes;
+    }();
+    _pendingAnnotationSave = job;
+    try {
+      return await job;
+    } finally {
+      _pendingAnnotationSave = null;
+    }
+  }
+
+  /// Automatically persists annotated PDF bytes back to encrypted storage if modified.
+  Future<bool> _autoSaveIfDirty() async {
+    try {
+      while (mounted && _isDirty) {
+        await _persistAnnotations();
+      }
+      return mounted && !_isDirty;
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Annotations saved successfully'),
+          SnackBar(
+            content: const Text(
+              'Annotations could not be saved. Your edits are still open.',
+            ),
+            action: SnackBarAction(label: 'Retry', onPressed: _saveAndExit),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _saveAndExit() async {
+    if (_isExiting) return;
+    _isExiting = true;
+    try {
+      if (await _autoSaveIfDirty() && mounted) {
+        Navigator.of(context).pop(_currentTitle);
+      }
+    } finally {
+      _isExiting = false;
+    }
+  }
+
+  /// Explicitly persists annotations with user feedback.
+  Future<void> _manualSaveAnnotations() async {
+    try {
+      await _persistAnnotations();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isDirty
+                  ? 'Snapshot saved. Newer annotations still need saving.'
+                  : 'Annotations saved successfully',
+            ),
             behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -630,8 +670,6 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           ),
         );
       }
-    } finally {
-      _isSavingAnnotations = false;
     }
   }
 
@@ -682,8 +720,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
         _hasAnnotatedDerivative = false;
         _setAnnotationMode(PdfAnnotationMode.none);
         _activePdfBytes = pristineBytes;
-        _cachedPdfSource =
-            pristineBytes != null ? BytePDFSource(pristineBytes) : null;
+        _cachedPdfSource = pristineBytes != null
+            ? BytePDFSource(pristineBytes)
+            : null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -691,7 +730,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      ref.read(pdfThumbnailServiceProvider).deleteThumbnails(widget.documentId).ignore();
+      ref
+          .read(pdfThumbnailServiceProvider)
+          .deleteThumbnails(widget.documentId)
+          .ignore();
     }
   }
 
@@ -786,22 +828,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     }
 
     if (_isDirty) {
-      try {
-        final savedList = await _pdfViewerController.saveDocument();
-        final savedBytes = Uint8List.fromList(savedList);
-        final docService = ref.read(documentServiceProvider);
-        await docService.saveAnnotatedDocument(
-          documentId: widget.documentId,
-          annotatedPdfBytes: savedBytes,
-        );
-        _hasAnnotatedDerivative = true;
-        _isDirty = false;
-        _activePdfBytes = savedBytes;
-        return savedBytes;
-      } catch (e) {
-        debugPrint(
-          '[DocumentViewerScreen] Failed to save annotations for export: $e',
-        );
+      await _persistAnnotations();
+      // Include any edits made during the preceding storage write.
+      while (mounted && _isDirty) {
+        await _persistAnnotations();
       }
     }
 
@@ -840,14 +870,18 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           allowedExtensions: ['pdf'],
           bytes: bytes,
         );
+        // A normal null/empty result means the user cancelled the picker.
+        if (selectedPath == null || selectedPath.isEmpty) return;
       } catch (e) {
         debugPrint('FilePicker saveFile fallback: $e');
       }
 
       if (selectedPath != null && selectedPath.isNotEmpty) {
         final file = File(selectedPath);
-        if (!await file.exists() || await file.length() == 0) {
-          await file.writeAsBytes(bytes);
+        // Desktop pickers return a destination path; they do not write bytes.
+        // Mobile pickers write the supplied bytes through native storage APIs.
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          await file.writeAsBytes(bytes, flush: true);
         }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1131,8 +1165,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 subtitle: const Text('Cross out text'),
                 trailing:
                     _activeAnnotationMode == PdfAnnotationMode.strikethrough
-                        ? Icon(Icons.check, color: colors.accent)
-                        : null,
+                    ? Icon(Icons.check, color: colors.accent)
+                    : null,
                 onTap: () {
                   Navigator.of(modalContext).pop();
                   _setAnnotationMode(PdfAnnotationMode.strikethrough);
@@ -1202,8 +1236,9 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final isOcrFailed = docInfo?.ocrState == 'failed';
     final isOcrSkipped = docInfo?.ocrState == 'skipped';
     final isDesktop = PlatformLayoutHelper.isDesktop(context);
-    final isBigScreen =
-        isDesktop || MediaQuery.of(context).size.width >= 768.0;
+    final isBigScreen = isDesktop || MediaQuery.of(context).size.width >= 768.0;
+
+    final compactToolbar = MediaQuery.sizeOf(context).width < 768;
 
     return ValueListenableBuilder<bool>(
       valueListenable: _isDirtyNotifier,
@@ -1212,10 +1247,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           canPop: !isDirty,
           onPopInvokedWithResult: (didPop, result) async {
             if (!didPop) {
-              await _autoSaveIfDirty();
-              if (context.mounted) {
-                Navigator.of(context).pop(_currentTitle);
-              }
+              await _saveAndExit();
             }
           },
           child: child!,
@@ -1240,7 +1272,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (docInfo != null)
+              if (docInfo != null && _pdfLoadError == null)
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -1249,7 +1281,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                         valueListenable: _selectedPageIndexNotifier,
                         builder: (context, pageIndex, _) {
                           return Text(
-                            'Page ${pageIndex + 1} of ${docInfo.pageCount} (${docInfo.pageCount} ${docInfo.pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
+                            'Page ${pageIndex + 1} of $_pageCount ($_pageCount ${_pageCount == 1 ? 'page' : 'pages'}) • ${_formatByteSize(docInfo.byteSize)}',
                             style: TextStyle(
                               fontSize: 12,
                               color: colors.textSecondary,
@@ -1268,30 +1300,30 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                           color: isOcrAvailable
                               ? Colors.green.withValues(alpha: 0.15)
                               : isOcrFailed
-                                  ? Colors.redAccent.withValues(alpha: 0.15)
-                                  : colors.accent.withValues(alpha: 0.15),
+                              ? Colors.redAccent.withValues(alpha: 0.15)
+                              : colors.accent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           isOcrAvailable
                               ? 'Searchable (OCR)'
                               : docInfo.ocrState == 'processing'
-                                  ? 'Processing text…'
-                                  : docInfo.ocrState == 'queued'
-                                      ? 'Preparing text…'
-                                      : isOcrFailed
-                                          ? 'OCR unavailable'
-                                          : isOcrSkipped
-                                              ? 'OCR skipped (large PDF)'
-                                              : 'PDF',
+                              ? 'Processing text…'
+                              : docInfo.ocrState == 'queued'
+                              ? 'Preparing text…'
+                              : isOcrFailed
+                              ? 'OCR unavailable'
+                              : isOcrSkipped
+                              ? 'OCR skipped (large PDF)'
+                              : 'PDF',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: isOcrAvailable
                                 ? Colors.green
                                 : isOcrFailed
-                                    ? Colors.redAccent
-                                    : colors.accent,
+                                ? Colors.redAccent
+                                : colors.accent,
                           ),
                         ),
                       ),
@@ -1322,15 +1354,13 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ],
           ),
           actions: [
-            if (isBigScreen)
+            if (isBigScreen && !compactToolbar)
               ValueListenableBuilder<bool>(
                 valueListenable: _isThumbnailSidebarOpenNotifier,
                 builder: (context, isOpen, _) {
                   return IconButton(
                     icon: Icon(
-                      isOpen
-                          ? Icons.view_sidebar
-                          : Icons.view_sidebar_outlined,
+                      isOpen ? Icons.view_sidebar : Icons.view_sidebar_outlined,
                     ),
                     tooltip: isOpen ? 'Hide thumbnails' : 'Show thumbnails',
                     color: isOpen ? colors.accent : null,
@@ -1362,40 +1392,42 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               tooltip: 'Annotation Tools',
               onPressed: _showAnnotationToolsModal,
             ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Rename document',
-              onPressed: _promptRenameDocument,
-            ),
-            if (isOcrAvailable)
+            if (!compactToolbar) ...[
               IconButton(
-                icon: const Icon(Icons.article_outlined),
-                tooltip: 'View OCR Text',
-                onPressed: _openOcrTextViewer,
-              )
-            else if (isOcrProcessing)
-              IconButton(
-                icon: const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator.adaptive(strokeWidth: 2),
-                ),
-                tooltip: 'OCR is processing... Tap to restart',
-                onPressed: _regenerateOcr,
-              )
-            else if (isOcrSkipped)
-              IconButton(
-                icon: const Icon(Icons.document_scanner_outlined),
-                tooltip: 'Run OCR (adaptive resolution)',
-                onPressed: _regenerateOcr,
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.document_scanner_outlined),
-                tooltip: 'Run OCR',
-                onPressed: _regenerateOcr,
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Rename document',
+                onPressed: _promptRenameDocument,
               ),
-            if (docInfo != null) ...[
+              if (isOcrAvailable)
+                IconButton(
+                  icon: const Icon(Icons.article_outlined),
+                  tooltip: 'View OCR Text',
+                  onPressed: _openOcrTextViewer,
+                )
+              else if (isOcrProcessing)
+                IconButton(
+                  icon: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+                  ),
+                  tooltip: 'OCR is processing... Tap to restart',
+                  onPressed: _regenerateOcr,
+                )
+              else if (isOcrSkipped)
+                IconButton(
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  tooltip: 'Run OCR (adaptive resolution)',
+                  onPressed: _regenerateOcr,
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  tooltip: 'Run OCR',
+                  onPressed: _regenerateOcr,
+                ),
+            ],
+            if (docInfo != null && !compactToolbar) ...[
               IconButton(
                 icon: const Icon(Icons.download_rounded),
                 tooltip: 'Save PDF to storage',
@@ -1424,8 +1456,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     setState(() {
                       _pageLayoutMode =
                           _pageLayoutMode == PdfPageLayoutMode.continuous
-                              ? PdfPageLayoutMode.single
-                              : PdfPageLayoutMode.continuous;
+                          ? PdfPageLayoutMode.single
+                          : PdfPageLayoutMode.continuous;
                     });
                     break;
                   case 'view_ocr':
@@ -1645,13 +1677,16 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       return _buildErrorState(colors, res);
     }
 
+    if (_pdfLoadError != null) {
+      return _buildErrorState(colors, res);
+    }
+
     if (_activePdfBytes == null || _activePdfBytes!.isEmpty) {
       return _buildErrorState(colors, res);
     }
 
     final isDesktop = PlatformLayoutHelper.isDesktop(context);
-    final isBigScreen =
-        isDesktop || MediaQuery.of(context).size.width >= 768.0;
+    final isBigScreen = isDesktop || MediaQuery.of(context).size.width >= 768.0;
 
     return Column(
       children: [
@@ -1763,7 +1798,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                     Positioned.fill(
                       child: RepaintBoundary(
                         child: SfPdfViewer(
-                          source: _cachedPdfSource ??
+                          source:
+                              _cachedPdfSource ??
                               BytePDFSource(_activePdfBytes!),
                           key: _pdfViewerStateKey,
                           controller: _pdfViewerController,
@@ -1777,15 +1813,12 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                           canShowTextSelectionMenu: false,
                           enableDoubleTapZooming: false,
                           canShowPaginationDialog: true,
-                          currentSearchTextHighlightColor:
-                              colors.accent.withValues(
-                            alpha: 0.6,
-                          ),
-                          otherSearchTextHighlightColor:
-                              colors.accent.withValues(
-                            alpha: 0.25,
-                          ),
-                          initialPageNumber: (widget.initialPageIndex >= 0
+                          currentSearchTextHighlightColor: colors.accent
+                              .withValues(alpha: 0.6),
+                          otherSearchTextHighlightColor: colors.accent
+                              .withValues(alpha: 0.25),
+                          initialPageNumber:
+                              (widget.initialPageIndex >= 0
                                   ? widget.initialPageIndex
                                   : 0) +
                               1,
@@ -1801,9 +1834,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                             }
                           },
                           onDocumentLoadFailed: (details) {
-                            debugPrint(
-                              '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
-                            );
+                            if (!mounted) return;
+                            setState(() {
+                              _pdfLoadError = details.description;
+                              _hideFloatingSelectionMenu();
+                            });
                           },
                           onPageChanged: (details) {
                             _selectedPageIndexNotifier.value =
@@ -2159,7 +2194,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                       iconColor: colors.accent,
                       colors: colors,
                       onTap: () {
-                        final lines = _pdfViewerStateKey.currentState
+                        final lines =
+                            _pdfViewerStateKey.currentState
                                 ?.getSelectedTextLines() ??
                             [];
                         _clearSelectionState();
@@ -2280,7 +2316,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     AppColors colors,
     ResourceResolution<ResolvedDocumentInfo>? res,
   ) {
-    final message = res?.errorMessage ?? 'Unable to load scanned document.';
+    final message =
+        _pdfLoadError ??
+        res?.errorMessage ??
+        'Unable to load scanned document.';
     final isLocked = res?.isLocked ?? false;
 
     return Center(
