@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:quitepaper/core/attachments/presentation/quiet_asset_image_view.dart';
 import 'package:quitepaper/features/scanner/presentation/document_scanner_screen.dart';
 import 'package:quitepaper/features/scanner/presentation/widgets/page_adjustment_sheet.dart';
 import 'dart:io';
@@ -163,6 +164,32 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets(
+    'IS-09 cached plaintext cannot bypass a locked resolver',
+    (tester) async {
+      final service = ProbeAssets(fixture());
+      const id = 'audit-lock-cache-unique';
+      await tester.pumpWidget(
+        app(const QuietAssetImageView(assetId: id), assets: service),
+      );
+      await frames(tester);
+      expect(find.byType(Image), findsOneWidget);
+      expect(service.calls, 1);
+      await tester.pumpWidget(const SizedBox());
+      service.locked = true;
+      await tester.pumpWidget(
+        app(const QuietAssetImageView(assetId: id), assets: service),
+      );
+      await frames(tester);
+      expect(find.byType(Image), findsNothing);
+      expect(find.textContaining('Encrypted image locked'), findsOneWidget);
+      expect(service.calls, 2);
+      debugPrint(
+        'IS-09 locked resolver is consulted again',
+      );
+    },
+  );
+
   testWidgets('IS-06 delayed auto-detection preserves committed Full Page', (
     tester,
   ) async {

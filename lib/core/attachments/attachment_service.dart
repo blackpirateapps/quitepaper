@@ -462,6 +462,7 @@ class AttachmentService implements AssetResolver {
 
   /// Retrieves cached plaintext bytes from memory, if already decrypted.
   Uint8List? getDecryptedCache(String assetId, {String variant = 'original'}) {
+    if (!keyManager.isUnlocked) return null;
     return _storage.getDecryptedCache(assetId, variant: variant);
   }
 
@@ -471,6 +472,12 @@ class AttachmentService implements AssetResolver {
     String variant = 'original',
   }) async {
     final uri = QuietPaperUri.asset(assetId, parameters: {'variant': variant});
+    // Access checks precede every plaintext cache hit.
+    if (!keyManager.isUnlocked) {
+      AttachmentLocalStorage.purgeAllMemoryCache();
+      return ResourceResolution.locked(uri);
+    }
+
 
     // 1. Check ephemeral in-memory cache
     final memCached = _storage.getDecryptedCache(assetId, variant: variant);
@@ -585,11 +592,15 @@ class AttachmentService implements AssetResolver {
         }
       }
 
+      if (!keyManager.isUnlocked) {
+        return ResourceResolution.locked(uri);
+      }
       // Cache decrypted bytes in memory
       _storage.putDecryptedCache(assetId, decrypted, variant: variant);
 
       return ResourceResolution.available(uri, decrypted);
     } catch (decErr) {
+      if (!keyManager.isUnlocked) return ResourceResolution.locked(uri);
       return ResourceResolution.corrupted(
         uri,
         'Attachment decryption failed: $decErr',

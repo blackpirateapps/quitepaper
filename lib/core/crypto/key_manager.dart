@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../storage/quiet_secure_storage.dart';
 import 'crypto_service.dart';
+import '../attachments/attachment_storage.dart';
 
 /// Key Manager interface managing secure key storage and lifecycle
 abstract class KeyManager {
@@ -332,6 +333,7 @@ class SecureKeyManager implements KeyManager {
 
   @override
   void lock() {
+    AttachmentLocalStorage.purgeAllMemoryCache();
     if (_cachedMasterKey != null) {
       // Clear master key bytes in memory
       _cachedMasterKey!.fillRange(0, _cachedMasterKey!.length, 0);

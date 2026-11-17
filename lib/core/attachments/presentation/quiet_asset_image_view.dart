@@ -77,8 +77,13 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
   @override
   bool get wantKeepAlive => true;
 
-  String get _effectiveCacheKey =>
-      widget.assetId ?? widget.url ?? '';
+  // Encrypted assets always go through access resolution, including qp:// URLs.
+  String get _effectiveCacheKey {
+    if (widget.assetId != null || QuietPaperUri.tryParse(widget.url ?? '') != null) {
+      return '';
+    }
+    return widget.url ?? '';
+  }
 
   @override
   void initState() {

@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 8 fixed, 6 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 9 fixed, 5 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -115,11 +115,16 @@ Resolution: Compression preserves original bytes, filename and MIME for multifra
 
 Validation: 19 compression/processor/editor-import tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-09 — P1 — Inline plaintext image cache bypasses subsequent lock checks (OPEN)
+### IS-09 — P1 — Inline plaintext image cache bypasses subsequent lock checks (FIXED)
 
 Confirmed in source: `QuietAssetImageView` keeps decrypted bytes in private static `_globalBytesCache`; every hit in init/update/load renders immediately without consulting the attachment service/key manager. No cache clearing or lock/session scoping exists anywhere in this file. After a previously loaded image is unmounted and the vault is locked, a fresh widget can still display its cached plaintext instead of the service's locked state. This confirms a component-level lock bypass; full application lock-screen reachability is a separate question, not asserted here.
 
 Reproduce: load an encrypted asset, unmount, lock/revoke access, remount the same asset. Expected: locked placeholder, no plaintext. Actual: bytes reused without a resolve call. Fix direction: session-scoped cache with explicit invalidation on lock/logout and access checks on cache hits. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Encrypted inline sources always consult the resolver, including qp URLs. Resolver and direct cache access check unlock status before plaintext hits, and secure key lock/logout clears the attachment cache. Resolver completion also rejects a locked vault. Widget and real-service regressions cover remount after lock and immediate cache purge.
+
+Validation: 24 inline/service/scanner tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-10 — P2 — Inline image byte cache has no memory bound or eviction (OPEN)
 

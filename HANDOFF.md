@@ -636,3 +636,9 @@ Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full
 Compression preserves original bytes, filename and MIME for multiframe images, retaining animation and timing even under forced compression. Acceptance tests cover forced small GIFs and eligible GIFs above the normal threshold.
 
 Validation: 19 compression/processor/editor-import tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-09 image/scanner audit fix — November 17, 2026
+
+Encrypted inline sources always consult the resolver, including qp URLs. Resolver and direct cache access check unlock status before plaintext hits, and secure key lock/logout clears the attachment cache. Resolver completion also rejects a locked vault. Widget and real-service regressions cover remount after lock and immediate cache purge.
+
+Validation: 24 inline/service/scanner tests passed. Flutter analysis clean. No full suite ran.
