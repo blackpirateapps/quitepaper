@@ -6924,3 +6924,31 @@ and the tags/search guide with the behavior and audit reference.
 Post-rebase verification on main `6fa397e`: the same 49 relevant tests pass,
 analysis is clean, and the normal Linux debug build succeeds. The remote changes
 affect the editor; notes/search source and the audited animation are unchanged.
+
+## 312. Linux CI image-import and document-viewer async test races (November 17, 2026)
+
+Inspected the recent GitHub Actions Linux failures. Main run
+[43890273557](https://github.com/blackpirateapps/quitepaper/actions/runs/43890273557)
+passed analysis but failed two image-import tests with `pumpAndSettle timed out`
+(2,680 passed, two failed), preventing compilation and packaging. Audit-branch run
+[44033716234](https://github.com/blackpirateapps/quitepaper/actions/runs/44033716234)
+failed the scanner viewer's `3 pages` expectation (2,676 passed, one failed).
+The compression-confirm timeout also reproduced locally before this fix.
+
+The image tests previously allowed only 200–300 ms of real time for file I/O,
+encryption and persistence before settling Flutter's fake clock. Pending work
+left the import overlay's spinner animating indefinitely during settlement.
+The viewer's two fake-clock pumps likewise did not wait for its annotated-file
+existence check; the card resolves document data asynchronously as well.
+
+Added `test/support/pump_until_found.dart`: a bounded 15-second wall-clock wait
+that alternates real async execution with frame pumping until the expected
+widget appears. Image tests wait for their dialog or inserted asset URI before
+settling animations. Compression paths also assert one compressor call, and
+preference writes are awaited. Scanner tests wait for loaded page metadata and
+initialize mock preferences to isolate viewer settings. Existing behavior
+assertions remain in place; application code and CI quality gates are unchanged.
+
+Validation: `flutter analyze` reports no issues. All 10 tests in
+`test/editor/editor_image_upload_compression_test.dart` and
+`test/scanner/scanner_ui_test.dart` pass. No full suite was run locally.

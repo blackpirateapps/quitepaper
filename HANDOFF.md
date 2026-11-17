@@ -45,6 +45,14 @@ to derive build numbers from the Git commit count. See the
 [version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
 and [engineering log 277](handoff/latest-logs.md#277-release-version-bump-to-163-build-21-november-15-2026).
 
+## Linux CI Async Test Stability
+
+Image import tests now wait for the compression dialog or inserted attachment
+instead of sleeping before settling an active progress spinner. Scanner viewer
+and card tests wait for loaded page metadata while allowing native file I/O to
+complete. These changes address the recent Linux workflow test failures; see
+[engineering log 312](handoff/latest-logs.md#312-linux-ci-image-import-and-document-viewer-async-test-races-november-17-2026).
+
 ## Latest Linux CLI Work
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
