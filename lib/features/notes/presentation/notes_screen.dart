@@ -668,22 +668,26 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final encoded = ZipEncoder().encode(archive);
     final zipBytes = Uint8List.fromList(encoded);
 
-    final savedPath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Export ${archive.length} notes',
-      fileName: 'quiet-paper-notes.zip',
-      type: FileType.custom,
-      allowedExtensions: const ['zip'],
-      bytes: zipBytes,
-    );
-    if (savedPath == null) return;
-
-    if (savedPath.isNotEmpty) {
-      final f = File(savedPath);
-      if (!await f.exists() || (await f.length()) == 0) {
-        try {
-          await f.writeAsBytes(zipBytes, flush: true);
-        } catch (_) {}
+    try {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export ${archive.length} notes',
+        fileName: 'quiet-paper-notes.zip',
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+        bytes: zipBytes,
+      );
+      if (savedPath == null || savedPath.isEmpty) return;
+      // Desktop pickers select a path; mobile pickers write the supplied bytes.
+      if (PlatformLayoutHelper.isDesktopPlatform) {
+        await File(savedPath).writeAsBytes(zipBytes, flush: true);
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Couldn't export notes")));
+      return;
     }
 
     if (!mounted) return;
@@ -842,7 +846,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
-
 
     final title = _getDestinationTitle(destination);
 

@@ -7184,3 +7184,13 @@ Implementation and permanent regression coverage accompany this entry. See the
 reproduction and updated resolution.
 
 Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
+
+## 325. NL-09 Notes List Remediation (November 17, 2026)
+
+Desktop ZIP exports always replace and flush picker-returned paths before reporting success. Null/empty picker responses cancel without writing; picker and filesystem failures show an export error. Mobile pickers retain ownership of supplied bytes. Regressions decode exact new/overwritten archives and cover cancellation and failures.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 16 passed. No full suite ran.

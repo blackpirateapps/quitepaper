@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**7/10 fixed; 3 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**8/10 fixed; 2 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -543,3 +543,9 @@ Validation: `flutter analyze`: no issues; collection recovery and screen regress
 Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
 
 Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
+
+### NL-09 notes list fix — November 17, 2026
+
+Desktop ZIP exports always replace and flush picker-returned paths before reporting success. Null/empty picker responses cancel without writing; picker and filesystem failures show an export error. Mobile pickers retain ownership of supplied bytes. Regressions decode exact new/overwritten archives and cover cancellation and failures.
+
+Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 16 passed. No full suite ran.

@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 3 open, 7 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 2 open, 8 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -227,6 +227,10 @@ schedule expensive work outside a single UI frame. Do not simply unbound the LRU
 and meet a defined frame budget on native desktop and physical mobile devices.
 
 ### NL-09: Desktop ZIP overwrite reports success without saving
+
+**Fixed.** Desktop ZIP exports always replace and flush picker-returned paths before reporting success. Null/empty picker responses cancel without writing; picker and filesystem failures show an export error. Mobile pickers retain ownership of supplied bytes. Regressions decode exact new/overwritten archives and cover cancellation and failures.
+
+Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 16 passed. No full suite ran.
 
 **Location:** `lib/features/notes/presentation/notes_screen.dart:679`.
 
