@@ -21,6 +21,7 @@ import '../../ocr/presentation/ocr_language_dialog.dart';
 import '../../sync/sync_provider.dart';
 import '../attachment_provider.dart';
 import 'image_dimension_reader.dart';
+import 'image_file_save.dart';
 import 'viewer_image_item.dart';
 
 /// Immersive editorial image viewer supporting single images and multi-image document galleries.
@@ -433,7 +434,7 @@ class _ImageViewerModalState extends ConsumerState<ImageViewerModal> {
                     }
                   },
                   onOcrStateChanged: () {
-                    if (index == _currentIndex) {
+                    if (mounted && index == _currentIndex) {
                       setState(() {});
                     }
                   },
@@ -609,6 +610,17 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
     }).catchError((_) {});
   }
 
+  bool _ocrNotificationScheduled = false;
+
+  void _notifyOcrStateChanged() {
+    if (!mounted || _ocrNotificationScheduled) return;
+    _ocrNotificationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ocrNotificationScheduled = false;
+      if (mounted) widget.onOcrStateChanged();
+    });
+  }
+
   Future<void> _loadImageAndOcr() async {
     if (!mounted) return;
     setState(() => _isLoading = _imageBytes == null);
@@ -685,7 +697,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
       }
     }
 
-    widget.onOcrStateChanged();
+    _notifyOcrStateChanged();
   }
 
   Future<void> _loadOcrDocument(String assetId) async {
@@ -717,7 +729,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
               _selection = _OcrTextSelection(page: doc.pages.first);
             }
           });
-          widget.onOcrStateChanged();
+          _notifyOcrStateChanged();
           return;
         }
       }
@@ -727,7 +739,7 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
 
     if (mounted) {
       setState(() => _isOcrLoading = false);
-      widget.onOcrStateChanged();
+      _notifyOcrStateChanged();
     }
   }
 
@@ -807,7 +819,8 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
   }
 
   Future<void> handleSaveImage() async {
-    if (_imageBytes == null) return;
+    final bytesToSave = _imageBytes;
+    if (bytesToSave == null) return;
 
     try {
       final mime = _attachment?.mimeType ?? 'image/png';
@@ -822,10 +835,12 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
         dialogTitle: 'Save Image',
         fileName: fileName,
         type: FileType.image,
-        bytes: _imageBytes,
+        bytes: bytesToSave,
       );
 
-      if (outputPath != null && mounted) {
+      if (outputPath == null || outputPath.trim().isEmpty) return;
+      await writePickedImageFile(outputPath, bytesToSave);
+      if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

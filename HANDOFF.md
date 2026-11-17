@@ -571,3 +571,113 @@ verify the fixes. The Linux profile replay and its explicit mobile limits are in
 No full suite ran.
 The normal Linux profile bundle was rebuilt from `lib/main.dart` after the
 isolated benchmark; its restore log is retained with the verification evidence.
+
+## Images and Document Scanner Audit — November 17, 2026
+
+The [image/scanner audit](handoff/audits/images-scanner-2026-11-17/README.md)
+records **14/14 fixed; 0 open**, on `audit/images-scanner-2026-11-17`
+from `8724bf0`, with one fix commit per finding. Coverage includes
+crop/rotation correctness, preview/export parity, desktop image saves, GIF
+compression, async image/detector races, plaintext-cache access and retention,
+and scanner/viewer lifecycle errors. Original characterization probes remain
+archived; permanent acceptance tests verify the repaired behavior. Per-finding
+resolutions are in the audit, with final combined results in
+[fix verification](handoff/audits/images-scanner-2026-11-17/fix-verification/README.md).
+
+**Original audit: 114 relevant existing tests and 16 characterization probes passed.** The
+probes assert baseline defects and are kept outside normal test discovery;
+they are evidence, not acceptance tests for future fixes. The full suite was
+not run. Dart VM mode/encoding and multipage benchmarks and a Flutter 12 MP
+preparation measurement are retained with explicit Linux/JIT and device limits.
+Final Flutter analysis reports no issues. See engineering log 328 for scope and validation.
+
+### IS-01 image/scanner audit fix — November 17, 2026
+
+Rectangle crops and perspective quads now apply in oriented source coordinates before rotation in both processing paths. Four-rotation pixel regressions preserve the selected red region and output orientation.
+
+Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-02 image/scanner audit fix — November 17, 2026
+
+Review and adjustment canvases render bounded crop/dewarp previews, discard stale geometry jobs, and return to source framing for corner editing. Scanner review now supplies the selected document quad.
+
+Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-03 image/scanner audit fix — November 17, 2026
+
+Both CPU image-processing paths now apply the exact preview color matrix with one final channel clamp. Pixel regressions cover lifted blacks, mixed brightness/contrast/saturation and grayscale, allowing JPEG rounding.
+
+Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-04 image/scanner audit fix — November 17, 2026
+
+Viewer and inline image saves share a desktop write-and-flush helper. Exact-byte new-file/overwrite regressions cover truncation, cancellation, empty destinations and filesystem errors; mobile pickers still own supplied bytes.
+
+Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-05 image/scanner audit fix — November 17, 2026
+
+Full-resolution preparation and neutral-export decode/fast-path decisions now run in worker isolates. A shared serial queue bounds preparation, export, mode-render and detector concurrency; mode-render failures no longer retry expensive work on the UI isolate. The fast path decodes once. Event-loop tests verify timers continue during concurrent preparation and neutral export.
+
+Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-06 image/scanner audit fix — November 17, 2026
+
+Page geometry revisions invalidate pending automatic detection when adjustments open; sheet detection also checks revisions after manual changes. Commits locate pages by stable ID. A delayed-detector widget regression verifies Use Full Page survives after Apply and reopening.
+
+Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-07 image/scanner audit fix — November 17, 2026
+
+Both PDF generators derive landscape page height from the image aspect ratio. Real PDF MediaBox regressions cover landscape, wide receipts, portrait and square pages in both generators.
+
+Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-08 image/scanner audit fix — November 17, 2026
+
+Compression preserves original bytes, filename and MIME for multiframe images, retaining animation and timing even under forced compression. Acceptance tests cover forced small GIFs and eligible GIFs above the normal threshold.
+
+Validation: 19 compression/processor/editor-import tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-09 image/scanner audit fix — November 17, 2026
+
+Encrypted inline sources always consult the resolver, including qp URLs. Resolver and direct cache access check unlock status before plaintext hits, and secure key lock/logout clears the attachment cache. Resolver completion also rejects a locked vault. Widget and real-service regressions cover remount after lock and immediate cache purge.
+
+Validation: 24 inline/service/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-10 image/scanner audit fix — November 17, 2026
+
+Removed both process-wide inline source maps. Inline widgets retain only their current source and dimensions; encrypted sources use the bounded service cache and Flutter retains its normal bounded decoded-image cache. Regressions revisit 200 unmounted sources and verify data URLs create fresh source buffers on remount.
+
+Validation: 17 inline/scanner tests and 2 expanded retention tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-11 image/scanner audit fix — November 17, 2026
+
+Inline loads snapshot source identity and variant, reset previous bytes/dimensions, and guard every async success/error and dimension decode with a request generation. Native codecs and decoded frames are disposed after measurement. Regressions cover both completion orders, stale failures and variant-only changes.
+
+Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-12 image/scanner audit fix — November 17, 2026
+
+Scanner capture, picker, file reads and preparation check mounting before continuing. Disposal invalidates pending preparation generations, and mode jobs ignore removed pages. The delayed-picker regression captures diagnostics and verifies no preparation or disposed-state mutation occurs.
+
+Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-13 image/scanner audit fix — November 17, 2026
+
+Viewer pages coalesce OCR/status notifications until after the current frame and check mounting before notifying the parent. Preloaded-network open/close and desktop-save regressions now assert zero build-phase diagnostics.
+
+Validation: 35 viewer/scanner regression tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-14 image/scanner audit fix — November 18, 2026
+
+Scanner review and adjustment sheets supply a separate unfiltered preview buffer. Holding ORIGINAL swaps to capture bytes rather than neutralizing tone over a mode-baked image; releasing restores the selected mode. Widget coverage checks both byte transitions.
+
+Validation: 32 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
+
+Image/scanner remediation is complete: **14/14 fixed; 0 open**, with one commit
+per finding on the original audit branch. Final combined validation passes
+**152 relevant tests**, serialized with `--concurrency=1`, and `flutter analyze`
+reports no issues. The full suite was not run. Commands, raw output and explicit
+validation limits are in [fix verification](handoff/audits/images-scanner-2026-11-17/fix-verification/README.md).
+See engineering log 329 and the updated processing contracts in the document guide.

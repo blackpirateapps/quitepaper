@@ -67,6 +67,21 @@ void main() {
       }
     });
 
+    test('IS-09 cached assets still require an unlocked key manager', () async {
+      const id = 'locked-cache-probe';
+      storage.putDecryptedCache(id, Uint8List.fromList([1,2,3]));
+      keyManager.lock();
+      expect((await attachmentService.resolveAsset(id)).isLocked, isTrue);
+      expect(attachmentService.getDecryptedCache(id), isNull);
+      expect(storage.getDecryptedCache(id), isNull);
+    });
+
+    test('IS-09 secure lock purges cached plaintext even without a resolve', () {
+      storage.putDecryptedCache('purge-probe', Uint8List.fromList([1,2,3]));
+      SecureKeyManager().lock();
+      expect(storage.getDecryptedCache('purge-probe'), isNull);
+    });
+
     test('Imports image bytes, persists encrypted payload and returns markdown token', () async {
       final imageBytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]);
 

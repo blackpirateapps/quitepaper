@@ -124,8 +124,20 @@ class DartImageProcessor implements ImageProcessor {
   /// Default max dimension for lightweight thumbnail carousel items.
   static const int thumbnailMaxDimension = 200;
 
+  // Serialize full-source jobs across processor instances to bound decoded memory.
+  static Future<void> _workerTail = Future<void>.value();
+
+  static Future<R> _runWorker<P, R>(ComputeCallback<P, R> callback, P params) {
+    final result = _workerTail.then((_) => compute(callback, params));
+    _workerTail = result.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return result;
+  }
+
   @override
-  Future<PageRepresentations> createPageRepresentations(Uint8List rawBytes) async {
+  Future<PageRepresentations> createPageRepresentations(Uint8List rawBytes) =>
+      _runWorker(_createPageRepresentations, rawBytes);
+
+  static PageRepresentations _createPageRepresentations(Uint8List rawBytes) {
     try {
       final decoded = img.decodeImage(rawBytes);
       if (decoded == null) {
@@ -208,23 +220,6 @@ class DartImageProcessor implements ImageProcessor {
         !documentQuad.isFullFrame &&
         documentQuad.isConvex;
 
-    // If neutral AND no mode transform AND no dewarp, return raw bytes with a
-    // basic orientation check.
-    if (adjustments.isNeutral && mode == ScanMode.original && !hasDewarp) {
-      final decoded = img.decodeImage(rawBytes);
-      if (decoded == null) {
-        return (imageBytes: rawBytes, width: 0, height: 0);
-      }
-      final oriented = img.bakeOrientation(decoded);
-      if (oriented.width <= maxDimension && oriented.height <= maxDimension) {
-        return (
-          imageBytes: rawBytes,
-          width: oriented.width,
-          height: oriented.height,
-        );
-      }
-    }
-
     final params = _HighResProcessingParams(
       rawBytes: rawBytes,
       adjustments: adjustments,
@@ -232,12 +227,7 @@ class DartImageProcessor implements ImageProcessor {
       mode: mode,
       documentQuad: hasDewarp ? documentQuad : null,
     );
-    try {
-      return await compute(_executeHighResProcessing, params);
-    } catch (e) {
-      debugPrint('processHighResolution compute fallback: $e');
-      return _executeHighResProcessing(params);
-    }
+    return _runWorker(_executeHighResProcessing, params);
   }
 
   @override
@@ -245,7 +235,7 @@ class DartImageProcessor implements ImageProcessor {
     Uint8List rawBytes,
   ) async {
     try {
-      return await compute(_executeDetectQuad, rawBytes);
+      return await _runWorker(_executeDetectQuad, rawBytes);
     } catch (e) {
       debugPrint('detectDocumentQuad fallback: $e');
       return (quad: NormalizedQuad.full, confidence: 0.0);
@@ -270,11 +260,10 @@ class DartImageProcessor implements ImageProcessor {
       }
 
       img.Image processed = img.bakeOrientation(decoded);
-
-      // 1. Rotation
-      final turns = params.adjustments.rotationQuarterTurns % 4;
-      if (turns != 0) {
-        processed = img.copyRotate(processed, angle: turns * 90);
+      if (params.adjustments.isNeutral && params.mode == ScanMode.original &&
+          params.documentQuad == null && processed.width <= params.maxDimension &&
+          processed.height <= params.maxDimension) {
+        return (imageBytes: params.rawBytes, width: processed.width, height: processed.height);
       }
 
       // 2. Geometry: perspective dewarp of the detected/adjusted document quad,
@@ -304,6 +293,12 @@ class DartImageProcessor implements ImageProcessor {
         }
       }
 
+      // Rotate after source-coordinate geometry.
+      final turns = params.adjustments.rotationQuarterTurns % 4;
+      if (turns != 0) {
+        processed = img.copyRotate(processed, angle: turns * 90);
+      }
+
       // 3. Downscale if exceeding maxDimension
       if (processed.width > params.maxDimension || processed.height > params.maxDimension) {
         if (processed.width >= processed.height) {
@@ -328,30 +323,7 @@ class DartImageProcessor implements ImageProcessor {
         processed = ScanPipelines.apply(processed, params.mode);
       }
 
-      // 5. Grayscale (redundant under a monochrome mode, but harmless).
-      if (params.adjustments.grayscale) {
-        processed = img.grayscale(processed);
-      }
-
-      // 6. Contrast
-      if (params.adjustments.contrast != 0.0) {
-        final contrastFactor = ((params.adjustments.contrast * 70) + 100).toInt();
-        processed = img.contrast(processed, contrast: contrastFactor);
-      }
-
-      // 7. Brightness & Saturation
-      if (params.adjustments.brightness != 0.0 || params.adjustments.saturation != 0.0) {
-        final brightnessFactor = (params.adjustments.brightness * 0.6) + 1.0;
-        final saturationFactor = (params.adjustments.saturation + 1.0).clamp(0.0, 2.0);
-
-        processed = img.adjustColor(
-          processed,
-          brightness: brightnessFactor,
-          saturation: (params.adjustments.grayscale || params.mode.isMonochrome)
-              ? 0.0
-              : saturationFactor,
-        );
-      }
+      _applyTone(processed, params.adjustments);
 
       final encoded = Uint8List.fromList(img.encodeJpg(processed, quality: 85));
       return (
@@ -399,12 +371,6 @@ class DartImageProcessor implements ImageProcessor {
         }
       }
 
-      // 2. Rotation
-      final turns = adjustments.rotationQuarterTurns % 4;
-      if (turns != 0) {
-        processed = img.copyRotate(processed, angle: turns * 90);
-      }
-
       // 3. Crop
       if (adjustments.crop != null && adjustments.crop != NormalizedRect.full) {
         final crop = adjustments.crop!;
@@ -422,6 +388,12 @@ class DartImageProcessor implements ImageProcessor {
             height: cropH,
           );
         }
+      }
+
+      // Rotate after source-coordinate crop.
+      final turns = adjustments.rotationQuarterTurns % 4;
+      if (turns != 0) {
+        processed = img.copyRotate(processed, angle: turns * 90);
       }
 
       // 4. Downscale final output if exceeding maxDimension
@@ -447,36 +419,30 @@ class DartImageProcessor implements ImageProcessor {
         processed = ScanPipelines.apply(processed, mode);
       }
 
-      // 6. Grayscale
-      if (adjustments.grayscale) {
-        processed = img.grayscale(processed);
-      }
-
-      // 7. Contrast adjustment
-      if (adjustments.contrast != 0.0) {
-        final contrastFactor = ((adjustments.contrast * 70) + 100).toInt();
-        processed = img.contrast(processed, contrast: contrastFactor);
-      }
-
-      // 8. Brightness & Saturation adjustment
-      if (adjustments.brightness != 0.0 || adjustments.saturation != 0.0) {
-        final brightnessFactor = (adjustments.brightness * 0.6) + 1.0;
-        final saturationFactor = (adjustments.saturation + 1.0).clamp(0.0, 2.0);
-
-        processed = img.adjustColor(
-          processed,
-          brightness: brightnessFactor,
-          saturation: (adjustments.grayscale || mode.isMonochrome)
-              ? 0.0
-              : saturationFactor,
-        );
-      }
+      _applyTone(processed, adjustments);
 
       final quality = isPreview ? 75 : 85;
       return Uint8List.fromList(img.encodeJpg(processed, quality: quality));
     } catch (e) {
       debugPrint('DartImageProcessor process error: $e');
       return sourceBytes;
+    }
+  }
+
+  /// Same affine RGB transform as ColorFilter.matrix, with a single final clamp.
+  static void _applyTone(img.Image image, ImageAdjustments adjustments) {
+    if (adjustments.brightness == 0 && adjustments.contrast == 0 &&
+        adjustments.saturation == 0 && !adjustments.grayscale) { return; }
+    final m = adjustments.toColorMatrix();
+    for (final pixel in image) {
+      final r = pixel.r.toDouble();
+      final g = pixel.g.toDouble();
+      final b = pixel.b.toDouble();
+      pixel.setRgb(
+        (m[0] * r + m[1] * g + m[2] * b + m[4]).round().clamp(0, 255),
+        (m[5] * r + m[6] * g + m[7] * b + m[9]).round().clamp(0, 255),
+        (m[10] * r + m[11] * g + m[12] * b + m[14]).round().clamp(0, 255),
+      );
     }
   }
 
@@ -492,10 +458,10 @@ class DartImageProcessor implements ImageProcessor {
       maxDimension: maxDimension,
     );
     try {
-      return await compute(_executeModePreviews, params);
+      return await _runWorker(_executeModePreviews, params);
     } catch (e) {
       debugPrint('renderModePreviews compute fallback: $e');
-      return _executeModePreviews(params);
+      return {for (final mode in modes) mode: sourceBytes};
     }
   }
 

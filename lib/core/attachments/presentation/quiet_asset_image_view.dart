@@ -16,6 +16,7 @@ import '../../widgets/quiet_adaptive_modal.dart';
 import '../attachment_provider.dart';
 import '../../uri/quiet_paper_uri.dart';
 import 'image_dimension_reader.dart';
+import 'image_file_save.dart';
 import 'image_layout_calculator.dart';
 import 'image_viewer_modal.dart';
 import 'viewer_image_item.dart';
@@ -63,9 +64,8 @@ class QuietAssetImageView extends ConsumerStatefulWidget {
 
 class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
     with AutomaticKeepAliveClientMixin {
-  static final Map<String, Size> _globalDimensionCache = {};
-  static final Map<String, Uint8List> _globalBytesCache = {};
 
+  int _loadGeneration = 0;
   Uint8List? _imageBytes;
   Size? _intrinsicSize;
   bool _isLoading = true;
@@ -76,22 +76,10 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
   @override
   bool get wantKeepAlive => true;
 
-  String get _effectiveCacheKey =>
-      widget.assetId ?? widget.url ?? '';
-
   @override
   void initState() {
     super.initState();
-    final key = _effectiveCacheKey;
-    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-      _imageBytes = _globalBytesCache[key];
-      _intrinsicSize = _globalDimensionCache[key] ??
-          ImageDimensionReader.extractDimensions(_imageBytes!);
-      _isLoading = false;
-      _hasError = false;
-    } else {
-      _loadImage();
-    }
+    _loadImage();
   }
 
   @override
@@ -100,149 +88,67 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
     if (oldWidget.assetId != widget.assetId ||
         oldWidget.url != widget.url ||
         oldWidget.variant != widget.variant) {
-      final key = _effectiveCacheKey;
-      if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-        _imageBytes = _globalBytesCache[key];
-        _intrinsicSize = _globalDimensionCache[key] ??
-            ImageDimensionReader.extractDimensions(_imageBytes!);
-        _isLoading = false;
-        _hasError = false;
-      } else {
-        _loadImage();
-      }
+      _loadImage();
     }
   }
 
-  Future<void> _loadImage() async {
-    final key = _effectiveCacheKey;
-    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-      if (mounted) {
-        setState(() {
-          _imageBytes = _globalBytesCache[key];
-          _intrinsicSize = _globalDimensionCache[key] ??
-              ImageDimensionReader.extractDimensions(_imageBytes!);
-          _isLoading = false;
-          _hasError = false;
-        });
-      }
-      return;
-    }
+  bool _isCurrentLoad(int generation) => mounted && generation == _loadGeneration;
 
+  Future<void> _loadImage() async {
     if (!mounted) return;
+    final generation = ++_loadGeneration;
+    final assetId = widget.assetId;
+    final url = widget.url;
+    final variant = widget.variant;
     setState(() {
+      _imageBytes = null;
+      _intrinsicSize = null;
       _isLoading = true;
       _hasError = false;
     });
 
     try {
-      final effectiveAssetId = widget.assetId?.isNotEmpty == true
-          ? widget.assetId!
-          : (widget.url != null ? QuietPaperUri.tryParse(widget.url!)?.resourceId : null);
-
-      // 1. Resolve asset from encrypted local storage / Cloudinary
+      Uint8List bytes;
+      final effectiveAssetId = assetId?.isNotEmpty == true
+          ? assetId! : QuietPaperUri.tryParse(url ?? '')?.resourceId;
       if (effectiveAssetId != null && effectiveAssetId.isNotEmpty) {
         final service = ref.read(attachmentServiceProvider);
-        final result = await service.resolveAsset(effectiveAssetId, variant: widget.variant);
-
-        if (!mounted) return;
-
-        if (result.isAvailable && result.data != null) {
-          _imageBytes = result.data;
-          _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = _imageBytes!;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
-          if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!, key);
-          }
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = false;
-            });
-          }
-          return;
-        }
-
-        // Error state resolution
-        String msg = 'Image unavailable';
-        IconData icon = Icons.broken_image_outlined;
-
-        if (result.isLocked) {
-          msg = 'Encrypted image locked';
-          icon = Icons.lock_outline_rounded;
-        } else if (result.isCorrupted) {
-          msg = 'Image decryption failed';
-          icon = Icons.error_outline_rounded;
-        } else if (result.isMissing) {
-          msg = 'Image not found';
-          icon = Icons.image_not_supported_outlined;
-        }
-
-        if (mounted) {
+        final result = await service.resolveAsset(effectiveAssetId, variant: variant);
+        if (!_isCurrentLoad(generation)) return;
+        if (!result.isAvailable || result.data == null) {
           setState(() {
             _isLoading = false;
             _hasError = true;
-            _errorMessage = msg;
-            _errorIcon = icon;
+            _errorMessage = result.isLocked ? 'Encrypted image locked'
+                : result.isCorrupted ? 'Image decryption failed'
+                : result.isMissing ? 'Image not found' : 'Image unavailable';
+            _errorIcon = result.isLocked ? Icons.lock_outline_rounded
+                : result.isCorrupted ? Icons.error_outline_rounded
+                : result.isMissing ? Icons.image_not_supported_outlined
+                : Icons.broken_image_outlined;
           });
-        }
-        return;
-      }
-
-      // 2. Resolve base64 data: URI
-      if (widget.url != null && widget.url!.startsWith('data:')) {
-        final dataUri = widget.url!;
-        final commaIdx = dataUri.indexOf(',');
-        if (commaIdx != -1) {
-          final base64Data = dataUri.substring(commaIdx + 1).trim();
-          final bytes = base64Decode(base64Data);
-          _imageBytes = bytes;
-          _intrinsicSize = ImageDimensionReader.extractDimensions(bytes);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = bytes;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
-          if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(bytes, key);
-          }
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = false;
-            });
-          }
           return;
         }
-      }
-
-      // 3. Resolve external network URL
-      if (widget.url != null && widget.url!.isNotEmpty) {
-        var rawUrl = widget.url!.trim();
+        bytes = result.data!;
+      } else if (url != null && url.startsWith('data:')) {
+        final commaIdx = url.indexOf(',');
+        if (commaIdx < 0) throw const FormatException('Invalid data URL');
+        bytes = base64Decode(url.substring(commaIdx + 1).trim());
+      } else {
+        final rawUrl = url?.trim() ?? '';
         var uri = Uri.tryParse(rawUrl);
         if (uri == null || !uri.hasScheme) {
-          try {
-            uri = Uri.tryParse(Uri.encodeFull(rawUrl));
-          } catch (_) {}
+          uri = Uri.tryParse(Uri.encodeFull(rawUrl));
         }
-
         if (uri == null || !uri.hasScheme) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = true;
-              _errorMessage = 'Invalid image URL';
-              _errorIcon = Icons.link_off_rounded;
-            });
-          }
+          setState(() {
+            _isLoading = false;
+            _hasError = true;
+            _errorMessage = 'Invalid image URL';
+            _errorIcon = Icons.link_off_rounded;
+          });
           return;
         }
-
         final response = await http.get(
           uri,
           headers: {
@@ -256,68 +162,55 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
             'Sec-Fetch-Site': 'cross-site',
           },
         );
-        if (!mounted) return;
-
-        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-          _imageBytes = response.bodyBytes;
-          _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = _imageBytes!;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
-          if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!, key);
-          }
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = false;
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _hasError = true;
-              _errorMessage = 'Failed to load image (${response.statusCode})';
-              _errorIcon = Icons.cloud_off_outlined;
-            });
-          }
+        if (!_isCurrentLoad(generation)) return;
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+          setState(() {
+            _isLoading = false;
+            _hasError = true;
+            _errorMessage = 'Failed to load image (${response.statusCode})';
+            _errorIcon = Icons.cloud_off_outlined;
+          });
+          return;
         }
+        bytes = response.bodyBytes;
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-          _errorMessage = 'Unable to load image';
-          _errorIcon = Icons.broken_image_outlined;
-        });
-      }
+      if (!_isCurrentLoad(generation)) return;
+      setState(() {
+        _imageBytes = bytes;
+        _intrinsicSize = ImageDimensionReader.extractDimensions(bytes);
+        _isLoading = false;
+        _hasError = false;
+      });
+      if (_intrinsicSize == null) _decodeIntrinsicSize(bytes, generation);
+    } catch (_) {
+      if (!_isCurrentLoad(generation)) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+        _errorMessage = 'Unable to load image';
+        _errorIcon = Icons.broken_image_outlined;
+      });
     }
   }
 
-  void _decodeIntrinsicSize(Uint8List bytes, [String? cacheKey]) {
-    ui.instantiateImageCodec(bytes).then((codec) {
-      return codec.getNextFrame();
-    }).then((frame) {
-      final size = Size(
-        frame.image.width.toDouble(),
-        frame.image.height.toDouble(),
-      );
-      if (cacheKey != null && cacheKey.isNotEmpty) {
-        _globalDimensionCache[cacheKey] = size;
+  Future<void> _decodeIntrinsicSize(Uint8List bytes, int generation) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      try {
+        final frame = await codec.getNextFrame();
+        try {
+          if (!_isCurrentLoad(generation)) return;
+          setState(() => _intrinsicSize = Size(
+            frame.image.width.toDouble(), frame.image.height.toDouble()));
+        } finally {
+          frame.image.dispose();
+        }
+      } finally {
+        codec.dispose();
       }
-      if (mounted) {
-        setState(() {
-          _intrinsicSize = size;
-        });
-      }
-    }).catchError((_) {
-      // Fallback: ImageLayoutCalculator handles gracefully
-    });
+    } catch (_) {
+      // The layout calculator handles unknown dimensions.
+    }
   }
 
   void _openFullscreenViewer() {
@@ -743,7 +636,9 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
         bytes: imageBytes,
       );
 
-      if (outputPath != null && mounted) {
+      if (outputPath == null || outputPath.trim().isEmpty) return;
+      await writePickedImageFile(outputPath, imageBytes);
+      if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

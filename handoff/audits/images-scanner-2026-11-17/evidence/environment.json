@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-11-17T16:59:38.168997+00:00",
+  "baseline": "8724bf04f1465f6032eccefcf161fdcd79a16154",
+  "branch": "audit/images-scanner-2026-11-17",
+  "flutter": "Flutter 3.47.2 \u2022 channel stable \u2022 https://github.com/flutter/flutter.git\nFramework \u2022 revision d3b14c8769 (3 months ago) \u2022 2026-08-26 16:07:51 -0700\nEngine \u2022 hash 1cf1c4773fb941c4c74a7f8bb144a8837596c0f4 (revision a804b26164) (2 months ago) \u2022 2026-08-26 18:46:13.000Z\nTools \u2022 Dart 3.13.2 \u2022 DevTools 2.60.0",
+  "platform": "Linux-7.3.3-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "cpu": "AMD Ryzen 3 7330U with Radeon Graphics",
+  "logical_cpus": 8,
+  "note": "Synthetic local data only. Final Dart VM benchmark rerun serially, without another audit test/analyzer job. Shared workstation; no claim of controlled thermal/background load. No physical camera or mobile-device replay."
+}
