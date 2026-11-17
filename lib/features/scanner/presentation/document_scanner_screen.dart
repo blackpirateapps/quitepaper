@@ -87,6 +87,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
 
   /// Baked per-mode carousel thumbnails, keyed by page id.
   final Map<String, Map<ScanMode, Uint8List>> _modePreviews = {};
+  final Map<String, int> _geometryRevisions = {};
 
   final ScannerPerformanceTracker _performanceTracker =
       ScannerPerformanceTracker();
@@ -362,6 +363,9 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   Future<void> _openAdjustments(int index) async {
     if (index < 0 || index >= _pages.length) return;
 
+    final pageId = _pages[index].id;
+    // Editing takes ownership before the sheet opens, even while detection runs.
+    _geometryRevisions[pageId] = (_geometryRevisions[pageId] ?? 0) + 1;
     final imageProcessor = ref.read(imageProcessorProvider);
     final updated = await PageAdjustmentSheet.show(
       context,
@@ -371,8 +375,10 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     );
 
     if (updated != null && mounted) {
+      final currentIndex = _pages.indexWhere((page) => page.id == pageId);
+      if (currentIndex < 0) return;
       setState(() {
-        _pages[index] = updated;
+        _pages[currentIndex] = updated;
         _lastUsedMode = updated.scanMode;
       });
     }
@@ -396,6 +402,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   /// Best-effort automatic document-corner detection; pre-fills the page's quad
   /// when confident so the user opens the crop editor to an already-framed page.
   Future<void> _detectQuad(ScannedPage page, Uint8List rawBytes) async {
+    final revision = _geometryRevisions[page.id] ?? 0;
     try {
       final imageProcessor = ref.read(imageProcessorProvider);
       final result = await imageProcessor.detectDocumentQuad(rawBytes);
@@ -403,7 +410,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         return;
       }
       final idx = _pages.indexWhere((p) => p.id == page.id);
-      if (idx < 0) return;
+      if (idx < 0 || (_geometryRevisions[page.id] ?? 0) != revision) return;
       setState(() {
         _pages[idx] = _pages[idx].copyWith(documentQuad: result.quad);
       });

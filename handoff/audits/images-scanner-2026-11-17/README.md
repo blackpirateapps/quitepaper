@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 5 fixed, 9 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 6 fixed, 8 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -82,11 +82,16 @@ Resolution: Full-resolution preparation and neutral-export decode/fast-path deci
 
 Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-06 — P1 — Late automatic corner detection overwrites manual crop edits (OPEN)
+### IS-06 — P1 — Late automatic corner detection overwrites manual crop edits (FIXED)
 
 Confirmed in source: `_processAndAddPage` launches `_detectQuad` without awaiting it. On completion `_detectQuad` locates the page by ID and unconditionally writes `result.quad`, even if the user has since opened adjustments and committed manually chosen corners or Use Full Page. The page ID check prevents edits to a deleted page but does not protect newer edits on the same page. A silent late replacement changes the saved framing.
 
 Reproduce: delay initial detector, open adjustments, choose Use Full Page and Apply, then let the original detector finish. Expected: the user's later decision wins. Actual: detected corners replace it. Fix direction: track page geometry revisions or cancel/invalidate pending detection when the user edits. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Page geometry revisions invalidate pending automatic detection when adjustments open; sheet detection also checks revisions after manual changes. Commits locate pages by stable ID. A delayed-detector widget regression verifies Use Full Page survives after Apply and reopening.
+
+Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-07 — P2 — Landscape scans export on the wrong page aspect ratio (OPEN)
 

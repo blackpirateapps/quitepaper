@@ -71,6 +71,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   late ScanMode _scanMode;
   NormalizedQuad? _documentQuad;
   bool _isDetecting = false;
+  int _geometryRevision = 0;
   Map<ScanMode, Uint8List> _modePreviews = const {};
   int _activeTab = 0; // 0: Tone & Style, 1: Crop & Rotate
   bool _isFineTuneExpanded = true;
@@ -100,6 +101,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
       _modePreviews[_scanMode] ?? widget.page.previewBytes;
 
   void _onAdjustmentsChanged(ImageAdjustments updated) {
+    _geometryRevision++;
     setState(() {
       _adjustments = updated;
     });
@@ -116,6 +118,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   }
 
   void _resetAll() {
+    _geometryRevision++;
     setState(() {
       _adjustments = ImageAdjustments.neutral;
       _scanMode = ScanMode.original;
@@ -127,15 +130,17 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
   NormalizedQuad get _effectiveQuad => _documentQuad ?? NormalizedQuad.full;
 
   void _resetQuadToFullPage() {
+    _geometryRevision++;
     setState(() => _documentQuad = NormalizedQuad.full);
   }
 
   Future<void> _autoDetectQuad() async {
+    final revision = ++_geometryRevision;
     setState(() => _isDetecting = true);
     try {
       final result =
           await widget.imageProcessor.detectDocumentQuad(widget.page.rawImageBytes);
-      if (!mounted) return;
+      if (!mounted || revision != _geometryRevision) return;
       setState(() {
         // Accept a confident detection; otherwise fall back to full page.
         _documentQuad =
@@ -227,7 +232,10 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
                 onAdjustmentsChanged: _onAdjustmentsChanged,
                 quad: widget.enableDocumentQuad ? _effectiveQuad : null,
                 onQuadChanged: widget.enableDocumentQuad
-                    ? (q) => setState(() => _documentQuad = q)
+                    ? (q) => setState(() {
+                        _geometryRevision++;
+                        _documentQuad = q;
+                      })
                     : null,
               ),
             ),

@@ -618,3 +618,9 @@ Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter an
 Full-resolution preparation and neutral-export decode/fast-path decisions now run in worker isolates. A shared serial queue bounds preparation, export, mode-render and detector concurrency; mode-render failures no longer retry expensive work on the UI isolate. The fast path decodes once. Event-loop tests verify timers continue during concurrent preparation and neutral export.
 
 Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-06 image/scanner audit fix — November 17, 2026
+
+Page geometry revisions invalidate pending automatic detection when adjustments open; sheet detection also checks revisions after manual changes. Commits locate pages by stable ID. A delayed-detector widget regression verifies Use Full Page survives after Apply and reopening.
+
+Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full suite ran.

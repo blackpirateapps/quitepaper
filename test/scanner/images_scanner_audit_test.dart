@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:quitepaper/features/scanner/presentation/document_scanner_screen.dart';
+import 'package:quitepaper/features/scanner/presentation/widgets/page_adjustment_sheet.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:quitepaper/core/attachments/presentation/image_viewer_modal.dart';
@@ -161,6 +163,66 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('IS-06 delayed auto-detection preserves committed Full Page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final detector = Completer<({NormalizedQuad quad, double confidence})>();
+    final processor = ProbeProcessor()..detection = detector;
+    FilePicker.platform = AuditPicker()..picked = fixture();
+    await tester.pumpWidget(
+      app(const DocumentScannerScreen(), processor: processor),
+    );
+    await frames(tester);
+    await tester.tap(find.byTooltip('Import from files'));
+    await frames(tester);
+    expect(find.text('Pages (1)'), findsOneWidget);
+    await tester.tap(find.byTooltip('Adjust page'));
+    await frames(tester);
+    await tester.tap(find.text('Crop & Rotate'));
+    await frames(tester);
+    await tester.tap(find.text('Use Full Page'));
+    await tester.tap(find.text('Apply'));
+    await frames(tester);
+    // Verify the manual choice committed before releasing stale work.
+    await tester.tap(find.byTooltip('Adjust page'));
+    await frames(tester);
+    expect(
+      tester
+          .widget<PageAdjustmentSheet>(find.byType(PageAdjustmentSheet))
+          .page
+          .documentQuad,
+      isNull,
+    );
+    await tester.tap(find.text('Apply'));
+    await frames(tester);
+    final detected = NormalizedQuad.fromRect(
+      const NormalizedRect(x: .1, y: .1, width: .8, height: .8),
+    );
+    detector.complete((quad: detected, confidence: .9));
+    await frames(tester);
+    expect(
+      tester
+          .widget<ScannerPreviewCanvas>(find.byType(ScannerPreviewCanvas))
+          .quad,
+      isNull,
+    );
+    await tester.tap(find.byTooltip('Adjust page'));
+    await frames(tester);
+    final current = tester.widget<PageAdjustmentSheet>(
+      find.byType(PageAdjustmentSheet),
+    );
+    expect(current.page.documentQuad, isNull);
+    debugPrint(
+      'IS-06 Full Page survives the stale detector result',
+    );
+    await tester.pumpWidget(const SizedBox());
+    await frames(tester);
+  });
+
   for (final destination in ['new', 'overwrite', 'cancel', 'empty', 'failure']) {
     testWidgets('IS-04 desktop image save $destination', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
