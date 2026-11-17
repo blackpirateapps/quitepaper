@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**16 confirmed open findings. No application changes or fixes.**
+**Remediation in progress: 1/16 fixed; 15 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -12,7 +12,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 
 | Finding | Priority | Bug |
 | --- | --- | --- |
-| [WC-01](wc-01-snapshot-image-sources.md) | P2 | Saved snapshots contain Markdown in image src attributes |
+| **Fixed** [WC-01](wc-01-snapshot-image-sources.md) | P2 | Saved snapshots contain Markdown in image src attributes |
 | [WC-02](wc-02-snapshot-css-lost.md) | P2 | Default save drops CSS already fetched during scanning |
 | [WC-03](wc-03-snapshot-save-failure-hidden.md) | P2 | Snapshot storage failures are reported as successful clips |
 | [WC-04](wc-04-removed-tags-restored.md) | P2 | Removed default tags return when the article is saved |
@@ -47,7 +47,7 @@ Evidence combines source tracing, deterministic HTTP/service probes, a real loca
 - Temporary focused audit probes: **10 passed**, asserting observed defects. Source and output are in [evidence.md](evidence.md).
 - **No full test suite ran.** Temporary executable probes were removed after preserving them as Markdown; committed changes are Markdown only.
 
-All findings remain open. Existing test success does not establish the absence of these bugs: those tests omit the failing state transitions, production wiring or artifact content examined here.
+The original audit tests characterized defects. Per-finding resolution sections now track fixes and regression validation.
 
 
 ## Follow-up final static analysis

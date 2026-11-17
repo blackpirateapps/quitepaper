@@ -46,7 +46,8 @@ class FakeAttachmentService implements AttachmentService {
   final Map<String, Uint8List> importedBytes = {};
 
   @override
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importImageFromBytes(
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importImageFromBytes(
     Uint8List bytes, {
     required String mimeType,
     String fileName = 'image.png',
@@ -95,7 +96,8 @@ class FakeDocumentService implements DocumentService {
   final Map<String, Uint8List> createdSnapshots = {};
 
   @override
-  Future<({DocumentEntity document, String markdownSnippet})> createWebSnapshotDocument({
+  Future<({DocumentEntity document, String markdownSnippet})>
+  createWebSnapshotDocument({
     required Uint8List htmlBytes,
     String? noteId,
     String title = 'Web Snapshot',
@@ -165,7 +167,9 @@ void main() {
         scanner: scanner,
       );
 
-      final scanResult = await service.scanUrl('https://example.com/local-first');
+      final scanResult = await service.scanUrl(
+        'https://example.com/local-first',
+      );
       expect(scanResult.metadata.title, 'How Local-First Software Works');
 
       final clipResult = await service.clipArticle(
@@ -181,30 +185,38 @@ void main() {
       expect(clipResult.note.tags, contains('clipped'));
       expect(clipResult.note.tags, contains('example.com'));
       expect(clipResult.note.tags, contains('offline'));
-      expect(clipResult.note.content, contains('title: "How Local-First Software Works"'));
-      expect(clipResult.note.content, contains('Local data is the primary copy'));
+      expect(
+        clipResult.note.content,
+        contains('title: "How Local-First Software Works"'),
+      );
+      expect(
+        clipResult.note.content,
+        contains('Local data is the primary copy'),
+      );
 
       final savedNote = await repository.getNoteById(clipResult.note.id);
       expect(savedNote, isNotNull);
       expect(savedNote!.title, 'How Local-First Software Works');
     });
 
-    test('downloads images, rewrites markdown body to qp://asset/<UUID>, and creates web snapshot', () async {
-      final repository = InMemoryNotesRepository();
-      final fakeAttachmentService = FakeAttachmentService();
-      final fakeDocumentService = FakeDocumentService();
+    test(
+      'downloads images, rewrites markdown body to qp://asset/<UUID>, and creates web snapshot',
+      () async {
+        final repository = InMemoryNotesRepository();
+        final fakeAttachmentService = FakeAttachmentService();
+        final fakeDocumentService = FakeDocumentService();
 
-      final mockClient = MockClient((request) async {
-        final url = request.url.toString();
-        if (url.endsWith('.png') || url.endsWith('.jpg')) {
-          return http.Response.bytes(
-            Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]),
-            200,
-            headers: {'content-type': 'image/png'},
-          );
-        }
+        final mockClient = MockClient((request) async {
+          final url = request.url.toString();
+          if (url.endsWith('.png') || url.endsWith('.jpg')) {
+            return http.Response.bytes(
+              Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]),
+              200,
+              headers: {'content-type': 'image/png'},
+            );
+          }
 
-        const html = '''
+          const html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -226,73 +238,96 @@ void main() {
 </body>
 </html>
 ''';
-        return http.Response(html, 200, headers: {'content-type': 'text/html'});
-      });
-
-      final scanner = WebClipperScanner(httpClient: mockClient);
-      final imageDownloader = WebImageDownloader(
-        attachmentService: fakeAttachmentService,
-        httpClient: mockClient,
-      );
-
-      final service = WebClipperService(
-        notesRepository: repository,
-        attachmentService: fakeAttachmentService,
-        documentService: fakeDocumentService,
-        scanner: scanner,
-        imageDownloader: imageDownloader,
-      );
-
-      final scanResult = await service.scanUrl('https://example.com/architecture');
-      expect(scanResult.images.length, 3);
-
-      final clipResult = await service.clipArticle(
-        scanResult: scanResult,
-        options: const WebClipperOptions(
-          saveHtmlSnapshot: true,
-          downloadImages: true,
-        ),
-      );
-
-      final content = clipResult.note.content;
-
-      // 1. Verify snapshot document was created and linked with qp://document/
-      expect(clipResult.snapshotDocument, isNotNull);
-      expect(clipResult.snapshotDocument!.source, DocumentSource.webSnapshot.identifier);
-      expect(clipResult.snapshotDocument!.mimeType, 'text/html');
-      expect(content, contains('qp://document/${clipResult.snapshotDocument!.id}'));
-      expect(content, contains('Original Web Snapshot Attached'));
-
-      // 2. Verify all image references are rewritten to local qp://asset/ links
-      expect(content, contains('qp://asset/00000000-0000-0000-0000-00000000000'));
-      expect(content, contains('![Architecture Diagram](qp://asset/'));
-      expect(content, contains('![Database Schema](qp://asset/'));
-
-      // 3. Verify zero remote image URLs remain in markdown body
-      expect(content.contains('https://example.com/diagram.png'), isFalse);
-      expect(content.contains('https://example.com/database.png'), isFalse);
-      expect(content.contains('https://example.com/hero.jpg'), isFalse);
-
-      // 4. Verify attachments were ingested in fakeAttachmentService
-      expect(fakeAttachmentService.importedBytes.length, 3);
-      expect(fakeDocumentService.createdSnapshots.length, 1);
-    });
-
-    test('deduplicates hero lead image if first image in article body is the same image', () async {
-      final repository = InMemoryNotesRepository();
-      final fakeAttachmentService = FakeAttachmentService();
-
-      final mockClient = MockClient((request) async {
-        final url = request.url.toString();
-        if (url.endsWith('.jpg')) {
-          return http.Response.bytes(
-            Uint8List.fromList([255, 216, 255]),
+          return http.Response(
+            html,
             200,
-            headers: {'content-type': 'image/jpeg'},
+            headers: {'content-type': 'text/html'},
           );
-        }
+        });
 
-        const html = '''
+        final scanner = WebClipperScanner(httpClient: mockClient);
+        final imageDownloader = WebImageDownloader(
+          attachmentService: fakeAttachmentService,
+          httpClient: mockClient,
+        );
+
+        final service = WebClipperService(
+          notesRepository: repository,
+          attachmentService: fakeAttachmentService,
+          documentService: fakeDocumentService,
+          scanner: scanner,
+          imageDownloader: imageDownloader,
+        );
+
+        final scanResult = await service.scanUrl(
+          'https://example.com/architecture',
+        );
+        expect(scanResult.images.length, 3);
+
+        final clipResult = await service.clipArticle(
+          scanResult: scanResult,
+          options: const WebClipperOptions(
+            saveHtmlSnapshot: true,
+            downloadImages: true,
+          ),
+        );
+
+        final content = clipResult.note.content;
+
+        // 1. Verify snapshot document was created and linked with qp://document/
+        expect(clipResult.snapshotDocument, isNotNull);
+        expect(
+          clipResult.snapshotDocument!.source,
+          DocumentSource.webSnapshot.identifier,
+        );
+        expect(clipResult.snapshotDocument!.mimeType, 'text/html');
+        expect(
+          content,
+          contains('qp://document/${clipResult.snapshotDocument!.id}'),
+        );
+        expect(content, contains('Original Web Snapshot Attached'));
+
+        // 2. Verify all image references are rewritten to local qp://asset/ links
+        expect(
+          content,
+          contains('qp://asset/00000000-0000-0000-0000-00000000000'),
+        );
+        expect(content, contains('![Architecture Diagram](qp://asset/'));
+        expect(content, contains('![Database Schema](qp://asset/'));
+
+        // 3. Verify zero remote image URLs remain in markdown body
+        expect(content.contains('https://example.com/diagram.png'), isFalse);
+        expect(content.contains('https://example.com/database.png'), isFalse);
+        expect(content.contains('https://example.com/hero.jpg'), isFalse);
+
+        // 4. Verify attachments were ingested in fakeAttachmentService
+        expect(fakeAttachmentService.importedBytes.length, 3);
+        expect(fakeDocumentService.createdSnapshots.length, 1);
+        final snapshot = utf8.decode(
+          fakeDocumentService.createdSnapshots.values.single,
+        );
+        expect(snapshot, contains('src="qp://asset/'));
+        expect(snapshot, isNot(contains('src="![')));
+      },
+    );
+
+    test(
+      'deduplicates hero lead image if first image in article body is the same image',
+      () async {
+        final repository = InMemoryNotesRepository();
+        final fakeAttachmentService = FakeAttachmentService();
+
+        final mockClient = MockClient((request) async {
+          final url = request.url.toString();
+          if (url.endsWith('.jpg')) {
+            return http.Response.bytes(
+              Uint8List.fromList([255, 216, 255]),
+              200,
+              headers: {'content-type': 'image/jpeg'},
+            );
+          }
+
+          const html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -307,133 +342,173 @@ void main() {
 </body>
 </html>
 ''';
-        return http.Response(html, 200, headers: {'content-type': 'text/html'});
-      });
-
-      final scanner = WebClipperScanner(httpClient: mockClient);
-      final imageDownloader = WebImageDownloader(
-        attachmentService: fakeAttachmentService,
-        httpClient: mockClient,
-      );
-
-      final service = WebClipperService(
-        notesRepository: repository,
-        attachmentService: fakeAttachmentService,
-        scanner: scanner,
-        imageDownloader: imageDownloader,
-      );
-
-      final scanResult = await service.scanUrl('https://example.com/hero-test');
-      final clipResult = await service.clipArticle(
-        scanResult: scanResult,
-        options: const WebClipperOptions(
-          saveHtmlSnapshot: false,
-          downloadImages: true,
-        ),
-      );
-
-      final content = clipResult.note.content;
-
-      // Count occurrences of qp://asset/ in content
-      final matches = RegExp(r'qp:\/\/asset\/[a-zA-Z0-9_\-]+').allMatches(content);
-      expect(matches.length, 1, reason: 'Hero image must appear exactly once without duplicate in body');
-    });
-
-    test('clips article scanned via Reader Fallback with image downloads and offline snapshot', () async {
-      final repository = InMemoryNotesRepository();
-      final fakeAttachmentService = FakeAttachmentService();
-      final fakeDocumentService = FakeDocumentService();
-
-      final mockClient = MockClient((request) async {
-        final url = request.url.toString();
-
-        if (request.method == 'HEAD') {
-          return http.Response('', 200, headers: {'content-length': '250000'});
-        }
-
-        if (url.endsWith('.jpg') || url.endsWith('.png')) {
-          return http.Response.bytes(
-            Uint8List.fromList([255, 216, 255, 0, 1, 2]),
+          return http.Response(
+            html,
             200,
-            headers: {'content-type': 'image/jpeg'},
+            headers: {'content-type': 'text/html'},
           );
-        }
+        });
 
-        // Direct request returns 403 Forbidden
-        if (url.contains('gatesnotes.com') && !url.contains('r.jina.ai')) {
-          return http.Response('Access Denied', 403);
-        }
+        final scanner = WebClipperScanner(httpClient: mockClient);
+        final imageDownloader = WebImageDownloader(
+          attachmentService: fakeAttachmentService,
+          httpClient: mockClient,
+        );
 
-        // Reader Fallback endpoint
-        if (url.contains('r.jina.ai')) {
-          final jsonPayload = json.encode({
-            'data': {
-              'title': 'The choices we make about AI now are critical | Bill Gates',
-              'description': 'AI will either be the greatest equalizer ever invented, or the worst source of injustice.',
-              'url': 'https://www.gatesnotes.com/ai-article',
-              'content': '''## The turbulent AI era is here.
+        final service = WebClipperService(
+          notesRepository: repository,
+          attachmentService: fakeAttachmentService,
+          scanner: scanner,
+          imageDownloader: imageDownloader,
+        );
+
+        final scanResult = await service.scanUrl(
+          'https://example.com/hero-test',
+        );
+        final clipResult = await service.clipArticle(
+          scanResult: scanResult,
+          options: const WebClipperOptions(
+            saveHtmlSnapshot: false,
+            downloadImages: true,
+          ),
+        );
+
+        final content = clipResult.note.content;
+
+        // Count occurrences of qp://asset/ in content
+        final matches = RegExp(
+          r'qp:\/\/asset\/[a-zA-Z0-9_\-]+',
+        ).allMatches(content);
+        expect(
+          matches.length,
+          1,
+          reason:
+              'Hero image must appear exactly once without duplicate in body',
+        );
+      },
+    );
+
+    test(
+      'clips article scanned via Reader Fallback with image downloads and offline snapshot',
+      () async {
+        final repository = InMemoryNotesRepository();
+        final fakeAttachmentService = FakeAttachmentService();
+        final fakeDocumentService = FakeDocumentService();
+
+        final mockClient = MockClient((request) async {
+          final url = request.url.toString();
+
+          if (request.method == 'HEAD') {
+            return http.Response(
+              '',
+              200,
+              headers: {'content-length': '250000'},
+            );
+          }
+
+          if (url.endsWith('.jpg') || url.endsWith('.png')) {
+            return http.Response.bytes(
+              Uint8List.fromList([255, 216, 255, 0, 1, 2]),
+              200,
+              headers: {'content-type': 'image/jpeg'},
+            );
+          }
+
+          // Direct request returns 403 Forbidden
+          if (url.contains('gatesnotes.com') && !url.contains('r.jina.ai')) {
+            return http.Response('Access Denied', 403);
+          }
+
+          // Reader Fallback endpoint
+          if (url.contains('r.jina.ai')) {
+            final jsonPayload = json.encode({
+              'data': {
+                'title':
+                    'The choices we make about AI now are critical | Bill Gates',
+                'description':
+                    'AI will either be the greatest equalizer ever invented, or the worst source of injustice.',
+                'url': 'https://www.gatesnotes.com/ai-article',
+                'content': '''## The turbulent AI era is here.
 
 AI will either be the greatest equalizer ever invented, or the worst source of injustice.
 
 ![AI Brain Concept](https://images.gatesnotes.com/brain.jpg)
 
 We need a plan to ensure that the good outweighs the bad.''',
-              'metadata': {
-                'author': 'Bill Gates',
-                'og:image': 'https://images.gatesnotes.com/lead_hero.jpg',
-                'og:site_name': 'gatesnotes.com',
-                'article:published_time': '2026-08-26T12:00:00Z',
+                'metadata': {
+                  'author': 'Bill Gates',
+                  'og:image': 'https://images.gatesnotes.com/lead_hero.jpg',
+                  'og:site_name': 'gatesnotes.com',
+                  'article:published_time': '2026-08-26T12:00:00Z',
+                },
               },
-            },
-          });
-          return http.Response(jsonPayload, 200, headers: {'content-type': 'application/json'});
-        }
+            });
+            return http.Response(
+              jsonPayload,
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
 
-        return http.Response('Not Found', 404);
-      });
+          return http.Response('Not Found', 404);
+        });
 
-      final scanner = WebClipperScanner(httpClient: mockClient);
-      final imageDownloader = WebImageDownloader(
-        attachmentService: fakeAttachmentService,
-        httpClient: mockClient,
-      );
-      final snapshotGenerator = WebSnapshotGenerator(httpClient: mockClient);
+        final scanner = WebClipperScanner(httpClient: mockClient);
+        final imageDownloader = WebImageDownloader(
+          attachmentService: fakeAttachmentService,
+          httpClient: mockClient,
+        );
+        final snapshotGenerator = WebSnapshotGenerator(httpClient: mockClient);
 
-      final service = WebClipperService(
-        notesRepository: repository,
-        attachmentService: fakeAttachmentService,
-        documentService: fakeDocumentService,
-        scanner: scanner,
-        imageDownloader: imageDownloader,
-        snapshotGenerator: snapshotGenerator,
-      );
+        final service = WebClipperService(
+          notesRepository: repository,
+          attachmentService: fakeAttachmentService,
+          documentService: fakeDocumentService,
+          scanner: scanner,
+          imageDownloader: imageDownloader,
+          snapshotGenerator: snapshotGenerator,
+        );
 
-      final scanResult = await service.scanUrl('https://www.gatesnotes.com/ai-article');
-      expect(scanResult.metadata.title, 'The choices we make about AI now are critical');
-      expect(scanResult.metadata.author, 'Bill Gates');
-      expect(scanResult.metadata.domain, 'gatesnotes.com');
+        final scanResult = await service.scanUrl(
+          'https://www.gatesnotes.com/ai-article',
+        );
+        expect(
+          scanResult.metadata.title,
+          'The choices we make about AI now are critical',
+        );
+        expect(scanResult.metadata.author, 'Bill Gates');
+        expect(scanResult.metadata.domain, 'gatesnotes.com');
 
-      final clipResult = await service.clipArticle(
-        scanResult: scanResult,
-        options: const WebClipperOptions(
-          saveHtmlSnapshot: true,
-          downloadImages: true,
-          tags: ['technology', 'ai'],
-        ),
-      );
+        final clipResult = await service.clipArticle(
+          scanResult: scanResult,
+          options: const WebClipperOptions(
+            saveHtmlSnapshot: true,
+            downloadImages: true,
+            tags: ['technology', 'ai'],
+          ),
+        );
 
-      final note = clipResult.note;
-      expect(note.title, 'The choices we make about AI now are critical');
-      expect(note.tags, contains('clipped'));
-      expect(note.tags, contains('gatesnotes.com'));
-      expect(note.tags, contains('technology'));
-      expect(note.tags, contains('ai'));
-      expect(note.content, contains('title: "The choices we make about AI now are critical"'));
-      expect(note.content, contains('author: "Bill Gates"'));
-      expect(note.content, contains('The turbulent AI era is here'));
-      expect(note.content, contains('qp://asset/'));
-      expect(clipResult.snapshotDocument, isNotNull);
-      expect(fakeDocumentService.createdSnapshots.length, 1);
-    });
+        final note = clipResult.note;
+        expect(note.title, 'The choices we make about AI now are critical');
+        expect(note.tags, contains('clipped'));
+        expect(note.tags, contains('gatesnotes.com'));
+        expect(note.tags, contains('technology'));
+        expect(note.tags, contains('ai'));
+        expect(
+          note.content,
+          contains('title: "The choices we make about AI now are critical"'),
+        );
+        expect(note.content, contains('author: "Bill Gates"'));
+        expect(note.content, contains('The turbulent AI era is here'));
+        expect(note.content, contains('qp://asset/'));
+        expect(clipResult.snapshotDocument, isNotNull);
+        expect(fakeDocumentService.createdSnapshots.length, 1);
+        final snapshot = utf8.decode(
+          fakeDocumentService.createdSnapshots.values.single,
+        );
+        expect(snapshot, contains('src="qp://asset/'));
+        expect(snapshot, isNot(contains('src="![')));
+      },
+    );
   });
 }

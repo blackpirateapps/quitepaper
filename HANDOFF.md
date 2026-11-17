@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **16 open bugs**, with individual Markdown reports and replayable evidence.
+records **1/16 fixed; 15 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -368,3 +368,9 @@ sources were archived in Markdown and removed. Temporary Android build settings
 were restored, and the separate audit app was uninstalled. The original installed
 Quiet Paper and its notes were left untouched. Use USB and serialized builds for
 replay: an earlier emulator/build attempt was stopped after a reported host crash.
+
+### WC-01 Android web clipper fix
+
+Saved snapshot image sources now contain vault URLs; the viewer decrypts and embeds image bytes in memory for offline rendering, removing competing srcset references.
+
+Validation: flutter analyze: clean; 7 service, snapshot and image hydration tests passed. No full suite ran.

@@ -1,6 +1,6 @@
 # WC-01: Saved snapshots contain Markdown in image src attributes
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -27,3 +27,9 @@ The corresponding `WC-01` probe and its output are preserved in [evidence.md](ev
 - [`lib/core/web_clipper/web_snapshot_generator.dart:147`](../../../lib/core/web_clipper/web_snapshot_generator.dart#L147)
 - [`lib/core/web_clipper/web_image_downloader.dart:23`](../../../lib/core/web_clipper/web_image_downloader.dart#L23)
 - [`lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart:115`](../../../lib/features/web_clipper/presentation/web_snapshot_viewer_screen.dart#L115)
+
+## Resolution
+
+Saved snapshot image sources now contain vault URLs; the viewer decrypts and embeds image bytes in memory for offline rendering, removing competing srcset references.
+
+Validation: flutter analyze: clean; 7 service, snapshot and image hydration tests passed. No full suite ran.

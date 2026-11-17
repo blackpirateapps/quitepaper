@@ -23,13 +23,15 @@ class WebClipperService {
     WebImageDownloader? imageDownloader,
     HtmlToMarkdownConverter? markdownConverter,
     WebSnapshotGenerator? snapshotGenerator,
-  })  : _scanner = scanner ?? WebClipperScanner(),
-        _imageDownloader = imageDownloader ??
-            (attachmentService != null
-                ? WebImageDownloader(attachmentService: attachmentService)
-                : null),
-        _markdownConverter = markdownConverter ?? const HtmlToMarkdownConverter(),
-        _snapshotGenerator = snapshotGenerator ?? WebSnapshotGenerator();
+  }) : _scanner = scanner ?? WebClipperScanner(),
+       _imageDownloader =
+           imageDownloader ??
+           (attachmentService != null
+               ? WebImageDownloader(attachmentService: attachmentService)
+               : null),
+       _markdownConverter =
+           markdownConverter ?? const HtmlToMarkdownConverter(),
+       _snapshotGenerator = snapshotGenerator ?? WebSnapshotGenerator();
 
   final NotesRepository notesRepository;
   final AttachmentService? attachmentService;
@@ -64,7 +66,8 @@ class WebClipperService {
   }) async {
     final noteId = _uuid.v4();
     final now = DateTime.now();
-    final effectiveTitle = (options.customTitle != null && options.customTitle!.trim().isNotEmpty)
+    final effectiveTitle =
+        (options.customTitle != null && options.customTitle!.trim().isNotEmpty)
         ? options.customTitle!.trim()
         : scanResult.metadata.title;
 
@@ -78,7 +81,9 @@ class WebClipperService {
     final imageSnippetsMap = <String, String>{};
     final downloader = _imageDownloader;
 
-    if (options.downloadImages && downloader != null && scanResult.images.isNotEmpty) {
+    if (options.downloadImages &&
+        downloader != null &&
+        scanResult.images.isNotEmpty) {
       final selectedCandidates = scanResult.images.where((img) {
         if (options.selectedImages.isNotEmpty) {
           return options.selectedImages.contains(img.resolvedUrl) ||
@@ -88,21 +93,25 @@ class WebClipperService {
       }).toList();
 
       if (selectedCandidates.isNotEmpty) {
-        onProgress?.call(WebClipProgress(
-          step: WebClipProgressStep.downloadingImages,
-          currentImageIndex: 0,
-          totalImagesCount: selectedCandidates.length,
-        ));
+        onProgress?.call(
+          WebClipProgress(
+            step: WebClipProgressStep.downloadingImages,
+            currentImageIndex: 0,
+            totalImagesCount: selectedCandidates.length,
+          ),
+        );
 
         final downloadedMap = await downloader.downloadAndEncryptImages(
           candidates: selectedCandidates,
           noteId: noteId,
           onProgress: (completed, total) {
-            onProgress?.call(WebClipProgress(
-              step: WebClipProgressStep.downloadingImages,
-              currentImageIndex: completed,
-              totalImagesCount: total,
-            ));
+            onProgress?.call(
+              WebClipProgress(
+                step: WebClipProgressStep.downloadingImages,
+                currentImageIndex: completed,
+                totalImagesCount: total,
+              ),
+            );
           },
         );
 
@@ -116,17 +125,23 @@ class WebClipperService {
     int? snapshotSizeBytes;
 
     if (options.saveHtmlSnapshot && documentService != null) {
-      onProgress?.call(const WebClipProgress(
-        step: WebClipProgressStep.encrypting,
-        message: 'Generating encrypted web snapshot…',
-      ));
+      onProgress?.call(
+        const WebClipProgress(
+          step: WebClipProgressStep.encrypting,
+          message: 'Generating encrypted web snapshot…',
+        ),
+      );
 
       try {
         final snapshotBytes = await _snapshotGenerator.generateSnapshotBytes(
           rawHtml: scanResult.rawHtml,
           metadata: metadata,
           cleanedElement: cleanedElement,
-          localImageSources: imageSnippetsMap,
+          localImageSources: {
+            for (final url in imageSnippetsMap.keys)
+              if (_resolveAssetUri(url, imageSnippetsMap) case final String uri)
+                url: uri,
+          },
         );
 
         final docResult = await documentService!.createWebSnapshotDocument(
@@ -144,10 +159,12 @@ class WebClipperService {
     }
 
     // 3. Compile Markdown with frontmatter and rewritten image links
-    onProgress?.call(const WebClipProgress(
-      step: WebClipProgressStep.saving,
-      message: 'Compiling editorial markdown note…',
-    ));
+    onProgress?.call(
+      const WebClipProgress(
+        step: WebClipProgressStep.saving,
+        message: 'Compiling editorial markdown note…',
+      ),
+    );
 
     // Handle lead hero image
     String? leadImageMarkdown;
@@ -164,7 +181,8 @@ class WebClipperService {
     // Rewrite inline image tags in DOM
     final imgNodes = cleanedElement.querySelectorAll('img');
     for (final img in imgNodes) {
-      final src = img.attributes['src'] ??
+      final src =
+          img.attributes['src'] ??
           img.attributes['data-src'] ??
           img.attributes['data-original'] ??
           img.attributes['data-lazy-src'];
@@ -183,7 +201,9 @@ class WebClipperService {
       if (firstImgSrc != null &&
           (firstImgSrc == leadAssetUri ||
               firstImgSrc == metadata.leadImageUrl ||
-              (leadAssetUri != null && _resolveAssetUri(firstImgSrc, imageSnippetsMap) == leadAssetUri))) {
+              (leadAssetUri != null &&
+                  _resolveAssetUri(firstImgSrc, imageSnippetsMap) ==
+                      leadAssetUri))) {
         if (firstImg.parent?.localName == 'figure') {
           firstImg.parent!.remove();
         } else {
@@ -222,9 +242,7 @@ class WebClipperService {
 
     await notesRepository.saveNote(note);
 
-    onProgress?.call(const WebClipProgress(
-      step: WebClipProgressStep.complete,
-    ));
+    onProgress?.call(const WebClipProgress(step: WebClipProgressStep.complete));
 
     return (note: note, snapshotDocument: snapshotDoc);
   }
@@ -234,7 +252,9 @@ class WebClipperService {
     final trimmed = url.trim();
 
     String? extractUri(String snippet) {
-      final match = RegExp(r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)').firstMatch(snippet);
+      final match = RegExp(
+        r'\((qp:\/\/asset\/[a-zA-Z0-9_\-]+)\)',
+      ).firstMatch(snippet);
       return match?.group(1);
     }
 
@@ -270,7 +290,8 @@ class WebClipperService {
     // 4. Fallback scan entries
     for (final entry in snippetsMap.entries) {
       if (entry.key == trimmed ||
-          (trimmed.contains('?') && entry.key.split('?').first == trimmed.split('?').first) ||
+          (trimmed.contains('?') &&
+              entry.key.split('?').first == trimmed.split('?').first) ||
           (entry.key.contains('?') && entry.key.split('?').first == trimmed)) {
         final uri = extractUri(entry.value);
         if (uri != null) return uri;
