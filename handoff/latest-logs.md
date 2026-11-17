@@ -7124,3 +7124,13 @@ Implementation and permanent regression coverage accompany this entry. See the
 reproduction and updated resolution.
 
 Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
+
+## 319. NL-02 Notes List Remediation (November 17, 2026)
+
+Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.

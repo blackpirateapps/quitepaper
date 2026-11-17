@@ -12,6 +12,8 @@ import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_metadata_extractor.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/domain/notes_query.dart';
+import 'package:quitepaper/features/notes/domain/notes_sort.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/notes/presentation/notes_screen.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_empty_state.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
@@ -136,4 +138,145 @@ void main() {
       },
     );
   }
+  for (final layout in {
+    'mobile': const Size(390, 844),
+    'desktop': const Size(1440, 900),
+  }.entries) {
+    auditWidgets(
+      'NL-02 ${layout.key}: grouping preserves every sort and pin order',
+      (t) async {
+        final notes = [
+          note(
+            'a',
+            title: 'Alpha',
+            updated: now.subtract(const Duration(days: 1)),
+          ),
+          note(
+            'b',
+            title: 'Beta',
+          ).copyWith(createdAt: now.subtract(const Duration(days: 2))),
+          note(
+            'c',
+            title: 'Charlie',
+            updated: now.subtract(const Duration(days: 1)),
+          ).copyWith(isPinned: true),
+        ];
+        for (final item in notes) {
+          await repo.saveNote(item);
+        }
+        final c = await mount(t, layout.value);
+        for (final field in SortField.values) {
+          for (final direction in SortDirection.values) {
+            for (final pinnedFirst in [false, true]) {
+              c
+                  .read(notesQueryProvider.notifier)
+                  .setSort(
+                    NotesSort(
+                      field: field,
+                      direction: direction,
+                      pinnedFirst: pinnedFirst,
+                    ),
+                  );
+              await t.pumpAndSettle();
+              final raw = c.read(notesCollectionProvider).notes;
+              final rendered = t
+                  .widgetList<NoteListTile>(find.byType(NoteListTile))
+                  .map((w) => w.note.id)
+                  .toList();
+              expect(
+                rendered,
+                raw.map((n) => n.id).toList(),
+                reason: '$field $direction pins=$pinnedFirst',
+              );
+              final groups = c.read(groupedNotesCollectionProvider);
+              if (field == SortField.title) {
+                expect(
+                  groups.where((g) => g.header != 'Pinned').single.header,
+                  'Notes',
+                );
+              } else if (field == SortField.created) {
+                expect(groups.any((g) => g.header == 'Yesterday'), isFalse);
+              }
+            }
+          }
+        }
+      },
+    );
+  }
+
+  test(
+    'NL-02: grouping preserves sort and pins across real keyset pages',
+    () async {
+      final notes = List.generate(
+        85,
+        (i) =>
+            note(
+              'paged-$i',
+              title: 'Title ${i.toString().padLeft(3, '0')}',
+              updated: now.subtract(Duration(days: i % 3)),
+            ).copyWith(
+              createdAt: now.subtract(Duration(days: i % 5)),
+              isPinned: i % 11 == 0,
+            ),
+      );
+      for (final item in notes) {
+        await repo.saveNote(item);
+      }
+      final c = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          notesRepositoryProvider.overrideWithValue(repo),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(c.dispose);
+      c.read(notesCollectionProvider);
+      Future<void> ready() async {
+        for (
+          var i = 0;
+          i < 500 && c.read(notesCollectionProvider).initialLoading;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(c.read(notesCollectionProvider).initialLoading, isFalse);
+      }
+
+      for (final field in SortField.values) {
+        for (final direction in SortDirection.values) {
+          for (final pinnedFirst in [false, true]) {
+            c
+                .read(notesQueryProvider.notifier)
+                .setSort(
+                  NotesSort(
+                    field: field,
+                    direction: direction,
+                    pinnedFirst: pinnedFirst,
+                  ),
+                );
+            await ready();
+            while (c.read(notesCollectionProvider).hasMore) {
+              final state = c.read(notesCollectionProvider);
+              expect(
+                c
+                    .read(groupedNotesCollectionProvider)
+                    .expand((g) => g.notes)
+                    .map((n) => n.id),
+                state.notes.map((n) => n.id),
+              );
+              await c.read(notesCollectionProvider.notifier).loadMore();
+            }
+            expect(c.read(notesCollectionProvider).notes.length, 85);
+            expect(
+              c
+                  .read(groupedNotesCollectionProvider)
+                  .expand((g) => g.notes)
+                  .map((n) => n.id),
+              c.read(notesCollectionProvider).notes.map((n) => n.id),
+            );
+          }
+        }
+      }
+    },
+  );
 }

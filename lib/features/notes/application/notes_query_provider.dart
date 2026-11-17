@@ -626,6 +626,7 @@ final groupedNotesCollectionProvider = Provider<List<NoteGroup>>((ref) {
 
   return NoteGroup.groupByDate(
     collectionState.notes,
+    sort: collectionState.query.sort,
     separatePinned: separatePinned,
     contextTag: contextTag,
   );

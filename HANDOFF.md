@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**1/10 fixed; 9 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**2/10 fixed; 8 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -507,3 +507,9 @@ is clean. No full suite ran.
 Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
 
 Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
+
+### NL-02 notes list fix — November 17, 2026
+
+Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
+
+Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.

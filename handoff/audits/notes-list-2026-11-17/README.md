@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 9 open, 1 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 8 open, 2 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -77,6 +77,10 @@ branch and retry the initial query. Preserve the ordinary empty-state experience
 retry, on phone and desktop. Evidence: `NL-01` probe records in `probes.log.txt`.
 
 ### NL-02: Date grouping breaks the selected sort order
+
+**Fixed.** Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
+
+Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.
 
 **Location:** `lib/features/notes/domain/note_group.dart:20`;
 `lib/features/notes/application/notes_query_provider.dart:627`.
