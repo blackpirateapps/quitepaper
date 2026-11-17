@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **3/16 fixed; 13 open**, with individual reports, resolutions and replayable evidence.
+records **4/16 fixed; 12 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -386,3 +386,9 @@ Validation: flutter analyze: clean; 13 service, scanner and snapshot tests passe
 Snapshot write failures emit failed progress and propagate to the preview error handler. Saving stops before note persistence and never emits complete for the failed request.
 
 Validation: flutter analyze: clean; 7 service and preview tests passed, including injected vault failure. No full suite ran.
+
+### WC-04 Android web clipper fix
+
+The saved note and Markdown use exactly the preview tag selection. Default chips remain in the preview, but removing either or all chips is respected, including explicit empty tags in repository persistence.
+
+Validation: flutter analyze: clean; 10 service, browser acquisition and preview tests passed. No full suite ran.

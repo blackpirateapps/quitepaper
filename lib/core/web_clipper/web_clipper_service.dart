@@ -217,11 +217,7 @@ class WebClipperService {
       }
     }
 
-    final tags = <String>{
-      'clipped',
-      if (metadata.domain.isNotEmpty) metadata.domain,
-      ...options.tags,
-    }.toList();
+    final tags = options.tags.toSet().toList();
 
     final markdownContent = _markdownConverter.convert(
       cleanedElement: cleanedElement,
@@ -245,7 +241,7 @@ class WebClipperService {
       tags: tags,
     );
 
-    await notesRepository.saveNote(note);
+    await notesRepository.saveNote(note, preserveEmptyTags: true);
 
     onProgress?.call(const WebClipProgress(step: WebClipProgressStep.complete));
 

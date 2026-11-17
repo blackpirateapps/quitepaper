@@ -149,6 +149,39 @@ class FailingDocumentService extends FakeDocumentService {
 
 void main() {
   group('WebClipperService', () {
+    test('respects custom and empty tag selections from the preview', () async {
+      final repository = InMemoryNotesRepository();
+      final service = WebClipperService(
+        notesRepository: repository,
+        scanner: WebClipperScanner(
+          httpClient: MockClient(
+            (_) async => http.Response(
+              '<article><p>Article body with removable tags.</p></article>',
+              200,
+            ),
+          ),
+        ),
+      );
+      final scan = await service.scanUrl('https://example.com/article');
+      for (final tags in [
+        <String>['custom'],
+        <String>[],
+      ]) {
+        final result = await service.clipArticle(
+          scanResult: scan,
+          options: WebClipperOptions(
+            tags: tags,
+            saveHtmlSnapshot: false,
+            downloadImages: false,
+          ),
+        );
+        expect(result.note.tags, tags);
+        expect((await repository.getNoteById(result.note.id))!.tags, tags);
+        expect(result.note.content, isNot(contains('#clipped')));
+        expect(result.note.content, isNot(contains('#example.com')));
+      }
+    });
+
     test(
       'snapshot failure reports failure without saving a partial note',
       () async {
@@ -258,8 +291,7 @@ void main() {
       );
 
       expect(clipResult.note.title, 'How Local-First Software Works');
-      expect(clipResult.note.tags, contains('clipped'));
-      expect(clipResult.note.tags, contains('example.com'));
+      expect(clipResult.note.tags, ['offline', 'architecture']);
       expect(clipResult.note.tags, contains('offline'));
       expect(
         clipResult.note.content,
@@ -566,8 +598,7 @@ We need a plan to ensure that the good outweighs the bad.''',
 
         final note = clipResult.note;
         expect(note.title, 'The choices we make about AI now are critical');
-        expect(note.tags, contains('clipped'));
-        expect(note.tags, contains('gatesnotes.com'));
+        expect(note.tags, ['technology', 'ai']);
         expect(note.tags, contains('technology'));
         expect(note.tags, contains('ai'));
         expect(

@@ -1,6 +1,6 @@
 # WC-04: Removed default tags return when the article is saved
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -28,3 +28,9 @@ The corresponding `WC-04` probe and its output are preserved in [evidence.md](ev
 - [`lib/features/web_clipper/presentation/web_clip_preview_sheet.dart:94`](../../../lib/features/web_clipper/presentation/web_clip_preview_sheet.dart#L94)
 - [`lib/features/web_clipper/presentation/web_clip_preview_sheet.dart:156`](../../../lib/features/web_clipper/presentation/web_clip_preview_sheet.dart#L156)
 - [`lib/core/web_clipper/web_clipper_service.dart:195`](../../../lib/core/web_clipper/web_clipper_service.dart#L195)
+
+## Resolution
+
+The saved note and Markdown use exactly the preview tag selection. Default chips remain in the preview, but removing either or all chips is respected, including explicit empty tags in repository persistence.
+
+Validation: flutter analyze: clean; 10 service, browser acquisition and preview tests passed. No full suite ran.
