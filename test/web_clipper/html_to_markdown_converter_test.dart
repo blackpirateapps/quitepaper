@@ -56,8 +56,8 @@ void main() {
       expect(markdown, contains('title: "Essay on Coding"'));
       expect(markdown, contains('source: "https://example.com/essay"'));
       expect(markdown, contains('author: "Jane Doe"'));
-      expect(markdown, contains('- clipped'));
-      expect(markdown, contains('- example.com'));
+      expect(markdown, isNot(contains('- clipped')));
+      expect(markdown, isNot(contains('- example.com')));
       expect(markdown, contains('- technology'));
       expect(markdown, contains('> 🌐 **Original Web Snapshot Attached** • 120.0 KB — [View Web Snapshot →](qp://document/snap-123)'));
       expect(markdown, contains('## Introduction'));

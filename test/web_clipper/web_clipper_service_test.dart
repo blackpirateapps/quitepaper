@@ -223,8 +223,8 @@ void main() {
         );
         expect(result.note.tags, tags);
         expect((await repository.getNoteById(result.note.id))!.tags, tags);
-        expect(result.note.content, isNot(contains('#clipped')));
-        expect(result.note.content, isNot(contains('#example.com')));
+        expect(result.note.content, isNot(contains('  - clipped')));
+        expect(result.note.content, isNot(contains('  - example.com')));
       }
     });
 

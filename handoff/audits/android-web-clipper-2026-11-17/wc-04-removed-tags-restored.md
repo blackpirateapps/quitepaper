@@ -34,3 +34,5 @@ The corresponding `WC-04` probe and its output are preserved in [evidence.md](ev
 The saved note and Markdown use exactly the preview tag selection. Default chips remain in the preview, but removing either or all chips is respected, including explicit empty tags in repository persistence.
 
 Validation: flutter analyze: clean; 10 service, browser acquisition and preview tests passed. No full suite ran.
+
+WC-04 follow-up: the Markdown converter also respects explicit tag selections in YAML frontmatter. Service regressions now inspect YAML entries as well as the Note model, covering the second default-tag insertion path. Validation: flutter analyze clean; 11 service, converter and browser acquisition tests passed.

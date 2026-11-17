@@ -52,11 +52,7 @@ class HtmlToMarkdownConverter {
       buffer.writeln('description: ${_escapeYaml(metadata.description!.trim())}');
     }
 
-    final allTags = <String>{
-      'clipped',
-      if (metadata.domain.isNotEmpty) metadata.domain,
-      ...tags,
-    };
+    final allTags = tags.toSet();
     if (allTags.isNotEmpty) {
       buffer.writeln('tags:');
       for (final tag in allTags) {
