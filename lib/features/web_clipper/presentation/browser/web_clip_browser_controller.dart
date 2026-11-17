@@ -65,6 +65,8 @@ class WebClipBrowserState {
       (loadingState == BrowserLoadingState.ready || isTakingLong) &&
       !isCapturingOrProcessing;
 
+  static const _unchanged = Object();
+
   WebClipBrowserState copyWith({
     String? currentUrl,
     String? pageTitle,
@@ -73,8 +75,8 @@ class WebClipBrowserState {
     bool? canGoBack,
     bool? canGoForward,
     bool? isSecure,
-    String? errorMessage,
-    String? statusMessage,
+    Object? errorMessage = _unchanged,
+    Object? statusMessage = _unchanged,
     int? generationId,
     bool? isTakingLong,
   }) {
@@ -86,8 +88,12 @@ class WebClipBrowserState {
       canGoBack: canGoBack ?? this.canGoBack,
       canGoForward: canGoForward ?? this.canGoForward,
       isSecure: isSecure ?? this.isSecure,
-      errorMessage: errorMessage ?? this.errorMessage,
-      statusMessage: statusMessage ?? this.statusMessage,
+      errorMessage: identical(errorMessage, _unchanged)
+          ? this.errorMessage
+          : errorMessage as String?,
+      statusMessage: identical(statusMessage, _unchanged)
+          ? this.statusMessage
+          : statusMessage as String?,
       generationId: generationId ?? this.generationId,
       isTakingLong: isTakingLong ?? this.isTakingLong,
     );
@@ -101,9 +107,9 @@ class WebClipBrowserController extends ChangeNotifier {
     required String initialUrl,
     WebViewController? webViewController,
   }) : _state = WebClipBrowserState(
-          currentUrl: _normalizeUrl(initialUrl),
-          isSecure: _normalizeUrl(initialUrl).startsWith('https://'),
-        ) {
+         currentUrl: _normalizeUrl(initialUrl),
+         isSecure: _normalizeUrl(initialUrl).startsWith('https://'),
+       ) {
     if (webViewController != null) {
       _controller = webViewController;
     } else if (!kIsWeb) {
@@ -173,7 +179,9 @@ class WebClipBrowserController extends ChangeNotifier {
       _controller = controller;
     } catch (e) {
       if (e.toString().contains('WebViewPlatform.instance') ||
-          e.toString().contains('A platform implementation for `webview_flutter` has not been set')) {
+          e.toString().contains(
+            'A platform implementation for `webview_flutter` has not been set',
+          )) {
         // Test environment without WebViewPlatform implementation
         _state = _state.copyWith(
           loadingState: BrowserLoadingState.ready,
@@ -220,8 +228,8 @@ class WebClipBrowserController extends ChangeNotifier {
       progress: progress,
       loadingState: progress >= 1.0
           ? (_state.loadingState == BrowserLoadingState.loading
-              ? BrowserLoadingState.ready
-              : _state.loadingState)
+                ? BrowserLoadingState.ready
+                : _state.loadingState)
           : BrowserLoadingState.loading,
     );
     notifyListeners();
@@ -302,7 +310,9 @@ class WebClipBrowserController extends ChangeNotifier {
   }
 
   Future<void> _probeReadiness(int expectedGen) async {
-    if (_controller == null || _isDisposed || _state.generationId != expectedGen) {
+    if (_controller == null ||
+        _isDisposed ||
+        _state.generationId != expectedGen) {
       return;
     }
 
@@ -328,7 +338,9 @@ class WebClipBrowserController extends ChangeNotifier {
       if (decoded is Map<String, dynamic>) {
         final title = decoded['title'] as String?;
         final url = decoded['url'] as String?;
-        if (title != null && title.trim().isNotEmpty && title != _state.pageTitle) {
+        if (title != null &&
+            title.trim().isNotEmpty &&
+            title != _state.pageTitle) {
           _state = _state.copyWith(pageTitle: title.trim());
           notifyListeners();
         }
@@ -470,7 +482,9 @@ class WebClipBrowserController extends ChangeNotifier {
         })()
       ''';
 
-      final jsResult = await _controller!.runJavaScriptReturningResult(captureScript);
+      final jsResult = await _controller!.runJavaScriptReturningResult(
+        captureScript,
+      );
 
       // Race guard: verify page did not navigate away during JS execution
       if (_isDisposed || _state.generationId != captureGen) {

@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**Remediation in progress: 6/16 fixed; 10 open.**
+**Remediation in progress: 7/16 fixed; 9 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -18,7 +18,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | **Fixed** [WC-04](wc-04-removed-tags-restored.md) | P2 | Removed default tags return when the article is saved |
 | **Fixed** [WC-05](wc-05-canonical-url-asset-base.md) | P2 | Browser capture uses the canonical URL as the asset base |
 | **Fixed** [WC-06](wc-06-redirect-asset-base.md) | P2 | Direct HTTP clipping resolves assets against the pre-redirect URL |
-| [WC-07](wc-07-browser-message-clearing.md) | P3 | Browser state cannot clear previous error and status messages |
+| **Fixed** [WC-07](wc-07-browser-message-clearing.md) | P3 | Browser state cannot clear previous error and status messages |
 | [WC-08](wc-08-query-image-substitution.md) | P2 | A failed image can be replaced by a different image with the same URL path |
 | [WC-09](wc-09-browser-save-pops-editor.md) | P2 | Saving from the in-app browser immediately pops the newly opened editor |
 | [WC-10](wc-10-second-share-discarded.md) | P2 | A second shared URL is discarded while Quick Capture is open |
