@@ -53,14 +53,12 @@ upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-ima
 and [engineering log 269](handoff/latest-logs.md#269-linux-cli-encrypted-image-attachments-and-standalone-uploads-november-12-2026)
 for commands, credential prerequisites, failure recovery and sync boundaries.
 
-## PDF Viewer Stress Audit — 10 Open Findings
+## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found **10 open findings**, including two annotation-loss bugs:
-edits during a pending save are discarded, and Back exits after a failed save.
-Other findings cover thumbnail invalidation/scrolling, large-PDF debug stalls,
-malformed-PDF feedback, mobile toolbar layout, export cancellation/overwrite,
-and stale page totals. **Audit only; no production fixes.**
+against `5d869e9` found 10 confirmed bugs. **1/10 now fixed; 9 open.**
+Each fix has its own commit, focused regression coverage, and resolution in the
+audit report. Full-suite testing is excluded from this remediation.
 
 Coverage includes two isolated native Linux test windows, 58 recorded snapshots,
 a 250-page PDF, 100-annotation undo/redo/save/revert checks, 36 concurrent native
@@ -203,3 +201,10 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
    - Append detailed entries to **[`handoff/latest-logs.md`](handoff/latest-logs.md)**.
    - Include: numbered section, motivation, architectural design, modified files, and test verification results.
 3. **Keep domain guides updated**: If introducing a new architectural pattern or subsystem, update the corresponding file in [`handoff/`](handoff/).
+
+
+### PDF-03 fixed — November 17, 2026
+
+Annotation saves share a pending snapshot and track mutation revisions. Completing a save retains newer live annotations and dirty state; export uses the same serialized save path. The delayed-storage regression reopens the final PDF and verifies both annotations.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.

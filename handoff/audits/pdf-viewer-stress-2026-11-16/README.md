@@ -1,7 +1,7 @@
 # PDF viewer audit — November 16, 2026
 
 Branch: `audit/pdf-viewer-stress-2026-11-16`. Application source: `5d869e9`.
-**Complete: 10 confirmed open findings. Audit only; no production fixes.**
+**Remediation: 1/10 fixed; 9 open.**
 
 Prioritize PDF-03 and PDF-04: both lose annotations after reopening. Findings
 were appended immediately when confirmed; this report consolidates those notes.
@@ -144,7 +144,11 @@ ordering deterministic. Evidence: `thumbnail-probes.jsonl`, probe source.
 
 ## PDF-03 — edits during a pending save are lost and marked clean
 
-**Open. High. Delayed-storage native save and reopen.**
+**Fixed. (November 17, 2026). High. Delayed-storage native save and reopen.**
+
+Resolution: Annotation saves share a pending snapshot and track mutation revisions. Completing a save retains newer live annotations and dirty state; export uses the same serialized save path. The delayed-storage regression reopens the final PDF and verifies both annotations.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_save_test.dart` passed. No full suite ran.
 
 Add note A, start Save Annotations, then add note B before the storage write
 finishes. Both notes exist during the pending save. When the older snapshot
