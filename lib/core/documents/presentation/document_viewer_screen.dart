@@ -119,6 +119,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   bool _hasAnnotatedDerivative = false;
   Future<Uint8List>? _pendingAnnotationSave;
   int _annotationRevision = 0;
+  bool _isExiting = false;
   PdfAnnotationMode _activeAnnotationMode = PdfAnnotationMode.none;
   PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
   int _pageCount = 1;
@@ -608,12 +609,36 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
   }
 
   /// Automatically persists annotated PDF bytes back to encrypted storage if modified.
-  Future<void> _autoSaveIfDirty() async {
-    if (!_isDirty) return;
+  Future<bool> _autoSaveIfDirty() async {
     try {
-      await _persistAnnotations();
+      while (mounted && _isDirty) {
+        await _persistAnnotations();
+      }
+      return mounted && !_isDirty;
     } catch (e) {
-      debugPrint('[DocumentViewerScreen] Auto-save annotations failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Annotations could not be saved. Your edits are still open.',
+            ),
+            action: SnackBarAction(label: 'Retry', onPressed: _saveAndExit),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _saveAndExit() async {
+    if (_isExiting) return;
+    _isExiting = true;
+    try {
+      if (await _autoSaveIfDirty() && mounted) {
+        Navigator.of(context).pop(_currentTitle);
+      }
+    } finally {
+      _isExiting = false;
     }
   }
 
@@ -1214,10 +1239,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           canPop: !isDirty,
           onPopInvokedWithResult: (didPop, result) async {
             if (!didPop) {
-              await _autoSaveIfDirty();
-              if (context.mounted) {
-                Navigator.of(context).pop(_currentTitle);
-              }
+              await _saveAndExit();
             }
           },
           child: child!,

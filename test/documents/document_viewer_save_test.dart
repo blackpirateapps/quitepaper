@@ -153,4 +153,81 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 600));
   });
+  testWidgets(
+    'failed Back save keeps annotations open and Retry saves before exit',
+    (tester) async {
+      final service = SaveService()..fail = true;
+      await openSaveViewer(tester, service);
+      final viewer = tester.widget<SfPdfViewer>(find.byType(SfPdfViewer));
+      viewer.controller!.addAnnotation(
+        StickyNoteAnnotation(
+          pageNumber: 1,
+          icon: PdfStickyNoteIcon.comment,
+          text: 'Keep me',
+          position: const Offset(20, 20),
+        ),
+      );
+      await tester.pump();
+      await tester.pageBack();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(DocumentViewerScreen), findsOneWidget);
+      expect(viewer.controller!.getAnnotations(), hasLength(1));
+      expect(find.text('Retry'), findsOneWidget);
+      service.fail = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(DocumentViewerScreen), findsNothing);
+      final reopened = sf.PdfDocument(inputBytes: service.saved.last);
+      expect(reopened.pages[0].annotations.count, 1);
+      reopened.dispose();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
+
+  testWidgets('Back waits for pending save and saves newer edits before exit', (
+    tester,
+  ) async {
+    final service = SaveService()..gate = Completer<void>();
+    await openSaveViewer(tester, service);
+    final controller = tester
+        .widget<SfPdfViewer>(find.byType(SfPdfViewer))
+        .controller!;
+    controller.addAnnotation(
+      StickyNoteAnnotation(
+        pageNumber: 1,
+        icon: PdfStickyNoteIcon.comment,
+        text: 'A',
+        position: const Offset(20, 20),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('Save Annotations'));
+    await tester.pump();
+    controller.addAnnotation(
+      StickyNoteAnnotation(
+        pageNumber: 1,
+        icon: PdfStickyNoteIcon.comment,
+        text: 'B',
+        position: const Offset(40, 40),
+      ),
+    );
+    await tester.pump();
+    await tester.pageBack();
+    await tester.pump();
+    expect(find.byType(DocumentViewerScreen), findsOneWidget);
+    expect(service.saved, hasLength(1));
+    service.gate!.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(DocumentViewerScreen), findsNothing);
+    expect(service.saved, hasLength(2));
+    final reopened = sf.PdfDocument(inputBytes: service.saved.last);
+    expect(reopened.pages[0].annotations.count, 2);
+    reopened.dispose();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 }

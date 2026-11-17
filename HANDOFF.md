@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **1/10 now fixed; 9 open.**
+against `5d869e9` found 10 confirmed bugs. **2/10 now fixed; 8 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -206,5 +206,12 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
 ### PDF-03 fixed — November 17, 2026
 
 Annotation saves share a pending snapshot and track mutation revisions. Completing a save retains newer live annotations and dirty state; export uses the same serialized save path. The delayed-storage regression reopens the final PDF and verifies both annotations.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-04 fixed — November 17, 2026
+
+Back now waits until all annotation revisions are stored before closing. A storage failure keeps the viewer and edits open with a Retry action; repeated Back requests share the exit operation. Tests cover failure/retry and Back during a delayed save with newer edits.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.

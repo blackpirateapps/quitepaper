@@ -162,7 +162,11 @@ Evidence: native results `Delayed manual save` through `Reopen after editing`.
 
 ## PDF-04 — Back closes the viewer after a failed annotation save
 
-**Open. High. Native Back, injected storage failure, reopen.**
+**Fixed. (November 17, 2026). High. Native Back, injected storage failure, reopen.**
+
+Resolution: Back now waits until all annotation revisions are stored before closing. A storage failure keeps the viewer and edits open with a Retry action; repeated Back requests share the exit operation. Tests cover failure/retry and Back during a delayed save with newer edits.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_save_test.dart` passed. No full suite ran.
 
 Add an annotation, make storage fail, and press Back. The viewer closes despite
 the failed save; reopening has zero annotations. The failure appears only in
