@@ -130,7 +130,11 @@ Linux build is restored; its result is retained in `normal-build.log`.
 
 ## PDF-01 — deleting thumbnails does not cancel in-flight generation
 
-**Open. Medium. Deterministic service-level race probe.**
+**Fixed. (November 17, 2026). Medium. Deterministic service-level race probe.**
+
+Resolution: Thumbnail requests carry a document generation. Deletion invalidates old renders, drains pending writes, and gates replacement requests until disk cleanup completes. Gated regressions verify replacement bytes, encrypted reload, and no recreation of deleted-document directories; all eight relevant cache tests pass.
+
+Verification: `flutter analyze` and `flutter test test/documents/pdf_thumbnail_invalidation_test.dart test/documents/pdf_thumbnail_service_test.dart test/documents/pdf_thumbnail_stress_test.dart` passed. No full suite ran.
 
 Start rendering a thumbnail for source A and hold the renderer before completion.
 Call `deleteThumbnails(documentId)`, then request the same page for replacement

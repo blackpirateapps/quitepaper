@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **2/10 now fixed; 8 open.**
+against `5d869e9` found 10 confirmed bugs. **3/10 now fixed; 7 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -215,3 +215,10 @@ Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save
 Back now waits until all annotation revisions are stored before closing. A storage failure keeps the viewer and edits open with a Retry action; repeated Back requests share the exit operation. Tests cover failure/retry and Back during a delayed save with newer edits.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-01 fixed — November 17, 2026
+
+Thumbnail requests carry a document generation. Deletion invalidates old renders, drains pending writes, and gates replacement requests until disk cleanup completes. Gated regressions verify replacement bytes, encrypted reload, and no recreation of deleted-document directories; all eight relevant cache tests pass.
+
+Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_invalidation_test.dart test/documents/pdf_thumbnail_service_test.dart test/documents/pdf_thumbnail_stress_test.dart`. No full suite ran.
