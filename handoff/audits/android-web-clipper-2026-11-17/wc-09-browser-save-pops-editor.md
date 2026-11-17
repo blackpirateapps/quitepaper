@@ -1,6 +1,6 @@
 # WC-09: Saving from the in-app browser immediately pops the newly opened editor
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -30,3 +30,9 @@ The corresponding `WC-09` probe and its output are preserved in [evidence.md](ev
 ## Physical-device confirmation
 
 The USB follow-up reproduces this with the actual Android WebView and a live public article. After native Clip/Clip taps, the real controller remains processing with canClip=false; the observer records preview pop, editor push and editor pop, and the browser remains visible. Two synthetic notes exist: one direct-path save and one browser save. See [native evidence](usb-device-follow-up/evidence.md). No fix was made.
+
+## Resolution
+
+Browser previews return the saved note without opening an editor themselves. The browser resets processing state and replaces its own route with the saved editor in all three save paths. A route-observer regression verifies only the preview is popped and the replacement editor holds the saved note.
+
+Validation: flutter analyze: clean; 5 navigation, browser and preview widget tests passed. No full suite ran.

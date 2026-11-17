@@ -14,6 +14,7 @@ import '../../../../core/web_clipper/web_clipper_provider.dart';
 import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_icon_button.dart';
 import '../../../notes/domain/note_model.dart';
+import '../../../editor/presentation/editor_screen.dart';
 import '../web_clip_preview_sheet.dart';
 import 'web_clip_browser_controller.dart';
 
@@ -74,7 +75,8 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
 
     if (!captureResult.isSuccess || captureResult.payload == null) {
       if (mounted) {
-        final errorMsg = captureResult.error?.message ?? 'Failed to capture page content.';
+        final errorMsg =
+            captureResult.error?.message ?? 'Failed to capture page content.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMsg),
@@ -90,7 +92,10 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
     final clipperService = ref.read(webClipperServiceProvider);
 
     try {
-      final scanResult = await clipperService.scanPayload(payload, allowFallback: true);
+      final scanResult = await clipperService.scanPayload(
+        payload,
+        allowFallback: true,
+      );
 
       if (!mounted) return;
 
@@ -98,13 +103,14 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
       final savedNote = await WebClipPreviewSheet.show(
         context,
         scanResult: scanResult,
+        openEditorOnSave: false,
       );
 
       if (!mounted) return;
 
       if (savedNote != null) {
         // Saved successfully: pop browser with resulting note
-        Navigator.of(context).pop(savedNote);
+        _openSavedNote(savedNote);
       } else {
         // Cancelled preview: return browser to ready state without reloading
         _controller.resetToReady();
@@ -116,8 +122,19 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
     } catch (e) {
       if (!mounted) return;
       _controller.resetToReady();
-      _showExtractionFailureFallback(payload, e.toString().replaceFirst('Exception: ', ''));
+      _showExtractionFailureFallback(
+        payload,
+        e.toString().replaceFirst('Exception: ', ''),
+      );
     }
+  }
+
+  void _openSavedNote(Note note) {
+    _controller.resetToReady();
+    Navigator.of(context).pushReplacement<void, Note?>(
+      MaterialPageRoute<void>(builder: (_) => EditorScreen(note: note)),
+      result: note,
+    );
   }
 
   Future<void> _showExtractionFailureFallback(
@@ -154,14 +171,20 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
             const SizedBox(height: AppSpacing.sm),
             Text(
               'You can save the page content as-is or preserve the original page as an encrypted offline snapshot.',
-              style: AppTypography.caption.copyWith(color: colors.textTertiary, height: 1.4),
+              style: AppTypography.caption.copyWith(
+                color: colors.textTertiary,
+                height: 1.4,
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop('cancel'),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colors.textSecondary),
+            ),
           ),
           QuietButton(
             label: 'Save Offline Snapshot',
@@ -183,14 +206,18 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
 
     if (action == 'pageContent') {
       try {
-        final scanResult = await clipperService.scanPayload(payload, allowFallback: true);
+        final scanResult = await clipperService.scanPayload(
+          payload,
+          allowFallback: true,
+        );
         if (!mounted) return;
         final savedNote = await WebClipPreviewSheet.show(
           context,
           scanResult: scanResult,
+          openEditorOnSave: false,
         );
         if (mounted && savedNote != null) {
-          Navigator.of(context).pop(savedNote);
+          _openSavedNote(savedNote);
         }
       } catch (e) {
         if (mounted) {
@@ -205,14 +232,18 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
       }
     } else if (action == 'snapshot') {
       try {
-        final scanResult = await clipperService.scanPayload(payload, allowFallback: true);
+        final scanResult = await clipperService.scanPayload(
+          payload,
+          allowFallback: true,
+        );
         if (!mounted) return;
         final savedNote = await WebClipPreviewSheet.show(
           context,
           scanResult: scanResult.copyWith(isPageContentFallback: true),
+          openEditorOnSave: false,
         );
         if (mounted && savedNote != null) {
-          Navigator.of(context).pop(savedNote);
+          _openSavedNote(savedNote);
         }
       } catch (e) {
         if (mounted) {
@@ -230,7 +261,9 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
 
   void _showUrlEditDialog() {
     final colors = context.appColors;
-    final textController = TextEditingController(text: _controller.state.currentUrl);
+    final textController = TextEditingController(
+      text: _controller.state.currentUrl,
+    );
 
     showDialog<void>(
       context: context,
@@ -265,7 +298,10 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colors.textSecondary),
+            ),
           ),
           QuietButton(
             label: 'Go',
@@ -291,7 +327,11 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
         shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
         title: Row(
           children: [
-            Icon(Icons.info_outline_rounded, size: 20, color: colors.textSecondary),
+            Icon(
+              Icons.info_outline_rounded,
+              size: 20,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Text(
               'Page Info',
@@ -305,18 +345,23 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
           children: [
             _buildInfoRow('Domain', state.domain, colors),
             const SizedBox(height: AppSpacing.sm),
-            _buildInfoRow('Title', state.pageTitle.isNotEmpty ? state.pageTitle : '—', colors),
+            _buildInfoRow(
+              'Title',
+              state.pageTitle.isNotEmpty ? state.pageTitle : '—',
+              colors,
+            ),
             const SizedBox(height: AppSpacing.sm),
-            _buildInfoRow('Security', state.isSecure ? 'HTTPS (Encrypted)' : 'HTTP (Unencrypted)', colors),
+            _buildInfoRow(
+              'Security',
+              state.isSecure ? 'HTTPS (Encrypted)' : 'HTTP (Unencrypted)',
+              colors,
+            ),
             const SizedBox(height: AppSpacing.sm),
             _buildInfoRow('Status', state.loadingState.name, colors),
           ],
         ),
         actions: [
-          QuietButton(
-            label: 'Close',
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
+          QuietButton(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
         ],
       ),
     );
@@ -421,25 +466,34 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
               IconButton(
                 icon: const Icon(Icons.chevron_left_rounded, size: 24),
                 tooltip: 'Back in history',
-                color: state.canGoBack ? colors.textPrimary : colors.textTertiary.withValues(alpha: 0.4),
+                color: state.canGoBack
+                    ? colors.textPrimary
+                    : colors.textTertiary.withValues(alpha: 0.4),
                 onPressed: state.canGoBack ? _controller.goBack : null,
               ),
               // History Forward
               IconButton(
                 icon: const Icon(Icons.chevron_right_rounded, size: 24),
                 tooltip: 'Forward in history',
-                color: state.canGoForward ? colors.textPrimary : colors.textTertiary.withValues(alpha: 0.4),
+                color: state.canGoForward
+                    ? colors.textPrimary
+                    : colors.textTertiary.withValues(alpha: 0.4),
                 onPressed: state.canGoForward ? _controller.goForward : null,
               ),
               // Reload
               QuietIconButton(
-                icon: state.isLoading ? Icons.close_rounded : Icons.refresh_rounded,
+                icon: state.isLoading
+                    ? Icons.close_rounded
+                    : Icons.refresh_rounded,
                 tooltip: state.isLoading ? 'Stop loading' : 'Reload',
                 onPressed: () => _controller.reload(),
               ),
               // Overflow Menu
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary),
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: colors.textSecondary,
+                ),
                 color: colors.surface,
                 shape: RoundedRectangleBorder(borderRadius: AppRadii.borderMd),
                 onSelected: (val) {
@@ -448,7 +502,10 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
                       _controller.reload();
                       break;
                     case 'external':
-                      LinkLauncherHelper.handleLinkTap(context, state.currentUrl);
+                      LinkLauncherHelper.handleLinkTap(
+                        context,
+                        state.currentUrl,
+                      );
                       break;
                     case 'copy':
                       Clipboard.setData(ClipboardData(text: state.currentUrl));
@@ -539,9 +596,7 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
           body: Column(
             children: [
               // Main WebView area
-              Expanded(
-                child: _buildWebViewArea(colors, state),
-              ),
+              Expanded(child: _buildWebViewArea(colors, state)),
 
               // Bottom Acquisition & Clip Bar
               _buildBottomClipBar(colors, state),
@@ -553,14 +608,19 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
   }
 
   Widget _buildWebViewArea(AppColors colors, WebClipBrowserState state) {
-    if (state.loadingState == BrowserLoadingState.error && state.errorMessage != null) {
+    if (state.loadingState == BrowserLoadingState.error &&
+        state.errorMessage != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off_rounded, size: 44, color: colors.textTertiary),
+              Icon(
+                Icons.cloud_off_rounded,
+                size: 44,
+                color: colors.textTertiary,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 "This page couldn't be loaded.",
@@ -570,7 +630,9 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 state.errorMessage!,
-                style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                style: AppTypography.caption.copyWith(
+                  color: colors.textTertiary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -668,8 +730,8 @@ class _WebClipBrowserScreenState extends ConsumerState<WebClipBrowserScreen> {
                   state.isCapturingOrProcessing
                       ? (state.statusMessage ?? 'Processing article…')
                       : (state.isLoading
-                          ? 'Waiting for page to load…'
-                          : 'Ready to clip content'),
+                            ? 'Waiting for page to load…'
+                            : 'Ready to clip content'),
                   style: AppTypography.caption.copyWith(
                     color: colors.textTertiary,
                   ),
