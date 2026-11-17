@@ -13,7 +13,7 @@ class UpdateService {
   UpdateService({
     required this.sharedPreferences,
     http.Client? httpClient,
-    this.currentVersion = '1.6.3',
+    this.currentVersion = '1.6.4',
     this.githubRepo = 'blackpirateapps/quitepaper',
     this.flavor = AppDistributionFlavor.github,
   }) : _httpClient = httpClient ?? http.Client();

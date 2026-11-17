@@ -39,11 +39,11 @@ see [engineering log 270](handoff/latest-logs.md#270-pin-the-ci-flutter-sdk-afte
 
 ## Current App Release
 
-The app release is **1.6.3+21**. Runtime fallbacks, the Linux CLI, packaging,
-Windows resource fallbacks, and both public-site copies use **1.6.3**. CI continues
+The app release is **1.6.4+22**. Runtime fallbacks, the Linux CLI, packaging,
+Windows resource fallbacks, and both public-site copies use **1.6.4**. CI continues
 to derive build numbers from the Git commit count. See the
 [version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
-and [engineering log 277](handoff/latest-logs.md#277-release-version-bump-to-163-build-21-november-15-2026).
+and [engineering log 330](handoff/latest-logs.md#330-release-version-bump-to-164-build-22-november-18-2026).
 
 ## Linux CI Async Test Stability
 
@@ -681,3 +681,17 @@ per finding on the original audit branch. Final combined validation passes
 reports no issues. The full suite was not run. Commands, raw output and explicit
 validation limits are in [fix verification](handoff/audits/images-scanner-2026-11-17/fix-verification/README.md).
 See engineering log 329 and the updated processing contracts in the document guide.
+
+
+## Release 1.6.4 — November 18, 2026
+
+Bumped the app to **1.6.4+22** across runtime defaults, CLI, packaging, Windows
+fallbacks and workflow examples. Updated both public website copies with 1.6.4
+badges/footers and matching release notes for the recent editor, notes-list,
+scanner/image, PDF/export and Android web-clipper fixes. The platform checklist
+and AppStream metadata are current. See engineering log 330.
+
+Validation: `flutter analyze` is clean; **51 relevant version/update/CLI/backup/
+device/export tests pass**. Version/site checks confirm matching website pages,
+valid HTML/XML, current version metadata and preserved historical release notes.
+No full suite ran.

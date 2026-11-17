@@ -49,7 +49,7 @@ Workflows are defined in [`.github/workflows/`](file:///home/dog/git/quitepaper/
 
 ## 3. App Version Bump Checklist
 
-Current release: **1.6.3+21**. When bumping the app release version:
+Current release: **1.6.4+22**. When bumping the app release version:
 
 1. Update `pubspec.yaml` (`version: X.Y.Z+BUILD`) and increment the build suffix.
    Android's `android/app/build.gradle.kts`, iOS/macOS bundle metadata, and normal

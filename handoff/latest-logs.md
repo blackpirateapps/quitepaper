@@ -7304,3 +7304,40 @@ scanner, viewer, attachment-service and editor-import/compression run passes
 No full suite, app build, new physical-device/native-picker replay or release
 benchmark ran. Existing benchmark data retains its original Linux/JIT limits.
 The unrelated pre-existing smart-tables prompt remains outside the commits.
+
+
+## 330. Release version bump to 1.6.4 (Build 22) (November 18, 2026)
+
+Updated current `main` from **1.6.3+21** to **1.6.4+22** after incorporating the
+notes-list and image/scanner audit fixes. The local build suffix increments to
+22; CI continues deriving build numbers from the Git commit count.
+
+Synchronized startup and provider fallbacks, backup/device/location defaults,
+the weather HTTP user agent, update-checker/dialog defaults, `.qpnote` export
+metadata and the Linux CLI version. Updated version-format test examples,
+release/AAB workflow examples, RPM packaging and Windows numeric/string
+fallbacks. Added a dated AppStream release entry. Android, iOS and macOS continue
+reading Flutter-managed version metadata.
+
+Updated version badges and footers in all four HTML pages in both `public/` and
+`backend/public/`. Prepended matching November 18 changelog entries covering
+notes/search reliability, scanner geometry and image previews, animation
+preservation, PDF/export fixes, Android web clipping, editor/checklist behavior
+and encrypted image access. The previous changelog entries remain intact.
+Updated the current-release summary in `HANDOFF.md` and the platform guide.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub --concurrency=1 test/version/app_version_test.dart test/update/update_service_test.dart test/update/update_dialog_test.dart test/cli/cli_runner_test.dart test/backup/backup_service_test.dart test/devices/devices_test.dart test/features/export/qpnote_package_and_validator_test.dart`: **51 passed**.
+- Version/site audit: `pubspec.yaml` is 1.6.4+22; Windows fallback is 1,6,4,22;
+  no stale 1.6.3 references remain in current runtime code, version examples or
+  workflow inputs. Both site copies match byte-for-byte across all four pages.
+  HTML parses, 1.6.4 is the newest website/AppStream release, and the previous
+  1.6.3 website entry is preserved verbatim.
+- `git diff --check`: clean. No full test suite or app build ran.
+
+Historical release entries, audit evidence, engineering logs and the verbatim
+handoff backup retain their original versions. Dependency versions, legacy
+format defaults and the backend package's independent version are preserved.
+The unrelated pre-existing smart-tables prompt remains outside the commit.

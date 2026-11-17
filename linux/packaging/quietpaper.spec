@@ -1,4 +1,4 @@
-%{!?app_version: %define app_version 1.6.3}
+%{!?app_version: %define app_version 1.6.4}
 
 Name:           quitepaper
 Version:        %{app_version}

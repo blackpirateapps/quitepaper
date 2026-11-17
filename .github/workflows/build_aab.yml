@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       build_name:
-        description: 'Version Name override (e.g. 1.6.3 - leave empty to use pubspec.yaml)'
+        description: 'Version Name override (e.g. 1.6.4 - leave empty to use pubspec.yaml)'
         required: false
         type: string
       build_number:
