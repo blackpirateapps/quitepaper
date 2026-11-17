@@ -7,6 +7,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../settings/application/settings_provider.dart';
 import '../data/notes_repository.dart';
+import '../data/notes_query_executor.dart';
 import '../domain/note_group.dart';
 import '../domain/note_metadata_extractor.dart';
 import '../domain/note_model.dart';
@@ -26,9 +27,9 @@ const String _prefSortPinnedFirstKey = 'notes_sort_pinned_first';
 
 final notesSortPreferenceProvider =
     StateNotifierProvider<NotesSortPreferenceNotifier, NotesSort>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return NotesSortPreferenceNotifier(prefs);
-});
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return NotesSortPreferenceNotifier(prefs);
+    });
 
 class NotesSortPreferenceNotifier extends StateNotifier<NotesSort> {
   NotesSortPreferenceNotifier(this._prefs) : super(_loadSort(_prefs));
@@ -64,49 +65,51 @@ class NotesSortPreferenceNotifier extends StateNotifier<NotesSort> {
 
 final notesQueryProvider =
     StateNotifierProvider<NotesQueryNotifier, NotesQuery>((ref) {
-  final initialSort = ref.read(notesSortPreferenceProvider);
-  final destination = ref.read(currentDestinationProvider);
-  final tagFilter = ref.read(selectedTagFilterProvider);
+      final initialSort = ref.read(notesSortPreferenceProvider);
+      final destination = ref.read(currentDestinationProvider);
+      final tagFilter = ref.read(selectedTagFilterProvider);
 
-  NotesContext context = NotesContext.active;
-  bool pinnedOnly = false;
+      NotesContext context = NotesContext.active;
+      bool pinnedOnly = false;
 
-  switch (destination) {
-    case AppDestination.allNotes:
-      context = NotesContext.active;
-      break;
-    case AppDestination.pinned:
-      context = NotesContext.active;
-      pinnedOnly = true;
-      break;
-    case AppDestination.archive:
-      context = NotesContext.archive;
-      break;
-    case AppDestination.trash:
-      context = NotesContext.trash;
-      break;
-    case AppDestination.tag:
-      context = NotesContext.active;
-      break;
-    case AppDestination.tagBrowser:
-    case AppDestination.allJournalEntries:
-    case AppDestination.onThisDay:
-    case AppDestination.places:
-      context = NotesContext.active;
-      break;
-  }
-  final initialQuery = NotesQuery(
-    context: context,
-    sort: initialSort,
-    filter: NotesFilter(
-      tags: tagFilter != null && tagFilter.isNotEmpty ? {tagFilter} : const {},
-      pinnedOnly: pinnedOnly,
-    ),
-    generation: 1,
-  );
+      switch (destination) {
+        case AppDestination.allNotes:
+          context = NotesContext.active;
+          break;
+        case AppDestination.pinned:
+          context = NotesContext.active;
+          pinnedOnly = true;
+          break;
+        case AppDestination.archive:
+          context = NotesContext.archive;
+          break;
+        case AppDestination.trash:
+          context = NotesContext.trash;
+          break;
+        case AppDestination.tag:
+          context = NotesContext.active;
+          break;
+        case AppDestination.tagBrowser:
+        case AppDestination.allJournalEntries:
+        case AppDestination.onThisDay:
+        case AppDestination.places:
+          context = NotesContext.active;
+          break;
+      }
+      final initialQuery = NotesQuery(
+        context: context,
+        sort: initialSort,
+        filter: NotesFilter(
+          tags: tagFilter != null && tagFilter.isNotEmpty
+              ? {tagFilter}
+              : const {},
+          pinnedOnly: pinnedOnly,
+        ),
+        generation: 1,
+      );
 
-  return NotesQueryNotifier(ref, initialQuery);
-});
+      return NotesQueryNotifier(ref, initialQuery);
+    });
 
 class NotesQueryNotifier extends StateNotifier<NotesQuery> {
   NotesQueryNotifier(this._ref, super.initial) {
@@ -166,9 +169,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
     final newTags = tag != null && tag.isNotEmpty ? {tag} : <String>{};
     if (state.filter.tags != newTags) {
       state = state
-          .copyWith(
-            filter: state.filter.copyWith(tags: newTags),
-          )
+          .copyWith(filter: state.filter.copyWith(tags: newTags))
           .resetPagination();
     }
   }
@@ -184,7 +185,8 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
         ? filter.copyWith(pinnedOnly: true)
         : filter;
     if (effectiveFilter.tags.length == 1) {
-      _ref.read(selectedTagFilterProvider.notifier).state = effectiveFilter.tags.first;
+      _ref.read(selectedTagFilterProvider.notifier).state =
+          effectiveFilter.tags.first;
     } else if (effectiveFilter.tags.isEmpty) {
       _ref.read(selectedTagFilterProvider.notifier).state = null;
     }
@@ -198,9 +200,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
   void setTag(String? tag) {
     final currentTags = tag != null && tag.isNotEmpty ? {tag} : <String>{};
     state = state
-        .copyWith(
-          filter: state.filter.copyWith(tags: currentTags),
-        )
+        .copyWith(filter: state.filter.copyWith(tags: currentTags))
         .resetPagination();
   }
 
@@ -247,9 +247,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
       _ref.read(selectedTagFilterProvider.notifier).state = newTags.first;
     }
     state = state
-        .copyWith(
-          filter: state.filter.copyWith(tags: newTags),
-        )
+        .copyWith(filter: state.filter.copyWith(tags: newTags))
         .resetPagination();
   }
 
@@ -261,9 +259,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
       newFilters.add(filter);
     }
     state = state
-        .copyWith(
-          filter: state.filter.copyWith(contentFilters: newFilters),
-        )
+        .copyWith(filter: state.filter.copyWith(contentFilters: newFilters))
         .resetPagination();
   }
 
@@ -275,9 +271,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
       newFilters.add(filter);
     }
     state = state
-        .copyWith(
-          filter: state.filter.copyWith(attachmentFilters: newFilters),
-        )
+        .copyWith(filter: state.filter.copyWith(attachmentFilters: newFilters))
         .resetPagination();
   }
 
@@ -368,21 +362,21 @@ class NotesCollectionState {
 
 final notesCollectionProvider =
     StateNotifierProvider<NotesCollectionNotifier, NotesCollectionState>((ref) {
-  final db = ref.watch(databaseProvider);
-  final repository = ref.watch(notesRepositoryProvider);
-  return NotesCollectionNotifier(ref, db, repository);
-});
+      final db = ref.watch(databaseProvider);
+      final repository = ref.watch(notesRepositoryProvider);
+      return NotesCollectionNotifier(ref, db, repository);
+    });
 
 class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   NotesCollectionNotifier(this._ref, this._db, this._repository)
-      : super(
-          NotesCollectionState(
-            notes: const [],
-            query: _ref.read(notesQueryProvider),
-            initialLoading: true,
-            generation: _ref.read(notesQueryProvider).generation,
-          ),
-        ) {
+    : super(
+        NotesCollectionState(
+          notes: const [],
+          query: _ref.read(notesQueryProvider),
+          initialLoading: true,
+          generation: _ref.read(notesQueryProvider).generation,
+        ),
+      ) {
     _loadInitial(state.query);
     _ref.listen<NotesQuery>(notesQueryProvider, (prev, next) {
       if (prev != next) {
@@ -390,27 +384,30 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       }
     });
 
-    _tableSubscription = _db.tableUpdates(
-      TableUpdateQuery.onAllTables([
-        _db.notesTable,
-        _db.noteTagsTable,
-        _db.attachmentsTable,
-        _db.documentsTable,
-      ]),
-    ).listen((_) {
-      _tableDebouncer.run(() {
-        if (mounted) {
-          refresh();
-        }
-      });
-    });
+    _tableSubscription = _db
+        .tableUpdates(
+          TableUpdateQuery.onAllTables([
+            _db.notesTable,
+            _db.noteTagsTable,
+            _db.attachmentsTable,
+            _db.documentsTable,
+          ]),
+        )
+        .listen((_) {
+          _tableDebouncer.run(() {
+            if (mounted) {
+              refresh();
+            }
+          });
+        });
   }
 
   final Ref _ref;
   final AppDatabase _db;
   final NotesRepository _repository;
-  final Debouncer _tableDebouncer =
-      Debouncer(duration: const Duration(milliseconds: 350));
+  final Debouncer _tableDebouncer = Debouncer(
+    duration: const Duration(milliseconds: 350),
+  );
   StreamSubscription? _tableSubscription;
   int _activeGeneration = 0;
 
@@ -445,6 +442,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       state = state.copyWith(
         notes: result.notes,
         cursor: result.nextCursor,
+        clearCursor: result.nextCursor == null,
         hasMore: result.hasMore,
         totalCount: result.totalCount,
         initialLoading: false,
@@ -477,28 +475,25 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     state = state.copyWith(loadingMore: true, clearError: true);
 
     try {
-      final nextPageQuery = state.query.copyWith(
-        cursor: state.cursor,
-      );
+      final nextPageQuery = state.query.copyWith(cursor: state.cursor);
 
       final result = await _repository.executeNotesQuery(nextPageQuery);
 
       if (_activeGeneration != gen) return;
 
       if (result.notes.isEmpty) {
-        state = state.copyWith(
-          hasMore: false,
-          clearCursor: true,
-        );
+        state = state.copyWith(hasMore: false, clearCursor: true);
         return;
       }
 
       // Deduplicate new batch against existing note IDs
       final existingIds = state.notes.map((n) => n.id).toSet();
-      final uniqueNewNotes =
-          result.notes.where((n) => !existingIds.contains(n.id)).toList();
+      final uniqueNewNotes = result.notes
+          .where((n) => !existingIds.contains(n.id))
+          .toList();
 
-      final hasValidProgress = uniqueNewNotes.isNotEmpty ||
+      final hasValidProgress =
+          uniqueNewNotes.isNotEmpty ||
           (result.nextCursor != null && result.nextCursor != state.cursor);
 
       final combined = uniqueNewNotes.isEmpty
@@ -515,9 +510,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     } catch (e) {
       if (_activeGeneration != gen) return;
       // Failed load-more keeps existing loaded notes intact!
-      state = state.copyWith(
-        error: e,
-      );
+      state = state.copyWith(error: e);
     } finally {
       if (mounted) {
         state = state.copyWith(loadingMore: false);
@@ -537,20 +530,36 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     );
 
     try {
-      final refreshLimit = math
-          .max(state.notes.length, state.query.limit)
-          .clamp(state.query.limit, NotesQuery.maxBatchSize);
-      final refreshQuery = state.query
-          .copyWith(limit: refreshLimit)
-          .resetPagination(newGeneration: gen);
-      final result = await _repository.executeNotesQuery(refreshQuery);
-
-      if (_activeGeneration != gen) return;
+      final targetCount = math.max(state.notes.length, state.query.limit);
+      final refreshQuery = state.query.resetPagination(newGeneration: gen);
+      final refreshed = <Note>[];
+      final seenIds = <String>{};
+      NotesCursor? cursor;
+      late NotesQueryResult result;
+      do {
+        result = await _repository.executeNotesQuery(
+          refreshQuery.copyWith(
+            limit: math.min(
+              targetCount - refreshed.length,
+              NotesQuery.maxBatchSize,
+            ),
+            cursor: cursor,
+          ),
+        );
+        if (_activeGeneration != gen) return;
+        refreshed.addAll(result.notes.where((note) => seenIds.add(note.id)));
+        final nextCursor = result.nextCursor;
+        if (!result.hasMore || nextCursor == null || nextCursor == cursor) {
+          break;
+        }
+        cursor = nextCursor;
+      } while (refreshed.length < targetCount);
 
       state = state.copyWith(
-        notes: result.notes,
+        notes: refreshed,
         query: state.query.resetPagination(newGeneration: gen),
         cursor: result.nextCursor,
+        clearCursor: result.nextCursor == null,
         hasMore: result.hasMore,
         totalCount: result.totalCount,
         initialLoading: false,
@@ -620,7 +629,8 @@ final groupedNotesCollectionProvider = Provider<List<NoteGroup>>((ref) {
   final contextTag = destination == AppDestination.tag
       ? ref.watch(selectedTagFilterProvider)
       : null;
-  final separatePinned = (destination == AppDestination.allNotes ||
+  final separatePinned =
+      (destination == AppDestination.allNotes ||
           destination == AppDestination.tag) &&
       collectionState.query.sort.pinnedFirst;
 

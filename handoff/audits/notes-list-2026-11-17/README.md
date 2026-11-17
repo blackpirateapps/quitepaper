@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 7 open, 3 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 6 open, 4 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -128,6 +128,10 @@ and same-length body replacements produce fresh metadata; unchanged notes still
 hit the bounded cache.
 
 ### NL-04: Refresh discards loaded pages after 250 notes
+
+**Fixed.** Refresh reconstructs the loaded window using bounded keyset pages and publishes the replacement atomically. Regressions retain 440 and 1,000 loaded IDs, edited content and continuation cursors; phone and desktop lists preserve a deep visible row and its scroll position.
+
+Validation: `flutter analyze`: no issues; collection recovery, pagination races and screen regressions: 16 passed. No full suite ran.
 
 **Location:** `lib/features/notes/application/notes_query_provider.dart:540`;
 `lib/features/notes/domain/notes_query.dart:21`.
