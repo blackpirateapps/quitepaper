@@ -165,6 +165,53 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final staleFailure in [false, true]) {
+    for (final oldFirst in [false, true]) {
+      testWidgets('IS-11 source switch ignores stale load (failure=$staleFailure oldFirst=$oldFirst)', (tester) async {
+        final service = PendingAssets();
+        const key = ValueKey('shared-image');
+        final bytesA = fixture();
+        final imageB = img.Image(width: 160, height: 120);
+        final bytesB = Uint8List.fromList(img.encodePng(imageB));
+        await tester.pumpWidget(app(const QuietAssetImageView(key: key, assetId: 'A'), assets: service));
+        await tester.pump();
+        await tester.pumpWidget(app(const QuietAssetImageView(key: key, assetId: 'B'), assets: service));
+        await tester.pump();
+        void finishOld() {
+          if (staleFailure) {
+            service.requests['A']!.completeError(StateError('old failure'));
+          } else {
+            service.requests['A']!.complete(ResourceResolution.available(QuietPaperUri.asset('A'), bytesA));
+          }
+        }
+        if (oldFirst) {
+          finishOld();
+          await frames(tester);
+          expect(find.byType(Image), findsNothing);
+          expect(find.textContaining('retry'), findsNothing);
+        }
+        service.requests['B']!.complete(ResourceResolution.available(QuietPaperUri.asset('B'), bytesB));
+        await frames(tester);
+        if (!oldFirst) { finishOld(); await frames(tester); }
+        expect((tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes, bytesB);
+        expect(tester.getSize(find.byType(Image)), const Size(160, 120));
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  testWidgets('IS-11 variant switches invalidate old loads of the same asset', (tester) async {
+    final service = PendingAssets();
+    const key = ValueKey('variant-image');
+    await tester.pumpWidget(app(const QuietAssetImageView(key: key, assetId: 'same', variant: 'thumbnail'), assets: service));
+    final first = service.requests['same']!;
+    await tester.pumpWidget(app(const QuietAssetImageView(key: key, assetId: 'same'), assets: service));
+    final bytes = fixture();
+    service.requests['same']!.complete(ResourceResolution.available(QuietPaperUri.asset('same'), bytes));
+    await frames(tester);
+    first.complete(ResourceResolution.locked(QuietPaperUri.asset('same')));
+    await frames(tester);
+    expect((tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes, bytes);
+  });
   testWidgets('IS-10 data URL source buffers are released between mounts', (tester) async {
     final url = 'data:image/png;base64,${base64Encode(fixture())}';
     await tester.pumpWidget(app(QuietAssetImageView(url: url)));

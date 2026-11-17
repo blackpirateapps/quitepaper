@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 10 fixed, 4 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 11 fixed, 3 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -137,11 +137,16 @@ Resolution: Removed both process-wide inline source maps. Inline widgets retain 
 
 Validation: 17 inline/scanner tests and 2 expanded retention tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-11 — P1 — Late inline-image loads overwrite the current widget's source (OPEN)
+### IS-11 — P1 — Late inline-image loads overwrite the current widget's source (FIXED)
 
 Confirmed in source: `QuietAssetImageView.didUpdateWidget` starts `_loadImage` when its asset/URL changes. An older in-flight `_loadImage` checks only `mounted` after await; it does not compare source identity or request generation. When a widget is reused for B while A is pending, A can finish after B and install A's pixels/dimensions under B's current UI and actions. Affects async encrypted-asset resolution and network requests.
 
 Reproduce: reuse one widget from A to B; complete B first, A second. Expected: B remains displayed. Actual: A replaces it. Fix direction: per-load generation tokens and source snapshots checked before state/cache updates. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Inline loads snapshot source identity and variant, reset previous bytes/dimensions, and guard every async success/error and dimension decode with a request generation. Native codecs and decoded frames are disposed after measurement. Regressions cover both completion orders, stale failures and variant-only changes.
+
+Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-12 — P2 — A gallery result after scanner disposal calls setState on a dead screen (OPEN)
 

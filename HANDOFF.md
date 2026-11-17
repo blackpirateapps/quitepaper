@@ -648,3 +648,9 @@ Validation: 24 inline/service/scanner tests passed. Flutter analysis clean. No f
 Removed both process-wide inline source maps. Inline widgets retain only their current source and dimensions; encrypted sources use the bounded service cache and Flutter retains its normal bounded decoded-image cache. Regressions revisit 200 unmounted sources and verify data URLs create fresh source buffers on remount.
 
 Validation: 17 inline/scanner tests and 2 expanded retention tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-11 image/scanner audit fix — November 17, 2026
+
+Inline loads snapshot source identity and variant, reset previous bytes/dimensions, and guard every async success/error and dimension decode with a request generation. Native codecs and decoded frames are disposed after measurement. Regressions cover both completion orders, stale failures and variant-only changes.
+
+Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suite ran.
