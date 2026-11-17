@@ -612,3 +612,9 @@ Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite
 Viewer and inline image saves share a desktop write-and-flush helper. Exact-byte new-file/overwrite regressions cover truncation, cancellation, empty destinations and filesystem errors; mobile pickers still own supplied bytes.
 
 Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-05 image/scanner audit fix — November 17, 2026
+
+Full-resolution preparation and neutral-export decode/fast-path decisions now run in worker isolates. A shared serial queue bounds preparation, export, mode-render and detector concurrency; mode-render failures no longer retry expensive work on the UI isolate. The fast path decodes once. Event-loop tests verify timers continue during concurrent preparation and neutral export.
+
+Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full suite ran.

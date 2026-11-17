@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:quitepaper/core/image_processing/image_adjustments.dart';
@@ -8,6 +9,26 @@ import 'package:quitepaper/core/ocr/ocr_models.dart';
 
 void main() {
   const processor = DartImageProcessor();
+  test('IS-05 preparation and neutral export yield while workers run', () async {
+    final source = img.Image(width: 1400, height: 1000);
+    final bytes = Uint8List.fromList(img.encodeJpg(source));
+    var ticks = 0;
+    final timer = Timer.periodic(const Duration(milliseconds: 1), (_) => ticks++);
+    try {
+      final reps = await Future.wait(List.generate(3, (_) => processor.createPageRepresentations(bytes)));
+      expect(ticks, greaterThan(0));
+      expect(reps.first.width, 1400);
+      expect(img.decodeImage(reps.first.previewBytes)!.width, 600);
+      expect(img.decodeImage(reps.first.thumbnailBytes)!.width, 200);
+      ticks = 0;
+      final result = await processor.processHighResolution(bytes, ImageAdjustments.neutral);
+      expect(ticks, greaterThan(0));
+      expect(result.imageBytes, bytes);
+      expect(result.width, 1400);
+    } finally {
+      timer.cancel();
+    }
+  });
   test('IS-03 both export paths match the preview color matrix', () async {
     for (final rgb in [[0, 0, 0], [70, 120, 180], [240, 220, 200]]) {
       final source = img.Image(width: 40, height: 40);

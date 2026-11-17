@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 4 fixed, 10 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 5 fixed, 9 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -71,11 +71,16 @@ Resolution: Viewer and inline image saves share a desktop write-and-flush helper
 
 Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-05 — P1 — Scanner/image-edit preparation performs full-resolution work on the UI isolate (OPEN)
+### IS-05 — P1 — Scanner/image-edit preparation performs full-resolution work on the UI isolate (FIXED)
 
 Confirmed in source: `DartImageProcessor.createPageRepresentations` is declared `async` but has no await or isolate dispatch. It synchronously decodes the full source, bakes orientation, resizes twice and JPEG-encodes twice before returning its Future. Both scanner import/capture and Edit Image call it on the UI isolate. The neutral `processHighResolution` fast path also decodes synchronously before deciding whether to launch compute, so large Original pages are decoded twice. An asynchronous signature alone does not make this background processing.
 
 Reproduce: import a large camera photo or enter Edit Image while observing the event loop. Expected: interactive UI while preparing bounded previews. Actual: timer/frame callbacks cannot run until the synchronous work finishes. Fix direction: move preparation and fast-path decisions to a worker isolate, with bounded concurrency. Measured confirmation: `evidence/flutter-preparation.json` and `evidence/final-audit-probes.log`; do not interpret widget/JIT timings as release device FPS.
+
+
+Resolution: Full-resolution preparation and neutral-export decode/fast-path decisions now run in worker isolates. A shared serial queue bounds preparation, export, mode-render and detector concurrency; mode-render failures no longer retry expensive work on the UI isolate. The fast path decodes once. Event-loop tests verify timers continue during concurrent preparation and neutral export.
+
+Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-06 — P1 — Late automatic corner detection overwrites manual crop edits (OPEN)
 

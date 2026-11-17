@@ -124,8 +124,20 @@ class DartImageProcessor implements ImageProcessor {
   /// Default max dimension for lightweight thumbnail carousel items.
   static const int thumbnailMaxDimension = 200;
 
+  // Serialize full-source jobs across processor instances to bound decoded memory.
+  static Future<void> _workerTail = Future<void>.value();
+
+  static Future<R> _runWorker<P, R>(ComputeCallback<P, R> callback, P params) {
+    final result = _workerTail.then((_) => compute(callback, params));
+    _workerTail = result.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return result;
+  }
+
   @override
-  Future<PageRepresentations> createPageRepresentations(Uint8List rawBytes) async {
+  Future<PageRepresentations> createPageRepresentations(Uint8List rawBytes) =>
+      _runWorker(_createPageRepresentations, rawBytes);
+
+  static PageRepresentations _createPageRepresentations(Uint8List rawBytes) {
     try {
       final decoded = img.decodeImage(rawBytes);
       if (decoded == null) {
@@ -208,23 +220,6 @@ class DartImageProcessor implements ImageProcessor {
         !documentQuad.isFullFrame &&
         documentQuad.isConvex;
 
-    // If neutral AND no mode transform AND no dewarp, return raw bytes with a
-    // basic orientation check.
-    if (adjustments.isNeutral && mode == ScanMode.original && !hasDewarp) {
-      final decoded = img.decodeImage(rawBytes);
-      if (decoded == null) {
-        return (imageBytes: rawBytes, width: 0, height: 0);
-      }
-      final oriented = img.bakeOrientation(decoded);
-      if (oriented.width <= maxDimension && oriented.height <= maxDimension) {
-        return (
-          imageBytes: rawBytes,
-          width: oriented.width,
-          height: oriented.height,
-        );
-      }
-    }
-
     final params = _HighResProcessingParams(
       rawBytes: rawBytes,
       adjustments: adjustments,
@@ -232,12 +227,7 @@ class DartImageProcessor implements ImageProcessor {
       mode: mode,
       documentQuad: hasDewarp ? documentQuad : null,
     );
-    try {
-      return await compute(_executeHighResProcessing, params);
-    } catch (e) {
-      debugPrint('processHighResolution compute fallback: $e');
-      return _executeHighResProcessing(params);
-    }
+    return _runWorker(_executeHighResProcessing, params);
   }
 
   @override
@@ -245,7 +235,7 @@ class DartImageProcessor implements ImageProcessor {
     Uint8List rawBytes,
   ) async {
     try {
-      return await compute(_executeDetectQuad, rawBytes);
+      return await _runWorker(_executeDetectQuad, rawBytes);
     } catch (e) {
       debugPrint('detectDocumentQuad fallback: $e');
       return (quad: NormalizedQuad.full, confidence: 0.0);
@@ -270,6 +260,11 @@ class DartImageProcessor implements ImageProcessor {
       }
 
       img.Image processed = img.bakeOrientation(decoded);
+      if (params.adjustments.isNeutral && params.mode == ScanMode.original &&
+          params.documentQuad == null && processed.width <= params.maxDimension &&
+          processed.height <= params.maxDimension) {
+        return (imageBytes: params.rawBytes, width: processed.width, height: processed.height);
+      }
 
       // 2. Geometry: perspective dewarp of the detected/adjusted document quad,
       //    OR the rectangular crop (dewarp supersedes crop when present).
@@ -436,6 +431,8 @@ class DartImageProcessor implements ImageProcessor {
 
   /// Same affine RGB transform as ColorFilter.matrix, with a single final clamp.
   static void _applyTone(img.Image image, ImageAdjustments adjustments) {
+    if (adjustments.brightness == 0 && adjustments.contrast == 0 &&
+        adjustments.saturation == 0 && !adjustments.grayscale) { return; }
     final m = adjustments.toColorMatrix();
     for (final pixel in image) {
       final r = pixel.r.toDouble();
@@ -461,10 +458,10 @@ class DartImageProcessor implements ImageProcessor {
       maxDimension: maxDimension,
     );
     try {
-      return await compute(_executeModePreviews, params);
+      return await _runWorker(_executeModePreviews, params);
     } catch (e) {
       debugPrint('renderModePreviews compute fallback: $e');
-      return _executeModePreviews(params);
+      return {for (final mode in modes) mode: sourceBytes};
     }
   }
 
