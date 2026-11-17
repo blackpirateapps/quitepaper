@@ -1,6 +1,6 @@
 # WC-10: A second shared URL is discarded while Quick Capture is open
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -26,3 +26,9 @@ The corresponding `WC-10` probe and its output are preserved in [evidence.md](ev
 
 - [`lib/core/web_clipper/share_intent_handler.dart:76`](../../../lib/core/web_clipper/share_intent_handler.dart#L76)
 - [`lib/features/quick_capture/application/quick_capture_coordinator.dart:79`](../../../lib/features/quick_capture/application/quick_capture_coordinator.dart#L79)
+
+## Resolution
+
+Quick Capture queues distinct incoming requests while a capture route is open and opens them in FIFO order after that route closes. Duplicate active or queued shares are suppressed without discarding other URLs. Disposal clears queued session state.
+
+Validation: flutter analyze: clean; 16 coordinator, Quick Capture screen and normalizer tests passed. No full suite ran.
