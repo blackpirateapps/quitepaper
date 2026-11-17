@@ -107,4 +107,31 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 600));
   });
+  for (final exists in [false, true]) {
+    testWidgets('desktop save writes exact PDF bytes (existing file: $exists)', (
+      tester,
+    ) async {
+      final service = SaveService();
+      await openSaveViewer(tester, service);
+      final file = File('${directory.path}/selected.pdf');
+      if (exists) {
+        // Longer than the PDF to verify replacement also truncates stale bytes.
+        await tester.runAsync(() => file.writeAsBytes(List.filled(10000, 65)));
+      }
+      picker.result = file.path;
+      await tester.runAsync(() async {
+        await tester.tap(find.byTooltip('Save PDF to storage'));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pump();
+      expect(
+        await tester.runAsync(file.readAsBytes),
+        service.resolution.data!.pdfBytes,
+      );
+      expect(find.text('Document saved: selected.pdf'), findsOneWidget);
+      expect(paths.downloadsCalls, 0);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  }
 }

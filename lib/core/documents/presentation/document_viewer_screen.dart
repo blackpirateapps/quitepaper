@@ -878,8 +878,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
       if (selectedPath != null && selectedPath.isNotEmpty) {
         final file = File(selectedPath);
-        if (!await file.exists() || await file.length() == 0) {
-          await file.writeAsBytes(bytes);
+        // Desktop pickers return a destination path; they do not write bytes.
+        // Mobile pickers write the supplied bytes through native storage APIs.
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          await file.writeAsBytes(bytes, flush: true);
         }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

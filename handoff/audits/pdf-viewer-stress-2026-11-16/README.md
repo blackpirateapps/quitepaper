@@ -280,7 +280,11 @@ Evidence: `export-probes.jsonl`, `cancel-pdf-save`. No user Downloads were touch
 
 ## PDF-11 — saving over an existing nonempty PDF reports success without writing
 
-**Open. Medium. Real viewer action with path-only picker response.**
+**Fixed. (November 17, 2026). Medium. Real viewer action with path-only picker response.**
+
+Resolution: Desktop picker destinations are now always written and flushed before reporting success, replacing and truncating existing content. Mobile native pickers continue to own writing their supplied bytes. Five export regressions verify exact output for new/existing files, both cancellation responses, and unavailable-picker fallback.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_export_test.dart` passed. No full suite ran.
 
 Save to an existing nonempty file and confirm its replacement in a desktop-style
 picker. The viewer reports Document saved, but the existing bytes are unchanged.

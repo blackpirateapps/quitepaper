@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **8/10 now fixed; 2 open.**
+against `5d869e9` found 10 confirmed bugs. **9/10 now fixed; 1 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -255,5 +255,12 @@ Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_sideba
 ### PDF-10 fixed — November 17, 2026
 
 A normal null or empty picker response now returns immediately, with no filesystem fallback or saved notification. Only picker unavailability enters the Downloads fallback. Three isolated filesystem regressions cover both cancellation responses and successful fallback output.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_export_test.dart`. No full suite ran.
+
+
+### PDF-11 fixed — November 17, 2026
+
+Desktop picker destinations are now always written and flushed before reporting success, replacing and truncating existing content. Mobile native pickers continue to own writing their supplied bytes. Five export regressions verify exact output for new/existing files, both cancellation responses, and unavailable-picker fallback.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_export_test.dart`. No full suite ran.
