@@ -83,11 +83,9 @@ class _PdfThumbnailSidebarState extends ConsumerState<PdfThumbnailSidebar> {
         0.0,
         _scrollController.position.maxScrollExtent,
       );
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-      );
+      // Jump directly so distant navigation does not build and rasterize
+      // every intermediate viewport of a long PDF.
+      _scrollController.jumpTo(target);
     }
   }
 

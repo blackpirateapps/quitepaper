@@ -1,0 +1,40 @@
+import runpy,time,json,pathlib,urllib.error
+for attempt in range(100):
+    try:
+        h=runpy.run_path('handoff/audits/pdf-viewer-stress-2026-11-16/native-driver.py.txt')
+        h['api']()
+        break
+    except (AssertionError, OSError):
+        time.sleep(.3)
+else:
+    raise RuntimeError('Native harness did not become ready')
+h['prepare']()
+state=h['open_pdf']('large')
+time.sleep(3)
+state=h['api']()
+assert state['viewer']['pages']==250,state['viewer']
+assert any(x['text']=='Hide thumbnails' for x in state['labels']), 'sidebar must be open'
+results=[]
+for page in [2,125,200,50,249,1]:
+    started=time.monotonic()
+    try:
+        state=h['api']('/jump',{'page':page})
+    except urllib.error.HTTPError as error:
+        print(error.read().decode(),flush=True)
+        raise
+    for attempt in range(40):
+        if any(t.get('selected') and t['text']=='Page '+str(page) for t in state['tiles']): break
+        time.sleep(.1)
+        state=h['api']()
+    elapsed=time.monotonic()-started
+    assert state['viewer']['page']==page,state['viewer']
+    assert not state['errors'],state['errors']
+    selected=[t for t in state['tiles'] if t.get('selected')]
+    assert any(t['text']=='Page '+str(page) and t.get('rect') and 56<=t['rect'][1]<680 for t in selected),selected
+    result={'page':page,'secondsIncluding450msWait':round(elapsed,3),'selected':selected,'errors':state['errors']}
+    results.append(result)
+    print(json.dumps(result),flush=True)
+    assert elapsed<1.5, 'navigation still stalls'
+path=pathlib.Path('handoff/audits/pdf-viewer-stress-2026-11-16/fix-verification')
+path.mkdir(exist_ok=True)
+(path/'native-navigation.json').write_text(json.dumps({'jumps':results,'slowFrames':state['slowFrames']},indent=2)+'\n')

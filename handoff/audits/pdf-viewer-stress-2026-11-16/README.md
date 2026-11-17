@@ -243,7 +243,11 @@ the retained layout probe source. The title is only 22px wide at 390px; it has 2
 
 ## PDF-09 — large-document random navigation produces multi-second stalls
 
-**Open. Medium, native Linux debug performance scope.**
+**Fixed. (November 17, 2026). Medium, native Linux debug performance scope.**
+
+Resolution: Long jumps render only destination thumbnails; concurrent native renders share one PDF handle and dimension lookup, close on final release, and compress PNGs off the UI isolate. Native page sizes enforce the pixel budget without rescanning the PDF. All 18 focused tests pass. A fresh native Linux debug replay completes six jumps in 0.466–0.759s including 450ms intentional waits, with visible selected tiles and no Flutter errors; see fix-verification/README.md.
+
+Verification: `flutter analyze` and `flutter test test/documents/pdf_thumbnail_sidebar_test.dart test/pdf/syncfusion_pdf_page_renderer_test.dart test/documents/pdf_raster_policy_test.dart` passed. No full suite ran.
 
 On the synthetic 250-page, 328KB text PDF, the random-jump sequence
 2 → 125 → 200 → 50 → 249 stopped when the audit state endpoint exceeded its

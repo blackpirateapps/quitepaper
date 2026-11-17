@@ -74,4 +74,51 @@ void main() {
       );
     }
   }
+  testWidgets('random navigation renders only destination thumbnails', (
+    tester,
+  ) async {
+    final selected = ValueNotifier<int>(0);
+    final service = SidebarThumbnails();
+    addTearDown(selected.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pdfThumbnailServiceProvider.overrideWithValue(service)],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 140,
+              height: 600,
+              child: PdfThumbnailSidebar(
+                documentId: 'bounded',
+                pdfBytes: Uint8List(1),
+                pageCount: 250,
+                selectedPageIndexListenable: selected,
+                onPageSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final page in [125, 200, 50, 249, 1]) {
+      service.requests.clear();
+      selected.value = page - 1;
+      for (var frame = 0; frame < 20; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        service.requests.length,
+        lessThanOrEqualTo(8),
+        reason:
+            'page $page should not render intervening pages: ${service.requests}',
+      );
+      final tile = find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.selected == true,
+      );
+      expect(tile, findsOneWidget);
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
 }
