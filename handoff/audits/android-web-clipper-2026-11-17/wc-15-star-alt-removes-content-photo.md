@@ -27,4 +27,3 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 - [`lib/core/web_clipper/clipped_image_filter.dart:20`](../../../lib/core/web_clipper/clipped_image_filter.dart#L20)
 - [`lib/core/web_clipper/clipped_image_filter.dart:103`](../../../lib/core/web_clipper/clipped_image_filter.dart#L103)
 - [`lib/core/web_clipper/clipped_image_filter.dart:146`](../../../lib/core/web_clipper/clipped_image_filter.dart#L146)
-

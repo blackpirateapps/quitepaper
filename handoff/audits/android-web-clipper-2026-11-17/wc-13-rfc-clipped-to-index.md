@@ -27,4 +27,3 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 - [`lib/core/web_clipper/article_extractor.dart:199`](../../../lib/core/web_clipper/article_extractor.dart#L199)
 - [`lib/core/web_clipper/article_extractor.dart:211`](../../../lib/core/web_clipper/article_extractor.dart#L211)
 - [`lib/core/web_clipper/web_clipper_scanner.dart:186`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L186)
-

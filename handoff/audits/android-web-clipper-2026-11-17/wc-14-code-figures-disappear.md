@@ -25,4 +25,3 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 ## Source locations
 
 - [`lib/core/web_clipper/html_to_markdown_converter.dart:226`](../../../lib/core/web_clipper/html_to_markdown_converter.dart#L226)
-
