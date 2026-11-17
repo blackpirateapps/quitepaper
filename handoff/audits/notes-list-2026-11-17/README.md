@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 5 open, 5 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 4 open, 6 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -180,6 +180,10 @@ before accepting responses. **Acceptance:** Exercise both completion orders and
 multiple refresh/filter/destination changes, with only the current request winning.
 
 ### NL-06: Retry does not retry a failed refresh
+
+**Fixed.** Retry dispatches the recorded failed operation: initial load, refresh, or next page. Failed refreshes restart at the beginning even at end-of-list, and failed pages retry their cursor without losing loaded notes. Automatic scrolling leaves a displayed error intact until Retry or explicit refresh.
+
+Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
 
 **Location:** `lib/features/notes/application/notes_query_provider.dart:573` and `:468`.
 

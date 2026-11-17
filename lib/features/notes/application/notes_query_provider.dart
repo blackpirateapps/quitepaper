@@ -367,6 +367,8 @@ final notesCollectionProvider =
       return NotesCollectionNotifier(ref, db, repository);
     });
 
+enum _NotesLoadOperation { initial, refresh, loadMore }
+
 class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   NotesCollectionNotifier(this._ref, this._db, this._repository)
     : super(
@@ -410,6 +412,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   );
   StreamSubscription? _tableSubscription;
   int _activeGeneration = 0;
+  _NotesLoadOperation? _failedOperation;
 
   @override
   void dispose() {
@@ -422,6 +425,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   Future<void> _loadInitial(NotesQuery query) async {
     final gen = ++_activeGeneration;
     query = query.copyWith(generation: gen);
+    _failedOperation = null;
 
     state = state.copyWith(
       query: query,
@@ -452,6 +456,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       );
     } catch (e) {
       if (!mounted || _activeGeneration != gen) return;
+      _failedOperation = _NotesLoadOperation.initial;
       state = state.copyWith(
         initialLoading: false,
         loadingMore: false,
@@ -466,6 +471,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     // Load-more lock: ensure only one active load-more per generation
     if (state.loadingMore ||
         state.isRefreshing ||
+        state.error != null ||
         !state.hasMore ||
         state.initialLoading ||
         state.cursor == null) {
@@ -511,6 +517,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     } catch (e) {
       if (!mounted || _activeGeneration != gen) return;
       // Failed load-more keeps existing loaded notes intact!
+      _failedOperation = _NotesLoadOperation.loadMore;
       state = state.copyWith(error: e);
     } finally {
       if (mounted && _activeGeneration == gen) {
@@ -522,6 +529,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   /// Refreshes current query from the beginning without losing active filter/sort
   Future<void> refresh() async {
     final gen = ++_activeGeneration;
+    _failedOperation = null;
     state = state.copyWith(
       isRefreshing: true,
       loadingMore: false,
@@ -569,6 +577,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       );
     } catch (e) {
       if (!mounted || _activeGeneration != gen) return;
+      _failedOperation = _NotesLoadOperation.refresh;
       state = state.copyWith(
         initialLoading: false,
         loadingMore: false,
@@ -578,12 +587,19 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
     }
   }
 
-  /// Retries either initial load or loadMore depending on where failure occurred
+  /// Retries the operation that failed, preserving query and loaded pages.
   Future<void> retry() async {
-    if (state.notes.isEmpty) {
-      await _loadInitial(state.query);
-    } else {
-      await loadMore();
+    final operation = _failedOperation;
+    if (operation == null) return;
+    _failedOperation = null;
+    state = state.copyWith(clearError: true);
+    switch (operation) {
+      case _NotesLoadOperation.initial:
+        await _loadInitial(state.query);
+      case _NotesLoadOperation.refresh:
+        await refresh();
+      case _NotesLoadOperation.loadMore:
+        await loadMore();
     }
   }
 

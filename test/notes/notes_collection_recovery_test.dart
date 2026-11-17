@@ -228,32 +228,103 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     },
   );
-  test('NL-05: stale load-more cleanup leaves the current page request locked', () async {
-    NotesQueryResult page(NotesQuery q, String id) => NotesQueryResult(
-      notes: [item(id)], nextCursor: NotesCursor.fromNote(item(id), q.sort),
-      hasMore: true, totalCount: 3, generation: q.generation,
-    );
-    repo.intercept = (q) async => page(q, 'active');
+  test(
+    'NL-05: stale load-more cleanup leaves the current page request locked',
+    () async {
+      NotesQueryResult page(NotesQuery q, String id) => NotesQueryResult(
+        notes: [item(id)],
+        nextCursor: NotesCursor.fromNote(item(id), q.sort),
+        hasMore: true,
+        totalCount: 3,
+        generation: q.generation,
+      );
+      repo.intercept = (q) async => page(q, 'active');
+      final n = c.read(notesCollectionProvider.notifier);
+      await ready();
+      final stale = Completer<NotesQueryResult>();
+      repo.intercept = (_) => stale.future;
+      final oldPage = n.loadMore();
+      repo.intercept = (q) async => page(q, 'archive');
+      c.read(notesQueryProvider.notifier).setContext(NotesContext.archive);
+      await ready();
+      final current = Completer<NotesQueryResult>();
+      repo.intercept = (_) => current.future;
+      final newPage = n.loadMore();
+      final currentQuery = repo.requests.last;
+      stale.completeError(StateError('Stale page failed'));
+      await oldPage;
+      expect(c.read(notesCollectionProvider).loadingMore, isTrue);
+      expect(c.read(notesCollectionProvider).error, isNull);
+      current.complete(response(currentQuery, 'archive-next'));
+      await newPage;
+      expect(c.read(notesCollectionProvider).loadingMore, isFalse);
+      expect(c.read(notesCollectionProvider).notes.map((n) => n.id), [
+        'archive',
+        'archive-next',
+      ]);
+    },
+  );
+
+  for (final more in [false, true]) {
+    test('NL-06: Retry repeats failed refresh hasMore=$more', () async {
+      final initial = item('retained');
+      NotesQueryResult page(NotesQuery q, String title) => NotesQueryResult(
+        notes: [initial.copyWith(title: title)],
+        nextCursor: more ? NotesCursor.fromNote(initial, q.sort) : null,
+        hasMore: more,
+        totalCount: more ? 2 : 1,
+        generation: q.generation,
+      );
+      repo.intercept = (q) async => page(q, 'Before');
+      final n = c.read(notesCollectionProvider.notifier);
+      await ready();
+      repo.intercept = (_) async => throw StateError('Refresh failure');
+      await n.refresh();
+      expect(c.read(notesCollectionProvider).notes.single.title, 'Before');
+      final failedQuery = repo.requests.last;
+      final before = repo.requests.length;
+      await n.loadMore();
+      expect(repo.requests.length, before);
+      repo.intercept = (q) async => page(q, 'Recovered');
+      await n.retry();
+      expect(repo.requests.length, greaterThan(before));
+      expect(repo.requests[before].cursor, isNull);
+      expect(repo.requests.last.sort, failedQuery.sort);
+      expect(repo.requests.last.filter, failedQuery.filter);
+      expect(c.read(notesCollectionProvider).notes.single.title, 'Recovered');
+      expect(c.read(notesCollectionProvider).error, isNull);
+    });
+  }
+  test('NL-06: Retry repeats failed initial and page operations', () async {
+    repo.intercept = (_) async => throw StateError('Initial failure');
     final n = c.read(notesCollectionProvider.notifier);
     await ready();
-    final stale = Completer<NotesQueryResult>();
-    repo.intercept = (_) => stale.future;
-    final oldPage = n.loadMore();
-    repo.intercept = (q) async => page(q, 'archive');
-    c.read(notesQueryProvider.notifier).setContext(NotesContext.archive);
-    await ready();
-    final current = Completer<NotesQueryResult>();
-    repo.intercept = (_) => current.future;
-    final newPage = n.loadMore();
-    final currentQuery = repo.requests.last;
-    stale.completeError(StateError('Stale page failed'));
-    await oldPage;
-    expect(c.read(notesCollectionProvider).loadingMore, isTrue);
+    expect(c.read(notesCollectionProvider).error, isA<StateError>());
+    final first = item('first');
+    final cursor = NotesCursor.fromNote(
+      first,
+      c.read(notesCollectionProvider).query.sort,
+    );
+    repo.intercept = (q) async => NotesQueryResult(
+      notes: [first],
+      nextCursor: cursor,
+      hasMore: true,
+      totalCount: 2,
+      generation: q.generation,
+    );
+    await n.retry();
+    expect(c.read(notesCollectionProvider).notes.single.id, 'first');
+    repo.intercept = (_) async => throw StateError('Page failure');
+    await n.loadMore();
+    expect(c.read(notesCollectionProvider).notes.single.id, 'first');
+    expect(c.read(notesCollectionProvider).error, isA<StateError>());
+    repo.intercept = (q) async => response(q, 'second');
+    await n.retry();
+    expect(repo.requests.last.cursor, cursor);
+    expect(c.read(notesCollectionProvider).notes.map((n) => n.id), [
+      'first',
+      'second',
+    ]);
     expect(c.read(notesCollectionProvider).error, isNull);
-    current.complete(response(currentQuery, 'archive-next'));
-    await newPage;
-    expect(c.read(notesCollectionProvider).loadingMore, isFalse);
-    expect(c.read(notesCollectionProvider).notes.map((n) => n.id), ['archive', 'archive-next']);
   });
-
 }

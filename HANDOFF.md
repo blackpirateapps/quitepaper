@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**5/10 fixed; 5 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**6/10 fixed; 4 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -531,3 +531,9 @@ Validation: `flutter analyze`: no issues; collection recovery, pagination races 
 The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
 
 Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.
+
+### NL-06 notes list fix — November 17, 2026
+
+Retry dispatches the recorded failed operation: initial load, refresh, or next page. Failed refreshes restart at the beginning even at end-of-list, and failed pages retry their cursor without losing loaded notes. Automatic scrolling leaves a displayed error intact until Retry or explicit refresh.
+
+Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
