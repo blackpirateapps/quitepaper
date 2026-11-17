@@ -1234,6 +1234,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     final isDesktop = PlatformLayoutHelper.isDesktop(context);
     final isBigScreen = isDesktop || MediaQuery.of(context).size.width >= 768.0;
 
+    final compactToolbar = MediaQuery.sizeOf(context).width < 768;
+
     return ValueListenableBuilder<bool>(
       valueListenable: _isDirtyNotifier,
       builder: (context, isDirty, child) {
@@ -1348,7 +1350,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
             ],
           ),
           actions: [
-            if (isBigScreen)
+            if (isBigScreen && !compactToolbar)
               ValueListenableBuilder<bool>(
                 valueListenable: _isThumbnailSidebarOpenNotifier,
                 builder: (context, isOpen, _) {
@@ -1386,40 +1388,42 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
               tooltip: 'Annotation Tools',
               onPressed: _showAnnotationToolsModal,
             ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Rename document',
-              onPressed: _promptRenameDocument,
-            ),
-            if (isOcrAvailable)
+            if (!compactToolbar) ...[
               IconButton(
-                icon: const Icon(Icons.article_outlined),
-                tooltip: 'View OCR Text',
-                onPressed: _openOcrTextViewer,
-              )
-            else if (isOcrProcessing)
-              IconButton(
-                icon: const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator.adaptive(strokeWidth: 2),
-                ),
-                tooltip: 'OCR is processing... Tap to restart',
-                onPressed: _regenerateOcr,
-              )
-            else if (isOcrSkipped)
-              IconButton(
-                icon: const Icon(Icons.document_scanner_outlined),
-                tooltip: 'Run OCR (adaptive resolution)',
-                onPressed: _regenerateOcr,
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.document_scanner_outlined),
-                tooltip: 'Run OCR',
-                onPressed: _regenerateOcr,
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Rename document',
+                onPressed: _promptRenameDocument,
               ),
-            if (docInfo != null) ...[
+              if (isOcrAvailable)
+                IconButton(
+                  icon: const Icon(Icons.article_outlined),
+                  tooltip: 'View OCR Text',
+                  onPressed: _openOcrTextViewer,
+                )
+              else if (isOcrProcessing)
+                IconButton(
+                  icon: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+                  ),
+                  tooltip: 'OCR is processing... Tap to restart',
+                  onPressed: _regenerateOcr,
+                )
+              else if (isOcrSkipped)
+                IconButton(
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  tooltip: 'Run OCR (adaptive resolution)',
+                  onPressed: _regenerateOcr,
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  tooltip: 'Run OCR',
+                  onPressed: _regenerateOcr,
+                ),
+            ],
+            if (docInfo != null && !compactToolbar) ...[
               IconButton(
                 icon: const Icon(Icons.download_rounded),
                 tooltip: 'Save PDF to storage',

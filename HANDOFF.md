@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **5/10 now fixed; 5 open.**
+against `5d869e9` found 10 confirmed bugs. **6/10 now fixed; 4 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -236,3 +236,10 @@ Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_sideba
 Syncfusion load failures now set a visible document error, remove the blank viewer and zoom controls, and hide misleading page context. Try Again resolves and initializes the document afresh. The load-failure/retry regression and three annotation-save regressions pass.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart`. No full suite ran.
+
+
+### PDF-08 fixed — November 17, 2026
+
+Toolbars below 768 pixels keep annotation tools, unsaved-annotation Save, and Document options visible; secondary actions remain in that menu. Clean and dirty layouts retain readable title width at 320/360/390/600 pixels without overflow. Four layout and four OCR action tests pass; physical-device validation remains outside this run.
+
+Validation: `flutter analyze`; `flutter test test/documents/document_viewer_layout_test.dart test/documents/document_viewer_ocr_menu_test.dart`. No full suite ran.

@@ -228,7 +228,11 @@ Flutter exception, so the captured exception array remains empty.
 
 ## PDF-08 — narrow mobile toolbar has no room for the document title
 
-**Open. Medium. Android-themed widget layout probe; physical mobile untested.**
+**Fixed. (November 17, 2026). Medium. Android-themed widget layout probe; physical mobile untested.**
+
+Resolution: Toolbars below 768 pixels keep annotation tools, unsaved-annotation Save, and Document options visible; secondary actions remain in that menu. Clean and dirty layouts retain readable title width at 320/360/390/600 pixels without overflow. Four layout and four OCR action tests pass; physical-device validation remains outside this run.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_layout_test.dart test/documents/document_viewer_ocr_menu_test.dart` passed. No full suite ran.
 
 At 320 logical pixels, a RenderFlex overflows by 16 pixels. At both 320 and
 360 logical pixels, the PDF toolbar's always-visible actions consume the
