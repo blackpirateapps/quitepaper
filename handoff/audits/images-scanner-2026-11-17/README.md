@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 3 fixed, 11 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 4 fixed, 10 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -60,11 +60,16 @@ Resolution: Both CPU image-processing paths now apply the exact preview color ma
 
 Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-04 — P1 — Desktop Save Image reports success without writing the file (OPEN)
+### IS-04 — P1 — Desktop Save Image reports success without writing the file (FIXED)
 
 Confirmed in source: `ImageViewerModal`'s `handleSaveImage` passes bytes to `FilePicker.saveFile`, then shows success for any non-null path without writing bytes. The desktop file-picker API returns a destination path; the caller must write the image. This is the same contract already handled in the repository's PDF/ZIP export fixes. Affects Linux/macOS/Windows Save Image, including overwrites.
 
 Reproduce: Save Image to a desktop destination. Expected: exact image bytes at that path. Actual: success UI with missing file or unchanged previous file. Fix direction: write and flush the returned desktop path, handle cancellation/empty paths and surface write failures; retain mobile picker ownership. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Viewer and inline image saves share a desktop write-and-flush helper. Exact-byte new-file/overwrite regressions cover truncation, cancellation, empty destinations and filesystem errors; mobile pickers still own supplied bytes.
+
+Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-05 — P1 — Scanner/image-edit preparation performs full-resolution work on the UI isolate (OPEN)
 

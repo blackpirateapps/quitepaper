@@ -1,5 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:quitepaper/core/attachments/presentation/image_viewer_modal.dart';
+import 'package:quitepaper/core/attachments/presentation/viewer_image_item.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -158,6 +161,52 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final destination in ['new', 'overwrite', 'cancel', 'empty', 'failure']) {
+    testWidgets('IS-04 desktop image save $destination', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('qp-image-fix-')))!;
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/output.png');
+      if (destination == 'overwrite') {
+        await tester.runAsync(() => file.writeAsBytes(List.filled(10000, 9)));
+      }
+      final picker = AuditPicker()..output = switch (destination) {
+        'cancel' => null, 'empty' => '', 'failure' => directory.path, _ => file.path,
+      };
+      FilePicker.platform = picker;
+      final bytes = fixture();
+      final buildErrors = <Object>[];
+      // IS-13 is addressed separately; retain its known diagnostic for now.
+      await runZonedGuarded(() async {
+        await tester.pumpWidget(app(ImageViewerModal(images: [
+          ViewerImageItem(url: 'https://fixture.invalid/image.png', initialBytes: bytes),
+        ])));
+        await tester.pump();
+      }, (error, stack) => buildErrors.add(error));
+      expect(buildErrors, hasLength(1));
+      expect(buildErrors.single.toString(), contains('called during build'));
+      await frames(tester);
+      await tester.tap(find.text('Save Image'));
+      for (var i = 0; i < 20; i++) {
+        await frames(tester);
+        if (find.text('Image saved successfully').evaluate().isNotEmpty ||
+            find.textContaining('Failed to save image').evaluate().isNotEmpty) { break; }
+      }
+      if (destination == 'new' || destination == 'overwrite') {
+        expect(await tester.runAsync(() => file.readAsBytes()), bytes);
+        expect(find.text('Image saved successfully'), findsOneWidget);
+      } else {
+        expect(find.text('Image saved successfully'), findsNothing);
+        if (destination == 'failure') {
+          expect(find.textContaining('Failed to save image'), findsOneWidget);
+        } else {
+          expect(await tester.runAsync(() => file.exists()), isFalse);
+        }
+      }
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
   testWidgets('IS-02 review renders applied rectangle and quad framing', (tester) async {
     final bytes = fixture();
     for (final perspective in [false, true]) {

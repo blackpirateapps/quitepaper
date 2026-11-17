@@ -21,6 +21,7 @@ import '../../ocr/presentation/ocr_language_dialog.dart';
 import '../../sync/sync_provider.dart';
 import '../attachment_provider.dart';
 import 'image_dimension_reader.dart';
+import 'image_file_save.dart';
 import 'viewer_image_item.dart';
 
 /// Immersive editorial image viewer supporting single images and multi-image document galleries.
@@ -807,7 +808,8 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
   }
 
   Future<void> handleSaveImage() async {
-    if (_imageBytes == null) return;
+    final bytesToSave = _imageBytes;
+    if (bytesToSave == null) return;
 
     try {
       final mime = _attachment?.mimeType ?? 'image/png';
@@ -822,10 +824,12 @@ class _ViewerImagePageState extends ConsumerState<_ViewerImagePage> {
         dialogTitle: 'Save Image',
         fileName: fileName,
         type: FileType.image,
-        bytes: _imageBytes,
+        bytes: bytesToSave,
       );
 
-      if (outputPath != null && mounted) {
+      if (outputPath == null || outputPath.trim().isEmpty) return;
+      await writePickedImageFile(outputPath, bytesToSave);
+      if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

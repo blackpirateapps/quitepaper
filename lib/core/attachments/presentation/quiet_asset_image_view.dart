@@ -16,6 +16,7 @@ import '../../widgets/quiet_adaptive_modal.dart';
 import '../attachment_provider.dart';
 import '../../uri/quiet_paper_uri.dart';
 import 'image_dimension_reader.dart';
+import 'image_file_save.dart';
 import 'image_layout_calculator.dart';
 import 'image_viewer_modal.dart';
 import 'viewer_image_item.dart';
@@ -743,7 +744,9 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
         bytes: imageBytes,
       );
 
-      if (outputPath != null && mounted) {
+      if (outputPath == null || outputPath.trim().isEmpty) return;
+      await writePickedImageFile(outputPath, imageBytes);
+      if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

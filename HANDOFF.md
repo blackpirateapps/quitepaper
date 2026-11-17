@@ -606,3 +606,9 @@ Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No fu
 Both CPU image-processing paths now apply the exact preview color matrix with one final channel clamp. Pixel regressions cover lifted blacks, mixed brightness/contrast/saturation and grayscale, allowing JPEG rounding.
 
 Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-04 image/scanner audit fix — November 17, 2026
+
+Viewer and inline image saves share a desktop write-and-flush helper. Exact-byte new-file/overwrite regressions cover truncation, cancellation, empty destinations and filesystem errors; mobile pickers still own supplied bytes.
+
+Validation: 6 audit widget tests and 18 existing viewer tests passed. Flutter analysis clean. No full suite ran.
