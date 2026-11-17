@@ -35,7 +35,7 @@ class DefaultPdfGenerator implements PdfGenerator {
           // Landscape standard
           pageFormat = PdfPageFormat(
             PdfPageFormat.a4.height,
-            PdfPageFormat.a4.width,
+            PdfPageFormat.a4.height / aspect,
             marginAll: 0,
           );
         } else {

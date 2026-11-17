@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 6 fixed, 8 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 7 fixed, 7 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -93,11 +93,16 @@ Resolution: Page geometry revisions invalidate pending automatic detection when 
 
 Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-07 — P2 — Landscape scans export on the wrong page aspect ratio (OPEN)
+### IS-07 — P2 — Landscape scans export on the wrong page aspect ratio (FIXED)
 
 Confirmed by real `DefaultPdfGenerator` output parsed with Syncfusion: a 240×160 scan (aspect 1.5) produces an 841.9×595.3 PDF page (aspect 1.4142857). All landscape inputs use fixed landscape A4, while portraits match source aspect. The image is contained, so content survives, but extra blank margins appear and exported page geometry violates the matching-aspect contract. `PdfBuilder` has the same branch, but the tested production path is `DefaultPdfGenerator`.
 
 Reproduce: save a landscape photo/receipt, inspect PDF MediaBox. Fix direction: derive landscape page height/width from the actual image aspect as for portraits. Evidence: `probes/pixel_probe.dart`, `evidence/final-audit-probes.log`.
+
+
+Resolution: Both PDF generators derive landscape page height from the image aspect ratio. Real PDF MediaBox regressions cover landscape, wide receipts, portrait and square pages in both generators.
+
+Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-08 — P1 — Compression silently destroys animated GIFs (OPEN)
 

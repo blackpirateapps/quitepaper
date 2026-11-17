@@ -624,3 +624,9 @@ Validation: 17 processor/scanner tests passed. Flutter analysis clean. No full s
 Page geometry revisions invalidate pending automatic detection when adjustments open; sheet detection also checks revisions after manual changes. Commits locate pages by stable ID. A delayed-detector widget regression verifies Use Full Page survives after Apply and reopening.
 
 Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-07 image/scanner audit fix — November 17, 2026
+
+Both PDF generators derive landscape page height from the image aspect ratio. Real PDF MediaBox regressions cover landscape, wide receipts, portrait and square pages in both generators.
+
+Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full suite ran.
