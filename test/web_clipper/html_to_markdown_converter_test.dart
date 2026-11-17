@@ -7,6 +7,40 @@ void main() {
   group('HtmlToMarkdownConverter', () {
     const converter = HtmlToMarkdownConverter();
 
+    test('figures preserve all code, illustrations, text and captions once', () {
+      final element = html_parser
+          .parseFragment(
+            '<div>'
+            '<figure><pre><code class="language-sh">hexo publish draft</code></pre>'
+            '<figcaption>Publish a draft</figcaption></figure>'
+            '<figure><img src="one.png" alt="One"><p>Additional explanation.</p>'
+            '<img src="two.png" alt="Two"><pre><code>hexo new photo</code></pre>'
+            '<figcaption>Photo examples</figcaption></figure></div>',
+          )
+          .children
+          .single;
+      final markdown = converter.convert(
+        cleanedElement: element,
+        metadata: const ExtractedArticleMetadata(
+          sourceUrl: 'https://example.com',
+          title: 'Code figures',
+          domain: 'example.com',
+        ),
+      );
+      expect(markdown, contains('```sh\nhexo publish draft\n```'));
+      for (final content in [
+        'hexo publish draft',
+        '*Publish a draft*',
+        '![One](one.png)',
+        '![Two](two.png)',
+        'Additional explanation.',
+        'hexo new photo',
+        '*Photo examples*',
+      ]) {
+        expect(content.allMatches(markdown).length, 1, reason: content);
+      }
+    });
+
     test('nested layout tables retain each paragraph and code block once', () {
       final element = html_parser
           .parseFragment(

@@ -1,6 +1,6 @@
 # WC-14: Code examples inside figure elements disappear from Markdown
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -25,3 +25,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 ## Source locations
 
 - [`lib/core/web_clipper/html_to_markdown_converter.dart:226`](../../../lib/core/web_clipper/html_to_markdown_converter.dart#L226)
+
+## Resolution
+
+Figure conversion preserves every child instead of selecting only the first image. Code-only and mixed-content figures retain fenced examples, explanatory text, all illustrations and italic captions exactly once.
+
+Validation: flutter analyze: clean; 12 converter, picture extraction and service tests passed. No full suite ran.

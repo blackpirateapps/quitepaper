@@ -247,13 +247,11 @@ class HtmlToMarkdownConverter {
         return '\n\n![$alt]($src)\n\n';
 
       case 'figure':
-        final img = el.querySelector('img');
-        final figcaption = el.querySelector('figcaption')?.text.trim();
-        final imgMarkdown = img != null ? _convertNode(img) : '';
-        if (figcaption != null && figcaption.isNotEmpty) {
-          return '$imgMarkdown\n*$figcaption*\n\n';
-        }
-        return imgMarkdown;
+        return _childrenToText(el, listDepth: listDepth);
+
+      case 'figcaption':
+        final caption = _childrenToText(el).trim();
+        return caption.isEmpty ? '' : '\n*$caption*\n\n';
 
       case 'table':
         return _convertTable(el);
