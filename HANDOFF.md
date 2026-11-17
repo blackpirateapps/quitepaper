@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **14/16 fixed; 2 open**, with individual reports, resolutions and replayable evidence.
+records **15/16 fixed; 1 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -454,3 +454,9 @@ Validation: flutter analyze: clean; 15 permanent extraction/scanner/parity tests
 Figure conversion preserves every child instead of selecting only the first image. Code-only and mixed-content figures retain fenced examples, explanatory text, all illustrations and italic captions exactly once.
 
 Validation: flutter analyze: clean; 12 converter, picture extraction and service tests passed. No full suite ran.
+
+### WC-15 Android web clipper fix
+
+Alt-text filtering no longer treats the substring star as decoration. Astronomy photos, Star labels and Startup descriptions survive both DOM and URL filtering; explicit rating-star labels and tiny icons remain excluded.
+
+Validation: flutter analyze: clean; 17 image-filter, picture extraction and scanner tests passed. No full suite ran.

@@ -18,7 +18,7 @@ abstract final class ClippedImageFilter {
   );
 
   static final RegExp _decorativeAltRegex = RegExp(
-    r'(icon|arrow|chevron|menu|close|spinner|spacer|bullet|divider|separator|star|avatar|logo|hamburger|logostack|favicon)',
+    r'(icon|arrow|chevron|menu|close|spinner|spacer|bullet|divider|separator|\brating[- ]stars?\b|avatar|logo|hamburger|logostack|favicon)',
     caseSensitive: false,
   );
 

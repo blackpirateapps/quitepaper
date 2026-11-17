@@ -1,6 +1,6 @@
 # WC-15: A meaningful photo is rejected when its alt text mentions a star
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -27,3 +27,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 - [`lib/core/web_clipper/clipped_image_filter.dart:20`](../../../lib/core/web_clipper/clipped_image_filter.dart#L20)
 - [`lib/core/web_clipper/clipped_image_filter.dart:103`](../../../lib/core/web_clipper/clipped_image_filter.dart#L103)
 - [`lib/core/web_clipper/clipped_image_filter.dart:146`](../../../lib/core/web_clipper/clipped_image_filter.dart#L146)
+
+## Resolution
+
+Alt-text filtering no longer treats the substring star as decoration. Astronomy photos, Star labels and Startup descriptions survive both DOM and URL filtering; explicit rating-star labels and tiny icons remain excluded.
+
+Validation: flutter analyze: clean; 17 image-filter, picture extraction and scanner tests passed. No full suite ran.
