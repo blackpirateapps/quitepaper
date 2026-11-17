@@ -630,3 +630,9 @@ Validation: 9 scanner race/overlay tests passed. Flutter analysis clean. No full
 Both PDF generators derive landscape page height from the image aspect ratio. Real PDF MediaBox regressions cover landscape, wide receipts, portrait and square pages in both generators.
 
 Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-08 image/scanner audit fix — November 17, 2026
+
+Compression preserves original bytes, filename and MIME for multiframe images, retaining animation and timing even under forced compression. Acceptance tests cover forced small GIFs and eligible GIFs above the normal threshold.
+
+Validation: 19 compression/processor/editor-import tests passed. Flutter analysis clean. No full suite ran.

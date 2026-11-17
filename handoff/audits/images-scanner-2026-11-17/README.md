@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 7 fixed, 7 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 8 fixed, 6 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -104,11 +104,16 @@ Resolution: Both PDF generators derive landscape page height from the image aspe
 
 Validation: 3 PDF geometry/builder tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-08 — P1 — Compression silently destroys animated GIFs (OPEN)
+### IS-08 — P1 — Compression silently destroys animated GIFs (FIXED)
 
 Confirmed with a two-frame GIF through the real compression isolate: input 1,999 bytes, output 1,009 bytes, `wasCompressed=true`, MIME `image/jpeg`, output frame count 1 instead of 2. `_compressImageInIsolate` decodes animation but routes every non-alpha-PNG input to single-frame JPEG. A second reproduction uses a four-frame >500KB GIF through normal threshold-based compression without force; it also emits one frame (see final log). GIF is an accepted editor image type.
 
 Reproduce: choose Compress for an eligible animated GIF (or force compression in the service). Expected: preserve animation or explicitly offer flattening. Actual: silent static replacement. Fix direction: bypass unsupported animations or preserve their frames/timing. Evidence: `probes/pixel_probe.dart`, `evidence/final-audit-probes.log`.
+
+
+Resolution: Compression preserves original bytes, filename and MIME for multiframe images, retaining animation and timing even under forced compression. Acceptance tests cover forced small GIFs and eligible GIFs above the normal threshold.
+
+Validation: 19 compression/processor/editor-import tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-09 — P1 — Inline plaintext image cache bypasses subsequent lock checks (OPEN)
 

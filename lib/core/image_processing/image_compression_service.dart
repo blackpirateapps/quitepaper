@@ -203,6 +203,20 @@ CompressedImageResult _compressImageInIsolate(_CompressionIsolateParams params) 
       );
     }
 
+    // JPEG cannot represent animation. Preserve frames, timing and original format.
+    if (decoded.numFrames > 1) {
+      return CompressedImageResult(
+        bytes: params.rawBytes,
+        originalByteSize: params.rawBytes.length,
+        compressedByteSize: params.rawBytes.length,
+        width: decoded.width,
+        height: decoded.height,
+        mimeType: DefaultImageCompressionService._inferMimeType(params.fileName),
+        fileName: params.fileName,
+        wasCompressed: false,
+      );
+    }
+
     img.Image image = img.bakeOrientation(decoded);
     final origWidth = image.width;
     final origHeight = image.height;

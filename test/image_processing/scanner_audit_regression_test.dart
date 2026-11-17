@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'dart:async';
+import 'dart:math';
+import 'package:quitepaper/core/image_processing/image_compression_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:quitepaper/core/image_processing/image_adjustments.dart';
@@ -9,6 +11,29 @@ import 'package:quitepaper/core/ocr/ocr_models.dart';
 
 void main() {
   const processor = DartImageProcessor();
+  test('IS-08 forced and threshold GIF compression preserve animation bytes', () async {
+    final random = Random(42);
+    for (final large in [false, true]) {
+      final animation = img.Image(width: large ? 400 : 120, height: large ? 400 : 120);
+      for (var i = 0; i < 4; i++) {
+        final frame = i == 0 ? animation : img.Image(width: animation.width, height: animation.height);
+        frame.frameDuration = (i + 1) * 100;
+        for (final pixel in frame) {
+          pixel.setRgb(random.nextInt(256), random.nextInt(256), random.nextInt(256));
+        }
+        if (i != 0) animation.addFrame(frame);
+      }
+      final bytes = Uint8List.fromList(img.encodeGif(animation));
+      if (large) { expect(bytes.length, greaterThan(500 * 1024)); }
+      final result = await const DefaultImageCompressionService().compressImage(
+        rawBytes: bytes, fileName: 'animation.gif', force: !large);
+      expect(result.bytes, bytes);
+      expect(result.wasCompressed, isFalse);
+      expect(result.mimeType, 'image/gif');
+      expect(result.fileName, 'animation.gif');
+      expect(img.decodeGif(result.bytes)!.numFrames, 4);
+    }
+  });
   test('IS-05 preparation and neutral export yield while workers run', () async {
     final source = img.Image(width: 1400, height: 1000);
     final bytes = Uint8List.fromList(img.encodeJpg(source));
