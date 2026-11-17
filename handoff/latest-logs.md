@@ -7088,3 +7088,29 @@ relevant existing extractor/converter/filter/preview/browser files pass 23 tests
 and four temporary component probes pass by characterizing the bugs. Concurrency
 was 1; no full suite ran. A synthetic-font preview overflow suspicion was excluded:
 native evidence identifies the URL-dialog loading state instead.
+
+
+## 317. Notes List Bug and Performance Audit (November 17, 2026)
+
+Audited main `9bf2cdd` on `audit/notes-list-2026-11-17` after reading HANDOFF and
+the tags/search guide. The [audit report](audits/notes-list-2026-11-17/README.md)
+documents ten open findings with severity, source locations, deterministic
+reproduction, expected/observed behavior and proposed acceptance checks.
+
+Confirmed defects: initial read failures render an empty library; modification-date
+grouping breaks title ordering; metadata cache identity retains stale tags;
+refresh discards loaded notes beyond 250; refresh/query generations collide;
+Retry skips failed refreshes; prewarming beyond the 500-entry LRU reparses the
+collection; desktop ZIP export silently keeps an existing file; paginated mapping
+drops journal/share metadata; and failed destination loads retain old-context rows.
+
+No application code or architecture changed. Replay sources live under the audit,
+outside normal test discovery, because bug-characterization passes confirm bugs
+rather than enforce their absence. Isolated fixtures never open user notes. Native
+profiling uses an in-memory 10,000-note database, 1,000 loaded rows, and real Linux
+profile frame timings at desktop and phone viewport sizes. Mobile widget coverage
+uses Android platform variants; physical mobile performance remains unverified.
+
+Validation: 141 existing notes/gesture tests and 21 focused audit probes pass.
+Static analysis is clean. The report records native measurements. No full
+test suite ran. The pre-existing smart-tables prompt remains outside this commit.

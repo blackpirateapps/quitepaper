@@ -1,0 +1,128 @@
+{
+  "environment": {
+    "mode": "Flutter Linux profile",
+    "notesInDatabase": 10000,
+    "bodyCharactersPerNote": 1563,
+    "database": "in-memory SQLite",
+    "mobileLimit": "Phone viewport rendered by Linux engine; no physical mobile GPU/OS or IME"
+  },
+  "query_updated_us": {
+    "count": 20,
+    "median": 75716,
+    "p95": 76954,
+    "max": 77570
+  },
+  "query_title_us": {
+    "count": 20,
+    "median": 18327,
+    "p95": 18880,
+    "max": 19436
+  },
+  "query_contentLinks_us": {
+    "count": 20,
+    "median": 120557,
+    "p95": 122995,
+    "max": 123661
+  },
+  "prewarm_400_us": {
+    "count": 7,
+    "median": 326,
+    "p95": 407,
+    "max": 407
+  },
+  "prewarm_500_us": {
+    "count": 7,
+    "median": 409,
+    "p95": 443,
+    "max": 443
+  },
+  "prewarm_600_us": {
+    "count": 7,
+    "median": 364336,
+    "p95": 523251,
+    "max": 523251
+  },
+  "prewarm_1000_us": {
+    "count": 7,
+    "median": 598281,
+    "p95": 641749,
+    "max": 641749
+  },
+  "load_1000_notes_us": 1721577,
+  "layout_desktop": {
+    "actualRenderDp": [
+      1280.0,
+      680.0
+    ],
+    "loadedNotesBeforeScroll": 1000,
+    "scrollExtent": 2764.199999999999
+  },
+  "scroll_desktop": {
+    "viewportDp": [
+      1280.0,
+      680.0
+    ],
+    "loadedNotes": 1000,
+    "frameBuildUs": {
+      "count": 396,
+      "median": 2100,
+      "p95": 7715,
+      "max": 10476
+    },
+    "frameRasterUs": {
+      "count": 396,
+      "median": 2313,
+      "p95": 2919,
+      "max": 3229
+    },
+    "frameTotalSpanUs": {
+      "count": 396,
+      "median": 11358,
+      "p95": 16730,
+      "max": 22335
+    },
+    "framesBuildOrRasterOver16667us": 0,
+    "mountedTilesAtRest": 13,
+    "drive": "programmatic ScrollPosition.animateTo, two 4s linear sweeps, after warmup"
+  },
+  "layout_phone": {
+    "actualRenderDp": [
+      390.0,
+      680.0
+    ],
+    "loadedNotesBeforeScroll": 1000,
+    "scrollExtent": 79980.58571428568
+  },
+  "scroll_phone": {
+    "viewportDp": [
+      390.0,
+      680.0
+    ],
+    "loadedNotes": 1000,
+    "frameBuildUs": {
+      "count": 348,
+      "median": 2995,
+      "p95": 7629,
+      "max": 16675
+    },
+    "frameRasterUs": {
+      "count": 348,
+      "median": 1933,
+      "p95": 2351,
+      "max": 2500
+    },
+    "frameTotalSpanUs": {
+      "count": 348,
+      "median": 9841,
+      "p95": 13132,
+      "max": 21666
+    },
+    "framesBuildOrRasterOver16667us": 1,
+    "mountedTilesAtRest": 13,
+    "drive": "programmatic ScrollPosition.animateTo, two 4s linear sweeps, after warmup"
+  },
+  "beforeRefresh": 1000,
+  "afterRefresh": 250,
+  "refreshUs": 99221,
+  "errors": []
+}

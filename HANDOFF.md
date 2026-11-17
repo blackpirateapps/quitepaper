@@ -482,3 +482,21 @@ Validation: reproduced the pending-timer failure before the fix; `flutter analyz
 Merged the main-branch PDF viewer teardown and export-wait test fixes into the Android web clipper branch before merging PR #10. Resolved the HANDOFF append conflict by retaining both the completed 16-finding web clipper remediation and the main CI stabilization notes.
 
 Combined-branch validation: `flutter analyze` reports no issues; `flutter test --no-pub --concurrency=1 test/web_clipper test/quick_capture test/scanner/scanner_ui_test.dart test/documents/document_viewer_export_test.dart` passes **100 relevant tests**. No full suite ran locally. PR #10's previous CI failures were the two timing failures corrected in main's `201c5e3`; main's subsequent Test & Analyze run `44078219655` passed.
+
+## Notes List Bug and Performance Audit — November 17, 2026
+
+The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
+**10 open findings** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+They cover hidden load errors, sort-order corruption by grouping, stale preview
+metadata, refresh truncation, request-generation collisions, ineffective Retry,
+cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
+and stale rows after a failed context switch. No application fix is included.
+
+Existing notes and gesture tests pass **141 tests**. Another **21 audit probes**
+pass by confirming the documented failures and checking virtualization/responsive
+layouts; their passing status does not mean the findings are resolved. Native
+Linux profile measurements use 10,000 synthetic notes and desktop/phone viewports.
+The report preserves sources, logs, screenshots, measurements and explicit limits.
+Only Linux was connected: Android widget tests exercise mobile behavior, but
+physical Android/iOS and mobile performance remain unverified. Static analysis
+is clean. No full suite ran.
