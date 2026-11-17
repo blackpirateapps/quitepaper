@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **15/16 fixed; 1 open**, with individual reports, resolutions and replayable evidence.
+records **16/16 fixed; 0 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -359,9 +359,9 @@ reduced to an index appendix, missing code figures, star-alt photo filtering, an
 failed pages marked ready. Five new findings have physical-device/real-page
 evidence; the star-alt finding is component-only. Actual WebView/save interaction
 also confirms WC-09 and stale state confirms WC-07 on a Redmi K20 Pro, Android 16.
-No bugs were fixed. Only documentation and two evidence screenshots changed.
+The original audit made no application changes. Subsequent remediation fixes all 16 findings; per-finding resolutions and regression validation follow below.
 
-Final `flutter analyze` is clean. Initial checks passed 42 clipper tests, 15 Quick
+The original audit’s final `flutter analyze` was clean. Initial checks passed 42 clipper tests, 15 Quick
 Capture tests and ten probes; the USB follow-up passes 23 relevant existing tests
 and four focused probes, with concurrency 1. No full suite ran. Executable audit
 sources were archived in Markdown and removed. Temporary Android build settings
@@ -460,3 +460,11 @@ Validation: flutter analyze: clean; 12 converter, picture extraction and service
 Alt-text filtering no longer treats the substring star as decoration. Astronomy photos, Star labels and Startup descriptions survive both DOM and URL filtering; explicit rating-star labels and tiny icons remain excluded.
 
 Validation: flutter analyze: clean; 17 image-filter, picture extraction and scanner tests passed. No full suite ran.
+
+### WC-16 Android web clipper fix
+
+Main-frame load failures latch to the current navigation generation, cancel readiness/slow-load timers and keep Clip disabled. Late progress, finish and pending JavaScript callbacks cannot promote a failed page or replace its requested URL with a Chromium error URL. Retry/new navigation starts a fresh generation; subframe and cancellation errors remain nonfatal.
+
+Validation: flutter analyze: clean; 17 focused browser lifecycle, state, screen and save-navigation tests passed. No full suite ran.
+
+Android web clipper remediation complete: **16/16 fixed; 0 open**. Final combined web clipper and Quick Capture regression run: **92 passed**, serialized with `--concurrency=1`; Flutter analysis is clean. All fixes and progress updates were committed and pushed individually (WC-04 also has a YAML-frontmatter follow-up). No full suite, Android build or new physical-device replay was run.

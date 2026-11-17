@@ -1,8 +1,8 @@
 # Android USB follow-up — 2026-11-17
 
-**Six additional open bugs: WC-11 through WC-16. Five have physical-device/real-page evidence; WC-15 is a focused component reproduction.** The original WC-09 save/navigation bug and WC-07 stale-message state are also reproduced on the phone. No application fix was made.
+**Historical audit: six additional bugs, WC-11 through WC-16. Five have physical-device/real-page evidence; WC-15 is a focused component reproduction.** The original WC-09 save/navigation bug and WC-07 stale-message state are also reproduced on the phone. No application fix was made.
 
-Reports are linked from the [main audit index](../README.md). [Evidence](evidence.md) contains the observed counts, state, focused checks and screenshots; [replay sources](replay.md) preserve the exact executed harness and component probes.
+All six have since been fixed. Current statuses and regression validation are linked from the [main audit index](../README.md); the device evidence below describes the original unfixed source. [Evidence](evidence.md) contains the observed counts, state, focused checks and screenshots; [replay sources](replay.md) preserve the exact executed harness and component probes.
 
 ## Device and isolation
 

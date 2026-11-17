@@ -1,6 +1,6 @@
 # WC-16: An Android page-load failure becomes Ready to clip
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -31,3 +31,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 
 
 ![Native Android evidence](usb-device-follow-up/neverssl-browser.png)
+
+## Resolution
+
+Main-frame load failures latch to the current navigation generation, cancel readiness/slow-load timers and keep Clip disabled. Late progress, finish and pending JavaScript callbacks cannot promote a failed page or replace its requested URL with a Chromium error URL. Retry/new navigation starts a fresh generation; subframe and cancellation errors remain nonfatal.
+
+Validation: flutter analyze: clean; 17 focused browser lifecycle, state, screen and save-navigation tests passed. No full suite ran.

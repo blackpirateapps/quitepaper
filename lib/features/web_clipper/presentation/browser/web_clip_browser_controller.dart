@@ -62,7 +62,8 @@ class WebClipBrowserState {
       loadingState == BrowserLoadingState.processing;
 
   bool get canClip =>
-      (loadingState == BrowserLoadingState.ready || isTakingLong) &&
+      (loadingState == BrowserLoadingState.ready ||
+          (isTakingLong && loadingState == BrowserLoadingState.loading)) &&
       !isCapturingOrProcessing;
 
   static const _unchanged = Object();
@@ -126,6 +127,7 @@ class WebClipBrowserController extends ChangeNotifier {
   Timer? _readinessTimer;
   Timer? _timeoutTimer;
   bool _isDisposed = false;
+  int? _failedGeneration;
 
   /// Maximum safe captured HTML length (15MB).
   static const int maxHtmlSizeBytes = 15 * 1024 * 1024;
@@ -223,7 +225,15 @@ class WebClipBrowserController extends ChangeNotifier {
     return NavigationDecision.prevent;
   }
 
+  bool get _currentLoadFailed => _failedGeneration == _state.generationId;
+
+  static bool _isWebUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null && (uri.isScheme('http') || uri.isScheme('https'));
+  }
+
   void _updateProgress(double progress) {
+    if (_currentLoadFailed) return;
     _state = _state.copyWith(
       progress: progress,
       loadingState: progress >= 1.0
@@ -236,6 +246,9 @@ class WebClipBrowserController extends ChangeNotifier {
   }
 
   void _onPageStarted(String url) {
+    // Chromium error documents are not a new successful navigation.
+    if (!_isWebUrl(url)) return;
+    _failedGeneration = null;
     _readinessTimer?.cancel();
     _timeoutTimer?.cancel();
 
@@ -266,6 +279,7 @@ class WebClipBrowserController extends ChangeNotifier {
 
   Future<void> _onPageFinished(String url) async {
     final currentGen = _state.generationId;
+    if (_currentLoadFailed || !_isWebUrl(url)) return;
     _timeoutTimer?.cancel();
 
     // Check history navigation capabilities
@@ -289,7 +303,11 @@ class WebClipBrowserController extends ChangeNotifier {
       } catch (_) {}
     }
 
-    if (_isDisposed || _state.generationId != currentGen) return;
+    if (_isDisposed ||
+        _state.generationId != currentGen ||
+        _currentLoadFailed) {
+      return;
+    }
 
     _state = _state.copyWith(
       currentUrl: url,
@@ -312,7 +330,8 @@ class WebClipBrowserController extends ChangeNotifier {
   Future<void> _probeReadiness(int expectedGen) async {
     if (_controller == null ||
         _isDisposed ||
-        _state.generationId != expectedGen) {
+        _state.generationId != expectedGen ||
+        _currentLoadFailed) {
       return;
     }
 
@@ -331,7 +350,11 @@ class WebClipBrowserController extends ChangeNotifier {
         })()
       ''');
 
-      if (_isDisposed || _state.generationId != expectedGen) return;
+      if (_isDisposed ||
+          _state.generationId != expectedGen ||
+          _currentLoadFailed) {
+        return;
+      }
 
       final rawString = _cleanJsReturn(jsResult.toString());
       final decoded = json.decode(rawString);
@@ -344,7 +367,7 @@ class WebClipBrowserController extends ChangeNotifier {
           _state = _state.copyWith(pageTitle: title.trim());
           notifyListeners();
         }
-        if (url != null && url.trim().isNotEmpty && url != _state.currentUrl) {
+        if (url != null && _isWebUrl(url) && url != _state.currentUrl) {
           _state = _state.copyWith(currentUrl: url.trim());
           notifyListeners();
         }
@@ -355,9 +378,18 @@ class WebClipBrowserController extends ChangeNotifier {
   void _onResourceError(WebResourceError error) {
     // Only flag critical non-cancelation errors
     if (error.errorCode == -999) return; // NSURLErrorCancelled on iOS / WebKit
+    _failCurrentLoad(error.description);
+  }
+
+  void _failCurrentLoad(String message) {
+    _failedGeneration = _state.generationId;
+    _timeoutTimer?.cancel();
+    _readinessTimer?.cancel();
     _state = _state.copyWith(
-      errorMessage: error.description,
+      errorMessage: message,
+      statusMessage: null,
       loadingState: BrowserLoadingState.error,
+      isTakingLong: false,
     );
     notifyListeners();
   }
@@ -374,22 +406,13 @@ class WebClipBrowserController extends ChangeNotifier {
       return;
     }
 
-    _state = _state.copyWith(
-      currentUrl: normalized,
-      errorMessage: null,
-      loadingState: BrowserLoadingState.loading,
-    );
-    notifyListeners();
+    _onPageStarted(normalized);
 
     if (_controller != null) {
       try {
         await _controller!.loadRequest(uri);
       } catch (e) {
-        _state = _state.copyWith(
-          errorMessage: 'Failed to load URL: $e',
-          loadingState: BrowserLoadingState.error,
-        );
-        notifyListeners();
+        _failCurrentLoad('Failed to load URL: $e');
       }
     }
   }
@@ -397,9 +420,12 @@ class WebClipBrowserController extends ChangeNotifier {
   /// Reloads the current page.
   Future<void> reload() async {
     if (_controller != null) {
+      _onPageStarted(_state.currentUrl);
       try {
         await _controller!.reload();
-      } catch (_) {}
+      } catch (e) {
+        _failCurrentLoad('Failed to reload URL: $e');
+      }
     }
   }
 
@@ -422,6 +448,14 @@ class WebClipBrowserController extends ChangeNotifier {
   /// Extracts the complete DOM outerHTML, document.title, location.href, and OpenGraph/meta tags
   /// from the currently loaded page without persisting cookies or authentication credentials.
   Future<WebCaptureResult> captureCurrentPage() async {
+    if (_currentLoadFailed) {
+      return WebCaptureResult.failure(
+        WebAcquisitionError(
+          kind: WebAcquisitionErrorKind.networkFailure,
+          message: _state.errorMessage ?? 'The webpage failed to load.',
+        ),
+      );
+    }
     if (_state.isCapturingOrProcessing) {
       return const WebCaptureResult.failure(
         WebAcquisitionError(
@@ -580,7 +614,7 @@ class WebClipBrowserController extends ChangeNotifier {
 
   /// Restores browser to ready state when returning from preview sheet or after processing.
   void resetToReady() {
-    if (_isDisposed) return;
+    if (_isDisposed || _currentLoadFailed) return;
     _state = _state.copyWith(
       loadingState: BrowserLoadingState.ready,
       statusMessage: null,
