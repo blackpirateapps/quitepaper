@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
@@ -72,6 +73,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late final QuietDividerPlugin _dividerPlugin;
   late final QuietMathBlockPlugin _mathBlockPlugin;
   late final QuietPastePlugin _pastePlugin;
+  final _linuxHomePlugin = QuietLinuxHomePlugin();
   late final QuietBlockquotePlugin _blockquotePlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
@@ -479,6 +481,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             _dividerPlugin,
             _mathBlockPlugin,
             _pastePlugin,
+            _linuxHomePlugin,
             _blockquotePlugin,
           },
           contentTapDelegateFactories: const [
@@ -623,6 +626,34 @@ class QuietPastePlugin extends SuperEditorPlugin {
     }
 
     onPaste!();
+    return ExecutionInstruction.haltExecution;
+  }
+}
+
+/// Consume Linux Home even when the caret is already at the line boundary.
+/// Falling through sends the key to the native IME, whose placeholder-backed
+/// buffer can be echoed into the document as inserted text (e.g. `. TailTail`).
+class QuietLinuxHomePlugin extends SuperEditorPlugin {
+  @override
+  List<SuperEditorKeyboardAction> get keyboardActions => [_handleHome];
+
+  ExecutionInstruction _handleHome({
+    required SuperEditorContext editContext,
+    required KeyEvent keyEvent,
+  }) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.linux ||
+        (keyEvent is! KeyDownEvent && keyEvent is! KeyRepeatEvent) ||
+        keyEvent.logicalKey != LogicalKeyboardKey.home ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        editContext.composer.selection == null) {
+      return ExecutionInstruction.continueExecution;
+    }
+    editContext.commonOps.moveCaretUpstream(
+      expand: HardwareKeyboard.instance.isShiftPressed,
+      movementModifier: MovementModifier.line,
+    );
     return ExecutionInstruction.haltExecution;
   }
 }

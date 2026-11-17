@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -9,11 +8,12 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 
 /// Builder for rendering an in-place search view behind the sliding content.
-typedef SearchViewBuilder = Widget Function(
-  BuildContext context,
-  bool isPastThreshold,
-  VoidCallback onClose,
-);
+typedef SearchViewBuilder =
+    Widget Function(
+      BuildContext context,
+      bool isPastThreshold,
+      VoidCallback onClose,
+    );
 
 /// A wrapper widget that provides a deliberate, Bear Notes-inspired pull-down
 /// gesture to reveal and trigger a Search interface.
@@ -23,8 +23,9 @@ typedef SearchViewBuilder = Widget Function(
 /// Earlier revisions fired on any small overscroll (and, on the notes list, via
 /// a raw [GestureDetector] that competed with the scroll view and the drawer
 /// edge-drag). Both triggered constantly by accident. This version is driven
-/// purely by scroll notifications and only ever engages when the gesture
-/// *begins* from a resting position at the very top of the content:
+/// by scroll notifications, with pointer release/cancel ending the pull, and
+/// only engages when the gesture *begins* from a resting position at the very
+/// top of the content:
 ///
 ///   1. **Arm** — on [ScrollStartNotification], the pull arms only if the
 ///      scrollable is already at the top (`pixels <= 0`) *and* the scroll is
@@ -32,8 +33,8 @@ typedef SearchViewBuilder = Widget Function(
 ///      scrolls up into the top boundary never arms; a ballistic fling-bounce
 ///      never arms. You must lift and touch again from rest at the top.
 ///   2. **Pull** — while armed, user-driven overscroll translates the content
-///      downward with rubber-band resistance, revealing the search view resting
-///      directly behind it.
+///      downward (1:1 for the search view, resisted for the compact bar), revealing
+///      the search view resting directly behind it.
 ///   3. **Commit** — on release, crossing [effectiveThreshold] smoothly slides
 ///      the content away, fully unveiling search in-place with zero lag.
 ///      If released before threshold, content smoothly springs back.
@@ -89,132 +90,137 @@ class PullDownSearchReveal extends StatefulWidget {
 }
 
 class PullDownSearchRevealState extends State<PullDownSearchReveal>
-    with TickerProviderStateMixin {
-  late final AnimationController _springController;
-  late Animation<double> _springAnimation;
-
-  late final AnimationController _slideController;
-
-  double _pullOffset = 0.0;
-  double _slideBeginOffset = 0.0;
-  double _viewportHeight = 800.0;
-
-  /// Whether the *current* drag gesture is allowed to pull. Set on
-  /// [ScrollStartNotification] and cleared when the gesture ends.
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Animation<double>? _animation;
+  _RevealPhase _phase = _RevealPhase.idle;
+  double _pullOffset = 0;
+  double _viewportHeight = 800;
   bool _armed = false;
   bool _hasTriggeredHaptic = false;
-
-  /// Guards against committing twice for a single gesture.
   bool _committed = false;
+  int? _pointer;
 
-  /// Whether in-place search is currently active.
-  bool _isSearchActive = false;
+  bool get isSearchActive =>
+      _phase == _RevealPhase.opening ||
+      _phase == _RevealPhase.open ||
+      _phase == _RevealPhase.closing;
 
-  bool get isSearchActive => _isSearchActive;
+  /// Focus only after the sliding card has left the screen. Opening the mobile
+  /// keyboard during the slide changes its destination height mid-animation.
+  bool get isSearchReady => _phase == _RevealPhase.open;
   double get pullOffset => _pullOffset;
+  double get _translation => isSearchReady ? _viewportHeight : _pullOffset;
 
   @override
   void initState() {
     super.initState();
+    _controller =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 240),
+          )
+          ..addListener(() {
+            setState(() => _pullOffset = _animation!.value);
+          })
+          ..addStatusListener((status) {
+            if (status != AnimationStatus.completed) return;
+            setState(() {
+              if (_phase == _RevealPhase.opening) {
+                _phase = _RevealPhase.open;
+              } else {
+                _phase = _RevealPhase.idle;
+                _pullOffset = 0;
+                _committed = false;
+              }
+            });
+          });
     widget.onStateCreated?.call(this);
-    _springController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    )..addListener(() {
-        setState(() {
-          _pullOffset = _springAnimation.value;
-        });
-      });
-
-    _slideController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    )..addListener(() {
-        setState(() {});
-      });
   }
 
   @override
   void didUpdateWidget(PullDownSearchReveal oldWidget) {
     super.didUpdateWidget(oldWidget);
     widget.onStateCreated?.call(this);
+    if (oldWidget.enabled && !widget.enabled && !isSearchActive) {
+      _armed = false;
+      if (_pullOffset > 0) _settle();
+    }
   }
 
   @override
   void dispose() {
-    _springController.dispose();
-    _slideController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  /// Opens search, optionally skipping the touch-oriented slide on desktop.
-  void openSearch({bool animate = true}) {
-    if (_isSearchActive) return;
-    if (_slideController.isAnimating) return;
+  void _animateTo(double target, _RevealPhase phase) {
+    final begin = _translation;
+    _controller.stop();
+    _animation = Tween<double>(
+      begin: begin,
+      end: target,
+    ).animate(CurveTween(curve: Curves.easeOutCubic).animate(_controller));
+    setState(() {
+      _pullOffset = begin;
+      _phase = phase;
+    });
+    _controller.forward(from: 0);
+  }
 
+  void _settle() {
+    _hasTriggeredHaptic = false;
+    _animateTo(0, _RevealPhase.settling);
+  }
+
+  /// Opens from the current card position, including an interrupted spring-back.
+  void openSearch({bool animate = true}) {
+    if (isSearchActive && _phase != _RevealPhase.closing) return;
+    _armed = false;
     if (widget.searchViewBuilder == null) {
       widget.onOpenSearch();
       return;
     }
-
-    _springController.stop();
-    setState(() {
-      _armed = false;
-      _pullOffset = 0.0;
-      _isSearchActive = true;
-      _committed = true;
-      _slideBeginOffset = 0.0;
-    });
-
+    _committed = true;
     if (animate) {
-      _slideController.forward(from: 0.0);
+      _animateTo(_viewportHeight, _RevealPhase.opening);
     } else {
-      _slideController.value = 1.0;
+      _controller.stop();
+      setState(() {
+        _phase = _RevealPhase.open;
+        _pullOffset = _viewportHeight;
+      });
     }
     widget.onOpenSearch();
   }
 
-  /// Programmatically closes in-place search, smoothly sliding the content back up.
+  /// Back can reverse an opening slide immediately without jumping position.
   void closeSearch() {
-    if (!_isSearchActive && !_committed) return;
-    if (_slideController.isAnimating) return;
-
-    if (widget.searchViewBuilder == null) {
-      setState(() {
-        _isSearchActive = false;
-        _committed = false;
-        _pullOffset = 0.0;
-      });
-      return;
-    }
-
-    _slideBeginOffset = 0.0;
-    _slideController.reverse(from: 1.0).then((_) {
-      if (mounted) {
-        setState(() {
-          _isSearchActive = false;
-          _committed = false;
-          _pullOffset = 0.0;
-        });
-      }
-    });
+    if (!isSearchActive || _phase == _RevealPhase.closing) return;
+    FocusScope.of(context).unfocus();
+    _armed = false;
+    _animateTo(0, _RevealPhase.closing);
   }
 
   void _onPullDelta(double rawDeltaY) {
-    if (_springController.isAnimating) {
-      _springController.stop();
-    }
+    _controller.stop();
+    _phase = _RevealPhase.pulling;
 
     setState(() {
       if (widget.searchViewBuilder != null) {
         // Direct 1:1 sliding card mechanics (like sliding a card out from a deck)
         final double maxOffset = widget.maxPullOffset ?? _viewportHeight;
-        _pullOffset = math.max(0.0, math.min(maxOffset, _pullOffset + rawDeltaY));
+        _pullOffset = math.max(
+          0.0,
+          math.min(maxOffset, _pullOffset + rawDeltaY),
+        );
       } else {
         // Fallback rubber-band mode for single search bar reveal (e.g. editor find-in-note)
-        final double progress =
-            (_pullOffset / widget.effectiveMaxPullOffset).clamp(0.0, 1.0);
-        final double resistance = rawDeltaY > 0 ? 0.85 * (1.0 - (progress * 0.5)) : 1.0;
+        final double progress = (_pullOffset / widget.effectiveMaxPullOffset)
+            .clamp(0.0, 1.0);
+        final double resistance = rawDeltaY > 0
+            ? 0.85 * (1.0 - (progress * 0.5))
+            : 1.0;
         _pullOffset = math.max(
           0.0,
           math.min(
@@ -234,44 +240,27 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
     });
   }
 
-  void _onPullEnd() {
+  void _onPullEnd({bool canceled = false}) {
+    if (!_armed) return;
     _armed = false;
-    if (_pullOffset == 0.0 || _committed) return;
+    if (_pullOffset == 0 || _committed) return;
 
-    final bool shouldCommit = _pullOffset >= widget.effectiveThreshold;
-
-    if (shouldCommit) {
-      _committed = true;
+    if (!canceled && _pullOffset >= widget.effectiveThreshold) {
       _hasTriggeredHaptic = false;
-
       if (widget.searchViewBuilder != null) {
-        // In-place unveil: continue sliding content smoothly down off-screen!
-        _slideBeginOffset = _pullOffset;
-        setState(() {
-          _isSearchActive = true;
-        });
-        _slideController.forward(from: 0.0);
-        widget.onOpenSearch();
+        openSearch();
       } else {
-        // Fallback mode without searchViewBuilder (e.g. editor find-in-note):
-        _springAnimation = Tween<double>(begin: _pullOffset, end: 0.0).animate(
-          CurvedAnimation(parent: _springController, curve: Curves.easeOutCubic),
-        );
-        _springController.forward(from: 0.0);
+        _committed = true;
+        _settle();
         widget.onOpenSearch();
       }
     } else {
-      // Aborted before threshold: spring back to 0.0
-      _springAnimation = Tween<double>(begin: _pullOffset, end: 0.0).animate(
-        CurvedAnimation(parent: _springController, curve: Curves.easeOutCubic),
-      );
-      _springController.forward(from: 0.0);
-      _hasTriggeredHaptic = false;
+      _settle();
     }
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (_isSearchActive || !widget.enabled) {
+    if (isSearchActive || !widget.enabled) {
       return false;
     }
 
@@ -283,17 +272,27 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
     if (notification is ScrollStartNotification) {
       // Phase 1 — arm only when starting from rest at the very top under a
       // real finger. Ballistic flings or mid-list drags never arm.
-      _armed = notification.metrics.pixels <= 0 &&
+      _armed =
+          notification.metrics.pixels <= notification.metrics.minScrollExtent &&
           notification.dragDetails != null;
-      _committed = false;
+      if (_armed) {
+        _controller.stop();
+        _committed = false;
+        _hasTriggeredHaptic = false;
+      }
     } else if (notification is ScrollUpdateNotification) {
       // Phase 2 — accumulate finger delta while armed at the top boundary.
       if (_armed && notification.dragDetails != null) {
         final double delta = notification.dragDetails!.delta.dy;
         // If the inner list is scrolled down into items and no card pull is active, disarm.
-        if (notification.metrics.pixels > 0 && _pullOffset == 0.0) {
+        if (notification.metrics.pixels >
+                notification.metrics.minScrollExtent &&
+            _pullOffset == 0.0) {
           _armed = false;
-        } else if (_pullOffset > 0.0 || (notification.metrics.pixels <= 0 && delta > 0)) {
+        } else if (_pullOffset > 0.0 ||
+            (notification.metrics.pixels <=
+                    notification.metrics.minScrollExtent &&
+                delta > 0)) {
           _onPullDelta(delta);
         }
       }
@@ -315,6 +314,24 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
     return false;
   }
 
+  Widget _trackPull(Widget child) => Listener(
+    onPointerDown: (event) => _pointer ??= event.pointer,
+    onPointerUp: (event) {
+      if (_pointer != event.pointer) return;
+      _pointer = null;
+      _onPullEnd();
+    },
+    onPointerCancel: (event) {
+      if (_pointer != event.pointer) return;
+      _pointer = null;
+      _onPullEnd(canceled: true);
+    },
+    child: NotificationListener<ScrollNotification>(
+      onNotification: _handleScrollNotification,
+      child: child,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled && widget.searchViewBuilder == null) {
@@ -328,62 +345,57 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
             : MediaQuery.sizeOf(context).height;
         _viewportHeight = viewportHeight;
 
-        double translation;
-        if (_slideController.isAnimating) {
-          translation = lerpDouble(
-            _slideBeginOffset,
-            viewportHeight,
-            Curves.easeOutCubic.transform(_slideController.value),
-          )!;
-        } else if (_isSearchActive) {
-          translation = viewportHeight;
-        } else if (_springController.isAnimating) {
-          translation = _springAnimation.value;
-        } else {
-          translation = _pullOffset;
-        }
-
-        final bool showSearchView = widget.searchViewBuilder != null &&
-            (_pullOffset > 0.0 || _isSearchActive || _slideController.isAnimating);
+        final translation = _translation;
+        final showSearchView =
+            widget.searchViewBuilder != null &&
+            (_pullOffset > 0 || isSearchActive);
 
         if (widget.searchViewBuilder != null) {
-          return NotificationListener<ScrollNotification>(
-            onNotification: _handleScrollNotification,
-            child: Stack(
-              // Keep the pane sized when its only non-positioned child goes
-              // offstage. AnimatedSwitcher's desktop constraints are loose.
-              fit: StackFit.expand,
-              clipBehavior: Clip.hardEdge,
-              children: [
-                if (showSearchView)
-                  Positioned.fill(
-                    child: widget.searchViewBuilder!(
-                      context,
-                      _pullOffset >= widget.effectiveThreshold,
-                      closeSearch,
+          return _trackPull(
+            PopScope(
+              canPop: !isSearchActive,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop && isSearchActive) closeSearch();
+              },
+              child: Stack(
+                // Keep the pane sized when its only non-positioned child goes
+                // offstage. AnimatedSwitcher's desktop constraints are loose.
+                fit: StackFit.expand,
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  if (showSearchView)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !isSearchActive,
+                        child: widget.searchViewBuilder!(
+                          context,
+                          !isSearchActive &&
+                              _pullOffset >= widget.effectiveThreshold,
+                          closeSearch,
+                        ),
+                      ),
+                    ),
+                  Transform.translate(
+                    offset: Offset(0.0, translation),
+                    child: Offstage(
+                      offstage: isSearchReady,
+                      child: widget.child,
                     ),
                   ),
-                Transform.translate(
-                  offset: Offset(0.0, translation),
-                  child: Offstage(
-                    offstage: _isSearchActive && !_slideController.isAnimating,
-                    child: widget.child,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
 
         // Fallback mode without searchViewBuilder (e.g. editor find-in-note).
         final colors = context.appColors;
-        final double revealRatio =
-            (_pullOffset / widget.effectiveThreshold).clamp(0.0, 1.0);
+        final double revealRatio = (_pullOffset / widget.effectiveThreshold)
+            .clamp(0.0, 1.0);
         final bool past = _pullOffset >= widget.effectiveThreshold;
 
-        return NotificationListener<ScrollNotification>(
-          onNotification: _handleScrollNotification,
-          child: Stack(
+        return _trackPull(
+          Stack(
             clipBehavior: Clip.hardEdge,
             children: [
               if (_pullOffset > 0.0)
@@ -466,5 +478,59 @@ class PullDownSearchRevealState extends State<PullDownSearchReveal>
         );
       },
     );
+  }
+}
+
+enum _RevealPhase { idle, pulling, settling, opening, open, closing }
+
+/// Keeps the list at its top while the reveal owns a pull. Outside that gesture
+/// the parent retains the platform's normal scrolling and bounce behavior.
+class PullDownSearchScrollPhysics extends ScrollPhysics {
+  const PullDownSearchScrollPhysics({required this.revealState, super.parent});
+
+  final PullDownSearchRevealState? Function() revealState;
+
+  @override
+  PullDownSearchScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      PullDownSearchScrollPhysics(
+        revealState: revealState,
+        parent: buildParent(ancestor),
+      );
+
+  bool get _ownsPull {
+    final state = revealState();
+    return state != null &&
+        state.widget.enabled &&
+        (state._armed || state._pullOffset > 0 || state.isSearchActive);
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    if (_ownsPull && position.pixels <= position.minScrollExtent) return offset;
+    return super.applyPhysicsToUserOffset(position, offset);
+  }
+
+  @override
+  double applyBoundaryConditions(ScrollMetrics position, double value) {
+    if (_ownsPull &&
+        position.pixels == position.minScrollExtent &&
+        (value < position.minScrollExtent ||
+            (revealState()?.pullOffset ?? 0) > 0)) {
+      return value - position.pixels;
+    }
+    return super.applyBoundaryConditions(position, value);
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if (_ownsPull &&
+        position.pixels == position.minScrollExtent &&
+        (revealState()?.pullOffset ?? 0) > 0) {
+      return null;
+    }
+    return super.createBallisticSimulation(position, velocity);
   }
 }

@@ -7,6 +7,18 @@ void main() {
   const parser = RichDocumentParser();
   const serializer = RichDocumentSerializer();
 
+  test('CL-02 nested tasks preserve hierarchy through Markdown and JSON', () {
+    const source = '- [ ] Parent\n  - [ ] Child\n    - [x] Grandchild\n- [ ] Sibling';
+    final doc = parser.parse(source);
+    expect(doc.blocks.cast<ChecklistItemBlock>().map((b) => b.indent), [0, 1, 2, 0]);
+    expect(serializer.serialize(doc), source);
+    final restored = doc.blocks.map((b) => RichBlock.fromJson(b.toJson())).toList();
+    expect(restored, doc.blocks);
+    expect((restored[2] as ChecklistItemBlock).isChecked, isTrue);
+    expect(RichBlock.fromJson({'type': 'checklist_item', 'id': 'legacy'}),
+      const ChecklistItemBlock(id: 'legacy', isChecked: false));
+  });
+
   group('RichDocumentParser & Serializer Round-Trip Fidelity', () {
     test('Empty document round-trips cleanly', () {
       final doc = parser.parse('');

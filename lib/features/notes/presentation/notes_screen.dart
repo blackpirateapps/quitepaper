@@ -958,7 +958,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               return SearchScreen(
                 onClose: onClose,
                 isPastThreshold: isPastThreshold,
-                autoFocus: _phonePullDownState?.isSearchActive ?? false,
+                autoFocus: _phonePullDownState?.isSearchReady ?? false,
               );
             },
             child: Scaffold(
@@ -1372,9 +1372,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                         : (groups.isEmpty &&
                                               collectionState.notes.isEmpty)
                                         ? SingleChildScrollView(
-                                            physics: const BouncingScrollPhysics(
-                                              parent:
-                                                  AlwaysScrollableScrollPhysics(),
+                                            physics: PullDownSearchScrollPhysics(
+                                              revealState: () =>
+                                                  _phonePullDownState,
+                                              parent: const BouncingScrollPhysics(
+                                                parent:
+                                                    AlwaysScrollableScrollPhysics(),
+                                              ),
                                             ),
                                             child: SizedBox(
                                               height: 400,
@@ -1414,17 +1418,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                               padding: const EdgeInsets.only(
                                                 bottom: 96,
                                               ),
-                                              physics:
-                                                  PlatformLayoutHelper
-                                                      .isDesktopPlatform
-                                                  ? const ClampingScrollPhysics(
-                                                      parent:
-                                                          AlwaysScrollableScrollPhysics(),
-                                                    )
-                                                  : const BouncingScrollPhysics(
-                                                      parent:
-                                                          AlwaysScrollableScrollPhysics(),
-                                                    ),
+                                              physics: PullDownSearchScrollPhysics(
+                                                revealState: () =>
+                                                    _phonePullDownState,
+                                                parent:
+                                                    PlatformLayoutHelper
+                                                        .isDesktopPlatform
+                                                    ? const ClampingScrollPhysics(
+                                                        parent:
+                                                            AlwaysScrollableScrollPhysics(),
+                                                      )
+                                                    : const BouncingScrollPhysics(
+                                                        parent:
+                                                            AlwaysScrollableScrollPhysics(),
+                                                      ),
+                                              ),
                                               itemCount:
                                                   _calculateTotalItemCount(
                                                     groups,
@@ -2699,11 +2707,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                                   .notes
                                                                   .isEmpty)
                                                         ? SingleChildScrollView(
-                                                            physics:
-                                                                const BouncingScrollPhysics(
-                                                                  parent:
-                                                                      AlwaysScrollableScrollPhysics(),
-                                                                ),
+                                                            physics: PullDownSearchScrollPhysics(
+                                                              revealState: () =>
+                                                                  _tabletPullDownState,
+                                                              parent: const BouncingScrollPhysics(
+                                                                parent:
+                                                                    AlwaysScrollableScrollPhysics(),
+                                                              ),
+                                                            ),
                                                             child: SizedBox(
                                                               height: 400,
                                                               child: NoteEmptyState(
@@ -2742,17 +2753,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                                           .pixels(350.0),
                                                               addRepaintBoundaries: true,
                                                               addAutomaticKeepAlives: false,
-                                                              physics:
-                                                                  PlatformLayoutHelper
-                                                                      .isDesktopPlatform
-                                                                  ? const ClampingScrollPhysics(
-                                                                      parent:
-                                                                          AlwaysScrollableScrollPhysics(),
-                                                                    )
-                                                                  : const BouncingScrollPhysics(
-                                                                      parent:
-                                                                          AlwaysScrollableScrollPhysics(),
-                                                                    ),
+                                                              physics: PullDownSearchScrollPhysics(
+                                                                revealState: () =>
+                                                                    _tabletPullDownState,
+                                                                parent:
+                                                                    PlatformLayoutHelper
+                                                                        .isDesktopPlatform
+                                                                    ? const ClampingScrollPhysics(
+                                                                        parent:
+                                                                            AlwaysScrollableScrollPhysics(),
+                                                                      )
+                                                                    : const BouncingScrollPhysics(
+                                                                        parent:
+                                                                            AlwaysScrollableScrollPhysics(),
+                                                                      ),
+                                                              ),
                                                               itemCount:
                                                                   _calculateTotalItemCount(
                                                                     groups,

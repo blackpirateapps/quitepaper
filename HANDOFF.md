@@ -45,6 +45,14 @@ to derive build numbers from the Git commit count. See the
 [version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
 and [engineering log 277](handoff/latest-logs.md#277-release-version-bump-to-163-build-21-november-15-2026).
 
+## Linux CI Async Test Stability
+
+Image import tests now wait for the compression dialog or inserted attachment
+instead of sleeping before settling an active progress spinner. Scanner viewer
+and card tests wait for loaded page metadata while allowing native file I/O to
+complete. These changes address the recent Linux workflow test failures; see
+[engineering log 312](handoff/latest-logs.md#312-linux-ci-image-import-and-document-viewer-async-test-races-november-17-2026).
+
 ## Latest Linux CLI Work
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
@@ -68,26 +76,24 @@ the report. The suspected reload-loss issue was ruled out. The original audit ra
 viewer/annotation/thumbnail/renderer tests; remediation validation is recorded per fix below.
 No full suite ran. The existing
 OCR test fixture now isolates annotation resolution and drains PDF startup work,
-removing database warnings. See log 299.
+removing database warnings. See log 313.
 
-## Checklist Stress Audit — 12 Open Findings
+## Checklist Stress Audit — All 12 Findings Fixed
 
-The [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
-against `daad621` found **12 open bugs**: ten reproduced with native Linux input,
-two confirmed through widget IME/composition probes. High-priority failures include
-lost/reassigned task labels during rapid creation, paste at the wrong position,
-Visual hierarchy loss, Super Editor merging nested tasks and losing checkbox state,
-and native Home mutating a paragraph after a checklist. Enter selections, toolbar
-markers inside tasks, IME continuation, forward Delete, Markdown continuation and
-large-list arrow navigation also have findings. **Audit only; no fixes applied.**
+All findings in the [comprehensive checklist audit](handoff/audits/checklist-stress-2026-11-16/README.md)
+are fixed on `fix/visual-markdown-editor-input`, with a separate commit/push for
+each bug. Visual checklist selection replacement, nesting, forward Delete,
+Tag/Link Note markers, IME newline/composition, rapid native creation, paste and
+long-list navigation are covered, as are Markdown compound-task continuation,
+Super Editor nesting and Linux Home input.
 
-Coverage includes a [250-task fixture](handoff/audits/checklist-stress-2026-11-16/large-checklist-250.md),
-50/250/1,000-task widget stress cases, native loading up to 1,250 tasks,
-93 native observations in three isolated processes, saved-content/reopen checks,
-and 34 adversarial probe executions. All 82 existing relevant tests and analysis
-pass; no full local suite was run. The report distinguishes confirmed failures,
-invalid/inconclusive probes and platform limits. Native audit processes are closed
-and the ordinary Linux bundle is restored. See engineering log 298.
+[Native fix verification](handoff/audits/checklist-stress-2026-11-16/fix-verification/README.md)
+preserves exact-content acceptance evidence for rapid 41-task creation, clipboard
+paste/save/reopen, ten Down presses in 250 tasks, and Home after ordinary/folded
+lists. All these native checks have zero Flutter runtime errors. Per-fix analysis
+and relevant tests pass; the full suite is left to GitHub Actions. Physical mobile
+and CJK input methods and release-mode performance remain unverified. See logs
+299–310 for implementation and per-fix validation.
 
 ## Native Formatting Toolbar Audit
 
@@ -154,6 +160,13 @@ on Linux. Mobile Next uses the same focus transition. See
 
 ## Latest Desktop and Tablet Search Workspace
 
+The notes-list pull-to-search animation now keeps rows aligned with the sliding
+card, commits on release, and accepts Back during opening. Search focus waits
+until the slide finishes; pointer cancellation restores notes. A separate native
+Linux test window exercised phone/tablet layouts with isolated sample data and
+Wayland pointer drags. See the [swipe-search audit](handoff/audits/swipe-search-2026-11-17/README.md)
+and engineering log 311 for evidence, coverage and mobile-device limits.
+
 Search now uses compact results beside a read-only preview at widths of 600dp
 and above, including portrait tablets. Search and category filters stay above
 the results pane; a draggable divider resizes the panes. The first result previews
@@ -203,6 +216,53 @@ In accordance with [`AGENTS.md`](file:///home/dog/git/quitepaper/AGENTS.md):
    - Include: numbered section, motivation, architectural design, modified files, and test verification results.
 3. **Keep domain guides updated**: If introducing a new architectural pattern or subsystem, update the corresponding file in [`handoff/`](handoff/).
 
+### CL-01 checklist audit fix — Replace selected task text on Enter
+
+Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed. Full suite left to GitHub Actions.
+
+### CL-02 checklist audit fix — Preserve Visual task hierarchy
+
+ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing. flutter analyze: no issues; parser/serializer and checklist tests: 31 passed. Full suite left to GitHub Actions.
+
+### CL-03 checklist audit fix — Join tasks with forward Delete
+
+Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed. Full suite left to GitHub Actions.
+
+### CL-04 checklist audit fix — Keep checklist toolbar markers and insertion caret
+
+Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON. flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed. Full suite left to GitHub Actions.
+
+### CL-06 checklist audit fix — Let IME confirm composition before splitting tasks
+
+Hardware Enter no longer invokes checklist structure edits while the row has a nonempty composing range. The IME-channel regression checks unchanged content/composition, then verifies Enter resumes continuation after composition ends. Physical CJK keyboards remain outside this widget validation scope. flutter analyze: no issues; rich_text_checklist_editor_test.dart: 14 passed. Full suite left to GitHub Actions.
+
+### CL-07 checklist audit fix — Continue quoted and numbered Markdown tasks
+
+Markdown smart Enter recognizes checkbox markers inside quote and numbered prefixes, resets new tasks to unchecked and increments numbered tasks. Enter replacing a forward/reverse selection now deletes that range and preserves task continuation; regression cases cover compound prefixes and ordered delimiters. flutter analyze: no issues; markdown_smart_editing_test.dart: 14 passed. Full suite left to GitHub Actions.
+
+### CL-08 checklist audit fix — Load nested Super Editor tasks without merging children
+
+The math-aware Markdown loading and structured-paste boundary now parses each task row before CommonMark can fold descendants into one parent element. Each task retains independent text, inline formatting, two/four-space nesting and completion state. Parser round trips and actual Super Editor edit/save regressions cover the audited fixture. flutter analyze: no issues; smart-task and quiet-super-editor tests: 63 passed. Full suite left to GitHub Actions.
+
+### CL-05 checklist audit fix — Turn platform newlines into checklist structure
+
+Visual checklist IME updates split styled text into unchecked continuation tasks or exit an empty task into a paragraph. Multiline edits preserve neighbors and indentation, move focus/caret to the resulting block, and commit as one undo step. Widget IME-channel cases cover continuation, empty exit and multiline continuation/exit; physical phones remain untested. flutter analyze: no issues; checklist and Visual stability tests: 33 passed. Full suite left to GitHub Actions.
+
+### CL-09 checklist audit fix — Preserve rapid native checklist input
+
+Enter resolves live task models and moves the existing mounted TextField, controller and focus node into the continuation row. Linux splits on the ordered IME newline so hardware Enter cannot overtake earlier printable input; queued old-buffer updates are rebased after the split. Native 41-task creation now preserves every exact label, focus and persisted JSON, with zero Flutter errors; durable evidence is in fix-verification/cl09-native.jsonl.gz. flutter analyze: no issues; checklist and Visual stability tests: 35 passed; native rapid-creation acceptance passed. Full suite left to GitHub Actions.
+
+### CL-10 checklist audit fix — Paste at the AST caret and replace selected tasks
+
+Visual snippet insertion now splices parsed blocks into the AST selection, preserving styled prefix/suffix spans, checkbox/nesting metadata, unaffected block identities and the resulting caret. It replaces forward/reverse cross-task selections in one undo step. Native clipboard paste, delayed autosave and reopening now preserve the exact audited task order/state; evidence is in fix-verification/cl10-native.jsonl.gz. flutter analyze: no issues; rich controller and dual-mode editor tests: 43 passed; native paste/reopen acceptance passed. Full suite left to GitHub Actions.
+
+### CL-12 checklist audit fix — Keep long-list arrow navigation responsive and focused
+
+Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start. flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed. Full suite left to GitHub Actions.
+
+### CL-11 checklist audit fix — Consume Linux Home at the paragraph boundary
+
+A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz. flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed. Full suite left to GitHub Actions.
 
 ### PDF-03 fixed — November 17, 2026
 
@@ -276,3 +336,10 @@ Validation: `flutter analyze`; `flutter test test/documents/document_viewer_load
 PDF remediation is complete: all ten fixes are pushed on
 `audit/pdf-viewer-stress-2026-11-16`. The audit summary and per-finding statuses
 are aligned at 10/10 fixed, and the ordinary Linux debug bundle is restored.
+
+### PR #9 integration — November 17, 2026
+
+Reconciled the PDF viewer remediation with current main while preserving the
+completed checklist, search, and Linux CI fixes. The PDF audit is log 313; the
+integration and combined-branch validation are recorded in log 314. The document
+guide now reports all ten PDF findings resolved.

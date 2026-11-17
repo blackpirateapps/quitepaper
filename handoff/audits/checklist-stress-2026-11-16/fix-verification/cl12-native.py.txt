@@ -1,0 +1,7 @@
+from qp_checklist_helpers3 import *
+prepare()
+md='\n'.join('- [ ] Task '+str(i).zfill(4) for i in range(250))
+reset('visual',md);field(text='Task 0000');key('End')
+for i in range(10): key('Down');time.sleep(.35)
+s=evaluate('CL-12 ten Down events in 250 tasks','Task 0010 owns focus',lambda s:any(f['focus'] and f['text']=='Task 0010' for f in s['fields']))
+assert any(f['focus'] and f['text']=='Task 0010' for f in s['fields'])
