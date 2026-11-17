@@ -343,3 +343,18 @@ Reconciled the PDF viewer remediation with current main while preserving the
 completed checklist, search, and Linux CI fixes. The PDF audit is log 313; the
 integration and combined-branch validation are recorded in log 314. The document
 guide now reports all ten PDF findings resolved.
+
+
+## Android Web Clipper Audit — November 17, 2026
+
+The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
+records **10 open bugs**, with individual Markdown reports and replayable probe
+evidence. Findings cover snapshot image/CSS persistence, hidden snapshot failures,
+ignored tag removals, incorrect canonical/redirect asset bases, stale browser state,
+wrong image substitution, editor navigation after saving, and dropped repeated shares.
+Only documentation changed; no bugs were fixed. Android-themed widget and core
+service probes were used; no Android device/emulator was available.
+
+Validation: `flutter analyze` is clean; 42 existing clipper tests, 15 relevant
+Quick Capture tests, and 10 temporary characterization probes pass. No full suite
+ran. Probe source/output is archived in Markdown and executable probes removed.

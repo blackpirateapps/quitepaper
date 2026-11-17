@@ -7031,3 +7031,27 @@ loaded page totals, respect export cancellation, and write desktop overwrite pat
 Validation: `flutter analyze` reports no issues.
 `flutter test test/documents test/pdf --reporter expanded` passes all 106
 relevant tests. No full test suite was run.
+
+
+## 315. Android Web Clipper Bug Audit (November 17, 2026)
+
+Audited source `810704c40ce943d9b339279e5b83193001d32b01` on branch
+`audit/android-web-clipper-2026-11-17`. The [audit index](audits/android-web-clipper-2026-11-17/README.md)
+links ten open findings with reproduction steps, expected/observed behavior,
+source locations and probe evidence. Snapshot images receive Markdown snippets
+as src values; default save loses fetched CSS; snapshot failures still report
+success; removed tags return; canonical and pre-redirect URLs misbase resources;
+browser copyWith cannot clear messages; query aliases substitute the wrong image;
+browser success pops the new editor; an open capture discards a distinct second share.
+
+No application, architecture or test files were changed. Temporary probes were
+archived as Markdown and removed. Android-themed screen/preview and coordinator
+widgets isolate navigation and share routing; a real loopback HTTP redirect and
+mocked service/image responses confirm persistence and URL defects. Native Android
+intents, device WebView rendering and authenticated-page behavior remain unverified.
+
+Validation: `flutter analyze` reports no issues. `flutter test test/web_clipper`
+passes all 42 existing relevant tests. The two Quick Capture normalizer/screen
+files pass 15 tests. Ten additional temporary probes pass by asserting the observed
+bugs, not their absence. No full test suite ran. All committed files are Markdown;
+the pre-existing untracked smart-tables prompt was left outside the audit commit.
