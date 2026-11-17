@@ -272,3 +272,7 @@ Validation: `flutter analyze`; `flutter test test/documents/document_viewer_expo
 The header now uses the page total reported by the loaded PDF rather than stored metadata. A real four-page fixture deliberately reports one metadata page; navigation to page four shows Page 4 of 4. All nine related loading, save, and compact-layout tests pass.
 
 Validation: `flutter analyze`; `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart test/documents/document_viewer_layout_test.dart`. No full suite ran.
+
+PDF remediation is complete: all ten fixes are pushed on
+`audit/pdf-viewer-stress-2026-11-16`. The audit summary and per-finding statuses
+are aligned at 10/10 fixed, and the ordinary Linux debug bundle is restored.

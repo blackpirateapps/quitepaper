@@ -1,7 +1,7 @@
 # PDF viewer audit — November 16, 2026
 
 Branch: `audit/pdf-viewer-stress-2026-11-16`. Application source: `5d869e9`.
-**Remediation: 1/10 fixed; 9 open.**
+**Remediation: 10/10 fixed; 0 open.**
 
 All ten confirmed findings are fixed, each in a separate fix commit. Findings
 were appended when confirmed; original reproductions remain below their resolutions.
@@ -10,7 +10,7 @@ PDF-02 was a suspected reload issue and is explicitly ruled out below.
 ## Findings and priorities
 
 | ID | Status | Severity | Finding | Evidence scope |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- |
 | PDF-03 | Fixed | High | Editing during a pending save loses the newer annotations | Native Save/Back; injected storage delay; real encrypted save/reopen |
 | PDF-04 | Fixed | High | Back exits after failed autosave and loses annotations | Native Back; injected storage failure; reopen |
 | PDF-01 | Fixed | Medium | In-flight thumbnails survive deletion and return stale images | Deterministic gated service probe |
