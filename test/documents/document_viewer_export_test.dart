@@ -9,6 +9,7 @@ import 'package:syncfusion_pdfviewer_platform_interface/pdfviewer_platform_inter
 import '../pdf/syncfusion_pdf_page_renderer_test.dart'
     show FakePdfViewerPlatform;
 import 'document_viewer_save_test.dart' show SaveService, openSaveViewer;
+import '../support/pump_until_found.dart';
 
 class ExportPicker extends FilePicker {
   String? result;
@@ -91,11 +92,8 @@ void main() {
     picker.unavailable = true;
     final service = SaveService();
     await openSaveViewer(tester, service);
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Save PDF to storage'));
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await tester.pump();
+    await tester.tap(find.byTooltip('Save PDF to storage'));
+    await pumpUntilFound(tester, find.textContaining('Saved to'));
     expect(paths.downloadsCalls, 1);
     expect(
       await tester.runAsync(
@@ -119,11 +117,8 @@ void main() {
         await tester.runAsync(() => file.writeAsBytes(List.filled(10000, 65)));
       }
       picker.result = file.path;
-      await tester.runAsync(() async {
-        await tester.tap(find.byTooltip('Save PDF to storage'));
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-      });
-      await tester.pump();
+      await tester.tap(find.byTooltip('Save PDF to storage'));
+      await pumpUntilFound(tester, find.text('Document saved: selected.pdf'));
       expect(
         await tester.runAsync(file.readAsBytes),
         service.resolution.data!.pdfBytes,
