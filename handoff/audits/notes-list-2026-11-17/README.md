@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 8 open, 2 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 7 open, 3 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -101,6 +101,10 @@ buckets for title sorting and use the appropriate date for date-based sorts.
 and created/updated sorts, including pins and page boundaries.
 
 ### NL-03: Metadata cache retains stale tags
+
+**Fixed.** Metadata cache keys compare exact content, title, timestamp, tag values and snippet rather than content length and partial hashes. Same-time tag edits and same-length body replacements now produce fresh metadata, while unchanged values reuse cached instances. Exact note-ID invalidation preserves other IDs.
+
+Validation: `flutter analyze`: no issues; cache, journal metadata, scrolling and screen regression files: 19 passed. No full suite ran.
 
 **Location:** `lib/features/notes/domain/note_metadata_extractor.dart:152` and `:194`.
 

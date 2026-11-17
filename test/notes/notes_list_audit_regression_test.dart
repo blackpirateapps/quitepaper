@@ -279,4 +279,30 @@ void main() {
       }
     },
   );
+  for (final layout in {
+    'mobile': const Size(390, 844),
+    'desktop': const Size(1440, 900),
+  }.entries) {
+    auditWidgets(
+      'NL-03 ${layout.key}: tag-only updates refresh tile metadata',
+      (t) async {
+        final original = note('tags').copyWith(tags: ['before']);
+        repo.intercept = (q) async => result(q, [original]);
+        final c = await mount(t, layout.value);
+        expect(find.text('#before'), findsOneWidget);
+        c
+            .read(notesCollectionProvider.notifier)
+            .updateLocalNote(original.copyWith(tags: ['after']));
+        await t.pumpAndSettle();
+        expect(find.text('#before'), findsNothing);
+        expect(find.text('#after'), findsOneWidget);
+        expect(
+          NoteMetadataExtractor.extract(
+            c.read(notesCollectionProvider).notes.single,
+          ).tags,
+          ['after'],
+        );
+      },
+    );
+  }
 }

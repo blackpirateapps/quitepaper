@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**2/10 fixed; 8 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**3/10 fixed; 7 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -513,3 +513,9 @@ Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_au
 Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
 
 Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.
+
+### NL-03 notes list fix — November 17, 2026
+
+Metadata cache keys compare exact content, title, timestamp, tag values and snippet rather than content length and partial hashes. Same-time tag edits and same-length body replacements now produce fresh metadata, while unchanged values reuse cached instances. Exact note-ID invalidation preserves other IDs.
+
+Validation: `flutter analyze`: no issues; cache, journal metadata, scrolling and screen regression files: 19 passed. No full suite ran.
