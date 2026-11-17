@@ -7114,3 +7114,13 @@ uses Android platform variants; physical mobile performance remains unverified.
 Validation: 141 existing notes/gesture tests and 21 focused audit probes pass.
 Static analysis is clean. The report records native measurements. No full
 test suite ran. The pre-existing smart-tables prompt remains outside this commit.
+
+## 318. NL-01 Notes List Remediation (November 17, 2026)
+
+Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.

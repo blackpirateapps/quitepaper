@@ -1,7 +1,8 @@
 # Notes list audit — November 17, 2026
 
 Baseline: `9bf2cdd` (main). Branch: `audit/notes-list-2026-11-17`.
-This is an audit, not remediation: no application behavior is changed.
+The original audit is preserved below; remediation status and per-finding
+resolutions are updated after each individually validated fix.
 
 ## Scope and evidence
 
@@ -34,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 10 open, 0 fixed.** All findings below are **open**. P1 means high priority due to incorrect context,
+**10 confirmed bugs; 9 open, 1 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -52,6 +53,10 @@ NL-07 is the passing virtualization control, not a bug.
 | [NL-11](#nl-11-failed-context-switch-displays-the-previous-contexts-notes) | P1 | Failed context switch displays notes from the old context | Active note remains visible under Archive on both layouts |
 
 ### NL-01: Initial load failure looks like an empty library
+
+**Fixed.** Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
+
+Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
 
 **Location:** `lib/features/notes/presentation/notes_screen.dart:1367` and `:2699`;
 `lib/features/notes/application/notes_query_provider.dart:455`.
@@ -281,8 +286,10 @@ do not mean the application is bug-free or the findings have been fixed.
   [window verification](window-verification.json), [desktop screenshot](desktop.png),
   [phone screenshot](phone.png).
 
-No full Flutter test suite ran. Normal test discovery is unchanged. No application
-source, database schema, installed app, user note or account was modified.
+The original audit ran no full Flutter test suite and changed no application
+source, database schema, installed app, user note or account. Remediation adds
+permanent acceptance tests under `test/notes/`; original replay probes below
+remain historical defect characterizations and are not remediation checks.
 
 ### Native query and cache measurements
 

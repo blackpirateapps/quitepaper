@@ -486,11 +486,12 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**10 open findings** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**1/10 fixed; 9 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
-and stale rows after a failed context switch. No application fix is included.
+and stale rows after a failed context switch. Per-finding fixes and validation
+are recorded below and in the audit report.
 
 Existing notes and gesture tests pass **141 tests**. Another **21 audit probes**
 pass by confirming the documented failures and checking virtualization/responsive
@@ -500,3 +501,9 @@ The report preserves sources, logs, screenshots, measurements and explicit limit
 Only Linux was connected: Android widget tests exercise mobile behavior, but
 physical Android/iOS and mobile performance remain unverified. Static analysis
 is clean. No full suite ran.
+
+### NL-01 notes list fix — November 17, 2026
+
+Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
+
+Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
