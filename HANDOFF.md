@@ -135,6 +135,13 @@ on Linux. Mobile Next uses the same focus transition. See
 
 ## Latest Desktop and Tablet Search Workspace
 
+The notes-list pull-to-search animation now keeps rows aligned with the sliding
+card, commits on release, and accepts Back during opening. Search focus waits
+until the slide finishes; pointer cancellation restores notes. A separate native
+Linux test window exercised phone/tablet layouts with isolated sample data and
+Wayland pointer drags. See the [swipe-search audit](handoff/audits/swipe-search-2026-11-17/README.md)
+and engineering log 311 for evidence, coverage and mobile-device limits.
+
 Search now uses compact results beside a read-only preview at widths of 600dp
 and above, including portrait tablets. Search and category filters stay above
 the results pane; a draggable divider resizes the panes. The first result previews

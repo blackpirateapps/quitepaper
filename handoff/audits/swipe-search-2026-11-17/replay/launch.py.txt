@@ -1,0 +1,9 @@
+import os, pathlib, tempfile, subprocess, json
+root=pathlib.Path(tempfile.mkdtemp(prefix='qp-swipe-isolated-'))
+env=os.environ.copy()
+for k, part in [('XDG_CONFIG_HOME','config'),('XDG_DATA_HOME','data'),('XDG_CACHE_HOME','cache')]:
+ p=root/part;p.mkdir();env[k]=str(p)
+log=open('/tmp/qp-swipe-audit/runtime.log','w')
+p=subprocess.Popen(['dbus-run-session','--','/home/dog/git/quitepaper/build/linux/x64/debug/bundle/quitepaper'],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+pathlib.Path('/tmp/qp-swipe-audit/process.json').write_text(json.dumps({'pid':p.pid,'root':str(root)}))
+print(p.pid)

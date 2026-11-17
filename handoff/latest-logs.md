@@ -6880,3 +6880,47 @@ test/editor/dual_mode_editor_screen_test.dart` passes all 32 tests. This checks
 the image insertion test that timed out in an earlier CI run and rechecks actual
 EditorScreen integration after checklist reconciliation changes. No full local
 suite was run; GitHub Actions runs the full suite for each pushed fix.
+
+## 311. Native notes-list swipe-search audit and animation fixes (November 17, 2026)
+
+Audited baseline `5d869e9` in an isolated native Linux window using the real
+`NotesScreen`, sample notes, an in-memory database and Wayland virtual-pointer
+drags. Captured frames reproduce two failures: the list rubber-bands underneath
+the translated card (up to 111.61dp additional row movement), and an early Back
+tap is ignored during opening. The [audit report](audits/swipe-search-2026-11-17/README.md)
+retains before/after screenshots, compressed frame/state evidence, derived checks,
+validation logs and replay sources. Initial invalid input/setup attempts are
+explicitly excluded from the evidence.
+
+`PullDownSearchScrollPhysics` wraps the existing phone/tablet list and empty-state
+physics. It keeps the scroll position at its minimum while the deliberate reveal
+owns the drag, including upward reversal, and retains platform scrolling outside
+that gesture. Scroll notifications still arm only user drags starting at the top;
+pointer release/cancel now ends the reveal immediately instead of waiting for a
+ballistic scroll end. Canceled pointers restore the list even above threshold.
+
+`PullDownSearchReveal` replaces competing spring/slide controllers with one
+interruptible position animation. Back can reverse opening; opening can interrupt
+closing or spring-back without resetting the card position. Inline search owns a
+state-aware `PopScope`. Notes-screen search focus uses `isSearchReady`, deferring
+focus until the card exits; closing unfocuses search. `SearchScreen` also checks
+its current autofocus setting before executing a queued focus request.
+
+All 12 final native cases pass: short/full pulls, reversal and early Back across
+populated phone, populated tablet and empty phone layouts. Populated-phone frame
+evidence now measures zero extra row movement, and early Back restores notes.
+No Flutter errors were recorded. Tablet retains its full-window search route.
+The window is closed and the regular `lib/main.dart` Linux debug bundle rebuilt.
+
+Validation: `flutter analyze` has no issues. All 49 tests pass in
+`test/features/notes/pull_down_search_animation_test.dart`,
+`test/features/notes/gestures_test.dart`, `test/editor/in_note_search_test.dart`
+and `test/search/search_workspace_test.dart`. New checks cover animation
+continuity, cancellation, focus timing and system Back. No full suite was run.
+Native replay uses mouse dragging with an Android platform override; physical
+mobile touch and software-keyboard animation remain untested. Updated `HANDOFF.md`
+and the tags/search guide with the behavior and audit reference.
+
+Post-rebase verification on main `6fa397e`: the same 49 relevant tests pass,
+analysis is clean, and the normal Linux debug build succeeds. The remote changes
+affect the editor; notes/search source and the audited animation are unchanged.

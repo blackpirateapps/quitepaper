@@ -85,6 +85,12 @@ category changes through its `TabController`. There is no filled segmented track
 - Search matches highlight matching terms within note snippets in real time.
 - Clicking an OCR match jumps directly to the matching page in the PDF / Scanned Document Viewer.
 - **In-Place Pull-Down to Search**: Pulling down on the note list smoothly unveils the search input without jarring screen transitions or layout pops.
+  The notes scroll physics hold the list at its top while the reveal owns a
+  deliberate pull, preventing a second bounce underneath the sliding card.
+  Pointer release commits immediately; cancellation restores the list. Opening,
+  closing and spring-back share one interruptible animation, and search focus
+  waits until opening finishes. Inline search owns its system-Back handling.
+  See the [native animation audit](audits/swipe-search-2026-11-17/README.md).
 - **Desktop Search Opening**: Toolbar and keyboard actions open search on the
   next frame without the touch slide animation. The swipe preference gates only
   scroll gestures; explicit search actions remain available when it is disabled.
