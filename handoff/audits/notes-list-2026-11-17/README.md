@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 2 open, 8 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 1 open, 9 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -251,6 +251,10 @@ ownership of mobile bytes. **Acceptance:** New and existing paths contain an
 exact, readable archive of the selected notes; failures show no success message.
 
 ### NL-10: Paginated note mapping drops journal and sharing fields
+
+**Fixed.** Full and paginated reads share a complete NoteEntity-to-Note mapper, including journalDate, shareId and shareUrl. Batch tag hydration remains unchanged. Regressions compare every persisted domain field across active, Archive and Trash reads, including journal/share flags and local pins.
+
+Validation: `flutter analyze`: no issues; database query and pin-scope files: 25 passed. No full suite ran.
 
 **Location:** `lib/features/notes/data/notes_query_executor.dart:144`.
 

@@ -31,6 +31,14 @@ Quiet Paper is built around a zero-knowledge, end-to-end encrypted architecture.
 
 The local persistence layer is powered by **SQLite** using **Drift** in offline-first mode.
 
+### Note snapshots
+
+Full repository reads and paginated queries share `mapNoteEntity` in
+`lib/features/notes/data/note_entity_mapper.dart`. Every persisted Note field,
+including journal date and public share metadata, crosses the same mapping
+boundary. Paginated queries still hydrate tags in one batch rather than querying
+per note; adding a persisted domain field requires updating this shared mapper.
+
 ### Schema & Tables (`lib/core/database/tables/`)
 - [`NotesTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/notes_table.dart):
   - Primary store for notes (`id`, `title`, `body`, `folder`, `is_pinned`, `is_archived`, `is_trashed`, `created_at`, `updated_at`, `synced_at`, `revision`, `dirty`).
