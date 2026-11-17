@@ -101,7 +101,7 @@ void main() {
         publishedAt: DateTime(2026, 8, 30),
       );
 
-      expect(payload.effectiveUrl, 'https://example.com/canonical-url');
+      expect(payload.effectiveUrl, payload.finalUrl);
       expect(payload.htmlByteSize, greaterThan(0));
       expect(payload.acquisitionMethod, WebAcquisitionMethod.inAppBrowser);
 

@@ -1,6 +1,6 @@
 # WC-05: Browser capture uses the canonical URL as the asset base
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -27,3 +27,9 @@ The corresponding `WC-05` probe and its output are preserved in [evidence.md](ev
 - [`lib/core/web_clipper/web_capture_payload.dart:58`](../../../lib/core/web_clipper/web_capture_payload.dart#L58)
 - [`lib/core/web_clipper/web_clipper_scanner.dart:59`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L59)
 - [`lib/core/web_clipper/article_extractor.dart:36`](../../../lib/core/web_clipper/article_extractor.dart#L36)
+
+## Resolution
+
+Browser payloads resolve resources and source metadata against the final loaded document URL. Canonical publication URLs remain metadata and no longer redirect relative images or hyperlinks to another origin.
+
+Validation: flutter analyze: clean; 16 scanner, browser controller and acquisition parity tests passed. No full suite ran.

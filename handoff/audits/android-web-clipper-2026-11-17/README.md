@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**Remediation in progress: 4/16 fixed; 12 open.**
+**Remediation in progress: 5/16 fixed; 11 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -16,7 +16,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | **Fixed** [WC-02](wc-02-snapshot-css-lost.md) | P2 | Default save drops CSS already fetched during scanning |
 | **Fixed** [WC-03](wc-03-snapshot-save-failure-hidden.md) | P2 | Snapshot storage failures are reported as successful clips |
 | **Fixed** [WC-04](wc-04-removed-tags-restored.md) | P2 | Removed default tags return when the article is saved |
-| [WC-05](wc-05-canonical-url-asset-base.md) | P2 | Browser capture uses the canonical URL as the asset base |
+| **Fixed** [WC-05](wc-05-canonical-url-asset-base.md) | P2 | Browser capture uses the canonical URL as the asset base |
 | [WC-06](wc-06-redirect-asset-base.md) | P2 | Direct HTTP clipping resolves assets against the pre-redirect URL |
 | [WC-07](wc-07-browser-message-clearing.md) | P3 | Browser state cannot clear previous error and status messages |
 | [WC-08](wc-08-query-image-substitution.md) | P2 | A failed image can be replaced by a different image with the same URL path |
