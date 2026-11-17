@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:uuid/uuid.dart';
 import '../../core/database/app_database.dart';
@@ -154,7 +153,13 @@ class WebClipperService {
         snapshotDocId = docResult.document.id;
         snapshotSizeBytes = snapshotBytes.length;
       } catch (e) {
-        debugPrint('Failed to create web snapshot document: $e');
+        onProgress?.call(
+          WebClipProgress(
+            step: WebClipProgressStep.failed,
+            message: 'Failed to save web snapshot: $e',
+          ),
+        );
+        rethrow;
       }
     }
 

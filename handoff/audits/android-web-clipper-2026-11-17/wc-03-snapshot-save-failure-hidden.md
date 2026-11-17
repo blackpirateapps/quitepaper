@@ -1,6 +1,6 @@
 # WC-03: Snapshot storage failures are reported as successful clips
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -27,3 +27,9 @@ The corresponding `WC-03` probe and its output are preserved in [evidence.md](ev
 - [`lib/core/web_clipper/web_clipper_service.dart:124`](../../../lib/core/web_clipper/web_clipper_service.dart#L124)
 - [`lib/core/web_clipper/web_clipper_service.dart:225`](../../../lib/core/web_clipper/web_clipper_service.dart#L225)
 - [`lib/features/web_clipper/presentation/web_clip_preview_sheet.dart:113`](../../../lib/features/web_clipper/presentation/web_clip_preview_sheet.dart#L113)
+
+## Resolution
+
+Snapshot write failures emit failed progress and propagate to the preview error handler. Saving stops before note persistence and never emits complete for the failed request.
+
+Validation: flutter analyze: clean; 7 service and preview tests passed, including injected vault failure. No full suite ran.

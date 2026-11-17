@@ -137,8 +137,50 @@ class FakeDocumentService implements DocumentService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class FailingDocumentService extends FakeDocumentService {
+  @override
+  Future<({DocumentEntity document, String markdownSnippet})>
+  createWebSnapshotDocument({
+    required Uint8List htmlBytes,
+    String? noteId,
+    String title = 'Web Snapshot',
+  }) async => throw StateError('vault write failed');
+}
+
 void main() {
   group('WebClipperService', () {
+    test(
+      'snapshot failure reports failure without saving a partial note',
+      () async {
+        final repository = InMemoryNotesRepository();
+        final service = WebClipperService(
+          notesRepository: repository,
+          documentService: FailingDocumentService(),
+          scanner: WebClipperScanner(
+            httpClient: MockClient(
+              (_) async => http.Response(
+                '<article><p>Article body for failed save.</p></article>',
+                200,
+              ),
+            ),
+          ),
+        );
+        final scan = await service.scanUrl('https://example.com/article');
+        final steps = <WebClipProgressStep>[];
+        await expectLater(
+          service.clipArticle(
+            scanResult: scan,
+            options: const WebClipperOptions(downloadImages: false),
+            onProgress: (progress) => steps.add(progress.step),
+          ),
+          throwsStateError,
+        );
+        expect(steps.last, WebClipProgressStep.failed);
+        expect(steps, isNot(contains(WebClipProgressStep.complete)));
+        expect(await repository.watchNotes().first, isEmpty);
+      },
+    );
+
     test(
       'default save retains CSS fetched during scan without refetching',
       () async {
