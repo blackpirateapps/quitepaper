@@ -265,7 +265,11 @@ no precise root cause has been proven. Evidence: `native-stress-initial.log`,
 
 ## PDF-10 — cancelling Save PDF still writes a file to Downloads
 
-**Open. Medium. Real viewer action with cancelled picker and isolated filesystem.**
+**Fixed. (November 17, 2026). Medium. Real viewer action with cancelled picker and isolated filesystem.**
+
+Resolution: A normal null or empty picker response now returns immediately, with no filesystem fallback or saved notification. Only picker unavailability enters the Downloads fallback. Three isolated filesystem regressions cover both cancellation responses and successful fallback output.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_export_test.dart` passed. No full suite ran.
 
 Click Save PDF to storage and cancel the file picker (returns null). The viewer
 continues into its fallback and writes the PDF to Downloads anyway, then shows

@@ -870,6 +870,8 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
           allowedExtensions: ['pdf'],
           bytes: bytes,
         );
+        // A normal null/empty result means the user cancelled the picker.
+        if (selectedPath == null || selectedPath.isEmpty) return;
       } catch (e) {
         debugPrint('FilePicker saveFile fallback: $e');
       }
