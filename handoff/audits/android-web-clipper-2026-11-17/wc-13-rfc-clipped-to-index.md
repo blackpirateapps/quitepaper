@@ -1,6 +1,6 @@
 # WC-13: A complete technical document is clipped down to its index appendix
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -27,3 +27,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 - [`lib/core/web_clipper/article_extractor.dart:199`](../../../lib/core/web_clipper/article_extractor.dart#L199)
 - [`lib/core/web_clipper/article_extractor.dart:211`](../../../lib/core/web_clipper/article_extractor.dart#L211)
 - [`lib/core/web_clipper/web_clipper_scanner.dart:186`](../../../lib/core/web_clipper/web_clipper_scanner.dart#L186)
+
+## Resolution
+
+Scored sections expand to a shared multi-section document container instead of discarding sibling chapters. Whole-body extraction is marked as fallback, and semantic sections/headings survive noise names such as Comments and Header Fields. A local replay of RFC 9110 retains all 154 h1/h2/h3 headings and all 161 pre blocks (previously 1 and 0).
+
+Validation: flutter analyze: clean; 15 permanent extraction/scanner/parity tests and one temporary RFC replay passed; temporary local-file probe removed. No full suite ran.

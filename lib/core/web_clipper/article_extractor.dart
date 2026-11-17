@@ -27,10 +27,8 @@ class ArticleExtractor {
     dom.Element cleanedElement,
     List<ClippedImageCandidate> images,
     bool isArticleRootFound,
-  }) extract({
-    required String htmlContent,
-    required String sourceUrl,
-  }) {
+  })
+  extract({required String htmlContent, required String sourceUrl}) {
     final document = html_parser.parse(htmlContent);
     final baseUri = Uri.tryParse(sourceUrl) ?? Uri();
 
@@ -41,10 +39,17 @@ class ArticleExtractor {
     final rootResult = _findArticleRoot(document);
 
     // 3. Clone and sanitize the candidate element
-    final cleanedElement = _sanitizeElement(rootResult.element.clone(true), baseUri);
+    final cleanedElement = _sanitizeElement(
+      rootResult.element.clone(true),
+      baseUri,
+    );
 
     // 4. Discover candidate images in article and lead image
-    final images = _discoverImages(cleanedElement, metadata.leadImageUrl, baseUri);
+    final images = _discoverImages(
+      cleanedElement,
+      metadata.leadImageUrl,
+      baseUri,
+    );
 
     return (
       metadata: metadata,
@@ -60,10 +65,8 @@ class ArticleExtractor {
     dom.Element cleanedElement,
     List<ClippedImageCandidate> images,
     bool isArticleRootFound,
-  }) extractFromHtml(
-    String htmlContent,
-    String sourceUrl,
-  ) =>
+  })
+  extractFromHtml(String htmlContent, String sourceUrl) =>
       extract(htmlContent: htmlContent, sourceUrl: sourceUrl);
 
   /// Fallback extraction when article root scoring fails or full page content preservation is requested.
@@ -73,16 +76,19 @@ class ArticleExtractor {
     dom.Element cleanedElement,
     List<ClippedImageCandidate> images,
     bool isArticleRootFound,
-  }) extractFallback({
-    required String htmlContent,
-    required String sourceUrl,
-  }) {
+  })
+  extractFallback({required String htmlContent, required String sourceUrl}) {
     final document = html_parser.parse(htmlContent);
     final baseUri = Uri.tryParse(sourceUrl) ?? Uri();
     final metadata = _extractMetadata(document, sourceUrl, baseUri);
-    final bodyRoot = document.body ?? document.documentElement ?? dom.Element.tag('div');
+    final bodyRoot =
+        document.body ?? document.documentElement ?? dom.Element.tag('div');
     final cleanedElement = _sanitizeElement(bodyRoot.clone(true), baseUri);
-    final images = _discoverImages(cleanedElement, metadata.leadImageUrl, baseUri);
+    final images = _discoverImages(
+      cleanedElement,
+      metadata.leadImageUrl,
+      baseUri,
+    );
 
     return (
       metadata: metadata,
@@ -102,25 +108,33 @@ class ArticleExtractor {
     String? docTitle = doc.querySelector('title')?.text.trim();
     String? h1Title = doc.querySelector('h1')?.text.trim();
 
-    String title = (ogTitle?.isNotEmpty == true
+    String title =
+        (ogTitle?.isNotEmpty == true
             ? ogTitle
             : (twitterTitle?.isNotEmpty == true
-                ? twitterTitle
-                : (docTitle?.isNotEmpty == true
-                    ? docTitle
-                    : (h1Title?.isNotEmpty == true ? h1Title : 'Web Article')))) ??
+                  ? twitterTitle
+                  : (docTitle?.isNotEmpty == true
+                        ? docTitle
+                        : (h1Title?.isNotEmpty == true
+                              ? h1Title
+                              : 'Web Article')))) ??
         'Web Article';
 
     // Clean title suffixes (e.g. "Title — SiteName" or "Title | Domain")
     title = _cleanTitle(title);
 
-    String? author = _getMetaContent(doc, 'article:author', isProperty: true) ??
+    String? author =
+        _getMetaContent(doc, 'article:author', isProperty: true) ??
         _getMetaContent(doc, 'author') ??
         _getMetaContent(doc, 'twitter:creator') ??
-        doc.querySelector('.author, .byline, [rel="author"], .c-byline')?.text.trim();
+        doc
+            .querySelector('.author, .byline, [rel="author"], .c-byline')
+            ?.text
+            .trim();
 
     DateTime? publishedDate;
-    final dateStr = _getMetaContent(doc, 'article:published_time', isProperty: true) ??
+    final dateStr =
+        _getMetaContent(doc, 'article:published_time', isProperty: true) ??
         _getMetaContent(doc, 'date') ??
         _getMetaContent(doc, 'pubdate') ??
         doc.querySelector('time[datetime]')?.attributes['datetime'] ??
@@ -130,11 +144,13 @@ class ArticleExtractor {
       publishedDate = DateTime.tryParse(dateStr);
     }
 
-    String? description = _getMetaContent(doc, 'og:description', isProperty: true) ??
+    String? description =
+        _getMetaContent(doc, 'og:description', isProperty: true) ??
         _getMetaContent(doc, 'twitter:description') ??
         _getMetaContent(doc, 'description');
 
-    String? leadImageUrl = _getMetaContent(doc, 'og:image', isProperty: true) ??
+    String? leadImageUrl =
+        _getMetaContent(doc, 'og:image', isProperty: true) ??
         _getMetaContent(doc, 'twitter:image') ??
         _getMetaContent(doc, 'twitter:image:src');
 
@@ -160,9 +176,15 @@ class ArticleExtractor {
     );
   }
 
-  String? _getMetaContent(dom.Document doc, String name, {bool isProperty = false}) {
+  String? _getMetaContent(
+    dom.Document doc,
+    String name, {
+    bool isProperty = false,
+  }) {
     final attr = isProperty ? 'property' : 'name';
-    final el = doc.querySelector('meta[$attr="$name"], meta[$attr="${name.toLowerCase()}"]');
+    final el = doc.querySelector(
+      'meta[$attr="$name"], meta[$attr="${name.toLowerCase()}"]',
+    );
     final content = el?.attributes['content']?.trim();
     return (content != null && content.isNotEmpty) ? content : null;
   }
@@ -183,10 +205,13 @@ class ArticleExtractor {
     return cleaned;
   }
 
-  ({dom.Element element, bool isArticleRootFound}) _findArticleRoot(dom.Document doc) {
+  ({dom.Element element, bool isArticleRootFound}) _findArticleRoot(
+    dom.Document doc,
+  ) {
     // 1. Check explicit semantic containers
     final explicitArticle = doc.querySelector('article');
-    if (explicitArticle != null && _calculateTextLength(explicitArticle) > 200) {
+    if (explicitArticle != null &&
+        _calculateTextLength(explicitArticle) > 200) {
       return (element: explicitArticle, isArticleRootFound: true);
     }
 
@@ -209,7 +234,8 @@ class ArticleExtractor {
     }
 
     if (bestCandidate != null && highestScore > 20) {
-      return (element: bestCandidate, isArticleRootFound: true);
+      final root = _expandDocumentSections(bestCandidate);
+      return (element: root, isArticleRootFound: root.localName != 'body');
     }
 
     if (explicitArticle != null) {
@@ -217,8 +243,30 @@ class ArticleExtractor {
     }
 
     // Fallback to body or document element
-    final fallbackEl = doc.body ?? doc.documentElement ?? dom.Element.tag('div');
+    final fallbackEl =
+        doc.body ?? doc.documentElement ?? dom.Element.tag('div');
     return (element: fallbackEl, isArticleRootFound: false);
+  }
+
+  /// Standards documents often wrap each peer section in its own div.
+  /// Keep their common container rather than a single high-scoring appendix.
+  dom.Element _expandDocumentSections(dom.Element candidate) {
+    var parent = candidate.parent;
+    while (parent != null) {
+      final sections = parent.children.where((child) {
+        final isSection =
+            child.localName == 'section' ||
+            child.children.any((node) => node.localName == 'section');
+        return isSection &&
+            _calculateTextLength(child) >= 200 &&
+            child.querySelector('h1, h2, h3') != null &&
+            !_unlikelyCandidateRegex.hasMatch('${child.id} ${child.className}');
+      });
+      if (sections.length >= 2) return parent;
+      if (parent.localName == 'body') break;
+      parent = parent.parent;
+    }
+    return candidate;
   }
 
   double _scoreElement(dom.Element el) {
@@ -245,10 +293,9 @@ class ArticleExtractor {
     score += (textLength / 100);
 
     // Link density penalty
-    final linkTextLength = el.querySelectorAll('a').fold<int>(
-          0,
-          (prev, a) => prev + a.text.trim().length,
-        );
+    final linkTextLength = el
+        .querySelectorAll('a')
+        .fold<int>(0, (prev, a) => prev + a.text.trim().length);
     final linkDensity = textLength > 0 ? (linkTextLength / textLength) : 1.0;
     if (linkDensity > 0.5) {
       score *= 0.3; // Heavy link density (e.g. navigation menu, blogroll)
@@ -282,6 +329,11 @@ class ArticleExtractor {
 
     el.querySelectorAll(blockedTags.join(',')).forEach((node) => node.remove());
 
+    // Semantic sections in a complete document may have technical names such
+    // as "comments"; those names are not evidence of a discussion widget.
+    final preserveSections =
+        el.localName == 'body' && el.querySelectorAll('section').length >= 2;
+
     // 2. Remove elements with obvious ad/noise class/id
     final allChildren = el.querySelectorAll('*');
     for (final child in allChildren) {
@@ -292,7 +344,20 @@ class ArticleExtractor {
           _unlikelyCandidateRegex.hasMatch(id)) {
         if (!_likelyCandidateRegex.hasMatch(className) &&
             !_likelyCandidateRegex.hasMatch(id) &&
-            child.localName != 'body') {
+            child.localName != 'body' &&
+            !(preserveSections &&
+                (child.localName == 'section' ||
+                    const {
+                      'h1',
+                      'h2',
+                      'h3',
+                      'h4',
+                      'h5',
+                      'h6',
+                    }.contains(child.localName) ||
+                    child.children.any(
+                      (node) => node.localName == 'section',
+                    )))) {
           child.remove();
           continue;
         }
@@ -300,7 +365,10 @@ class ArticleExtractor {
 
       // 3. Process <picture> and <img> elements
       if (child.localName == 'picture') {
-        final bestSrc = ClippedImageFilter.extractBestImageSource(child, baseUri);
+        final bestSrc = ClippedImageFilter.extractBestImageSource(
+          child,
+          baseUri,
+        );
         final img = child.querySelector('img') ?? dom.Element.tag('img');
         if (bestSrc != null && bestSrc.isNotEmpty) {
           img.attributes['src'] = bestSrc;
@@ -321,7 +389,10 @@ class ArticleExtractor {
           continue;
         }
 
-        final bestSrc = ClippedImageFilter.extractBestImageSource(child, baseUri);
+        final bestSrc = ClippedImageFilter.extractBestImageSource(
+          child,
+          baseUri,
+        );
         if (bestSrc != null && bestSrc.isNotEmpty) {
           child.attributes['src'] = bestSrc;
         }
@@ -351,14 +422,16 @@ class ArticleExtractor {
     if (leadImageUrl != null && leadImageUrl.isNotEmpty) {
       final resolved = ClippedImageFilter.resolveUrl(leadImageUrl, baseUri);
       if (ClippedImageFilter.isUsefulImageUrl(resolved)) {
-        images.add(ClippedImageCandidate(
-          rawUrl: leadImageUrl,
-          resolvedUrl: resolved,
-          altText: 'Lead Image',
-          isLeadImage: true,
-          isSelected: true,
-          estimatedSizeBytes: 350 * 1024, // Initial estimate 350KB
-        ));
+        images.add(
+          ClippedImageCandidate(
+            rawUrl: leadImageUrl,
+            resolvedUrl: resolved,
+            altText: 'Lead Image',
+            isLeadImage: true,
+            isSelected: true,
+            estimatedSizeBytes: 350 * 1024, // Initial estimate 350KB
+          ),
+        );
         seenUrls.add(resolved);
       }
     }
@@ -382,7 +455,10 @@ class ArticleExtractor {
       final resolved = ClippedImageFilter.resolveUrl(bestSrc, baseUri);
       if (seenUrls.contains(resolved)) continue;
 
-      if (!ClippedImageFilter.isUsefulImageUrl(resolved, altText: imgEl.attributes['alt'])) {
+      if (!ClippedImageFilter.isUsefulImageUrl(
+        resolved,
+        altText: imgEl.attributes['alt'],
+      )) {
         continue;
       }
 
@@ -393,20 +469,26 @@ class ArticleExtractor {
       // Check parent figure caption
       final parentFigure = node.parent?.localName == 'figure'
           ? node.parent
-          : (node.parent?.parent?.localName == 'figure' ? node.parent?.parent : null);
+          : (node.parent?.parent?.localName == 'figure'
+                ? node.parent?.parent
+                : null);
       if (parentFigure != null) {
         caption = parentFigure.querySelector('figcaption')?.text.trim() ?? '';
       }
 
-      images.add(ClippedImageCandidate(
-        rawUrl: bestSrc,
-        resolvedUrl: resolved,
-        altText: alt.isNotEmpty ? alt : (caption.isNotEmpty ? caption : 'Article image'),
-        caption: caption,
-        isLeadImage: false,
-        isSelected: true,
-        estimatedSizeBytes: 250 * 1024, // Initial estimate 250KB
-      ));
+      images.add(
+        ClippedImageCandidate(
+          rawUrl: bestSrc,
+          resolvedUrl: resolved,
+          altText: alt.isNotEmpty
+              ? alt
+              : (caption.isNotEmpty ? caption : 'Article image'),
+          caption: caption,
+          isLeadImage: false,
+          isSelected: true,
+          estimatedSizeBytes: 250 * 1024, // Initial estimate 250KB
+        ),
+      );
       seenUrls.add(resolved);
 
       if (images.length >= 35) {

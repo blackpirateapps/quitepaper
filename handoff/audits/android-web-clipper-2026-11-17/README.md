@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**Remediation in progress: 12/16 fixed; 4 open.**
+**Remediation in progress: 13/16 fixed; 3 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -24,7 +24,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | **Fixed** [WC-10](wc-10-second-share-discarded.md) | P2 | A second shared URL is discarded while Quick Capture is open |
 | **Fixed** [WC-11](wc-11-url-dialog-loading-overflow.md) | P2 | Continue’s loading spinner overflows the URL dialog on a phone |
 | **Fixed** [WC-12](wc-12-layout-table-article-triplication.md) | P2 | Direct clipping repeats article text from nested layout tables |
-| [WC-13](wc-13-rfc-clipped-to-index.md) | P2 | A complete technical document is clipped down to its index appendix |
+| **Fixed** [WC-13](wc-13-rfc-clipped-to-index.md) | P2 | A complete technical document is clipped down to its index appendix |
 | [WC-14](wc-14-code-figures-disappear.md) | P2 | Code examples inside figure elements disappear from Markdown |
 | [WC-15](wc-15-star-alt-removes-content-photo.md) | P2 | A meaningful photo is rejected when its alt text mentions a star |
 | [WC-16](wc-16-failed-page-marked-ready.md) | P2 | An Android page-load failure becomes Ready to clip |
