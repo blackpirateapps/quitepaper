@@ -21,6 +21,7 @@ class ScannerPreviewCanvas extends StatefulWidget {
   const ScannerPreviewCanvas({
     super.key,
     required this.previewBytes,
+    this.originalPreviewBytes,
     required this.adjustments,
     this.isCropMode = false,
     this.onAdjustmentsChanged,
@@ -33,6 +34,9 @@ class ScannerPreviewCanvas extends StatefulWidget {
 
   /// Cached bounded ~600px preview image bytes.
   final Uint8List previewBytes;
+
+  /// Unfiltered capture preview used while holding ORIGINAL for comparison.
+  final Uint8List? originalPreviewBytes;
 
   /// Current non-destructive adjustment parameters.
   final ImageAdjustments adjustments;
@@ -184,7 +188,9 @@ class _ScannerPreviewCanvasState extends State<ScannerPreviewCanvas> {
                     children: [
                       if (_geometryBytes != null || _isComparingOriginal)
                         Image.memory(
-                          _isComparingOriginal ? widget.previewBytes : _geometryBytes!,
+                          _isComparingOriginal
+                              ? (widget.originalPreviewBytes ?? widget.previewBytes)
+                              : _geometryBytes!,
                           fit: BoxFit.contain,
                           gaplessPlayback: true,
                         )

@@ -946,6 +946,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       child: Center(
         child: ScannerPreviewCanvas(
           previewBytes: _displayBytesFor(page),
+          originalPreviewBytes: page.previewBytes,
           quad: page.documentQuad,
           adjustments: page.adjustments,
           onAdjustmentsChanged: (updated) {

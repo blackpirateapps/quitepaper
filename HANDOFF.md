@@ -575,14 +575,16 @@ isolated benchmark; its restore log is retained with the verification evidence.
 ## Images and Document Scanner Audit — November 17, 2026
 
 The [image/scanner audit](handoff/audits/images-scanner-2026-11-17/README.md)
-records **14 confirmed bugs, all open**, on `audit/images-scanner-2026-11-17`
-from `8724bf0`. Each finding was documented when discovered. Coverage includes
+records **14/14 fixed; 0 open**, on `audit/images-scanner-2026-11-17`
+from `8724bf0`, with one fix commit per finding. Coverage includes
 crop/rotation correctness, preview/export parity, desktop image saves, GIF
 compression, async image/detector races, plaintext-cache access and retention,
-and scanner/viewer lifecycle errors. This branch contains audit documentation,
-reproduction sources and measured evidence; application behavior is unchanged.
+and scanner/viewer lifecycle errors. Original characterization probes remain
+archived; permanent acceptance tests verify the repaired behavior. Per-finding
+resolutions are in the audit, with final combined results in
+[fix verification](handoff/audits/images-scanner-2026-11-17/fix-verification/README.md).
 
-**114 relevant existing tests and 16 audit characterization probes pass.** The
+**Original audit: 114 relevant existing tests and 16 characterization probes passed.** The
 probes assert baseline defects and are kept outside normal test discovery;
 they are evidence, not acceptance tests for future fixes. The full suite was
 not run. Dart VM mode/encoding and multipage benchmarks and a Flutter 12 MP
@@ -666,3 +668,16 @@ Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No ful
 Viewer pages coalesce OCR/status notifications until after the current frame and check mounting before notifying the parent. Preloaded-network open/close and desktop-save regressions now assert zero build-phase diagnostics.
 
 Validation: 35 viewer/scanner regression tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-14 image/scanner audit fix — November 18, 2026
+
+Scanner review and adjustment sheets supply a separate unfiltered preview buffer. Holding ORIGINAL swaps to capture bytes rather than neutralizing tone over a mode-baked image; releasing restores the selected mode. Widget coverage checks both byte transitions.
+
+Validation: 32 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
+
+Image/scanner remediation is complete: **14/14 fixed; 0 open**, with one commit
+per finding on the original audit branch. Final combined validation passes
+**152 relevant tests**, serialized with `--concurrency=1`, and `flutter analyze`
+reports no issues. The full suite was not run. Commands, raw output and explicit
+validation limits are in [fix verification](handoff/audits/images-scanner-2026-11-17/fix-verification/README.md).
+See engineering log 329 and the updated processing contracts in the document guide.

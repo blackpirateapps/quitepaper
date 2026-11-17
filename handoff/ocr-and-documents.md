@@ -67,9 +67,36 @@ The OCR system lives in [`lib/core/ocr/`](file:///home/dog/git/quitepaper/lib/co
 
 ---
 
+## Image and Scanner Processing Contracts
+
+- Crop rectangles and document quads are normalized against the EXIF-oriented
+  source. Apply crop/dewarp before quarter-turn rotation in CPU processing.
+- Review renders bounded geometric previews using the same processor geometry;
+  editing corners returns to the source coordinate space. Generation checks
+  discard outdated preview jobs. ORIGINAL comparison uses a separate unfiltered
+  capture preview rather than the selected mode bitmap.
+- CPU tone adjustment uses `ImageAdjustments.toColorMatrix`, matching the live
+  GPU affine transform with a final channel clamp and normal JPEG rounding.
+- A shared serial worker queue runs full-source preparation, high-resolution
+  export, mode previews and automatic detection. Neutral export decides its
+  raw-byte fast path inside the worker after a single decode.
+- Geometry revisions protect manual framing from late detector results.
+  Acquisition/preparation results check screen lifetime before publishing.
+- Multiframe compression preserves original encoded bytes and timing. Both PDF
+  generators derive page geometry from each image aspect ratio.
+- Inline images retain only their current bytes/dimensions and use generation
+  checks for source/variant changes. They have no process-wide source maps.
+  Encrypted assets always resolve access; resolver cache hits require unlocked
+  keys, and secure lock/clear-key flows purge attachment plaintext caches.
+- Desktop image saves write and flush picker-returned paths before success;
+  mobile pickers retain ownership of supplied bytes. Viewer child notifications
+  are deferred until after the current frame.
+
+---
+
 ## Key References & Logs
 
-- Images and scanner audit (November 17, 2026): [14 open findings, pixel/async probes and Dart VM benchmarks](audits/images-scanner-2026-11-17/README.md). Covers scanner geometry, image previews/editing/compression, desktop image export and inline cache behavior; production fixes are not included. See log 328.
+- Images and scanner audit (November 17, 2026): [14 resolved findings, pixel/async probes and Dart VM benchmarks](audits/images-scanner-2026-11-17/README.md). Covers scanner geometry, image previews/editing/compression, desktop image export and inline cache behavior. Original evidence is log 328; remediation and acceptance validation are log 329.
 - PDF Viewer Stress Audit (November 16, 2026): [10 resolved findings and evidence](audits/pdf-viewer-stress-2026-11-16/README.md), including pending-save/failed-exit annotation loss, thumbnail races and native debug stalls. The audit includes targeted stress coverage and explicit platform limits; all ten findings now have fixes and regression coverage. See [log 313](latest-logs.md#313-pdf-viewer-native-audit-and-targeted-stress-tests-november-16-2026).
 - Syncfusion PDF Viewer Migration: [Latest Logs, Section 215 & 217](latest-logs.md#215-feature-syncfusion-flutter-pdf-viewer-migration-with-non-destructive-dual-storage-october-2026)
 - Custom Floating Menu & PDF Search: [Latest Logs, Section 216](latest-logs.md#216-feature-quiet-paper-custom-floating-text-selection-menu--in-document-pdf-search-october-2026)

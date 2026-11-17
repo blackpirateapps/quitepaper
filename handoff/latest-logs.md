@@ -7258,3 +7258,49 @@ untracked prompt is excluded from the commit.
 Modified files: `HANDOFF.md`, this log, a reference in `ocr-and-documents.md`, and
 `handoff/audits/images-scanner-2026-11-17/` (report, three reproducible Dart sources,
 raw focused-test/analysis outputs and benchmark/environment JSON).
+
+
+## 329. Images and Scanner Audit Remediation — November 18, 2026
+
+Resolved all 14 findings from the November 17 image/scanner audit on its original
+branch, with one fix commit per finding. The audit retains the baseline evidence
+and adds individual resolutions; permanent acceptance tests replace the old
+characterization assertions for current-branch verification.
+
+Geometry now applies to EXIF-oriented source coordinates before rotation. Review
+renders bounded crop/dewarp previews, and ORIGINAL comparison swaps to separate
+unfiltered capture bytes. CPU tone processing uses the same affine color matrix
+as the GPU preview. Preparation and neutral-export decisions run in a shared
+serial worker queue, alongside detector/mode jobs, removing the full-source UI
+isolate stall and duplicate neutral decode without an expensive synchronous
+fallback. Timer tests verify yielding rather than making device-FPS claims.
+
+Geometry revisions let manual framing supersede delayed detection. Scanner
+acquisition/preparation checks mounting and job generations after async work.
+Both PDF generators preserve landscape aspect ratios. Multiframe compression
+retains original encoded bytes, frames and timing. Desktop image saves write and
+flush picker destinations before success and handle overwrite/cancel/failure;
+mobile picker byte ownership is preserved.
+
+Inline images no longer keep unbounded process-wide source maps. Asset loads
+always resolve access, including cache hits in the underlying service; secure
+key lock/clear-key flows purge attachment plaintext caches. Source/variant
+snapshots and request generations guard stale successes, errors and dimensions.
+Viewer status notifications are coalesced after the current frame to avoid
+mutating their parent during build.
+
+Modified production areas: `image_processor.dart`, `image_compression_service.dart`,
+`pdf_generator.dart`, scanner `pdf_builder.dart`, `document_scanner_screen.dart`,
+`page_adjustment_sheet.dart`, `scanner_preview_canvas.dart`, attachment
+`image_viewer_modal.dart`, `quiet_asset_image_view.dart`, new `image_file_save.dart`,
+`attachment_service.dart` and `key_manager.dart`. Regression coverage lives in
+three new image/scanner test files and the expanded attachment-service tests.
+`HANDOFF.md`, the OCR/document guide and the original audit report are aligned.
+
+Validation: `flutter analyze` reports no issues; the combined serialized image,
+scanner, viewer, attachment-service and editor-import/compression run passes
+**152 tests**. Exact commands and raw outputs are in
+[fix verification](audits/images-scanner-2026-11-17/fix-verification/README.md).
+No full suite, app build, new physical-device/native-picker replay or release
+benchmark ran. Existing benchmark data retains its original Linux/JIT limits.
+The unrelated pre-existing smart-tables prompt remains outside the commits.

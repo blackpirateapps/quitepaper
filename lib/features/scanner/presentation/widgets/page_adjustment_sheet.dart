@@ -227,6 +227,7 @@ class _PageAdjustmentSheetState extends State<PageAdjustmentSheet> {
               alignment: Alignment.center,
               child: ScannerPreviewCanvas(
                 previewBytes: _canvasBytes,
+                originalPreviewBytes: widget.page.previewBytes,
                 adjustments: _adjustments,
                 isCropMode: _activeTab == 1,
                 onAdjustmentsChanged: _onAdjustmentsChanged,

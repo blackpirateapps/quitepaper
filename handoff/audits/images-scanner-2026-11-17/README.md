@@ -1,12 +1,12 @@
 # Images and document scanner audit — November 17, 2026
 
-Branch: `audit/images-scanner-2026-11-17`. Baseline: `8724bf0` (includes the completed notes-list remediation). Audit only: application defects are recorded open; production behavior is unchanged. An unrelated pre-existing untracked prompt is excluded from the audit commit.
+Branch: `audit/images-scanner-2026-11-17`. Baseline: `8724bf0` (includes the completed notes-list remediation). The original audit recorded 14 open application defects. Subsequent remediation on this same branch fixes all 14, with one commit per finding and permanent acceptance tests. An unrelated pre-existing untracked prompt is excluded from the audit commit.
 
 Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image source and relevant existing tests. Scope: local image compression/viewer editing, scanner import/review/adjustments, corner detection/dewarp, PDF generation and processing performance. No full test suite. Findings below were entered as soon as confirmed; the final executable evidence and validation are linked below.
 
 ## Findings
 
-**14 confirmed, 13 fixed, 1 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 14 fixed, 0 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -170,21 +170,30 @@ Resolution: Viewer pages coalesce OCR/status notifications until after the curre
 
 Validation: 35 viewer/scanner regression tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-14 — P2 — Press-and-hold ORIGINAL still shows the selected scanner mode (OPEN)
+### IS-14 — P2 — Press-and-hold ORIGINAL still shows the selected scanner mode (FIXED)
 
 Confirmed in source: the adjustment sheet and scanner pass mode-baked bytes into `ScannerPreviewCanvas`. Long press only changes `ImageAdjustments` to neutral; it continues rendering the same `widget.previewBytes`. For B&W Text/Grayscale, color and threshold detail have already been removed before the canvas receives the bytes. The ORIGINAL badge therefore compares manual tone knobs against the selected mode, rather than showing the original capture.
 
 Reproduce: select a monochrome mode on a colorful photo and hold the preview. Expected: original color photo while held. Actual: monochrome image remains under ORIGINAL. Fix direction: pass a separate original preview buffer and swap bytes during comparison. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
 
 
+Resolution: Scanner review and adjustment sheets supply a separate unfiltered preview buffer. Holding ORIGINAL swaps to capture bytes rather than neutralizing tone over a mode-baked image; releasing restores the selected mode. Widget coverage checks both byte transitions.
+
+Validation: 32 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
+
+
 ## Validation and replay
 
 The committed probes are **historical characterization tests**, intentionally
-asserting current defects (wrong pixel/bytes/state) rather than desired fixed
+asserting baseline defects (wrong pixel/bytes/state) rather than desired fixed
 behavior. They are outside normal test discovery. A future fix should add
 permanent acceptance tests under `test/` and update the relevant finding.
 
-Run from the repository root:
+The commands below reproduce the original audit **against baseline `8724bf0`**.
+Do not run the historical defect assertions as acceptance tests on the fixed branch.
+Current acceptance commands and results are in [fix verification](fix-verification/README.md).
+
+Original audit commands, from the repository root:
 
 ```sh
 flutter analyze

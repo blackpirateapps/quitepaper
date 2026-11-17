@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:quitepaper/features/scanner/domain/scanned_page.dart';
 import 'dart:convert';
 import 'package:quitepaper/core/attachments/presentation/quiet_asset_image_view.dart';
 import 'package:quitepaper/features/scanner/presentation/document_scanner_screen.dart';
@@ -165,6 +166,42 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('IS-14 ORIGINAL comparison restores unfiltered capture bytes', (
+    tester,
+  ) async {
+    final original = fixture();
+    final mono = Uint8List.fromList(
+      img.encodePng(img.grayscale(img.decodePng(original)!)),
+    );
+    await tester.pumpWidget(
+      app(
+        PageAdjustmentSheet(
+          page: ScannedPage(
+            id: 'compare',
+            imageBytes: original,
+            width: 120,
+            height: 80,
+            pageNumber: 1,
+            scanMode: ScanMode.blackAndWhite,
+          ),
+          imageProcessor: ModeProcessor(mono),
+        ),
+      ),
+    );
+    await frames(tester);
+    final canvas = find.byType(ScannerPreviewCanvas);
+    final mainImage = find.descendant(of: canvas, matching: find.byType(Image));
+    expect((tester.widget<Image>(mainImage).image as MemoryImage).bytes, mono);
+    final gesture = await tester.startGesture(tester.getCenter(canvas));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('ORIGINAL'), findsOneWidget);
+    expect((tester.widget<Image>(mainImage).image as MemoryImage).bytes, original);
+    await gesture.up();
+    await frames(tester);
+    expect((tester.widget<Image>(mainImage).image as MemoryImage).bytes, mono);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('IS-13 preloaded viewer opens and closes without build notifications', (tester) async {
     final errors = <Object>[];
     await runZonedGuarded(() async {
