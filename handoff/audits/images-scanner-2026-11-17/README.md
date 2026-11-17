@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 2 fixed, 12 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 3 fixed, 11 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -49,11 +49,16 @@ Resolution: Review and adjustment canvases render bounded crop/dewarp previews, 
 
 Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-03 — P1 — Fine-tune preview and saved pixels use different color transforms (OPEN)
+### IS-03 — P1 — Fine-tune preview and saved pixels use different color transforms (FIXED)
 
 Confirmed in source: `ImageAdjustments.toColorMatrix` uses additive brightness (`brightness * 128`) and asymmetric contrast (up to 2.5x). Both CPU image-processing paths instead use multiplicative brightness (`1 + brightness * 0.6`) and package:image contrast at `100 + contrast * 70`. These operations are mathematically different, so the exported PDF/image cannot match the preview. Positive brightness on black pixels is a direct counterexample: preview lifts black; export multiplication leaves it black.
 
 Reproduce: Original mode, brightness +1 on a dark image, Apply/save. Expected: the preview's pixel values. Actual: substantially darker saved image. Fix direction: use one specified color transform across GPU preview and CPU export. Executable confirmation: see `probes/pixel_probe.dart` or `probes/widget_probe.dart` and `evidence/final-audit-probes.log` for the matching IS ID.
+
+
+Resolution: Both CPU image-processing paths now apply the exact preview color matrix with one final channel clamp. Pixel regressions cover lifted blacks, mixed brightness/contrast/saturation and grayscale, allowing JPEG rounding.
+
+Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-04 — P1 — Desktop Save Image reports success without writing the file (OPEN)
 

@@ -600,3 +600,9 @@ Validation: 5 processor/dewarp tests passed. Flutter analysis clean. No full sui
 Review and adjustment canvases render bounded crop/dewarp previews, discard stale geometry jobs, and return to source framing for corner editing. Scanner review now supplies the selected document quad.
 
 Validation: 15 scanner review/editor tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-03 image/scanner audit fix — November 17, 2026
+
+Both CPU image-processing paths now apply the exact preview color matrix with one final channel clamp. Pixel regressions cover lifted blacks, mixed brightness/contrast/saturation and grayscale, allowing JPEG rounding.
+
+Validation: 11 tone/geometry tests passed. Flutter analysis clean. No full suite ran.
