@@ -170,10 +170,13 @@ abstract final class NoteMetadataExtractor {
   @visibleForTesting
   static int get cacheSize => _cache.length;
 
-  /// Pre-warms the metadata cache for a collection of notes, avoiding synchronous
-  /// parsing, regex matching, and frontmatter resolution during scroll builds.
+  /// Fills unused cache capacity without evicting visible/recent metadata.
+  /// Lists extract metadata lazily as tiles mount instead of sweeping all notes.
   static void prewarmAll(Iterable<Note> notes, {String? searchQuery}) {
     for (final note in notes) {
+      // Speculative work must never evict demand-loaded (visible/recent) rows.
+      // List tiles extract lazily; a caller may fill only unused cache capacity.
+      if (_cache.length >= maxCacheSize) break;
       extract(note, searchQuery: searchQuery);
     }
   }

@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 4 open, 6 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 3 open, 7 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -201,6 +201,10 @@ next page without retrying the failed refresh; that variant is source-derived.
 without losing loaded notes, filters or sort.
 
 ### NL-08: Prewarming above cache capacity reparses the whole collection
+
+**Fixed.** Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
+
+Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
 
 **Location:** `lib/features/notes/application/notes_query_provider.dart:605`;
 `lib/features/notes/domain/note_metadata_extractor.dart:174` and `:265`.

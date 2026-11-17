@@ -55,8 +55,6 @@ import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
-import 'widgets/note_thumbnail_view.dart';
-import '../domain/note_metadata_extractor.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import '../../onboarding/application/onboarding_provider.dart';
@@ -845,7 +843,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
-    _prewarmThumbnails(groups);
 
     final title = _getDestinationTitle(destination);
 
@@ -1871,7 +1868,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
-    _prewarmThumbnails(groups);
     final title = _getDestinationTitle(destination);
 
     // Watch active note if one is selected in tablet mode
@@ -2971,27 +2967,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         ),
       ),
     );
-  }
-
-  void _prewarmThumbnails(List<NoteGroup> groups) {
-    if (groups.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final thumbnails = <ThumbnailData>[];
-      for (final group in groups) {
-        for (final note in group.notes) {
-          final metadata = NoteMetadataExtractor.extract(note);
-          if (metadata.thumbnailData != null) {
-            thumbnails.add(metadata.thumbnailData!);
-            if (thumbnails.length >= 25) break;
-          }
-        }
-        if (thumbnails.length >= 25) break;
-      }
-      if (thumbnails.isNotEmpty) {
-        NoteThumbnailCache.prewarm(ref: ref, thumbnails: thumbnails);
-      }
-    });
   }
 
   int _calculateTotalItemCount(List<NoteGroup> groups) {

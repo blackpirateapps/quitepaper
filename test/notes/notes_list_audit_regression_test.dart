@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 
@@ -306,41 +307,121 @@ void main() {
       },
     );
   }
-  for (final layout in {'mobile': const Size(390, 844), 'desktop': const Size(1440, 900)}.entries) {
-    auditWidgets('NL-04 ${layout.key}: refresh keeps a deep visible anchor', (t) async {
-      await t.runAsync(() => db.batch((b) => b.insertAll(db.notesTable, List.generate(1040, (i) => NotesTableCompanion.insert(
-        id: 'anchor-$i', title: Value('Anchor $i'), createdAt: now, updatedAt: now.subtract(Duration(minutes: i)),
-      )))));
+  for (final layout in {
+    'mobile': const Size(390, 844),
+    'desktop': const Size(1440, 900),
+  }.entries) {
+    auditWidgets('NL-04 ${layout.key}: refresh keeps a deep visible anchor', (
+      t,
+    ) async {
+      await t.runAsync(
+        () => db.batch(
+          (b) => b.insertAll(
+            db.notesTable,
+            List.generate(
+              1040,
+              (i) => NotesTableCompanion.insert(
+                id: 'anchor-$i',
+                title: Value('Anchor $i'),
+                createdAt: now,
+                updatedAt: now.subtract(Duration(minutes: i)),
+              ),
+            ),
+          ),
+        ),
+      );
       final c = await mount(t, layout.value);
       final n = c.read(notesCollectionProvider.notifier);
       await t.runAsync(() async {
-        while (c.read(notesCollectionProvider).notes.length < 1000) { await n.loadMore(); }
+        while (c.read(notesCollectionProvider).notes.length < 1000) {
+          await n.loadMore();
+        }
       });
       await t.pumpAndSettle();
-      final list = find.ancestor(of: find.byType(NoteListTile).first, matching: find.byType(ListView)).first;
-      final scrollable = find.descendant(of: list, matching: find.byType(Scrollable)).first;
+      final list = find
+          .ancestor(
+            of: find.byType(NoteListTile).first,
+            matching: find.byType(ListView),
+          )
+          .first;
+      final scrollable = find
+          .descendant(of: list, matching: find.byType(Scrollable))
+          .first;
       final position = t.state<ScrollableState>(scrollable).position;
       position.jumpTo(30000);
       await t.pumpAndSettle();
       final viewport = t.getRect(list);
-      final visible = find.byType(NoteListTile).evaluate().where((e) => t.getRect(find.byWidget(e.widget)).overlaps(viewport));
+      final visible = find
+          .byType(NoteListTile)
+          .evaluate()
+          .where((e) => t.getRect(find.byWidget(e.widget)).overlaps(viewport));
       final tile = visible.first.widget as NoteListTile;
       final anchorId = tile.note.id;
       final anchorRect = t.getRect(find.byWidget(tile));
       final offset = position.pixels;
-      final ids = c.read(notesCollectionProvider).notes.map((n) => n.id).toList();
+      final ids = c
+          .read(notesCollectionProvider)
+          .notes
+          .map((n) => n.id)
+          .toList();
       await t.runAsync(() async {
-        await db.customStatement("UPDATE notes SET title = 'Changed anchor' WHERE id = ?", [anchorId]);
+        await db.customStatement(
+          "UPDATE notes SET title = 'Changed anchor' WHERE id = ?",
+          [anchorId],
+        );
         await n.refresh();
       });
       await t.pumpAndSettle();
       expect(c.read(notesCollectionProvider).notes.map((n) => n.id), ids);
       expect(position.pixels, offset);
-      final current = find.byWidgetPredicate((w) => w is NoteListTile && w.note.id == anchorId);
+      final current = find.byWidgetPredicate(
+        (w) => w is NoteListTile && w.note.id == anchorId,
+      );
       expect(current, findsOneWidget);
       expect(t.getRect(current).top, anchorRect.top);
       expect(t.takeException(), isNull);
     });
   }
 
+  for (final count in [600, 1000]) {
+    for (final layout in {
+      'mobile': const Size(390, 844),
+      'desktop': const Size(1440, 900),
+    }.entries) {
+      auditWidgets('NL-08 ${layout.key}: $count notes parse only mounted rows', (
+        t,
+      ) async {
+        final notes = List.generate(
+          count,
+          (i) => note(
+            'large-$i',
+            body:
+                '---\nmood: 7\n---\n${List.filled(30, '**Body** with [link](https://example.test)').join('\n')}',
+          ),
+        );
+        repo.intercept = (q) async => result(q, notes);
+        final c = await mount(t, layout.value);
+        expect(NoteMetadataExtractor.cacheSize, lessThan(80));
+        final tile = t.widget<NoteListTile>(find.byType(NoteListTile).first);
+        final useful = NoteMetadataExtractor.extract(tile.note);
+        final groups = c.read(groupedNotesCollectionProvider);
+        final gate = Completer<NotesQueryResult>();
+        NotesQuery? request;
+        repo.intercept = (q) {
+          request = q;
+          return gate.future;
+        };
+        final refresh = c.read(notesCollectionProvider.notifier).refresh();
+        await t.pump();
+        expect(c.read(groupedNotesCollectionProvider), same(groups));
+        expect(NoteMetadataExtractor.extract(tile.note), same(useful));
+        gate.complete(result(request!, notes));
+        await refresh;
+        await t.pumpAndSettle();
+        expect(NoteMetadataExtractor.extract(tile.note), same(useful));
+        expect(NoteMetadataExtractor.cacheSize, lessThan(80));
+        expect(t.takeException(), isNull);
+      });
+    }
+  }
 }

@@ -61,4 +61,30 @@ void main() {
       expect(protected.thumbnailData, isNull);
     },
   );
+  for (final count in [600, 1000]) {
+    test(
+      'NL-08: repeated $count-note prewarm preserves useful cache instances',
+      () {
+        final notes = List.generate(
+          count,
+          (i) => original.copyWith(id: 'cache-$i'),
+        );
+        NoteMetadataExtractor.prewarmAll(notes);
+        final tail = notes
+            .skip(count - NoteMetadataExtractor.maxCacheSize)
+            .toList();
+        final refs = tail.map(NoteMetadataExtractor.extract).toList();
+        for (var sweep = 0; sweep < 5; sweep++) {
+          NoteMetadataExtractor.prewarmAll(notes);
+          for (var i = tail.length - 1; i >= 0; i--) {
+            expect(NoteMetadataExtractor.extract(tail[i]), same(refs[i]));
+          }
+          expect(
+            NoteMetadataExtractor.cacheSize,
+            NoteMetadataExtractor.maxCacheSize,
+          );
+        }
+      },
+    );
+  }
 }

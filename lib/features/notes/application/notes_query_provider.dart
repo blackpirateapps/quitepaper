@@ -9,7 +9,6 @@ import '../../settings/application/settings_provider.dart';
 import '../data/notes_repository.dart';
 import '../data/notes_query_executor.dart';
 import '../domain/note_group.dart';
-import '../domain/note_metadata_extractor.dart';
 import '../domain/note_model.dart';
 import '../domain/notes_cursor.dart';
 import '../domain/notes_filter.dart';
@@ -629,15 +628,13 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 // ==========================================
 
 final groupedNotesCollectionProvider = Provider<List<NoteGroup>>((ref) {
-  final collectionState = ref.watch(notesCollectionProvider);
-  final destination = ref.watch(currentDestinationProvider);
-
-  // Pre-warm metadata cache for loaded notes to eliminate synchronous regex
-  // parsing and frontmatter decoding during scroll frames on mobile and desktop.
-  NoteMetadataExtractor.prewarmAll(
-    collectionState.notes,
-    searchQuery: collectionState.query.searchQuery,
+  final notes = ref.watch(
+    notesCollectionProvider.select((state) => state.notes),
   );
+  final sort = ref.watch(
+    notesCollectionProvider.select((state) => state.query.sort),
+  );
+  final destination = ref.watch(currentDestinationProvider);
 
   // The "Pinned" group is shown in All Notes (global pins) and inside a single
   // tag view (that tag's pins + global pins). It is NOT shown in the dedicated
@@ -648,11 +645,11 @@ final groupedNotesCollectionProvider = Provider<List<NoteGroup>>((ref) {
   final separatePinned =
       (destination == AppDestination.allNotes ||
           destination == AppDestination.tag) &&
-      collectionState.query.sort.pinnedFirst;
+      sort.pinnedFirst;
 
   return NoteGroup.groupByDate(
-    collectionState.notes,
-    sort: collectionState.query.sort,
+    notes,
+    sort: sort,
     separatePinned: separatePinned,
     contextTag: contextTag,
   );

@@ -98,6 +98,22 @@ category changes through its `TabController`. There is no filled segmented track
 
 ---
 
+## Notes List Preview Work
+
+Paginated and legacy grouped-note providers leave metadata extraction to mounted
+`NoteListTile` widgets. Grouped pagination watches note data and the selected sort,
+so loading flags do not regroup or parse the collection. The screen does not scan
+all loaded notes for speculative thumbnails; mounted thumbnail widgets retain
+their existing bounded cache and request deduplication.
+
+`NoteMetadataExtractor` keeps an LRU of at most 500 entries. Cache identity compares
+exact note ID, title, body, timestamp, tag values and optional snippet. The explicit
+`prewarmAll` utility fills unused capacity only, preserving demand-loaded entries
+when handed a collection larger than the cache. Large-library state changes must
+not reintroduce synchronous collection-wide parsing.
+
+---
+
 ## Key References & Logs
 - Redesign: Sidebar Navigation Drawer ("Pure Bear List" & Editorial Aesthetic): [Latest Logs, Section 249](latest-logs.md#249-redesign-sidebar-navigation-drawer-quiet-paper-editorial-bear-aesthetic-november-2026)
 - Redesign: "Pure Bear List" Aesthetic (Tags Browser): [Latest Logs, Section 247](latest-logs.md#247-redesign-tags-browser-screen-pure-bear-list-aesthetic-november-2026)

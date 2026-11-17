@@ -7174,3 +7174,13 @@ Implementation and permanent regression coverage accompany this entry. See the
 reproduction and updated resolution.
 
 Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
+
+## 324. NL-08 Notes List Remediation (November 17, 2026)
+
+Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.

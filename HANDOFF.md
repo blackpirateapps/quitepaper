@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**6/10 fixed; 4 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**7/10 fixed; 3 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -537,3 +537,9 @@ Validation: `flutter analyze`: no issues; collection recovery and pagination rac
 Retry dispatches the recorded failed operation: initial load, refresh, or next page. Failed refreshes restart at the beginning even at end-of-list, and failed pages retry their cursor without losing loaded notes. Automatic scrolling leaves a displayed error intact until Retry or explicit refresh.
 
 Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
+
+### NL-08 notes list fix — November 17, 2026
+
+Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
+
+Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
