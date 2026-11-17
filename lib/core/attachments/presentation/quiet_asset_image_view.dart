@@ -64,8 +64,6 @@ class QuietAssetImageView extends ConsumerStatefulWidget {
 
 class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
     with AutomaticKeepAliveClientMixin {
-  static final Map<String, Size> _globalDimensionCache = {};
-  static final Map<String, Uint8List> _globalBytesCache = {};
 
   Uint8List? _imageBytes;
   Size? _intrinsicSize;
@@ -77,27 +75,10 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
   @override
   bool get wantKeepAlive => true;
 
-  // Encrypted assets always go through access resolution, including qp:// URLs.
-  String get _effectiveCacheKey {
-    if (widget.assetId != null || QuietPaperUri.tryParse(widget.url ?? '') != null) {
-      return '';
-    }
-    return widget.url ?? '';
-  }
-
   @override
   void initState() {
     super.initState();
-    final key = _effectiveCacheKey;
-    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-      _imageBytes = _globalBytesCache[key];
-      _intrinsicSize = _globalDimensionCache[key] ??
-          ImageDimensionReader.extractDimensions(_imageBytes!);
-      _isLoading = false;
-      _hasError = false;
-    } else {
-      _loadImage();
-    }
+    _loadImage();
   }
 
   @override
@@ -106,34 +87,11 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
     if (oldWidget.assetId != widget.assetId ||
         oldWidget.url != widget.url ||
         oldWidget.variant != widget.variant) {
-      final key = _effectiveCacheKey;
-      if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-        _imageBytes = _globalBytesCache[key];
-        _intrinsicSize = _globalDimensionCache[key] ??
-            ImageDimensionReader.extractDimensions(_imageBytes!);
-        _isLoading = false;
-        _hasError = false;
-      } else {
-        _loadImage();
-      }
+      _loadImage();
     }
   }
 
   Future<void> _loadImage() async {
-    final key = _effectiveCacheKey;
-    if (key.isNotEmpty && _globalBytesCache.containsKey(key)) {
-      if (mounted) {
-        setState(() {
-          _imageBytes = _globalBytesCache[key];
-          _intrinsicSize = _globalDimensionCache[key] ??
-              ImageDimensionReader.extractDimensions(_imageBytes!);
-          _isLoading = false;
-          _hasError = false;
-        });
-      }
-      return;
-    }
-
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -155,14 +113,8 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
         if (result.isAvailable && result.data != null) {
           _imageBytes = result.data;
           _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = _imageBytes!;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
           if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!, key);
+            _decodeIntrinsicSize(_imageBytes!);
           }
           if (mounted) {
             setState(() {
@@ -208,14 +160,8 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
           final bytes = base64Decode(base64Data);
           _imageBytes = bytes;
           _intrinsicSize = ImageDimensionReader.extractDimensions(bytes);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = bytes;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
           if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(bytes, key);
+            _decodeIntrinsicSize(bytes);
           }
           if (mounted) {
             setState(() {
@@ -267,14 +213,8 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
         if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
           _imageBytes = response.bodyBytes;
           _intrinsicSize = ImageDimensionReader.extractDimensions(_imageBytes!);
-          if (key.isNotEmpty) {
-            _globalBytesCache[key] = _imageBytes!;
-            if (_intrinsicSize != null) {
-              _globalDimensionCache[key] = _intrinsicSize!;
-            }
-          }
           if (_intrinsicSize == null) {
-            _decodeIntrinsicSize(_imageBytes!, key);
+            _decodeIntrinsicSize(_imageBytes!);
           }
           if (mounted) {
             setState(() {
@@ -305,7 +245,7 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
     }
   }
 
-  void _decodeIntrinsicSize(Uint8List bytes, [String? cacheKey]) {
+  void _decodeIntrinsicSize(Uint8List bytes) {
     ui.instantiateImageCodec(bytes).then((codec) {
       return codec.getNextFrame();
     }).then((frame) {
@@ -313,9 +253,6 @@ class _QuietAssetImageViewState extends ConsumerState<QuietAssetImageView>
         frame.image.width.toDouble(),
         frame.image.height.toDouble(),
       );
-      if (cacheKey != null && cacheKey.isNotEmpty) {
-        _globalDimensionCache[cacheKey] = size;
-      }
       if (mounted) {
         setState(() {
           _intrinsicSize = size;

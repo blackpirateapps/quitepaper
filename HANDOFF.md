@@ -642,3 +642,9 @@ Validation: 19 compression/processor/editor-import tests passed. Flutter analysi
 Encrypted inline sources always consult the resolver, including qp URLs. Resolver and direct cache access check unlock status before plaintext hits, and secure key lock/logout clears the attachment cache. Resolver completion also rejects a locked vault. Widget and real-service regressions cover remount after lock and immediate cache purge.
 
 Validation: 24 inline/service/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-10 image/scanner audit fix — November 17, 2026
+
+Removed both process-wide inline source maps. Inline widgets retain only their current source and dimensions; encrypted sources use the bounded service cache and Flutter retains its normal bounded decoded-image cache. Regressions revisit 200 unmounted sources and verify data URLs create fresh source buffers on remount.
+
+Validation: 17 inline/scanner tests and 2 expanded retention tests passed. Flutter analysis clean. No full suite ran.

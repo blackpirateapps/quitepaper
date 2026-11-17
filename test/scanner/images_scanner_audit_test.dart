@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:quitepaper/core/attachments/presentation/quiet_asset_image_view.dart';
 import 'package:quitepaper/features/scanner/presentation/document_scanner_screen.dart';
 import 'package:quitepaper/features/scanner/presentation/widgets/page_adjustment_sheet.dart';
@@ -164,6 +165,34 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('IS-10 data URL source buffers are released between mounts', (tester) async {
+    final url = 'data:image/png;base64,${base64Encode(fixture())}';
+    await tester.pumpWidget(app(QuietAssetImageView(url: url)));
+    await frames(tester);
+    final first = (tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes;
+    await tester.pumpWidget(const SizedBox());
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    await tester.pumpWidget(app(QuietAssetImageView(url: url)));
+    await frames(tester);
+    final second = (tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes;
+    expect(second, first);
+    expect(identical(second, first), isFalse);
+  });
+  testWidgets('IS-10 unmounted inline sources are resolved again instead of retained globally', (tester) async {
+    final service = ProbeAssets(fixture());
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < 200; i++) {
+        await tester.pumpWidget(app(QuietAssetImageView(
+          key: ValueKey('$pass-$i'), assetId: 'retention-$i'), assets: service));
+        await tester.pump();
+      }
+      await tester.pumpWidget(const SizedBox());
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      expect(service.calls, (pass + 1) * 200);
+    }
+  });
   testWidgets(
     'IS-09 cached plaintext cannot bypass a locked resolver',
     (tester) async {
