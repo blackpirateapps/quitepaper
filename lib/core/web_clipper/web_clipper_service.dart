@@ -279,26 +279,6 @@ class WebClipperService {
       }
     } catch (_) {}
 
-    // 3. Query stripped match
-    if (trimmed.contains('?')) {
-      final base = trimmed.split('?').first;
-      if (snippetsMap.containsKey(base)) {
-        final uri = extractUri(snippetsMap[base]!);
-        if (uri != null) return uri;
-      }
-    }
-
-    // 4. Fallback scan entries
-    for (final entry in snippetsMap.entries) {
-      if (entry.key == trimmed ||
-          (trimmed.contains('?') &&
-              entry.key.split('?').first == trimmed.split('?').first) ||
-          (entry.key.contains('?') && entry.key.split('?').first == trimmed)) {
-        final uri = extractUri(entry.value);
-        if (uri != null) return uri;
-      }
-    }
-
     return null;
   }
 }

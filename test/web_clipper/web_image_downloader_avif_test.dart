@@ -107,9 +107,9 @@ void main() {
       expect(fakeAttachmentService.imports.length, 1);
       expect(fakeAttachmentService.imports.first.mimeType, 'image/avif');
 
-      // Verify snippet mappings for both raw URL and query-stripped URL
+      // Preserve query identity; never register a query-free alias.
       expect(results, contains('https://cdn.example.com/images/architecture.avif?token=xyz'));
-      expect(results, contains('https://cdn.example.com/images/architecture.avif'));
+      expect(results, isNot(contains('https://cdn.example.com/images/architecture.avif')));
       expect(results.values.first, contains('qp://asset/11111111-2222-3333-4444-555555555551'));
     });
   });

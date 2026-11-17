@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **7/16 fixed; 9 open**, with individual reports, resolutions and replayable evidence.
+records **8/16 fixed; 8 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -410,3 +410,9 @@ Validation: flutter analyze: clean; 10 redirect, scanner and parity tests passed
 Browser state copyWith now distinguishes omitted transient messages from explicit null. Navigation and reset calls can clear old error/status messages while unrelated copies preserve them.
 
 Validation: flutter analyze: clean; 11 browser controller and screen tests passed. No full suite ran.
+
+### WC-08 Android web clipper fix
+
+Image download mappings and Markdown resolution retain full query identity. Query-free aliases and path-only fallbacks were removed, so a failed image cannot inherit another illustration. Regression coverage checks both persisted snapshot and Markdown.
+
+Validation: flutter analyze: clean; 9 service and downloader tests passed. No full suite ran.

@@ -149,6 +149,52 @@ class FailingDocumentService extends FakeDocumentService {
 
 void main() {
   group('WebClipperService', () {
+    test(
+      'failed query image never receives another query image attachment',
+      () async {
+        final attachments = FakeAttachmentService();
+        final documents = FakeDocumentService();
+        final client = MockClient((request) async {
+          if (request.method == 'HEAD') return http.Response('', 200);
+          if (request.url.path == '/image') {
+            if (request.url.query == 'id=one') return http.Response('', 404);
+            return http.Response.bytes(
+              Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]),
+              200,
+              headers: {'content-type': 'image/png'},
+            );
+          }
+          return http.Response(
+            '<article><p>Distinct illustrations.</p>'
+            '<img src="/image?id=one" alt="One"><img src="/image?id=two" alt="Two"></article>',
+            200,
+          );
+        });
+        final service = WebClipperService(
+          notesRepository: InMemoryNotesRepository(),
+          documentService: documents,
+          scanner: WebClipperScanner(httpClient: client),
+          imageDownloader: WebImageDownloader(
+            attachmentService: attachments,
+            httpClient: client,
+          ),
+        );
+        final scan = await service.scanUrl('https://example.com/article');
+        final result = await service.clipArticle(
+          scanResult: scan,
+          options: const WebClipperOptions(),
+        );
+        expect(
+          result.note.content,
+          contains('![One](https://example.com/image?id=one)'),
+        );
+        expect(result.note.content, contains('![Two](qp://asset/'));
+        final snapshot = utf8.decode(documents.createdSnapshots.values.single);
+        expect(snapshot, contains('src="https://example.com/image?id=one"'));
+        expect(attachments.importedBytes.length, 1);
+      },
+    );
+
     test('respects custom and empty tag selections from the preview', () async {
       final repository = InMemoryNotesRepository();
       final service = WebClipperService(

@@ -8,10 +8,8 @@ import 'web_clipper_models.dart';
 /// Concurrently downloads article images, encrypts them client-side using [AttachmentService],
 /// and rewrites image references to canonical `qp://asset/<UUID>` URIs.
 class WebImageDownloader {
-  WebImageDownloader({
-    required this.attachmentService,
-    http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+  WebImageDownloader({required this.attachmentService, http.Client? httpClient})
+    : _httpClient = httpClient ?? http.Client();
 
   final AttachmentService attachmentService;
   final http.Client _httpClient;
@@ -25,7 +23,9 @@ class WebImageDownloader {
   }) async {
     final results = <String, String>{};
     final selectedCandidates = candidates.where((c) => c.isSelected).toList();
-    final listToDownload = selectedCandidates.isNotEmpty ? selectedCandidates : candidates;
+    final listToDownload = selectedCandidates.isNotEmpty
+        ? selectedCandidates
+        : candidates;
     if (listToDownload.isEmpty) {
       return results;
     }
@@ -39,40 +39,52 @@ class WebImageDownloader {
         final item = queue.removeAt(0);
         try {
           var uri = Uri.tryParse(item.resolvedUrl.trim());
-          if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+          if (uri == null ||
+              (!uri.isScheme('http') && !uri.isScheme('https'))) {
             try {
               uri = Uri.tryParse(Uri.encodeFull(item.resolvedUrl.trim()));
             } catch (_) {}
           }
 
-          if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+          if (uri == null ||
+              (!uri.isScheme('http') && !uri.isScheme('https'))) {
             continue;
           }
 
-          final response = await _httpClient.get(
-            uri,
-            headers: {
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9',
-              if (uri.hasAuthority) 'Referer': '${uri.scheme}://${uri.authority}/',
-              'Sec-Fetch-Dest': 'image',
-              'Sec-Fetch-Mode': 'no-cors',
-              'Sec-Fetch-Site': 'cross-site',
-            },
-          ).timeout(const Duration(seconds: 15));
+          final response = await _httpClient
+              .get(
+                uri,
+                headers: {
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                  'Accept':
+                      'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                  'Accept-Language': 'en-US,en;q=0.9',
+                  if (uri.hasAuthority)
+                    'Referer': '${uri.scheme}://${uri.authority}/',
+                  'Sec-Fetch-Dest': 'image',
+                  'Sec-Fetch-Mode': 'no-cors',
+                  'Sec-Fetch-Site': 'cross-site',
+                },
+              )
+              .timeout(const Duration(seconds: 15));
 
-          if (response.statusCode >= 200 && response.statusCode < 300 && response.bodyBytes.isNotEmpty) {
+          if (response.statusCode >= 200 &&
+              response.statusCode < 300 &&
+              response.bodyBytes.isNotEmpty) {
             final bytes = response.bodyBytes;
             if (bytes.length > AttachmentService.maxFileSizeBytes) {
-              debugPrint('Image ${item.resolvedUrl} exceeds max size limit, skipping');
+              debugPrint(
+                'Image ${item.resolvedUrl} exceeds max size limit, skipping',
+              );
               continue;
             }
 
             // Verify content is a meaningful image and not an empty spacer or icon
             if (!ClippedImageFilter.isMeaningfulImageBytes(bytes)) {
-              debugPrint('Image ${item.resolvedUrl} is a tiny icon or tracking spacer (<400B or <32x32), skipping');
+              debugPrint(
+                'Image ${item.resolvedUrl} is a tiny icon or tracking spacer (<400B or <32x32), skipping',
+              );
               continue;
             }
 
@@ -85,7 +97,9 @@ class WebImageDownloader {
               bytes,
               mimeType: mimeType,
               noteId: noteId,
-              preferredAltText: item.altText.isNotEmpty ? item.altText : 'Image',
+              preferredAltText: item.altText.isNotEmpty
+                  ? item.altText
+                  : 'Image',
             );
 
             final snippet = importResult.markdownSnippet;
@@ -132,22 +146,10 @@ class WebImageDownloader {
     final trimmed = url.trim();
     if (trimmed.isEmpty) return;
     map[trimmed] = snippet;
-    if (trimmed.contains('?')) {
-      final base = trimmed.split('?').first;
-      if (base.isNotEmpty) {
-        map[base] = snippet;
-      }
-    }
     try {
       final decoded = Uri.decodeFull(trimmed);
       if (decoded != trimmed) {
         map[decoded] = snippet;
-        if (decoded.contains('?')) {
-          final base = decoded.split('?').first;
-          if (base.isNotEmpty) {
-            map[base] = snippet;
-          }
-        }
       }
       final encoded = Uri.encodeFull(trimmed);
       if (encoded != trimmed) {

@@ -1,6 +1,6 @@
 # WC-08: A failed image can be replaced by a different image with the same URL path
 
-Status: **Open**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
+Status: **Fixed**. Priority: **P2**. Audited on `810704c40ce943d9b339279e5b83193001d32b01` (2026-11-17).
 
 ## Impact
 
@@ -26,3 +26,9 @@ The corresponding `WC-08` probe and its output are preserved in [evidence.md](ev
 
 - [`lib/core/web_clipper/web_image_downloader.dart:131`](../../../lib/core/web_clipper/web_image_downloader.dart#L131)
 - [`lib/core/web_clipper/web_clipper_service.dart:261`](../../../lib/core/web_clipper/web_clipper_service.dart#L261)
+
+## Resolution
+
+Image download mappings and Markdown resolution retain full query identity. Query-free aliases and path-only fallbacks were removed, so a failed image cannot inherit another illustration. Regression coverage checks both persisted snapshot and Markdown.
+
+Validation: flutter analyze: clean; 9 service and downloader tests passed. No full suite ran.
