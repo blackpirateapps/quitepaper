@@ -6874,3 +6874,29 @@ and are not available offline. Frames, shadow DOM and content not loaded in the
 current page are not captured. Firefox development loading is temporary until a
 signed distribution exists. The pre-existing untracked smart-tables plan is left
 untouched and excluded from this feature's commit.
+
+## 300. Register the browser clipper in the installed Brave Flatpak (November 17, 2026)
+
+After the user loaded the unpacked extension and supplied its ID, installed the
+complete CLI bundle under Brave's private app data `quietpaper/cli/`, added a
+private native messaging launcher and registered that exact extension origin in
+Brave's private `NativeMessagingHosts` directory. The launcher explicitly selects
+the existing canonical desktop notebook; inheriting Brave's XDG data directory
+would otherwise create a separate notebook inside the sandbox.
+
+Granted the notebook directory through a per-user Flatpak filesystem override,
+allowing SQLite database/WAL/shared-memory access without arbitrary host-process
+launch permissions. A full browser exit and reopen is required for the running
+browser to inherit this new grant. The user is responsible for that restart and
+the first browser save; no further browser UI automation was performed.
+
+Terminal verification from a fresh Brave Flatpak sandbox passed: the installed
+launcher responds to a framed protocol ping, the canonical notebook and its
+parent directory have the required access, and a synthetic capture saves using
+the bundled SQLite native library with one sync mutation in a temporary database.
+The temporary notebook is removed and the real notebook is not modified by the
+checks. README and HANDOFF now describe the Flatpak setup and restart requirement.
+
+Validation: `flutter analyze --no-pub` is clean and all seven tests in
+`test/cli/cli_browser_host_test.dart` pass. No full test suite was run. The
+pre-existing untracked smart-tables plan remains untouched.

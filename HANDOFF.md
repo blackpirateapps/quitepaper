@@ -55,6 +55,9 @@ page refetch, reader proxy, cookie transfer or local HTTP server. This version
 saves text and remote image links; image/CSS archives and HTML snapshots are not
 included. Build/load/registration instructions are in the
 [extension README](extensions/browser/README.md); see engineering log 299.
+Brave Flatpak can use a CLI bundle and host manifest inside its private app
+directory, with an explicit desktop database path and a notebook-directory
+filesystem grant. A full Brave restart activates the grant; see engineering log 300.
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image

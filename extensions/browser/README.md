@@ -63,8 +63,9 @@ needed. Other Chromium forks/custom user-data directories can use
 `--manifest-dir /absolute/path/to/NativeMessagingHosts`. `--db` optionally selects
 a separate notebook; normally leave it unset to share the desktop database.
 Rerunning installation replaces the previous allowlist: pass every Chrome ID
-you want to retain. Sandboxed Snap/Flatpak browsers may block access to an
-external native executable; use a native Linux browser package for this version.
+you want to retain. Sandboxed browsers need additional setup; the Brave Flatpak
+procedure below has been checked on this device. Other sandboxed packages remain
+unverified.
 
 Reload the extension after registration. Open a webpage, click the extension,
 and save a clip. The success message means the local database transaction has
@@ -75,6 +76,44 @@ is needed for a local capture.
 To remove registration, delete `app.quietpaper.web_clipper.json` from the browser
 directories listed above and the `quietpaper/browser-host` launcher directory.
 This leaves notes and your notebook untouched.
+
+## Brave installed through Flatpak
+
+Brave Flatpak cannot normally see an external CLI or the desktop notebook. Keep
+the extension and the complete CLI bundle inside its private app data instead:
+
+- Extension: `~/.var/app/com.brave.Browser/data/quietpaper/web-clipper/`.
+- CLI bundle: `~/.var/app/com.brave.Browser/data/quietpaper/cli/`, retaining both
+  `bin/qp` and `lib/libsqlite3.so`.
+- Private executable launcher:
+  `~/.var/app/com.brave.Browser/data/quietpaper/browser-host/launch`. It must run
+  the bundled `qp --db /absolute/path/to/desktop/quiet_paper.sqlite browser-host`.
+- Native host manifest:
+  `~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser/NativeMessagingHosts/app.quietpaper.web_clipper.json`.
+  Use the same native host schema described above: `name`, `description`, the
+  launcher's absolute `path`, `type: "stdio"`, and `allowed_origins` containing
+  `chrome-extension://YOUR_EXTENSION_ID/`. Paths in the manifest cannot use `~`.
+
+Load the unpacked extension from its private data path and use its actual ID in
+the allowlist. The general installer does not perform these Flatpak-specific
+copies or grant notebook access. For the canonical desktop database, grant the
+directory so SQLite can also create its WAL and shared-memory sidecar files:
+
+```sh
+flatpak override --user \
+  --filesystem="$HOME/.local/share/com.blackpiratex.quietpaper" com.brave.Browser
+```
+
+**Completely quit and reopen Brave** after adding this grant. Existing browser
+processes retain their previous sandbox permissions. The explicit `--db` path is
+essential: otherwise the CLI's XDG default would select a different notebook
+inside Brave's private data directory. The CLI runs inside the sandbox; this
+setup does not grant permission to launch arbitrary host commands.
+
+On this device, the installed launcher was checked from a fresh Brave Flatpak
+process with a native protocol ping, notebook-directory access checks, and a
+synthetic clip saved to a temporary notebook. These terminal checks leave real
+notes untouched; the first browser save still needs the full restart above.
 
 ## Implementation and checks
 
