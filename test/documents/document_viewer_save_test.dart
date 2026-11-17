@@ -23,6 +23,16 @@ import '../pdf/syncfusion_pdf_page_renderer_test.dart'
 class SaveService extends Fake implements DocumentService {
   Completer<void>? gate;
   bool fail = false;
+  late ResourceResolution<ResolvedDocumentInfo> resolution;
+  int resolveCalls = 0;
+  @override
+  Future<ResourceResolution<ResolvedDocumentInfo>> resolveDocument(
+    String documentId,
+  ) async {
+    resolveCalls++;
+    return resolution;
+  }
+
   final saved = <Uint8List>[];
   @override
   Future<Uint8List?> resolveAnnotatedBytes(String documentId) async => null;
@@ -60,6 +70,7 @@ Future<void> openSaveViewer(WidgetTester tester, SaveService service) async {
       sha256: 'test',
     ),
   );
+  service.resolution = resolution;
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

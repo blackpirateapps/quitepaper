@@ -210,7 +210,11 @@ Evidence: `sidebar-probes.jsonl`, `250 page random jump 125` native record.
 
 ## PDF-07 — malformed PDFs leave a blank viewer with no error or retry message
 
-**Open. Medium. Native Linux invalid-PDF fixture.**
+**Fixed. (November 17, 2026). Medium. Native Linux invalid-PDF fixture.**
+
+Resolution: Syncfusion load failures now set a visible document error, remove the blank viewer and zoom controls, and hide misleading page context. Try Again resolves and initializes the document afresh. The load-failure/retry regression and three annotation-save regressions pass.
+
+Verification: `flutter analyze` and `flutter test test/documents/document_viewer_loading_test.dart test/documents/document_viewer_save_test.dart` passed. No full suite ran.
 
 Open the synthetic encrypted document containing `%PDF-1.7` followed by invalid
 data. Syncfusion reports a load failure and zero pages, but the app continues to

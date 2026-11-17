@@ -116,6 +116,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
   Uint8List? _activePdfBytes;
   bool _isLoading = true;
+  String? _pdfLoadError;
   bool _hasAnnotatedDerivative = false;
   Future<Uint8List>? _pendingAnnotationSave;
   int _annotationRevision = 0;
@@ -202,6 +203,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
 
     final bytes = annotatedBytes ?? docInfo.pdfBytes;
     setState(() {
+      _pdfLoadError = null;
       _pdfViewerStateKey = GlobalKey<SfPdfViewerState>();
       _hasAnnotatedDerivative = annotatedBytes != null;
       _activePdfBytes = bytes;
@@ -1264,7 +1266,7 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (docInfo != null)
+              if (docInfo != null && _pdfLoadError == null)
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -1667,6 +1669,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
       return _buildErrorState(colors, res);
     }
 
+    if (_pdfLoadError != null) {
+      return _buildErrorState(colors, res);
+    }
+
     if (_activePdfBytes == null || _activePdfBytes!.isEmpty) {
       return _buildErrorState(colors, res);
     }
@@ -1820,9 +1826,11 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
                             }
                           },
                           onDocumentLoadFailed: (details) {
-                            debugPrint(
-                              '[DocumentViewerScreen] SfPdfViewer load failed: ${details.error}',
-                            );
+                            if (!mounted) return;
+                            setState(() {
+                              _pdfLoadError = details.description;
+                              _hideFloatingSelectionMenu();
+                            });
                           },
                           onPageChanged: (details) {
                             _selectedPageIndexNotifier.value =
@@ -2300,7 +2308,10 @@ class _DocumentViewerScreenState extends ConsumerState<DocumentViewerScreen> {
     AppColors colors,
     ResourceResolution<ResolvedDocumentInfo>? res,
   ) {
-    final message = res?.errorMessage ?? 'Unable to load scanned document.';
+    final message =
+        _pdfLoadError ??
+        res?.errorMessage ??
+        'Unable to load scanned document.';
     final isLocked = res?.isLocked ?? false;
 
     return Center(
