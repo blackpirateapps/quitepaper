@@ -654,3 +654,9 @@ Validation: 17 inline/scanner tests and 2 expanded retention tests passed. Flutt
 Inline loads snapshot source identity and variant, reset previous bytes/dimensions, and guard every async success/error and dimension decode with a request generation. Native codecs and decoded frames are disposed after measurement. Regressions cover both completion orders, stale failures and variant-only changes.
 
 Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suite ran.
+
+### IS-12 image/scanner audit fix — November 17, 2026
+
+Scanner capture, picker, file reads and preparation check mounting before continuing. Disposal invalidates pending preparation generations, and mode jobs ignore removed pages. The delayed-picker regression captures diagnostics and verifies no preparation or disposed-state mutation occurs.
+
+Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No full suite ran.

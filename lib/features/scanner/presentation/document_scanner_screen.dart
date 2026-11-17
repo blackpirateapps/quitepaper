@@ -113,6 +113,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
 
   @override
   void dispose() {
+    _performanceTracker.nextGeneration();
     _pulseController.dispose();
     _cameraController?.dispose();
     super.dispose();
@@ -159,19 +160,21 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   }
 
   Future<void> _capturePage({int? replaceIndex}) async {
-    if (_isProcessing) return;
+    if (!mounted || _isProcessing) return;
 
     Uint8List? rawBytes;
 
     if (_isCameraInitialized && _cameraController != null) {
       try {
         final xFile = await _cameraController!.takePicture();
+        if (!mounted) return;
         rawBytes = await xFile.readAsBytes();
       } catch (e) {
         debugPrint('Camera takePicture error: $e');
       }
     }
 
+    if (!mounted) return;
     // Fallback: pick image from device if camera is not active or capture fails
     if (rawBytes == null) {
       await _importPageFromGallery(replaceIndex: replaceIndex);
@@ -265,6 +268,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   }
 
   Future<void> _importPageFromGallery({int? replaceIndex}) async {
+    if (!mounted) return;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -273,12 +277,15 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
         allowMultiple: replaceIndex == null,
       );
 
+      if (!mounted) return;
       if (result != null && result.files.isNotEmpty) {
         for (final file in result.files) {
+          if (!mounted) return;
           Uint8List? bytes = file.bytes;
           if (bytes == null && file.path != null) {
             bytes = await File(file.path!).readAsBytes();
           }
+          if (!mounted) return;
           if (bytes != null) {
             await _processAndAddPage(bytes, replaceIndex: replaceIndex);
             if (replaceIndex != null) break;
@@ -294,6 +301,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
     Uint8List rawBytes, {
     int? replaceIndex,
   }) async {
+    if (!mounted) return;
     final generation = _performanceTracker.nextGeneration();
     final stopwatch = Stopwatch()..start();
 
@@ -307,7 +315,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
       final reps = await imageProcessor.createPageRepresentations(rawBytes);
 
       // Async Race Protection: Ensure this job is still the latest generation
-      if (!_performanceTracker.isGenerationCurrent(generation)) {
+      if (!mounted || !_performanceTracker.isGenerationCurrent(generation)) {
         debugPrint('Discarded stale preview generation $generation');
         return;
       }
@@ -387,12 +395,13 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   /// Bakes the carousel thumbnails for every mode off the UI isolate and caches
   /// them keyed by page id.
   Future<void> _computeModePreviews(ScannedPage page) async {
+    if (!mounted) return;
     try {
       final imageProcessor = ref.read(imageProcessorProvider);
       final previews = await imageProcessor.renderModePreviews(
         page.previewBytes,
       );
-      if (!mounted) return;
+      if (!mounted || !_pages.any((p) => p.id == page.id)) return;
       setState(() => _modePreviews[page.id] = previews);
     } catch (e) {
       debugPrint('Mode preview generation failed: $e');
@@ -402,6 +411,7 @@ class _DocumentScannerScreenState extends ConsumerState<DocumentScannerScreen>
   /// Best-effort automatic document-corner detection; pre-fills the page's quad
   /// when confident so the user opens the crop editor to an already-framed page.
   Future<void> _detectQuad(ScannedPage page, Uint8List rawBytes) async {
+    if (!mounted) return;
     final revision = _geometryRevisions[page.id] ?? 0;
     try {
       final imageProcessor = ref.read(imageProcessorProvider);

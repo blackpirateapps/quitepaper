@@ -6,7 +6,7 @@ Read first: `HANDOFF.md`, `handoff/ocr-and-documents.md`, and scanner/image sour
 
 ## Findings
 
-**14 confirmed, 11 fixed, 3 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
+**14 confirmed, 12 fixed, 2 open.** P1 = high priority for lost/incorrect exported content, misleading save success, privacy boundaries or UI stalls. P2 = ordinary functional correctness or memory-growth risk. Priority is triage guidance; timing and exposure limits are stated per finding.
 
 | ID | Priority | Defect | Production source |
 | --- | --- | --- | --- |
@@ -148,11 +148,16 @@ Resolution: Inline loads snapshot source identity and variant, reset previous by
 
 Validation: 23 inline/scanner tests passed. Flutter analysis clean. No full suite ran.
 
-### IS-12 — P2 — A gallery result after scanner disposal calls setState on a dead screen (OPEN)
+### IS-12 — P2 — A gallery result after scanner disposal calls setState on a dead screen (FIXED)
 
 Confirmed by delayed native-picker callback in the scanner widget: open import, remove the route, then complete the picker with a valid page. `_importPageFromGallery` enters `_processAndAddPage`, which calls `setState` before any `mounted` check. The enclosing gallery catch swallows the exception and logs `setState() called after dispose()`; it does not crash the process in this reproduction. Capture/read callbacks have the same missing pre-processing lifetime guard.
 
 Expected: ignore the late result after cancellation. Actual: attempted mutation of disposed state and diagnostic error. Fix direction: check mounting after picker/camera/file awaits and cancel or invalidate session jobs on disposal. Evidence: `probes/widget_probe.dart`, `evidence/final-audit-probes.log`.
+
+
+Resolution: Scanner capture, picker, file reads and preparation check mounting before continuing. Disposal invalidates pending preparation generations, and mode jobs ignore removed pages. The delayed-picker regression captures diagnostics and verifies no preparation or disposed-state mutation occurs.
+
+Validation: 19 scanner lifecycle/UI tests passed. Flutter analysis clean. No full suite ran.
 
 ### IS-13 — P2 — Opening a preloaded network image triggers a build-phase setState error (OPEN)
 

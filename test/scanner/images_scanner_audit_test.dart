@@ -165,6 +165,35 @@ Future<void> frames(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('IS-12 late gallery callback after disposal is ignored', (
+    tester,
+  ) async {
+    final messages = <String>[];
+    final originalDebugPrint = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) { messages.add(message ?? ''); };
+    addTearDown(() => debugPrint = originalDebugPrint);
+    final pending = Completer<FilePickerResult?>();
+    FilePicker.platform = AuditPicker()..pending = pending;
+    final processor = ProbeProcessor();
+    await tester.pumpWidget(
+      app(const DocumentScannerScreen(), processor: processor),
+    );
+    await frames(tester);
+    await tester.tap(find.byTooltip('Import from files'));
+    await frames(tester);
+    await tester.pumpWidget(const SizedBox());
+    final bytes = fixture();
+    pending.complete(
+      FilePickerResult([
+        PlatformFile(name: 'late.png', size: bytes.length, bytes: bytes),
+      ]),
+    );
+    await frames(tester);
+    expect(processor.preparations, 0);
+    expect(messages.join('\n'), isNot(contains('after dispose')));
+    expect(tester.takeException(), isNull);
+    debugPrint = originalDebugPrint;
+  });
   for (final staleFailure in [false, true]) {
     for (final oldFirst in [false, true]) {
       testWidgets('IS-11 source switch ignores stale load (failure=$staleFailure oldFirst=$oldFirst)', (tester) async {
