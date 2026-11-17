@@ -194,7 +194,11 @@ native results `PDF actual page count` and `Navigate actual fourth page`.
 
 ## PDF-06 — large-document sidebar scrolls away from the active page
 
-**Open. Medium. 250-page widget probe and native observation.**
+**Fixed. (November 17, 2026). Medium. 250-page widget probe and native observation.**
+
+Resolution: The sidebar uses a fixed list item extent derived from its width and scaled label height, shared by tile layout and selected-page scrolling. All eight relevant tests pass, including 250-page jumps at three widths and two text scales with full selected-tile visibility.
+
+Verification: `flutter analyze` and `flutter test test/documents/pdf_thumbnail_sidebar_test.dart test/documents/document_viewer_thumbnail_test.dart` passed. No full suite ran.
 
 Set the active page to 125 in a standard 140px thumbnail sidebar. The selected
 tile is outside the visible viewport after scrolling settles. Native random

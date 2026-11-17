@@ -36,7 +36,9 @@ class PdfThumbnailSidebar extends ConsumerStatefulWidget {
 
 class _PdfThumbnailSidebarState extends ConsumerState<PdfThumbnailSidebar> {
   late final ScrollController _scrollController;
-  static const double _itemEstimatedHeight = 195.0;
+  double get _labelHeight => MediaQuery.textScalerOf(context).scale(11) * 1.3;
+  double get _itemExtent =>
+      (widget.width - 2 * (AppSpacing.xs + 2)) * 1.33 + 16 + _labelHeight;
 
   @override
   void initState() {
@@ -72,12 +74,15 @@ class _PdfThumbnailSidebarState extends ConsumerState<PdfThumbnailSidebar> {
     final activeIndex = widget.selectedPageIndexListenable.value;
     final currentOffset = _scrollController.offset;
     final viewportHeight = _scrollController.position.viewportDimension;
-    final itemTop = activeIndex * _itemEstimatedHeight;
-    final itemBottom = itemTop + _itemEstimatedHeight;
+    final itemTop = AppSpacing.sm + activeIndex * _itemExtent;
+    final itemBottom = itemTop + _itemExtent;
 
-    if (itemTop < currentOffset || itemBottom > currentOffset + viewportHeight) {
-      final target = (itemTop - (viewportHeight - _itemEstimatedHeight) / 2)
-          .clamp(0.0, _scrollController.position.maxScrollExtent);
+    if (itemTop < currentOffset ||
+        itemBottom > currentOffset + viewportHeight) {
+      final target = (itemTop - (viewportHeight - _itemExtent) / 2).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      );
       _scrollController.animateTo(
         target,
         duration: const Duration(milliseconds: 250),
@@ -102,6 +107,7 @@ class _PdfThumbnailSidebarState extends ConsumerState<PdfThumbnailSidebar> {
               vertical: AppSpacing.sm,
               horizontal: AppSpacing.xs + 2,
             ),
+            itemExtent: _itemExtent,
             itemCount: widget.pageCount,
             itemBuilder: (context, index) {
               final isSelected = activeIndex == index;
@@ -112,6 +118,7 @@ class _PdfThumbnailSidebarState extends ConsumerState<PdfThumbnailSidebar> {
                 pdfBytes: widget.pdfBytes,
                 isSelected: isSelected,
                 colors: colors,
+                labelHeight: _labelHeight,
                 onTap: () => widget.onPageSelected(index),
               );
             },
@@ -130,6 +137,7 @@ class _ThumbnailTile extends ConsumerStatefulWidget {
     required this.pdfBytes,
     required this.isSelected,
     required this.colors,
+    required this.labelHeight,
     required this.onTap,
   });
 
@@ -138,6 +146,7 @@ class _ThumbnailTile extends ConsumerStatefulWidget {
   final Uint8List pdfBytes;
   final bool isSelected;
   final AppColors colors;
+  final double labelHeight;
   final VoidCallback onTap;
 
   @override
@@ -164,7 +173,9 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
   }
 
   void _loadThumbnail() {
-    _thumbnailFuture = ref.read(pdfThumbnailServiceProvider).getPageThumbnail(
+    _thumbnailFuture = ref
+        .read(pdfThumbnailServiceProvider)
+        .getPageThumbnail(
           documentId: widget.documentId,
           pageIndex: widget.pageIndex,
           pdfBytes: widget.pdfBytes,
@@ -189,28 +200,27 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                decoration: BoxDecoration(
-                  color: colors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                  border: Border.all(
-                    color: isSelected ? colors.accent : colors.borderSubtle,
-                    width: isSelected ? 2.0 : 1.0,
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    border: Border.all(
+                      color: isSelected ? colors.accent : colors.borderSubtle,
+                      width: isSelected ? 2.0 : 1.0,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: colors.accent.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: colors.accent.withValues(alpha: 0.3),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: AspectRatio(
-                  aspectRatio: 1 / 1.33,
+                  clipBehavior: Clip.antiAlias,
                   child: FutureBuilder<Uint8List?>(
                     future: _thumbnailFuture,
                     builder: (context, snapshot) {
@@ -222,12 +232,17 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
                             fit: BoxFit.contain,
                             filterQuality: FilterQuality.low,
                             frameBuilder:
-                                (context, child, frame, wasSynchronouslyLoaded) {
-                              if (wasSynchronouslyLoaded || frame != null) {
-                                return child;
-                              }
-                              return _buildLoadingPlaceholder(colors);
-                            },
+                                (
+                                  context,
+                                  child,
+                                  frame,
+                                  wasSynchronouslyLoaded,
+                                ) {
+                                  if (wasSynchronouslyLoaded || frame != null) {
+                                    return child;
+                                  }
+                                  return _buildLoadingPlaceholder(colors);
+                                },
                           );
                         }
                         return Center(
@@ -244,12 +259,16 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                '${widget.pageIndex + 1}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? colors.accent : colors.textSecondary,
+              SizedBox(
+                height: widget.labelHeight,
+                child: Text(
+                  '${widget.pageIndex + 1}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.2,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? colors.accent : colors.textSecondary,
+                  ),
                 ),
               ),
             ],

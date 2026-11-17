@@ -56,7 +56,7 @@ for commands, credential prerequisites, failure recovery and sync boundaries.
 ## PDF Viewer Stress Audit — Remediation
 
 The [PDF viewer audit](handoff/audits/pdf-viewer-stress-2026-11-16/README.md)
-against `5d869e9` found 10 confirmed bugs. **3/10 now fixed; 7 open.**
+against `5d869e9` found 10 confirmed bugs. **4/10 now fixed; 6 open.**
 Each fix has its own commit, focused regression coverage, and resolution in the
 audit report. Full-suite testing is excluded from this remediation.
 
@@ -222,3 +222,10 @@ Validation: `flutter analyze`; `flutter test test/documents/document_viewer_save
 Thumbnail requests carry a document generation. Deletion invalidates old renders, drains pending writes, and gates replacement requests until disk cleanup completes. Gated regressions verify replacement bytes, encrypted reload, and no recreation of deleted-document directories; all eight relevant cache tests pass.
 
 Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_invalidation_test.dart test/documents/pdf_thumbnail_service_test.dart test/documents/pdf_thumbnail_stress_test.dart`. No full suite ran.
+
+
+### PDF-06 fixed — November 17, 2026
+
+The sidebar uses a fixed list item extent derived from its width and scaled label height, shared by tile layout and selected-page scrolling. All eight relevant tests pass, including 250-page jumps at three widths and two text scales with full selected-tile visibility.
+
+Validation: `flutter analyze`; `flutter test test/documents/pdf_thumbnail_sidebar_test.dart test/documents/document_viewer_thumbnail_test.dart`. No full suite ran.
