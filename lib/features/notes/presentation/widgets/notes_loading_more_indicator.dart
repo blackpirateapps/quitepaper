@@ -11,8 +11,10 @@ class NotesLoadingMoreIndicator extends StatelessWidget {
     required this.loadingMore,
     required this.error,
     required this.onRetry,
+    this.initialLoad = false,
   });
 
+  final bool initialLoad;
   final bool loadingMore;
   final Object? error;
   final VoidCallback onRetry;
@@ -23,7 +25,9 @@ class NotesLoadingMoreIndicator extends StatelessWidget {
 
     if (error != null) {
       return Semantics(
-        label: 'Could not load more notes. Tap to retry.',
+        label: initialLoad
+            ? 'Could not load notes. Tap to retry.'
+            : 'Could not load more notes. Tap to retry.',
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
@@ -38,12 +42,20 @@ class NotesLoadingMoreIndicator extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.error_outline_rounded, size: 18, color: colors.error),
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 18,
+                  color: colors.error,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Couldn\'t load more notes',
-                    style: AppTypography.caption.copyWith(color: colors.textSecondary),
+                    initialLoad
+                        ? "Couldn't load notes"
+                        : "Couldn't load more notes",
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ),
                 QuietButton(

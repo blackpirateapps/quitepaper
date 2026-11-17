@@ -7088,3 +7088,135 @@ relevant existing extractor/converter/filter/preview/browser files pass 23 tests
 and four temporary component probes pass by characterizing the bugs. Concurrency
 was 1; no full suite ran. A synthetic-font preview overflow suspicion was excluded:
 native evidence identifies the URL-dialog loading state instead.
+
+
+## 317. Notes List Bug and Performance Audit (November 17, 2026)
+
+Audited main `9bf2cdd` on `audit/notes-list-2026-11-17` after reading HANDOFF and
+the tags/search guide. The [audit report](audits/notes-list-2026-11-17/README.md)
+documents ten open findings with severity, source locations, deterministic
+reproduction, expected/observed behavior and proposed acceptance checks.
+
+Confirmed defects: initial read failures render an empty library; modification-date
+grouping breaks title ordering; metadata cache identity retains stale tags;
+refresh discards loaded notes beyond 250; refresh/query generations collide;
+Retry skips failed refreshes; prewarming beyond the 500-entry LRU reparses the
+collection; desktop ZIP export silently keeps an existing file; paginated mapping
+drops journal/share metadata; and failed destination loads retain old-context rows.
+
+No application code or architecture changed. Replay sources live under the audit,
+outside normal test discovery, because bug-characterization passes confirm bugs
+rather than enforce their absence. Isolated fixtures never open user notes. Native
+profiling uses an in-memory 10,000-note database, 1,000 loaded rows, and real Linux
+profile frame timings at desktop and phone viewport sizes. Mobile widget coverage
+uses Android platform variants; physical mobile performance remains unverified.
+
+Validation: 141 existing notes/gesture tests and 21 focused audit probes pass.
+Static analysis is clean. The report records native measurements. No full
+test suite ran. The pre-existing smart-tables prompt remains outside this commit.
+
+## 318. NL-01 Notes List Remediation (November 17, 2026)
+
+Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
+
+## 319. NL-02 Notes List Remediation (November 17, 2026)
+
+Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.
+
+## 320. NL-03 Notes List Remediation (November 17, 2026)
+
+Metadata cache keys compare exact content, title, timestamp, tag values and snippet rather than content length and partial hashes. Same-time tag edits and same-length body replacements now produce fresh metadata, while unchanged values reuse cached instances. Exact note-ID invalidation preserves other IDs.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; cache, journal metadata, scrolling and screen regression files: 19 passed. No full suite ran.
+
+## 321. NL-04 Notes List Remediation (November 17, 2026)
+
+Refresh reconstructs the loaded window using bounded keyset pages and publishes the replacement atomically. Regressions retain 440 and 1,000 loaded IDs, edited content and continuation cursors; phone and desktop lists preserve a deep visible row and its scroll position.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery, pagination races and screen regressions: 16 passed. No full suite ran.
+
+## 322. NL-05 Notes List Remediation (November 17, 2026)
+
+The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.
+
+## 323. NL-06 Notes List Remediation (November 17, 2026)
+
+Retry dispatches the recorded failed operation: initial load, refresh, or next page. Failed refreshes restart at the beginning even at end-of-list, and failed pages retry their cursor without losing loaded notes. Automatic scrolling leaves a displayed error intact until Retry or explicit refresh.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
+
+## 324. NL-08 Notes List Remediation (November 17, 2026)
+
+Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
+
+## 325. NL-09 Notes List Remediation (November 17, 2026)
+
+Desktop ZIP exports always replace and flush picker-returned paths before reporting success. Null/empty picker responses cancel without writing; picker and filesystem failures show an export error. Mobile pickers retain ownership of supplied bytes. Regressions decode exact new/overwritten archives and cover cancellation and failures.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 16 passed. No full suite ran.
+
+## 326. NL-10 Notes List Remediation (November 17, 2026)
+
+Full and paginated reads share a complete NoteEntity-to-Note mapper, including journalDate, shareId and shareUrl. Batch tag hydration remains unchanged. Regressions compare every persisted domain field across active, Archive and Trash reads, including journal/share flags and local pins.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; database query and pin-scope files: 25 passed. No full suite ran.
+
+## 327. NL-11 Notes List Remediation (November 17, 2026)
+
+New queries immediately clear old rows, counts and cursors, including destination, tag, sort and filter transitions. Query changes also end batch selection so old IDs cannot be acted on under the new query. Phone/desktop regressions assert empty loading/error collections, no actionable old rows, and successful Retry with the new predicates retained.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; screen, recovery and selection regression files: 46 passed. No full suite ran.
+
+Final notes-list integration validation: all **192** relevant notes and gesture
+tests pass with `--concurrency=1`; Flutter analysis reports no issues. The full
+suite was not run. Historical probes remain separate from normal discovery.
+The normal Linux profile bundle was restored from `lib/main.dart`; final test,
+analysis and build logs are retained in the audit fix-verification directory.

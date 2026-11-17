@@ -1,0 +1,155 @@
+00:00 +0: loading /home/dog/git/quitepaper/test/notes/note_security_service_test.dart
+00:00 +0: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService encrypts and decrypts note payload accurately with valid password
+00:00 +1: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService throws InvalidNotePasswordException when wrong password is used
+00:00 +2: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: NoteSecurityService isEncrypted returns false for normal markdown text
+00:00 +3: /home/dog/git/quitepaper/test/notes/note_security_service_test.dart: Note Model Password Protection Helpers isPasswordProtected, displayTitle, and previewSnippet for encrypted notes
+00:01 +4: loading /home/dog/git/quitepaper/test/notes/notes_domain_test.dart
+00:02 +4: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort default configuration is Recently Updated descending with pinnedFirst
+00:02 +5: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort serializes to and from JSON correctly
+00:02 +6: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesSort display names adapt to sort field and direction
+00:02 +7: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Today
+00:02 +8: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Yesterday
+00:02 +9: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Last 7 Days
+00:02 +10: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Last 30 Days
+00:02 +11: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for This Year
+00:02 +12: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: DateFilterRange & Boundaries calculates half-open boundaries for Custom Range
+00:02 +13: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter empty filter reports isEmpty true and activeFilterCount 0
+00:02 +14: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter activeFilterCount aggregates all configured predicates accurately
+00:02 +15: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter clearAdvancedFilters resets predicates while optionally preserving tags
+00:02 +16: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesFilter serializes to and from JSON
+00:02 +17: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesCursor extracts deterministic keys from Note
+00:02 +18: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesCursor serializes to and from JSON
+00:02 +19: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery default query initializes with active context and generation 0
+00:02 +20: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery resetPagination clears cursor and increments generation
+00:02 +21: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery nextPage updates cursor while preserving generation
+00:02 +22: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: NotesQuery serializes to and from JSON with version 1
+00:02 +23: /home/dog/git/quitepaper/test/notes/notes_domain_test.dart: SavedFilter serializes to and from JSON
+00:02 +24: loading /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart
+00:04 +24: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Updated sort DESC orders newest modified first with ID tie-breaker
+00:04 +25: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Created sort ASC orders oldest created first
+00:04 +26: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Title sort is case-insensitive NOCASE and supports duplicate titles
+00:04 +27: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Sorting & Deterministic Ordering Pinned first sorting partitions pinned notes ahead of unpinned notes
+00:04 +28: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Context Isolation filters notes by active, archive, and trash contexts
+00:04 +29: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering single tag filter returns matching notes
+00:04 +30: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering multiple tags with MatchMode.all (AND) requires all tags
+00:04 +31: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering multiple tags with MatchMode.any (OR) matches either tag
+00:04 +32: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Tag Filtering untaggedOnly returns notes with zero tag associations
+00:04 +33: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters content predicates filter code, checklists, tasks, and links
+00:04 +34: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters attachment and OCR filters query actual database relationships
+00:04 +35: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: NotesQuery Database Content & Attachment Filters security filter separates password protected notes
+00:04 +36: /home/dog/git/quitepaper/test/notes/notes_query_database_test.dart: Large Dataset Keyset Pagination (125 Notes across 4 Batches) paginates 125 notes incrementally using keyset cursors without duplicate items
+00:05 +37: loading /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart
+00:07 +37: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesSortSheet Widget Tests renders sort options and selects Recently Created
+00:09 +38: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesSortSheet Widget Tests anchors to the bottom and respects maxWidth on tablet viewport
+00:09 +39: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesFilterSheet Widget Tests renders sections and allows toggling content filter and applying
+00:10 +40: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: NotesFilterButton Widget Tests displays clean icon when count is 0 and badge when count > 0
+00:10 +41: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests takes 0 space when only standard tag is selected (no duplication)
+00:10 +42: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests renders active chips and removes individual filter on tap
+00:10 +43: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: ActiveFilterChips Widget Tests collapses to max 2 chips plus +N when many advanced filters active
+00:10 +44: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests header title remains All Notes when a tag filter is active
+00:11 +45: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests notes list screen displays only 3 options (Create, Search, More) and exposes Sort & Filter in More menu
+00:11 +46: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: Responsive NotesScreen Header Tests tablet middle pane displays only 3 options (Create, Search, More) with Phosphor icons
+00:11 +47: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests creates, lists, and applies saved smart view
+00:12 +48: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests deletes saved smart view with confirmation dialog and cancel/confirm
+00:12 +49: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests renames saved smart view
+00:12 +50: /home/dog/git/quitepaper/test/notes/notes_filter_and_sort_ui_test.dart: SavedFiltersSheet & Service Tests NotesFilterSheet renders Saved views button and opens SavedFiltersSheet
+00:13 +51: loading /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart
+00:14 +51: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) parses location, moment, mood, and weather into NoteMetadata
+00:14 +52: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) locked notes expose no journal metadata
+00:14 +53: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) cache hit returns the same instance
+00:14 +54: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) entry with no location frontmatter yields null location
+00:14 +55: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) empty-coordinate blank-address location is treated as absent
+00:14 +56: /home/dog/git/quitepaper/test/notes/note_metadata_journal_test.dart: NoteMetadata journal metadata (§2.1) plain non-journal note has null journal metadata
+00:14 +57: loading /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart
+00:16 +57: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts title and preview from plain note
+00:16 +58: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests derives title from first line when title is empty
+00:16 +59: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts title and description from YAML frontmatter (Clipped Note)
+00:16 +60: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests strips Markdown syntax (headers, quotes, lists, checklists, formatting)
+00:16 +61: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts Markdown table preview cleanly into NoteTablePreview
+00:16 +62: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests extracts text attachment metadata for PDFs, images, and files
+00:16 +63: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests protects password-protected note preview
+00:16 +64: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests caches extracted NoteMetadata and returns identical instance on cache hit
+00:16 +65: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests evicts oldest LRU entry when cache capacity exceeds maxCacheSize
+00:16 +66: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteMetadataExtractor Unit Tests fast-path heuristics correctly handle plain text notes with no special markers
+00:16 +67: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Classic Paper Light theme with distinct doc pill badge
+00:17 +68: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Classic Paper Dark theme
+00:17 +69: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Warm Paper Light theme
+00:17 +70: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders cleanly in Midnight Paper Dark theme
+00:17 +71: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders NoteMiniTablePreview in note tile for table notes
+00:17 +72: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests handles tap and tag tap callbacks
+00:17 +73: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders search query highlights correctly
+00:17 +74: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile & NoteMiniTablePreview Widget Tests renders pinned and password protected icons
+00:17 +75: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests renders Text File document sheet thumbnail with label
+00:17 +76: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests renders PDF thumbnail placeholder when loading or unavailable
+00:17 +77: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailView Widget Tests clearThumbnailCaches executes cleanly
+00:17 +78: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteDateHeader Tests renders header with and without top divider
+00:17 +79: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteListTile Desktop Context Menu Tests secondary tap shows context menu with duplicate option and invokes callback
+00:18 +80: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests stores, retrieves, and clears thumbnail byte buffers
+00:18 +81: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests deduplicates concurrent in-flight thumbnail resolution requests
+00:18 +82: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests enforces bounded LRU cache capacity when limit is reached
+00:18 +83: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests NoteThumbnailView maintains keep-alive and renders with downscaled cacheWidth/cacheHeight
+00:18 +84: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests persists thumbnails to disk and reloads them after RAM cache is cleared (simulating app restart)
+00:18 +85: /home/dog/git/quitepaper/test/notes/notes_list_redesign_test.dart: NoteThumbnailCache & Scrolling Optimization Tests evicts thumbnail from both RAM and disk caches
+00:18 +86: loading /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart
+00:19 +86: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage setPinnedInTag records the tag and persists on the note
+00:20 +87: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage unpinning a tag removes it from pinnedTags
+00:20 +88: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage a per-tag pin survives a content edit
+00:20 +89: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: per-tag pin storage removing the tag from content prunes its pin
+00:20 +90: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: ordering & grouping scope a per-tag pin floats inside its tag but NOT in All Notes
+00:20 +91: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: ordering & grouping scope a global pin floats in All Notes and inside a tag view
+00:20 +92: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation aggregates both global and per-tag pins
+00:20 +93: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation watchNotes(isPinned: true) aggregates global and per-tag pins
+00:20 +94: /home/dog/git/quitepaper/test/notes/note_pin_scope_test.dart: Pinned smart view aggregation NotesQueryNotifier preserves pinnedOnly when clearAllFilters is called in Pinned destination
+00:20 +95: loading /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart
+00:21 +95: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions no Select text action in the app bar
+00:23 +96: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions long-press on mobile enters multi-select with note selected
+00:23 +97: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions Escape exits multi-select
+00:24 +98: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions destination change clears multi-select
+00:24 +99: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions batch archive moves selected notes out of All Notes
+00:24 +100: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions batch trash moves selected notes to trash
+00:25 +101: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: Notes multi-select entry & batch actions More menu Select notes enters multi-select
+00:25 +102: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: NoteListTile multi-select gestures desktop context menu includes Select and enters via callback
+00:25 +103: /home/dog/git/quitepaper/test/notes/notes_multi_select_test.dart: NoteListTile multi-select gestures long-press calls onEnterMultiSelect on non-desktop
+00:25 +104: loading /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart
+00:27 +104: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Race condition between loadMore and table updates never freezes loadingMore at true
+00:28 +105: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Multi-page pagination smoothly loads 100 notes without duplicates
+00:28 +106: /home/dog/git/quitepaper/test/notes/notes_pagination_race_test.dart: Debounced refresh preserves loaded note count and scroll depth
+00:29 +107: loading /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart
+00:31 +107: /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart: Notes Scroll Performance & Pre-warming Tests NoteMetadataExtractor.prewarmAll pre-populates LRU cache for all notes
+00:31 +108: /home/dog/git/quitepaper/test/notes/notes_scroll_performance_test.dart: Notes Scroll Performance & Pre-warming Tests NoteListTile uses localized hover notifier and RepaintBoundary
+00:33 +109: loading /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart
+00:34 +109: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: renders tags in default order when no tag is selected
+00:35 +110: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: places selected tag immediately next to All when filter is active
+00:35 +111: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: selecting a tag from outside moves it next to All and tapping it deselects
+00:36 +112: /home/dog/git/quitepaper/test/features/notes/tags_filter_bar_test.dart: tapping a tag chip filters in-place without changing currentDestinationProvider
+00:36 +113: loading /home/dog/git/quitepaper/test/features/notes/gestures_test.dart
+00:37 +113: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) phone pull focuses search after the slide and system Back restores notes
+00:39 +114: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) phone Back tap during opening closes search
+00:39 +115: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 720.0 with swipe true
+00:40 +116: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 720.0 with swipe false
+00:40 +117: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 1280.0 with swipe true
+00:41 +118: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search click is immediately usable at width 1280.0 with swipe false
+00:41 +119: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux Ctrl+F opens search with swipe disabled
+00:42 +120: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) Linux search survives switching between window layouts
+00:42 +121: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on notes list past threshold triggers SearchScreen navigation
+00:43 +122: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) a drag that starts mid-list and scrolls up into the top does NOT open search
+00:43 +123: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down below threshold springs back and does not open SearchScreen
+00:43 +124: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on empty state triggers SearchScreen navigation
+00:43 +125: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) verifies zero RefreshIndicator widgets are present on NotesScreen
+00:43 +126: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on tablet split-view triggers SearchScreen navigation
+00:43 +127: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) tapping Search icon in AppBar opens SearchScreen
+00:44 +128: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) swiping from left edge on phone opens sidebar navigation drawer
+00:44 +129: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down on notes list when swipeDownToSearchNotes is disabled does not open SearchScreen
+00:44 +130: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) tapping back button on unveiled SearchScreen smoothly closes search and restores notes list
+00:44 +131: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) dragging down past threshold then dragging back up below threshold cancels search
+00:45 +132: /home/dog/git/quitepaper/test/features/notes/gestures_test.dart: NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar) pulling down past 180px continues tracking smoothly without getting stuck
+00:45 +133: loading /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart
+00:46 +133: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: pull moves the card once and commits at finger release
+00:47 +134: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: upward reversal consumes pull before scrolling notes
+00:47 +135: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: canceling a pointer above threshold restores the list
+00:47 +136: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: Back reverses opening from its current position
+00:48 +137: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: system Back dismisses inline search
+00:48 +138: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: toolbar opening during spring-back preserves card position
+00:48 +139: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: opening during closing preserves position and accepts later Back
+00:48 +140: /home/dog/git/quitepaper/test/features/notes/pull_down_search_animation_test.dart: mid-list flings retain normal scrolling without arming search
+00:48 +141: All tests passed!

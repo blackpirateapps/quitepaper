@@ -11,10 +11,7 @@ import 'note_model.dart';
 /// Representation of a compact parsed Markdown table for note list previews.
 @immutable
 class NoteTablePreview {
-  const NoteTablePreview({
-    required this.headers,
-    required this.rows,
-  });
+  const NoteTablePreview({required this.headers, required this.rows});
 
   final List<String> headers;
   final List<List<String>> rows;
@@ -23,31 +20,22 @@ class NoteTablePreview {
 }
 
 /// Kind of attachment thumbnail to present.
-enum ThumbnailKind {
-  image,
-  pdf,
-  textFile,
-  none,
-}
+enum ThumbnailKind { image, pdf, textFile, none }
 
 /// Data payload for thumbnail rendering in the note list tile.
 @immutable
 class ThumbnailData {
-  const ThumbnailData({
-    required this.kind,
-    required this.uri,
-    this.label,
-  });
+  const ThumbnailData({required this.kind, required this.uri, this.label});
 
   const ThumbnailData.image(this.uri)
-      : kind = ThumbnailKind.image,
-        label = null;
+    : kind = ThumbnailKind.image,
+      label = null;
 
   const ThumbnailData.pdf(this.uri, [this.label = 'PDF'])
-      : kind = ThumbnailKind.pdf;
+    : kind = ThumbnailKind.pdf;
 
   const ThumbnailData.textFile(this.uri, [this.label = 'TXT'])
-      : kind = ThumbnailKind.textFile;
+    : kind = ThumbnailKind.textFile;
 
   final ThumbnailKind kind;
   final String uri;
@@ -98,8 +86,17 @@ class NoteMetadata {
 
 /// High-performance metadata extractor for clean note previews, frontmatter resolution,
 /// textual attachment summaries, dynamic table rendering, and PDF/text thumbnails.
+typedef _MetadataCacheKey = ({
+  String id,
+  DateTime updatedAt,
+  String title,
+  String content,
+  String tags,
+  String? snippet,
+});
+
 abstract final class NoteMetadataExtractor {
-  static final Map<String, NoteMetadata> _cache = {};
+  static final Map<_MetadataCacheKey, NoteMetadata> _cache = {};
   static const int maxCacheSize = 500;
 
   static final RegExp _imageRegex = RegExp(
@@ -148,17 +145,20 @@ abstract final class NoteMetadataExtractor {
     'sh',
   };
 
-  /// Computes a cache key based on note identity, content length, and optional search snippet.
-  static String _computeCacheKey(Note note, String? precomputedSnippet) {
-    final snippetPart = (precomputedSnippet != null && precomputedSnippet.isNotEmpty)
-        ? precomputedSnippet
-        : '';
-    return '${note.id}_${note.updatedAt.millisecondsSinceEpoch}_${note.title.hashCode}_${note.content.length}_$snippetPart';
-  }
+  /// Retains every metadata input in equality, including tag order and body
+  /// identity. Hash collisions cannot reuse metadata from another revision.
+  static _MetadataCacheKey _computeCacheKey(Note note, String? snippet) => (
+    id: note.id,
+    updatedAt: note.updatedAt,
+    title: note.title,
+    content: note.content,
+    tags: jsonEncode(note.tags),
+    snippet: snippet == null || snippet.isEmpty ? null : snippet,
+  );
 
   /// Invalidates cached metadata for a specific note ID.
   static void invalidate(String noteId) {
-    _cache.removeWhere((key, _) => key.startsWith('${noteId}_'));
+    _cache.removeWhere((key, _) => key.id == noteId);
   }
 
   /// Clears all cached note metadata.
@@ -170,13 +170,13 @@ abstract final class NoteMetadataExtractor {
   @visibleForTesting
   static int get cacheSize => _cache.length;
 
-  /// Pre-warms the metadata cache for a collection of notes, avoiding synchronous
-  /// parsing, regex matching, and frontmatter resolution during scroll builds.
-  static void prewarmAll(
-    Iterable<Note> notes, {
-    String? searchQuery,
-  }) {
+  /// Fills unused cache capacity without evicting visible/recent metadata.
+  /// Lists extract metadata lazily as tiles mount instead of sweeping all notes.
+  static void prewarmAll(Iterable<Note> notes, {String? searchQuery}) {
     for (final note in notes) {
+      // Speculative work must never evict demand-loaded (visible/recent) rows.
+      // List tiles extract lazily; a caller may fill only unused cache capacity.
+      if (_cache.length >= maxCacheSize) break;
       extract(note, searchQuery: searchQuery);
     }
   }
@@ -207,7 +207,8 @@ abstract final class NoteMetadataExtractor {
         ? null
         : extractTablePreview(note.content);
 
-    final preview = (precomputedSnippet != null && precomputedSnippet.isNotEmpty)
+    final preview =
+        (precomputedSnippet != null && precomputedSnippet.isNotEmpty)
         ? precomputedSnippet
         : derivePreviewSnippet(
             note.content,
@@ -289,13 +290,17 @@ abstract final class NoteMetadataExtractor {
     var textToScan = content;
     if (RichDocument.isJson(content)) {
       try {
-        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        final doc = RichDocument.fromJson(
+          jsonDecode(content) as Map<String, dynamic>,
+        );
         textToScan = doc.plainText;
       } catch (_) {}
     }
 
     // 2. Scan first line of body
-    final sample = textToScan.length > 300 ? textToScan.substring(0, 300) : textToScan;
+    final sample = textToScan.length > 300
+        ? textToScan.substring(0, 300)
+        : textToScan;
     final sampleTrimmed = sample.trim();
     if (sampleTrimmed.isEmpty) return '';
 
@@ -336,7 +341,9 @@ abstract final class NoteMetadataExtractor {
     var bodyText = content;
     if (RichDocument.isJson(content)) {
       try {
-        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        final doc = RichDocument.fromJson(
+          jsonDecode(content) as Map<String, dynamic>,
+        );
         bodyText = doc.plainText;
       } catch (_) {}
     }
@@ -393,7 +400,8 @@ abstract final class NoteMetadataExtractor {
       final headerLine = lines[i].trim();
       final separatorLine = lines[i + 1].trim();
 
-      if (headerLine.contains('|') && _tableSeparatorRegex.hasMatch(separatorLine)) {
+      if (headerLine.contains('|') &&
+          _tableSeparatorRegex.hasMatch(separatorLine)) {
         final headers = _splitTableRow(headerLine);
         if (headers.length < 2) continue;
 
@@ -424,16 +432,10 @@ abstract final class NoteMetadataExtractor {
               .toList();
 
           final cleanRows = rows.map((r) {
-            return r
-                .take(maxCols)
-                .map((c) => cleanMarkdownLine(c))
-                .toList();
+            return r.take(maxCols).map((c) => cleanMarkdownLine(c)).toList();
           }).toList();
 
-          return NoteTablePreview(
-            headers: cleanHeaders,
-            rows: cleanRows,
-          );
+          return NoteTablePreview(headers: cleanHeaders, rows: cleanRows);
         }
       }
     }

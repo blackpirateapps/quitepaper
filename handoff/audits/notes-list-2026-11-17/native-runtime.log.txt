@@ -1,0 +1,108 @@
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.0' (uid=1000 pid=32545 comm="/home/dog/git/quitepaper/build/linux/x64/profile/b" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.1' (uid=1000 pid=32551 comm="/usr/libexec/xdg-desktop-portal" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.1' (uid=1000 pid=32551 comm="/usr/libexec/xdg-desktop-portal" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=1000 pid=32551 comm="/usr/libexec/xdg-desktop-portal" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=32573 comm="/usr/libexec/xdg-desktop-portal-gtk" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activated service 'org.a11y.Bus' failed: Failed to execute program org.a11y.Bus: Permission denied
+
+(xdg-desktop-portal-gtk:32573): dbind-WARNING **: 18:49:17.301: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.Spawn.ExecFailed: Failed to execute program org.a11y.Bus: Permission denied
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.hyprland' requested by ':1.1' (uid=1000 pid=32551 comm="/usr/libexec/xdg-desktop-portal" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.hyprland'
+[LOG] Initializing xdph...
+[LOG] XDG_CURRENT_DESKTOP set to Hyprland
+[LOG] Gathering exported interfaces
+[LOG]  | Got interface: wl_seat (ver 9)
+[LOG]  | Got interface: wl_data_device_manager (ver 3)
+[LOG]  | Got interface: wl_compositor (ver 6)
+[LOG]  | Got interface: wl_subcompositor (ver 1)
+[LOG]  | Got interface: wl_shm (ver 2)
+[LOG]  | Got interface: wp_viewporter (ver 1)
+[LOG]  | Got interface: wp_tearing_control_manager_v1 (ver 1)
+[LOG]  | Got interface: wp_fractional_scale_manager_v1 (ver 1)
+[LOG]  | Got interface: zxdg_output_manager_v1 (ver 3)
+[LOG]  | Got interface: wp_cursor_shape_manager_v1 (ver 2)
+[LOG]  | Got interface: zwp_idle_inhibit_manager_v1 (ver 1)
+[LOG]  | Got interface: zwp_relative_pointer_manager_v1 (ver 1)
+[LOG]  | Got interface: zxdg_decoration_manager_v1 (ver 2)
+[LOG]  | Got interface: wp_alpha_modifier_v1 (ver 1)
+[LOG]  | Got interface: zwlr_gamma_control_manager_v1 (ver 1)
+[LOG]  | Got interface: ext_foreign_toplevel_list_v1 (ver 1)
+[LOG]  | Got interface: zwp_pointer_gestures_v1 (ver 3)
+[LOG]  | Got interface: zwlr_foreign_toplevel_manager_v1 (ver 3)
+[LOG] [toplevel] (activate) locks: 1
+[LOG]  | Got interface: zwp_keyboard_shortcuts_inhibit_manager_v1 (ver 1)
+[LOG]  | Got interface: zwp_text_input_manager_v1 (ver 1)
+[LOG]  | Got interface: zwp_text_input_manager_v3 (ver 1)
+[LOG]  | Got interface: zwp_pointer_constraints_v1 (ver 1)
+[LOG]  | Got interface: zwlr_output_power_manager_v1 (ver 1)
+[LOG]  | Got interface: xdg_activation_v1 (ver 1)
+[LOG]  | Got interface: ext_idle_notifier_v1 (ver 2)
+[LOG]  | Got interface: hyprland_lock_notifier_v1 (ver 1)
+[LOG]  | Got interface: ext_session_lock_manager_v1 (ver 1)
+[LOG]  | Got interface: zwp_input_method_manager_v2 (ver 1)
+[LOG]  | Got interface: zwp_virtual_keyboard_manager_v1 (ver 1)
+[LOG]  | Got interface: zwlr_virtual_pointer_manager_v1 (ver 2)
+[LOG]  | Got interface: zwlr_output_manager_v1 (ver 4)
+[LOG]  | Got interface: org_kde_kwin_server_decoration_manager (ver 1)
+[LOG]  | Got interface: hyprland_focus_grab_manager_v1 (ver 1)
+[LOG]  | Got interface: zwp_tablet_manager_v2 (ver 1)
+[LOG]  | Got interface: zwlr_layer_shell_v1 (ver 5)
+[LOG]  | Got interface: wp_presentation (ver 2)
+[LOG]  | Got interface: xdg_wm_base (ver 7)
+[LOG]  | Got interface: zwlr_data_control_manager_v1 (ver 2)
+[LOG]  | Got interface: zwp_primary_selection_device_manager_v1 (ver 1)
+[LOG]  | Got interface: xwayland_shell_v1 (ver 1)
+[LOG]  | Got interface: hyprland_toplevel_mapping_manager_v1 (ver 1)
+[LOG] [toplevel mapping] registered manager
+[LOG]  | Got interface: hyprland_global_shortcuts_manager_v1 (ver 1)
+[LOG] [globalshortcuts] registered
+[LOG]  | Got interface: xdg_wm_dialog_v1 (ver 1)
+[LOG]  | Got interface: wp_single_pixel_buffer_manager_v1 (ver 1)
+[LOG]  | Got interface: wp_security_context_manager_v1 (ver 1)
+[LOG]  | Got interface: hyprland_ctm_control_manager_v1 (ver 2)
+[LOG]  | Got interface: hyprland_input_capture_manager_v1 (ver 2)
+[LOG] [input-capture] initializing input capture portal
+[LOG] [input-capture] init successful
+[LOG]  | Got interface: hyprland_surface_manager_v1 (ver 2)
+[LOG]  | Got interface: wp_content_type_manager_v1 (ver 1)
+[LOG]  | Got interface: xdg_toplevel_tag_manager_v1 (ver 1)
+[LOG]  | Got interface: xdg_system_bell_v1 (ver 1)
+[LOG]  | Got interface: vicinae_hotkey_manager_v1 (ver 1)
+[LOG]  | Got interface: xx_hotkey_manager_v1 (ver 1)
+[LOG]  | Got interface: ext_workspace_manager_v1 (ver 1)
+[LOG]  | Got interface: ext_data_control_manager_v1 (ver 1)
+[LOG]  | Got interface: wp_pointer_warp_v1 (ver 1)
+[LOG]  | Got interface: wp_fifo_manager_v1 (ver 1)
+[LOG]  | Got interface: zxdg_exporter_v2 (ver 1)
+[LOG]  | Got interface: zxdg_importer_v2 (ver 1)
+[LOG]  | Got interface: ext_background_effect_manager_v1 (ver 1)
+[LOG]  | Got interface: wp_commit_timing_manager_v1 (ver 1)
+[LOG]  | Got interface: zwlr_screencopy_manager_v1 (ver 3)
+[LOG] [pipewire] connected
+[LOG] [screencopy] init successful
+[LOG]  | Got interface: hyprland_toplevel_export_manager_v1 (ver 2)
+[LOG]  | Got interface: ext_output_image_capture_source_manager_v1 (ver 1)
+[LOG]dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.8' (uid=1000 pid=32545 comm="/home/dog/git/quitepaper/build/linux/x64/profile/b" label="unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023")
+dbus-daemon[32544]: [session uid=1000 pid=32544 pidfd=5] Activated service 'org.a11y.Bus' failed: Failed to execute program org.a11y.Bus: Permission denied
+
+(com.blackpiratex.quietpaper:32545): dbind-WARNING **: 18:49:17.570: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.Spawn.ExecFailed: Failed to execute program org.a11y.Bus: Permission denied
+
+(com.blackpiratex.quietpaper:32545): Atk-CRITICAL **: 18:49:17.775: atk_socket_embed: assertion 'plug_id != NULL' failed
+[IMPORTANT:flutter/shell/platform/embedder/embedder_surface_gl_impeller.cc(126)] Using the Impeller rendering backend (OpenGLESSDF).
+The Dart VM service was local to the isolated audit (endpoint expired; redacted).
+Gdk-Message: 18:49:18.546: Unable to load  from the cursor theme
+
+** (com.blackpiratex.quietpaper:32545): WARNING **: 18:49:33.291: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:32545): WARNING **: 18:49:33.294: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:32545): WARNING **: 18:49:33.298: libsecret_error: Failed to unlock the keyring
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_wrapped_master_key_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_master_key_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+NOTES_AUDIT_COMPLETE {"environment":{"mode":"Flutter Linux profile","notesInDatabase":10000,"bodyCharactersPerNote":1563,"database":"in-memory SQLite","mobileLimit":"Phone viewport rendered by Linux engine; no physical mobile GPU/OS or IME"},"query_updated_us":{"count":20,"median":75716,"p95":76954,"max":77570},"query_title_us":{"count":20,"median":18327,"p95":18880,"max":19436},"query_contentLinks_us":{"count":20,"median":120557,"p95":122995,"max":123661},"prewarm_400_us":{"count":7,"median":326,"p95":407,"max":407},"prewarm_500_us":{"count":7,"median":409,"p95":443,"max":443},"prewarm_600_us":{"count":7,"median":364336,"p95":523251,"max":523251},"prewarm_1000_us":{"count":7,"median":598281,"p95":641749,"max":641749},"load_1000_notes_us":1721577,"layout_desktop":{"actualRenderDp":[1280.0,680.0],"loadedNotesBeforeScroll":1000,"scrollExtent":2764.199999999999},"scroll_desktop":{"viewportDp":[1280.0,680.0],"loadedNotes":1000,"frameBuildUs":{"count":396,"median":2100,"p95":7715,"max":10476},"frameRasterUs":{"count":396,"median":2313,"p95":2919,"max":3229},"frameTotalSpanUs":{"count":396,"median":11358,"p95":16730,"max":22335},"framesBuildOrRasterOver16667us":0,"mountedTilesAtRest":13,"drive":"programmatic ScrollPosition.animateTo, two 4s linear sweeps, after warmup"},"layout_phone":{"actualRenderDp":[390.0,680.0],"loadedNotesBeforeScroll":1000,"scrollExtent":79980.58571428568},"scroll_phone":{"viewportDp":[390.0,680.0],"loadedNotes":1000,"frameBuildUs":{"count":348,"median":2995,"p95":7629,"max":16675},"frameRasterUs":{"count":348,"median":1933,"p95":2351,"max":2500},"frameTotalSpanUs":{"count":348,"median":9841,"p95":13132,"max":21666},"framesBuildOrRasterOver16667us":1,"mountedTilesAtRest":13,"drive":"programmatic ScrollPosition.animateTo, two 4s linear sweeps, after warmup"},"beforeRefresh":1000,"afterRefresh":250,"refreshUs":99221,"errors":[]}
+/bin/sh: line 1: kill: (32593) - No such process

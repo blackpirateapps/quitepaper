@@ -46,6 +46,7 @@ import '../application/notes_query_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
+import '../domain/notes_query.dart';
 import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
@@ -55,18 +56,13 @@ import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
-import 'widgets/note_thumbnail_view.dart';
-import '../domain/note_metadata_extractor.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import '../../onboarding/application/onboarding_provider.dart';
 import '../../onboarding/presentation/coach_marks/onboarding_coach_marks.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
-  const NotesScreen({
-    super.key,
-    this.showOnboardingTour = false,
-  });
+  const NotesScreen({super.key, this.showOnboardingTour = false});
 
   final bool showOnboardingTour;
 
@@ -82,7 +78,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   bool _tourStarted = false;
   bool _showFirstNoteTipsForTablet = false;
 
-  final _onboardingSidebarTargetKey = GlobalKey(debugLabel: 'onboarding-sidebar');
+  final _onboardingSidebarTargetKey = GlobalKey(
+    debugLabel: 'onboarding-sidebar',
+  );
   final _onboardingSearchTargetKey = GlobalKey(debugLabel: 'onboarding-search');
   final _onboardingCreateTargetKey = GlobalKey(debugLabel: 'onboarding-create');
 
@@ -105,7 +103,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   void initState() {
     super.initState();
     if (widget.showOnboardingTour) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _startOnboardingTour(),
+      );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkInitialCliArgs();
@@ -119,7 +119,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.showOnboardingTour && widget.showOnboardingTour) {
       _tourDismissed = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _startOnboardingTour(),
+      );
     }
   }
 
@@ -540,8 +542,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final shouldPin = scopedTag != null
         ? notes.any((n) => !n.isPinnedInTag(scopedTag))
         : (destination == AppDestination.pinned
-            ? notes.any((n) => !n.isPinned && n.pinnedTags.isEmpty)
-            : notes.any((n) => !n.isPinned));
+              ? notes.any((n) => !n.isPinned && n.pinnedTags.isEmpty)
+              : notes.any((n) => !n.isPinned));
 
     for (final note in notes) {
       if (scopedTag != null) {
@@ -667,22 +669,26 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final encoded = ZipEncoder().encode(archive);
     final zipBytes = Uint8List.fromList(encoded);
 
-    final savedPath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Export ${archive.length} notes',
-      fileName: 'quiet-paper-notes.zip',
-      type: FileType.custom,
-      allowedExtensions: const ['zip'],
-      bytes: zipBytes,
-    );
-    if (savedPath == null) return;
-
-    if (savedPath.isNotEmpty) {
-      final f = File(savedPath);
-      if (!await f.exists() || (await f.length()) == 0) {
-        try {
-          await f.writeAsBytes(zipBytes, flush: true);
-        } catch (_) {}
+    try {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export ${archive.length} notes',
+        fileName: 'quiet-paper-notes.zip',
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+        bytes: zipBytes,
+      );
+      if (savedPath == null || savedPath.isEmpty) return;
+      // Desktop pickers select a path; mobile pickers write the supplied bytes.
+      if (PlatformLayoutHelper.isDesktopPlatform) {
+        await File(savedPath).writeAsBytes(zipBytes, flush: true);
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Couldn't export notes")));
+      return;
     }
 
     if (!mounted) return;
@@ -780,6 +786,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTabletLayout = screenWidth >= 900.0;
 
+    ref.listen<NotesQuery>(notesQueryProvider, (prev, next) {
+      if (prev != next && _isMultiSelecting) _exitMultiSelect();
+    });
+
     ref.listen<AppDestination>(currentDestinationProvider, (prev, next) {
       if (prev != next) {
         if (_isMultiSelecting) _exitMultiSelect();
@@ -841,8 +851,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
-
-    _prewarmThumbnails(groups);
 
     final title = _getDestinationTitle(destination);
 
@@ -1369,6 +1377,21 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             child:
                                                 CircularProgressIndicator.adaptive(),
                                           )
+                                        : collectionState.notes.isEmpty &&
+                                              collectionState.error != null
+                                        ? Center(
+                                            child: NotesLoadingMoreIndicator(
+                                              loadingMore: false,
+                                              initialLoad: true,
+                                              error: collectionState.error,
+                                              onRetry: () => ref
+                                                  .read(
+                                                    notesCollectionProvider
+                                                        .notifier,
+                                                  )
+                                                  .retry(),
+                                            ),
+                                          )
                                         : (groups.isEmpty &&
                                               collectionState.notes.isEmpty)
                                         ? SingleChildScrollView(
@@ -1387,13 +1410,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                     _createAndOpenNote(context),
                                                 destination: destination,
                                                 tagFilter: selectedTag,
-                                                hasActiveFilters: query
-                                                    .filter
+                                                hasActiveFilters: query.filter
                                                     .hasAdvancedFiltersExcluding(
                                                       ignorePinned:
                                                           destination ==
-                                                              AppDestination
-                                                                  .pinned,
+                                                          AppDestination.pinned,
                                                     ),
                                                 onClearFilters: () => ref
                                                     .read(
@@ -1408,11 +1429,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             child: ListView.builder(
                                               scrollCacheExtent:
                                                   PlatformLayoutHelper
-                                                          .isDesktopPlatform
-                                                      ? const ScrollCacheExtent
-                                                          .pixels(500.0)
-                                                      : const ScrollCacheExtent
-                                                          .pixels(350.0),
+                                                      .isDesktopPlatform
+                                                  ? const ScrollCacheExtent.pixels(
+                                                      500.0,
+                                                    )
+                                                  : const ScrollCacheExtent.pixels(
+                                                      350.0,
+                                                    ),
                                               addRepaintBoundaries: true,
                                               addAutomaticKeepAlives: false,
                                               padding: const EdgeInsets.only(
@@ -1853,7 +1876,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
-    _prewarmThumbnails(groups);
     final title = _getDestinationTitle(destination);
 
     // Watch active note if one is selected in tablet mode
@@ -2329,7 +2351,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                           ),
                                                         ),
                                                         QuietIconButton(
-                                                          key: _onboardingCreateTargetKey,
+                                                          key:
+                                                              _onboardingCreateTargetKey,
                                                           icon:
                                                               PhosphorIconsRegular
                                                                   .plus,
@@ -2339,7 +2362,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                               _createAndOpenNoteTablet(),
                                                         ),
                                                         QuietIconButton(
-                                                          key: _onboardingSearchTargetKey,
+                                                          key:
+                                                              _onboardingSearchTargetKey,
                                                           icon: PhosphorIconsRegular
                                                               .magnifyingGlass,
                                                           tooltip:
@@ -2702,6 +2726,28 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             child:
                                                                 CircularProgressIndicator.adaptive(),
                                                           )
+                                                        : collectionState
+                                                                  .notes
+                                                                  .isEmpty &&
+                                                              collectionState
+                                                                      .error !=
+                                                                  null
+                                                        ? Center(
+                                                            child: NotesLoadingMoreIndicator(
+                                                              loadingMore:
+                                                                  false,
+                                                              initialLoad: true,
+                                                              error:
+                                                                  collectionState
+                                                                      .error,
+                                                              onRetry: () => ref
+                                                                  .read(
+                                                                    notesCollectionProvider
+                                                                        .notifier,
+                                                                  )
+                                                                  .retry(),
+                                                            ),
+                                                          )
                                                         : (groups.isEmpty &&
                                                               collectionState
                                                                   .notes
@@ -2724,15 +2770,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                                     destination,
                                                                 tagFilter:
                                                                     selectedTag,
-                                                                hasActiveFilters:
-                                                                    query
-                                                                        .filter
-                                                                        .hasAdvancedFiltersExcluding(
-                                                                          ignorePinned:
-                                                                              destination ==
-                                                                                  AppDestination
-                                                                                      .pinned,
-                                                                        ),
+                                                                hasActiveFilters: query
+                                                                    .filter
+                                                                    .hasAdvancedFiltersExcluding(
+                                                                      ignorePinned:
+                                                                          destination ==
+                                                                          AppDestination
+                                                                              .pinned,
+                                                                    ),
                                                                 onClearFilters: () => ref
                                                                     .read(
                                                                       notesQueryProvider
@@ -2746,13 +2791,17 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             child: ListView.builder(
                                                               scrollCacheExtent:
                                                                   PlatformLayoutHelper
-                                                                          .isDesktopPlatform
-                                                                      ? const ScrollCacheExtent
-                                                                          .pixels(500.0)
-                                                                      : const ScrollCacheExtent
-                                                                          .pixels(350.0),
-                                                              addRepaintBoundaries: true,
-                                                              addAutomaticKeepAlives: false,
+                                                                      .isDesktopPlatform
+                                                                  ? const ScrollCacheExtent.pixels(
+                                                                      500.0,
+                                                                    )
+                                                                  : const ScrollCacheExtent.pixels(
+                                                                      350.0,
+                                                                    ),
+                                                              addRepaintBoundaries:
+                                                                  true,
+                                                              addAutomaticKeepAlives:
+                                                                  false,
                                                               physics: PullDownSearchScrollPhysics(
                                                                 revealState: () =>
                                                                     _tabletPullDownState,
@@ -2831,7 +2880,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   !(_shouldAutoFocusTablet &&
                                       _selectedNoteIdForTablet ==
                                           activeNote.id),
-                              showFirstNoteTips: _showFirstNoteTipsForTablet &&
+                              showFirstNoteTips:
+                                  _showFirstNoteTipsForTablet &&
                                   _selectedNoteIdForTablet == activeNote.id,
                               onClose: () {
                                 setState(() {
@@ -2925,27 +2975,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         ),
       ),
     );
-  }
-
-  void _prewarmThumbnails(List<NoteGroup> groups) {
-    if (groups.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final thumbnails = <ThumbnailData>[];
-      for (final group in groups) {
-        for (final note in group.notes) {
-          final metadata = NoteMetadataExtractor.extract(note);
-          if (metadata.thumbnailData != null) {
-            thumbnails.add(metadata.thumbnailData!);
-            if (thumbnails.length >= 25) break;
-          }
-        }
-        if (thumbnails.length >= 25) break;
-      }
-      if (thumbnails.isNotEmpty) {
-        NoteThumbnailCache.prewarm(ref: ref, thumbnails: thumbnails);
-      }
-    });
   }
 
   int _calculateTotalItemCount(List<NoteGroup> groups) {
@@ -3169,20 +3198,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     if (searchState != null && searchState.mounted) {
       searchState.openSearch(animate: animate);
     } else {
-      Navigator.of(
-        context,
-      ).push(SearchPageRoute(
-        builder: (_) => const SearchScreen(),
-        animate: animate,
-      ));
+      Navigator.of(context).push(
+        SearchPageRoute(builder: (_) => const SearchScreen(), animate: animate),
+      );
     }
   }
 
   void _openWideSearch(BuildContext context) {
-    Navigator.of(context).push(SearchPageRoute(
-      builder: (_) => const SearchScreen(),
-      animate: !PlatformLayoutHelper.isDesktop(context),
-    ));
+    Navigator.of(context).push(
+      SearchPageRoute(
+        builder: (_) => const SearchScreen(),
+        animate: !PlatformLayoutHelper.isDesktop(context),
+      ),
+    );
   }
 
   void _openNote(BuildContext context, Note note) {
@@ -3470,4 +3498,3 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 }
-

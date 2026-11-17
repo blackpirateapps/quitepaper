@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'note_entity_mapper.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/crypto/key_manager.dart';
 import '../../../core/database/app_database.dart';
@@ -117,24 +118,8 @@ class DriftNotesRepository implements NotesRepository {
     return _queryExecutor.execute(query);
   }
 
-  Note _mapToDomain(NoteWithTags entity) {
-    return Note(
-      id: entity.note.id,
-      title: entity.note.title,
-      content: entity.note.content,
-      createdAt: entity.note.createdAt,
-      updatedAt: entity.note.updatedAt,
-      isPinned: entity.note.isPinned,
-      isArchived: entity.note.isArchived,
-      isTrashed: entity.note.isTrashed,
-      deletedAt: entity.note.deletedAt,
-      tags: entity.tagNames,
-      pinnedTags: decodePinnedTagsJson(entity.note.pinnedTags),
-      journalDate: entity.note.journalDate,
-      shareId: entity.note.shareId,
-      shareUrl: entity.note.shareUrl,
-    );
-  }
+  Note _mapToDomain(NoteWithTags entity) =>
+      mapNoteEntity(entity.note, tags: entity.tagNames);
 
   @override
   Stream<List<Note>> watchNotes({

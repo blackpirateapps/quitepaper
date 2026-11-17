@@ -1,0 +1,50 @@
+00:00 +0: loading /home/dog/git/quitepaper/handoff/audits/notes-list-2026-11-17/replay/notes_list_audit_test.dart
+00:00 +0: NL-01 mobile: initial failure is shown as empty library (variant: TargetPlatform.android)
+AUDIT {"case":"NL-01 mobile","emptyLibrary":true,"retryVisible":false}
+00:01 +1: NL-11 mobile: failed context load keeps previous context notes (variant: TargetPlatform.android)
+AUDIT {"case":"NL-11 mobile","context":"archive","renderedNoteArchived":false,"errorRetained":true}
+00:01 +2: NL-02 mobile: title sort is reordered by date grouping (variant: TargetPlatform.android)
+AUDIT {"case":"NL-02 mobile","queryOrder":["Alpha","Beta","Charlie"],"renderedOrder":["Alpha","Charlie","Beta"]}
+00:02 +3: NL-03 mobile: tag-only update retains stale preview tags (variant: TargetPlatform.android)
+AUDIT {"case":"NL-03 mobile","modelTags":["after"],"previewTags":["before"]}
+00:02 +4: NL-07 mobile: 1000 notes remain lazily mounted while scrolling (variant: TargetPlatform.android)
+AUDIT {"case":"NL-07 mobile","loaded":1000,"maxMounted":11,"pumpMedianUs":22424,"pumpMaxUs":37108,"warning":"debug widget wall-clock pump times, not native frame timings"}
+00:03 +5: NL-01 desktop: initial failure is shown as empty library (variant: TargetPlatform.linux)
+AUDIT {"case":"NL-01 desktop","emptyLibrary":true,"retryVisible":false}
+00:03 +6: NL-11 desktop: failed context load keeps previous context notes (variant: TargetPlatform.linux)
+AUDIT {"case":"NL-11 desktop","context":"archive","renderedNoteArchived":false,"errorRetained":true}
+00:03 +7: NL-02 desktop: title sort is reordered by date grouping (variant: TargetPlatform.linux)
+AUDIT {"case":"NL-02 desktop","queryOrder":["Alpha","Beta","Charlie"],"renderedOrder":["Alpha","Charlie","Beta"]}
+00:04 +8: NL-03 desktop: tag-only update retains stale preview tags (variant: TargetPlatform.linux)
+AUDIT {"case":"NL-03 desktop","modelTags":["after"],"previewTags":["before"]}
+00:04 +9: NL-07 desktop: 1000 notes remain lazily mounted while scrolling (variant: TargetPlatform.linux)
+AUDIT {"case":"NL-07 desktop","loaded":1000,"maxMounted":9,"pumpMedianUs":16577,"pumpMaxUs":30389,"warning":"debug widget wall-clock pump times, not native frame timings"}
+00:05 +10: Responsive smoke 320.0dp (variant: TargetPlatform.android)
+AUDIT {"case":"responsive","width":320.0,"height":568.0,"overflow":false}
+00:05 +11: Responsive smoke 360.0dp (variant: TargetPlatform.android)
+AUDIT {"case":"responsive","width":360.0,"height":800.0,"overflow":false}
+00:05 +12: Responsive smoke 600.0dp (variant: TargetPlatform.android)
+AUDIT {"case":"responsive","width":600.0,"height":800.0,"overflow":false}
+00:05 +13: Responsive smoke 899.0dp (variant: TargetPlatform.android)
+AUDIT {"case":"responsive","width":899.0,"height":700.0,"overflow":false}
+00:05 +14: Responsive smoke 900.0dp (variant: TargetPlatform.android)
+AUDIT {"case":"responsive","width":900.0,"height":700.0,"overflow":false}
+00:06 +15: NL-04: refresh truncates a collection beyond the 250-note batch cap
+AUDIT {"case":"NL-04","beforeRefresh":440,"afterRefresh":250,"total":440}
+00:06 +16: NL-05: stale refresh overwrites a newly selected archive context
+AUDIT {"case":"NL-05","generation":2,"context":"archive","visibleNote":"active"}
+00:06 +17: NL-06: Retry does not retry a failed refresh at the end of the list
+AUDIT {"case":"NL-06","queriesBeforeRetry":2,"queriesAfterRetry":2,"errorRetained":true}
+00:06 +18: NL-08: repeated prewarm above cache capacity evicts every entry
+AUDIT {"case":"NL-08","notes":400,"preservedCachedInstances":400,"repeatPrewarmUs":264}
+AUDIT {"case":"NL-08","notes":500,"preservedCachedInstances":500,"repeatPrewarmUs":378}
+AUDIT {"case":"NL-08","notes":600,"preservedCachedInstances":0,"repeatPrewarmUs":625367}
+AUDIT {"case":"NL-08","notes":1000,"preservedCachedInstances":0,"repeatPrewarmUs":1053332}
+00:10 +19: NL-09 desktop: ZIP overwrite reports success without writing archive (variant: TargetPlatform.linux)
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_wrapped_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+AUDIT {"case":"NL-09","suppliedZipBytes":289,"actualFile":"EXISTING CONTENT","successShown":true}
+00:11 +20: NL-10: paginated query drops journal and share metadata
+AUDIT {"case":"NL-10","fullJournalDate":"2026-11-17","pagedJournalDate":null,"fullShareId":"share-id","pagedShareId":null}
+00:11 +21: All tests passed!
