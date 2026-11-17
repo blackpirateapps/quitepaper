@@ -35,7 +35,7 @@ profile timings describe the Linux engine displaying the phone layout.
 
 ## Findings
 
-**10 confirmed bugs; 6 open, 4 fixed.** P1 means high priority due to incorrect context,
+**10 confirmed bugs; 5 open, 5 fixed.** P1 means high priority due to incorrect context,
 export integrity, or severe UI stalls; P2 means ordinary functional correctness.
 NL-07 is the passing virtualization control, not a bug.
 
@@ -151,6 +151,10 @@ loaded pages without truncation. **Acceptance:** Update a note after scrolling
 beyond 250/1,000 notes; retain the visible anchor, loaded IDs and a valid cursor.
 
 ### NL-05: Refresh and query generations collide
+
+**Fixed.** The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
+
+Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.
 
 **Location:** `lib/features/notes/application/notes_query_provider.dart:426`,
 `:530`, and `:548`.

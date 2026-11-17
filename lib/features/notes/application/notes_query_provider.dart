@@ -420,8 +420,8 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 
   /// Loads the first batch for a new query
   Future<void> _loadInitial(NotesQuery query) async {
-    final gen = query.generation;
-    _activeGeneration = gen;
+    final gen = ++_activeGeneration;
+    query = query.copyWith(generation: gen);
 
     state = state.copyWith(
       query: query,
@@ -437,7 +437,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
       final result = await _repository.executeNotesQuery(query);
 
       // Race protection: ignore stale responses
-      if (_activeGeneration != gen) return;
+      if (!mounted || _activeGeneration != gen) return;
 
       state = state.copyWith(
         notes: result.notes,
@@ -451,7 +451,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
         clearError: true,
       );
     } catch (e) {
-      if (_activeGeneration != gen) return;
+      if (!mounted || _activeGeneration != gen) return;
       state = state.copyWith(
         initialLoading: false,
         loadingMore: false,
@@ -465,6 +465,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
   Future<void> loadMore() async {
     // Load-more lock: ensure only one active load-more per generation
     if (state.loadingMore ||
+        state.isRefreshing ||
         !state.hasMore ||
         state.initialLoading ||
         state.cursor == null) {
@@ -479,7 +480,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 
       final result = await _repository.executeNotesQuery(nextPageQuery);
 
-      if (_activeGeneration != gen) return;
+      if (!mounted || _activeGeneration != gen) return;
 
       if (result.notes.isEmpty) {
         state = state.copyWith(hasMore: false, clearCursor: true);
@@ -508,11 +509,11 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
         clearError: true,
       );
     } catch (e) {
-      if (_activeGeneration != gen) return;
+      if (!mounted || _activeGeneration != gen) return;
       // Failed load-more keeps existing loaded notes intact!
       state = state.copyWith(error: e);
     } finally {
-      if (mounted) {
+      if (mounted && _activeGeneration == gen) {
         state = state.copyWith(loadingMore: false);
       }
     }
@@ -520,8 +521,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
 
   /// Refreshes current query from the beginning without losing active filter/sort
   Future<void> refresh() async {
-    final gen = state.generation + 1;
-    _activeGeneration = gen;
+    final gen = ++_activeGeneration;
     state = state.copyWith(
       isRefreshing: true,
       loadingMore: false,
@@ -546,7 +546,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
             cursor: cursor,
           ),
         );
-        if (_activeGeneration != gen) return;
+        if (!mounted || _activeGeneration != gen) return;
         refreshed.addAll(result.notes.where((note) => seenIds.add(note.id)));
         final nextCursor = result.nextCursor;
         if (!result.hasMore || nextCursor == null || nextCursor == cursor) {
@@ -568,7 +568,7 @@ class NotesCollectionNotifier extends StateNotifier<NotesCollectionState> {
         clearError: true,
       );
     } catch (e) {
-      if (_activeGeneration != gen) return;
+      if (!mounted || _activeGeneration != gen) return;
       state = state.copyWith(
         initialLoading: false,
         loadingMore: false,

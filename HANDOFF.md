@@ -486,7 +486,7 @@ Combined-branch validation: `flutter analyze` reports no issues; `flutter test -
 ## Notes List Bug and Performance Audit — November 17, 2026
 
 The [notes list audit](handoff/audits/notes-list-2026-11-17/README.md) records
-**4/10 fixed; 6 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
+**5/10 fixed; 5 open** on `audit/notes-list-2026-11-17`, based on main `9bf2cdd`.
 They cover hidden load errors, sort-order corruption by grouping, stale preview
 metadata, refresh truncation, request-generation collisions, ineffective Retry,
 cache thrashing, desktop ZIP overwrite failure, omitted journal/share fields,
@@ -525,3 +525,9 @@ Validation: `flutter analyze`: no issues; cache, journal metadata, scrolling and
 Refresh reconstructs the loaded window using bounded keyset pages and publishes the replacement atomically. Regressions retain 440 and 1,000 loaded IDs, edited content and continuation cursors; phone and desktop lists preserve a deep visible row and its scroll position.
 
 Validation: `flutter analyze`: no issues; collection recovery, pagination races and screen regressions: 16 passed. No full suite ran.
+
+### NL-05 notes list fix — November 17, 2026
+
+The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
+
+Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.

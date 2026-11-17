@@ -7154,3 +7154,13 @@ Implementation and permanent regression coverage accompany this entry. See the
 reproduction and updated resolution.
 
 Validation: `flutter analyze`: no issues; collection recovery, pagination races and screen regressions: 16 passed. No full suite ran.
+
+## 322. NL-05 Notes List Remediation (November 17, 2026)
+
+The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.

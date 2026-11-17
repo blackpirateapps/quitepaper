@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,15 +9,20 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/data/notes_query_executor.dart';
 import 'package:quitepaper/features/notes/domain/notes_query.dart';
+import 'package:quitepaper/features/notes/domain/notes_cursor.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/notes/domain/notes_filter.dart';
+import 'package:quitepaper/features/notes/domain/notes_sort.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 
 class RecoveryRepository extends DriftNotesRepository {
   RecoveryRepository(super.db);
   final requests = <NotesQuery>[];
+  Future<NotesQueryResult> Function(NotesQuery)? intercept;
   @override
   Future<NotesQueryResult> executeNotesQuery(NotesQuery query) {
     requests.add(query);
-    return super.executeNotesQuery(query);
+    return intercept?.call(query) ?? super.executeNotesQuery(query);
   }
 }
 
@@ -114,4 +120,140 @@ void main() {
       },
     );
   }
+  Note item(String id) =>
+      Note(id: id, title: id, content: 'Body', createdAt: now, updatedAt: now);
+  NotesQueryResult response(NotesQuery q, String id) => NotesQueryResult(
+    notes: [item(id)],
+    nextCursor: null,
+    hasMore: false,
+    totalCount: 1,
+    generation: q.generation,
+  );
+
+  for (final oldFirst in [false, true]) {
+    for (final staleFails in [false, true]) {
+      test(
+        'NL-05: stale refresh is ignored oldFirst=$oldFirst failure=$staleFails',
+        () async {
+          repo.intercept = (q) async => response(q, 'active');
+          final n = c.read(notesCollectionProvider.notifier);
+          await ready();
+          final old = Completer<NotesQueryResult>();
+          final fresh = Completer<NotesQueryResult>();
+          repo.requests.clear();
+          repo.intercept = (q) =>
+              repo.requests.length == 1 ? old.future : fresh.future;
+          final refresh = n.refresh();
+          c.read(currentDestinationProvider.notifier).state =
+              AppDestination.archive;
+          expect(repo.requests.length, 2);
+          expect(
+            repo.requests[1].generation,
+            greaterThan(repo.requests[0].generation),
+          );
+          void completeOld() {
+            if (staleFails) {
+              old.completeError(StateError('stale failure'));
+            } else {
+              old.complete(response(repo.requests[0], 'stale-active'));
+            }
+          }
+
+          if (oldFirst) {
+            completeOld();
+            await refresh;
+            expect(c.read(notesCollectionProvider).initialLoading, isTrue);
+          }
+          fresh.complete(response(repo.requests[1], 'archive'));
+          await ready();
+          if (!oldFirst) {
+            completeOld();
+            await refresh;
+          }
+          final state = c.read(notesCollectionProvider);
+          expect(state.query.context, NotesContext.archive);
+          expect(state.notes.single.id, 'archive');
+          expect(state.error, isNull);
+          expect(state.isRefreshing, isFalse);
+        },
+      );
+    }
+  }
+
+  test('NL-05: only the latest refresh/filter/sort request wins', () async {
+    repo.intercept = (q) async => response(q, 'initial');
+    final n = c.read(notesCollectionProvider.notifier);
+    await ready();
+    final pending = <Completer<NotesQueryResult>>[];
+    repo.requests.clear();
+    repo.intercept = (q) {
+      final gate = Completer<NotesQueryResult>();
+      pending.add(gate);
+      return gate.future;
+    };
+    final first = n.refresh();
+    final second = n.refresh();
+    c
+        .read(notesQueryProvider.notifier)
+        .toggleContentFilter(ContentFilter.hasLinks);
+    c
+        .read(notesQueryProvider.notifier)
+        .setSort(const NotesSort(field: SortField.title));
+    expect(pending.length, 4);
+    expect(repo.requests.map((q) => q.generation).toSet().length, 4);
+    pending.last.complete(response(repo.requests.last, 'latest'));
+    await ready();
+    for (var i = pending.length - 2; i >= 0; i--) {
+      pending[i].complete(response(repo.requests[i], 'stale-$i'));
+    }
+    await Future.wait([first, second]);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(notesCollectionProvider).notes.single.id, 'latest');
+    expect(c.read(notesCollectionProvider).query.sort.field, SortField.title);
+    expect(
+      c.read(notesCollectionProvider).query.filter.contentFilters,
+      contains(ContentFilter.hasLinks),
+    );
+  });
+
+  test(
+    'NL-05: completion after disposal never writes notifier state',
+    () async {
+      final gate = Completer<NotesQueryResult>();
+      repo.intercept = (q) => gate.future;
+      c.read(notesCollectionProvider);
+      final request = repo.requests.single;
+      c.dispose();
+      gate.complete(response(request, 'disposed'));
+      await Future<void>.delayed(Duration.zero);
+    },
+  );
+  test('NL-05: stale load-more cleanup leaves the current page request locked', () async {
+    NotesQueryResult page(NotesQuery q, String id) => NotesQueryResult(
+      notes: [item(id)], nextCursor: NotesCursor.fromNote(item(id), q.sort),
+      hasMore: true, totalCount: 3, generation: q.generation,
+    );
+    repo.intercept = (q) async => page(q, 'active');
+    final n = c.read(notesCollectionProvider.notifier);
+    await ready();
+    final stale = Completer<NotesQueryResult>();
+    repo.intercept = (_) => stale.future;
+    final oldPage = n.loadMore();
+    repo.intercept = (q) async => page(q, 'archive');
+    c.read(notesQueryProvider.notifier).setContext(NotesContext.archive);
+    await ready();
+    final current = Completer<NotesQueryResult>();
+    repo.intercept = (_) => current.future;
+    final newPage = n.loadMore();
+    final currentQuery = repo.requests.last;
+    stale.completeError(StateError('Stale page failed'));
+    await oldPage;
+    expect(c.read(notesCollectionProvider).loadingMore, isTrue);
+    expect(c.read(notesCollectionProvider).error, isNull);
+    current.complete(response(currentQuery, 'archive-next'));
+    await newPage;
+    expect(c.read(notesCollectionProvider).loadingMore, isFalse);
+    expect(c.read(notesCollectionProvider).notes.map((n) => n.id), ['archive', 'archive-next']);
+  });
+
 }
