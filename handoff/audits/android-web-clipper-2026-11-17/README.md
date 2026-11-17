@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**Remediation in progress: 10/16 fixed; 6 open.**
+**Remediation in progress: 11/16 fixed; 5 open.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -22,7 +22,7 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | **Fixed** [WC-08](wc-08-query-image-substitution.md) | P2 | A failed image can be replaced by a different image with the same URL path |
 | **Fixed** [WC-09](wc-09-browser-save-pops-editor.md) | P2 | Saving from the in-app browser immediately pops the newly opened editor |
 | **Fixed** [WC-10](wc-10-second-share-discarded.md) | P2 | A second shared URL is discarded while Quick Capture is open |
-| [WC-11](wc-11-url-dialog-loading-overflow.md) | P2 | Continue’s loading spinner overflows the URL dialog on a phone |
+| **Fixed** [WC-11](wc-11-url-dialog-loading-overflow.md) | P2 | Continue’s loading spinner overflows the URL dialog on a phone |
 | [WC-12](wc-12-layout-table-article-triplication.md) | P2 | Direct clipping repeats article text from nested layout tables |
 | [WC-13](wc-13-rfc-clipped-to-index.md) | P2 | A complete technical document is clipped down to its index appendix |
 | [WC-14](wc-14-code-figures-disappear.md) | P2 | Code examples inside figure elements disappear from Markdown |

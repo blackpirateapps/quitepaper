@@ -1,6 +1,6 @@
 # WC-11: Continue’s loading spinner overflows the URL dialog on a phone
 
-Status: **Open**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
+Status: **Fixed**. Priority: **P2**. Added during the physical-device follow-up on 2026-11-17. Application source remains `810704c40ce943d9b339279e5b83193001d32b01`.
 
 ## Impact
 
@@ -29,3 +29,9 @@ See [USB follow-up evidence](usb-device-follow-up/evidence.md) for numeric obser
 
 
 ![Native Android evidence](usb-device-follow-up/pg-loading-after.png)
+
+## Resolution
+
+URL dialog actions wrap independently across lines when available width is insufficient, including when Continue adds a loading spinner. All actions stay within the dialog at 320, 360 and 392.7 dp.
+
+Validation: flutter analyze: clean; 4 focused URL dialog widget tests passed. No full suite ran.

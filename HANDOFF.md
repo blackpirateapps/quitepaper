@@ -348,7 +348,7 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **10/16 fixed; 6 open**, with individual reports, resolutions and replayable evidence.
+records **11/16 fixed; 5 open**, with individual reports, resolutions and replayable evidence.
 The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
 ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
 image substitution, editor navigation after saving, and dropped repeated shares.
@@ -430,3 +430,9 @@ Quick Capture queues distinct incoming requests while a capture route is open an
 Validation: flutter analyze: clean; 16 coordinator, Quick Capture screen and normalizer tests passed. No full suite ran.
 
 WC-04 follow-up: the Markdown converter also respects explicit tag selections in YAML frontmatter. Service regressions now inspect YAML entries as well as the Note model, covering the second default-tag insertion path. Validation: flutter analyze clean; 11 service, converter and browser acquisition tests passed.
+
+### WC-11 Android web clipper fix
+
+URL dialog actions wrap independently across lines when available width is insufficient, including when Continue adds a loading spinner. All actions stay within the dialog at 320, 360 and 392.7 dp.
+
+Validation: flutter analyze: clean; 4 focused URL dialog widget tests passed. No full suite ran.
