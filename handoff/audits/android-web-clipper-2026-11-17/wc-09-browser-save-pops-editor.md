@@ -26,3 +26,7 @@ The corresponding `WC-09` probe and its output are preserved in [evidence.md](ev
 
 - [`lib/features/web_clipper/presentation/web_clip_preview_sheet.dart:113`](../../../lib/features/web_clipper/presentation/web_clip_preview_sheet.dart#L113)
 - [`lib/features/web_clipper/presentation/browser/web_clip_browser_screen.dart:98`](../../../lib/features/web_clipper/presentation/browser/web_clip_browser_screen.dart#L98)
+
+## Physical-device confirmation
+
+The USB follow-up reproduces this with the actual Android WebView and a live public article. After native Clip/Clip taps, the real controller remains processing with canClip=false; the observer records preview pop, editor push and editor pop, and the browser remains visible. Two synthetic notes exist: one direct-path save and one browser save. See [native evidence](usb-device-follow-up/evidence.md). No fix was made.

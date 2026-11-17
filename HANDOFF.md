@@ -348,13 +348,23 @@ guide now reports all ten PDF findings resolved.
 ## Android Web Clipper Audit — November 17, 2026
 
 The [Android web clipper audit](handoff/audits/android-web-clipper-2026-11-17/README.md)
-records **10 open bugs**, with individual Markdown reports and replayable probe
-evidence. Findings cover snapshot image/CSS persistence, hidden snapshot failures,
-ignored tag removals, incorrect canonical/redirect asset bases, stale browser state,
-wrong image substitution, editor navigation after saving, and dropped repeated shares.
-Only documentation changed; no bugs were fixed. Android-themed widget and core
-service probes were used; no Android device/emulator was available.
+records **16 open bugs**, with individual Markdown reports and replayable evidence.
+The initial ten cover snapshot image/CSS persistence, hidden snapshot failures,
+ignored tag removals, canonical/redirect asset bases, stale browser state, wrong
+image substitution, editor navigation after saving, and dropped repeated shares.
 
-Validation: `flutter analyze` is clean; 42 existing clipper tests, 15 relevant
-Quick Capture tests, and 10 temporary characterization probes pass. No full suite
-ran. Probe source/output is archived in Markdown and executable probes removed.
+The [USB follow-up](handoff/audits/android-web-clipper-2026-11-17/usb-device-follow-up/README.md)
+adds six: URL-dialog loading overflow, triplicated layout-table prose, documents
+reduced to an index appendix, missing code figures, star-alt photo filtering, and
+failed pages marked ready. Five new findings have physical-device/real-page
+evidence; the star-alt finding is component-only. Actual WebView/save interaction
+also confirms WC-09 and stale state confirms WC-07 on a Redmi K20 Pro, Android 16.
+No bugs were fixed. Only documentation and two evidence screenshots changed.
+
+Final `flutter analyze` is clean. Initial checks passed 42 clipper tests, 15 Quick
+Capture tests and ten probes; the USB follow-up passes 23 relevant existing tests
+and four focused probes, with concurrency 1. No full suite ran. Executable audit
+sources were archived in Markdown and removed. Temporary Android build settings
+were restored, and the separate audit app was uninstalled. The original installed
+Quiet Paper and its notes were left untouched. Use USB and serialized builds for
+replay: an earlier emulator/build attempt was stopped after a reported host crash.

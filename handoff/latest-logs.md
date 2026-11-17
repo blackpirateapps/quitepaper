@@ -7055,3 +7055,36 @@ passes all 42 existing relevant tests. The two Quick Capture normalizer/screen
 files pass 15 tests. Ten additional temporary probes pass by asserting the observed
 bugs, not their absence. No full test suite ran. All committed files are Markdown;
 the pre-existing untracked smart-tables prompt was left outside the audit commit.
+
+
+## 316. Physical Android Web Clipper Follow-up with Real Links (November 17, 2026)
+
+The [USB follow-up](audits/android-web-clipper-2026-11-17/usb-device-follow-up/README.md)
+adds WC-11 through WC-16, bringing the [audit](audits/android-web-clipper-2026-11-17/README.md)
+to **16 open bugs**. The Redmi K20 Pro runs Android 16 and WebView 145.0.7632.45.
+Eight public links were exercised with real network responses; actual WebView
+DOM capture and native touch/save actions complement phone-side direct scanning.
+
+New findings: the URL dialog overflows when Continue gains its loading spinner;
+nested layout tables repeat prose; RFC 9110 collapses to its index appendix;
+Hexo documentation loses code figures; a star description rejects a large content
+photo; and a failed WebView load becomes Ready to clip. The first, second, third,
+fourth and sixth have device/live-page evidence. Photo filtering is isolated by
+a minimal component probe; no corresponding live NASA/Wikipedia loss is claimed.
+The real browser save also confirms WC-09, including its stuck processing state,
+and successful navigation retains the stale message described by WC-07.
+
+No application fix was made. Reports, two native screenshots, content counts,
+state/navigation records and exact executed harness/probe source are preserved.
+The separate package com.blackpiratex.quietpaper.audit used a memory database,
+synthetic encryption keys and anonymous auth. The original app was not updated,
+cleared or uninstalled. The audit package and USB forwards were removed afterward.
+Temporary manifest/build edits were restored and temporary Dart files removed.
+
+After the earlier emulator attempt and reported laptop crash, the USB build was
+serialized and limited to one Gradle worker and a 2GB Java heap; no emulator ran.
+It completed in 174.6 seconds. Final static analysis reports no issues. The six
+relevant existing extractor/converter/filter/preview/browser files pass 23 tests,
+and four temporary component probes pass by characterizing the bugs. Concurrency
+was 1; no full suite ran. A synthetic-font preview overflow suspicion was excluded:
+native evidence identifies the URL-dialog loading state instead.

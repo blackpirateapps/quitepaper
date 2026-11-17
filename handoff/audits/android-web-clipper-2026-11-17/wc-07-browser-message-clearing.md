@@ -26,3 +26,7 @@ The corresponding `WC-07` probe and its output are preserved in [evidence.md](ev
 
 - [`lib/features/web_clipper/presentation/browser/web_clip_browser_controller.dart:68`](../../../lib/features/web_clipper/presentation/browser/web_clip_browser_controller.dart#L68)
 - [`lib/features/web_clipper/presentation/browser/web_clip_browser_controller.dart:568`](../../../lib/features/web_clipper/presentation/browser/web_clip_browser_controller.dart#L568)
+
+## Physical-device confirmation
+
+After a real Android main-frame cleartext failure, navigation and DOM capture of the HTTPS Hexo and RFC pages succeed while errorMessage still contains the previous net::ERR_CLEARTEXT_NOT_PERMITTED. The actual captured pages and stale controller state are recorded in [native evidence](usb-device-follow-up/evidence.md). This confirms the state defect without claiming an additional independent visible failure.

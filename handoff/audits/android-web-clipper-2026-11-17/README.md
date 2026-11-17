@@ -1,6 +1,6 @@
 # Android web clipper bug audit — 2026-11-17
 
-**10 confirmed open findings. No application changes or fixes.**
+**16 confirmed open findings. No application changes or fixes.**
 
 Branch: `audit/android-web-clipper-2026-11-17`
 
@@ -22,14 +22,24 @@ P2 denotes incorrect clipping behavior or lost requested content. P3 denotes the
 | [WC-08](wc-08-query-image-substitution.md) | P2 | A failed image can be replaced by a different image with the same URL path |
 | [WC-09](wc-09-browser-save-pops-editor.md) | P2 | Saving from the in-app browser immediately pops the newly opened editor |
 | [WC-10](wc-10-second-share-discarded.md) | P2 | A second shared URL is discarded while Quick Capture is open |
+| [WC-11](wc-11-url-dialog-loading-overflow.md) | P2 | Continue’s loading spinner overflows the URL dialog on a phone |
+| [WC-12](wc-12-layout-table-article-triplication.md) | P2 | Direct clipping repeats article text from nested layout tables |
+| [WC-13](wc-13-rfc-clipped-to-index.md) | P2 | A complete technical document is clipped down to its index appendix |
+| [WC-14](wc-14-code-figures-disappear.md) | P2 | Code examples inside figure elements disappear from Markdown |
+| [WC-15](wc-15-star-alt-removes-content-photo.md) | P2 | A meaningful photo is rejected when its alt text mentions a star |
+| [WC-16](wc-16-failed-page-marked-ready.md) | P2 | An Android page-load failure becomes Ready to clip |
 
-## Scope and limits
+## USB device follow-up
+
+The [physical-device audit](usb-device-follow-up/README.md) adds six findings, reproduces WC-09 and WC-07 on a Redmi K20 Pro, and exercises eight real public links. Five new findings have device/live-page evidence; WC-15 is a component-only reproduction. The final USB run passes 23 existing relevant tests plus four probes. No fixes or full-suite run.
+
+## Initial scope and limits
 
 Reviewed Android manifest and activity integration, incoming share routing through Quick Capture, URL input, in-app acquisition browser, extraction and URL resolution, image downloads, preview options, note commitment, HTML snapshots and snapshot viewing. Shared core defects are included because they are used by the Android flow; they may also affect other platforms.
 
-Evidence combines source tracing, deterministic HTTP/service probes, a real local HTTP redirect, and Android-themed widget tests of navigation and repeated shares. No Android device/emulator or adb was available, so native intents, real WebView lifecycle behavior, authenticated websites and device rendering were not tested. No live third-party site or private user data was used. This is a bounded audit, not a claim that all Android bugs have been found.
+Evidence combines source tracing, deterministic HTTP/service probes, a real local HTTP redirect, and Android-themed widget tests of navigation and repeated shares. The initial pass did not exercise a device, native intents or real websites. The later USB follow-up exercises actual WebView and device rendering on public links; authenticated sites and OS share transport remain outside that follow-up. No private note data was used. This is a bounded audit, not a claim that all Android bugs have been found.
 
-## Validation
+## Initial validation
 
 - `flutter analyze`: no issues.
 - `flutter test test/web_clipper`: **42 passed**, existing clipper tests only.
@@ -38,3 +48,8 @@ Evidence combines source tracing, deterministic HTTP/service probes, a real loca
 - **No full test suite ran.** Temporary executable probes were removed after preserving them as Markdown; committed changes are Markdown only.
 
 All findings remain open. Existing test success does not establish the absence of these bugs: those tests omit the failing state transitions, production wiring or artifact content examined here.
+
+
+## Follow-up final static analysis
+
+After archiving and removing temporary Dart instrumentation, `flutter analyze` reports no issues. See the [USB follow-up](usb-device-follow-up/README.md) for the focused test results, cleanup and native scope.
