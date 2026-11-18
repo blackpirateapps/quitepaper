@@ -14,9 +14,14 @@ final templateServiceProvider = Provider(
   (ref) => TemplateService(
     repository: ref.watch(templateRepositoryProvider),
     notes: ref.watch(notesRepositoryProvider),
-    onNoteCreated: () {
-      ref.read(notesCollectionProvider.notifier).refresh();
-      ref.read(syncEngineProvider).triggerSyncDebounced();
+    onNoteCreated: () async {
+      final collection = ref.read(notesCollectionProvider.notifier);
+      final sync = ref.read(syncEngineProvider);
+      try {
+        await collection.refresh();
+      } finally {
+        sync.triggerSyncDebounced();
+      }
     },
   ),
 );

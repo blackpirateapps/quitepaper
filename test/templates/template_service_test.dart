@@ -303,6 +303,45 @@ void main() {
       editor.dispose();
     },
   );
+  for (final asynchronous in [false, true]) {
+    test(
+      'notification failure never changes committed success; async=$asynchronous',
+      () async {
+        var requests = 0;
+        final broken = TemplateService(
+          repository: repo,
+          notes: notes,
+          onNoteCreated: asynchronous
+              ? () async {
+                  requests++;
+                  throw StateError('injected async notification failure');
+                }
+              : () {
+                  requests++;
+                  throw StateError('injected notification failure');
+                },
+        );
+        final note = await broken.instantiate('builtin.meeting_notes.v1');
+        await Future<void>.delayed(Duration.zero);
+        expect((await notes.getNoteById(note.id))!.title, 'Meeting Notes');
+        expect((await db.select(db.notesTable).get()).length, 1);
+        expect(requests, 2); // Retry notification only.
+      },
+    );
+  }
+
+  test('pending notification does not hold committed note result', () async {
+    final gate = Completer<void>();
+    final delayed = TemplateService(
+      repository: repo,
+      notes: notes,
+      onNoteCreated: () => gate.future,
+    );
+    final note = await delayed.instantiate('builtin.meeting_notes.v1');
+    expect((await notes.getNoteById(note.id))!.title, 'Meeting Notes');
+    gate.complete();
+  });
+
   for (final newline in ['\n', '\r\n']) {
     for (final titleIndex in [0, 1, 3]) {
       for (final oldTitle in ['Old', '"Old # title"', "'Bob''s # title'"]) {

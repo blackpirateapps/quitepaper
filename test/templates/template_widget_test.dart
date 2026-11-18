@@ -450,6 +450,47 @@ void main() {
     },
   );
 
+  for (final asynchronous in [false, true]) {
+    testWidgets(
+      'failed opening retries committed note without duplicate; async=$asynchronous',
+      (tester) async {
+        var attempts = 0;
+        final delivered = <Note>[];
+        void open(Note note) {
+          delivered.add(note);
+          attempts++;
+          if (attempts == 1) throw StateError('injected navigation failure');
+        }
+
+        await tester.pumpWidget(
+          app(
+            TemplateBrowser(
+              management: true,
+              onCreated: asynchronous ? (note) async => open(note) : open,
+            ),
+          ),
+        );
+        await settle(tester);
+        await tester.tap(find.text('Daily Planner'));
+        await settle(tester);
+        await tester.tap(find.text('Use Template'));
+        await settle(tester);
+        expect(find.text('Open Created Note'), findsOneWidget);
+        expect(find.textContaining('The note was created'), findsOneWidget);
+        expect((await db.select(db.notesTable).get()).length, 1);
+        await tester.tap(find.text('Open Created Note'));
+        await settle(tester);
+        expect(delivered.length, 2);
+        expect(delivered[1].id, delivered[0].id);
+        expect((await db.select(db.notesTable).get()).length, 1);
+        expect(find.text('Use Template'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+    );
+  }
+
   for (final platform in [TargetPlatform.android, TargetPlatform.linux]) {
     testWidgets(
       'pending use survives drag, barrier, Escape and Back on $platform',

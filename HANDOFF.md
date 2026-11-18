@@ -836,3 +836,17 @@ Validation: `flutter analyze` clean; 50 relevant template service/frontmatter
 unit/preservation tests pass. Eighteen real SQLite save/use combinations compare
 all unrelated bytes for LF/CRLF, three title positions, quoted values and inline
 comments. Source/template bytes remain unchanged. No full suite ran.
+
+### QPT-007 template audit fix — November 19, 2026
+
+Committed note creation returns independently of refresh/sync notifications.
+Synchronous and asynchronous notification failures are reported without note
+content and retried once without repeating persistence. Production refresh is
+awaited in that ancillary task and sync scheduling runs even if refresh fails.
+The browser retains a committed Note across synchronous/asynchronous opening
+failures; Open Created Note retries delivery of the same identity. A completed
+management action resets state for a subsequent explicit creation.
+
+Validation: `flutter analyze` clean; 58 relevant service/widget/navigation tests
+pass. Injected notification failures, a pending callback and failed opening
+retries all preserve one committed note. No full suite ran.

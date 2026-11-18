@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart';
@@ -16,7 +17,7 @@ class TemplateService {
   });
   final TemplateRepository repository;
   final NotesRepository notes;
-  final void Function()? onNoteCreated;
+  final FutureOr<void> Function()? onNoteCreated;
 
   static bool eligible(
     Note note, {
@@ -98,8 +99,23 @@ class TemplateService {
       updatedAt: now,
     );
     await notes.saveNote(note, preserveEmptyTags: true);
-    onNoteCreated?.call();
+    unawaited(_notifyNoteCreated());
     return note;
+  }
+
+  // A note is already committed. Retry only this ancillary notification, never
+  // note creation, and keep refresh/sync failure outside the persistence result.
+  Future<void> _notifyNoteCreated() async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await onNoteCreated?.call();
+        return;
+      } catch (error) {
+        debugPrint(
+          '[Templates] Creation notification failed (${error.runtimeType})',
+        );
+      }
+    }
   }
 
   Future<void> favorite(String id, bool value) async {

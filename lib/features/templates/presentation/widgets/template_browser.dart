@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +19,7 @@ class TemplateBrowser extends ConsumerStatefulWidget {
     this.onManage,
     this.management = false,
   });
-  final ValueChanged<Note> onCreated;
+  final FutureOr<void> Function(Note) onCreated;
   final String? activeTag;
   final VoidCallback? onManage;
   final bool management;
@@ -31,6 +32,7 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
   final _searchFocus = FocusNode();
   final _busy = <String>{};
   NoteTemplate? _selected;
+  Note? _committedNote;
   bool _creating = false;
   String? _error;
   @override
@@ -80,17 +82,20 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
     });
     var completed = false;
     try {
-      final note = await ref
+      final note = _committedNote ??= await ref
           .read(templateServiceProvider)
           .instantiate(_selected!.id, activeTag: widget.activeTag);
       if (mounted) {
+        await widget.onCreated(note);
         completed = true;
-        widget.onCreated(note);
+        _committedNote = null;
       }
     } catch (error) {
       if (mounted) {
         setState(() {
-          _error = templateErrorMessage(error);
+          _error = _committedNote == null
+              ? templateErrorMessage(error)
+              : 'The note was created, but could not be opened. Try opening it again.';
         });
       }
     } finally {
@@ -106,6 +111,7 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
     if (_creating) return;
     setState(() {
       _selected = null;
+      _committedNote = null;
       _error = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -206,7 +212,13 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
                     padding: const EdgeInsets.all(16),
                     child: FilledButton(
                       onPressed: _creating ? null : _use,
-                      child: Text(_creating ? 'Creating…' : 'Use Template'),
+                      child: Text(
+                        _creating
+                            ? 'Creating…'
+                            : _committedNote != null
+                            ? 'Open Created Note'
+                            : 'Use Template',
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -304,6 +316,7 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
       ),
       onTap: () => setState(() {
         _selected = template;
+        _committedNote = null;
         _error = null;
       }),
       trailing: Row(
