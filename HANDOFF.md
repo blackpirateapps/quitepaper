@@ -811,3 +811,16 @@ Validation: `flutter analyze` clean; 56 relevant content/domain/service tests
 pass, including fenced/indented/inline code, escaped markup, literal preview
 comments, live-resource counterparts and a verbatim SQLite snapshot/use round
 trip. No full suite ran.
+
+### QPT-005 template audit fix — November 19, 2026
+
+Picker and save/rename modals disable sheet dragging and barrier dismissal;
+explicit Close/Cancel, Escape and Back remain available when idle. Pending
+operations retain their existing Back/keyboard/button guards until persistence
+results are delivered. The shared desktop dialog Escape fallback uses maybePop
+so nested PopScope guards cannot be bypassed when field focus changes.
+
+Validation: `flutter analyze` clean; 38 relevant template/editorial/adaptive-modal
+widget tests pass. Both Android-style sheets and Linux-style dialogs survive
+drag, barrier, Escape and system Back during gated use/save operations, then
+return one committed result. No full suite ran.

@@ -450,6 +450,100 @@ void main() {
     },
   );
 
+  for (final platform in [TargetPlatform.android, TargetPlatform.linux]) {
+    testWidgets(
+      'pending use survives drag, barrier, Escape and Back on $platform',
+      (tester) async {
+        final gated = _GatedTemplateService(repo, DriftNotesRepository(db));
+        service = gated;
+        await tester.pumpWidget(app(opener(), platform: platform));
+        await tester.tap(find.text('Open picker'));
+        await settle(tester);
+        await tester.tap(find.text('Daily Planner'));
+        await settle(tester);
+        await tester.tap(find.text('Use Template'));
+        await tester.pump();
+        await tester.fling(
+          find.text('Daily Planner').first,
+          const Offset(0, 650),
+          1500,
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await tester.tapAt(const Offset(5, 5));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.text('Creating…'), findsOneWidget);
+        expect(created, isNull);
+        gated.gate.complete();
+        await settle(tester);
+        expect(created, isNotNull);
+        expect((await db.select(db.notesTable).get()).length, 1);
+        expect(gated.requests, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+    );
+
+    testWidgets(
+      'pending save survives drag, barrier, Escape and Back on $platform',
+      (tester) async {
+        final gate = Completer<void>();
+        var requests = 0;
+        var finished = false;
+        await tester.pumpWidget(
+          app(
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  await showTemplateNameDialog(
+                    context: context,
+                    initialName: 'Saved snapshot',
+                    onSave: (name) async {
+                      requests++;
+                      await gate.future;
+                      await repo.insertUserTemplate(fixture(name: name));
+                    },
+                  );
+                  finished = true;
+                },
+                child: const Text('Save snapshot'),
+              ),
+            ),
+            platform: platform,
+          ),
+        );
+        await tester.tap(find.text('Save snapshot'));
+        await settle(tester);
+        await tester.tap(find.text('Save Template'));
+        await tester.pump();
+        await tester.fling(
+          find.text('Save as Template'),
+          const Offset(0, 650),
+          1500,
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await tester.tapAt(const Offset(5, 5));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.text('Saving…'), findsOneWidget);
+        expect(finished, false);
+        gate.complete();
+        await settle(tester);
+        expect(finished, true);
+        expect(
+          (await repo.getUserTemplates()).single.displayName,
+          'Saved snapshot',
+        );
+        expect(requests, 1);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+    );
+  }
+
   testWidgets(
     'desktop command palette filters and returns shared template action',
     (tester) async {

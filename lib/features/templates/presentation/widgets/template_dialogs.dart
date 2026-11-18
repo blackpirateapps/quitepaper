@@ -38,6 +38,8 @@ Future<void> showTemplateNameDialog({
   final saved = await QuietAdaptiveModal.show<bool>(
     context: context,
     showCloseButton: false,
+    enableDrag: false,
+    barrierDismissible: false,
     builder: (_) => TemplateNameDialog(
       initialName: initialName,
       onSave: onSave,

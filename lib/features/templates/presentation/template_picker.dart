@@ -20,6 +20,8 @@ Future<Note?> showTemplatePicker(
     context: context,
     maxWidth: 560,
     showCloseButton: false,
+    enableDrag: false,
+    barrierDismissible: false,
     builder: (ctx) => TemplateModalFrame(
       child: SizedBox(
         height: math
