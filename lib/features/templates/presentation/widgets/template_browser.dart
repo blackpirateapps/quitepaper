@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
+import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../notes/domain/note_model.dart';
@@ -147,6 +149,8 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
               children: [
                 Expanded(
                   child: CustomScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     slivers: [
                       SliverToBoxAdapter(child: _header(selected)),
                       if (_error != null)
@@ -167,21 +171,7 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
                           ),
                         )
                       else ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: TextField(
-                              controller: _search,
-                              focusNode: _searchFocus,
-                              autofocus: !widget.management,
-                              decoration: const InputDecoration(
-                                hintText: 'Search templates',
-                                prefixIcon: Icon(Icons.search),
-                              ),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                        ),
+                        SliverToBoxAdapter(child: _searchField()),
                         catalog.when(
                           loading: () => const SliverToBoxAdapter(
                             child: Center(child: CircularProgressIndicator()),
@@ -235,20 +225,24 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
           IconButton(
             tooltip: 'Back to templates',
             onPressed: _creating ? null : _back,
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(PhosphorIconsRegular.arrowLeft),
           ),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                selected?.displayName ??
-                    (widget.management ? 'Templates' : 'Choose a Template'),
-                style: AppTypography.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
+              if (selected != null || !widget.management)
+                Text(
+                  selected?.displayName ?? 'Choose a Template',
+                  style: AppTypography.headline.copyWith(
+                    color: context.appColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (selected != null || !widget.management)
+                const SizedBox(height: 4),
               Text(
                 selected == null
                     ? (widget.management
@@ -257,7 +251,9 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
                     : selected.isBuiltIn
                     ? 'Built-in'
                     : 'My Template',
-                style: AppTypography.caption,
+                style: AppTypography.bodySmall.copyWith(
+                  color: context.appColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -266,17 +262,101 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
           IconButton(
             tooltip: 'Close templates',
             onPressed: _creating ? null : () => Navigator.pop(context),
-            icon: const Icon(Icons.close),
+            icon: const Icon(PhosphorIconsRegular.x),
           ),
       ],
     ),
   );
 
+  Widget _searchField() {
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: TextField(
+        controller: _search,
+        focusNode: _searchFocus,
+        autofocus: !widget.management,
+        style: AppTypography.bodySmall.copyWith(color: colors.textPrimary),
+        cursorColor: colors.accent,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search templates',
+          hintStyle: AppTypography.bodySmall.copyWith(
+            color: colors.textTertiary,
+          ),
+          prefixIcon: Icon(
+            PhosphorIconsRegular.magnifyingGlass,
+            size: 19,
+            color: colors.textSecondary,
+          ),
+          suffixIcon: _search.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: Icon(
+                    PhosphorIconsRegular.x,
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                  onPressed: () => setState(() {
+                    _search.clear();
+                  }),
+                ),
+          filled: true,
+          fillColor: colors.surfaceSubtle,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: AppRadii.borderMd,
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: AppRadii.borderMd,
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppRadii.borderMd,
+            borderSide: BorderSide(color: colors.accent, width: 1),
+          ),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+    );
+  }
+
   Widget _catalogSliver(List<NoteTemplate> templates) {
     final sections = templateSections(templates, _search.text);
     if (sections.isEmpty) {
-      return const SliverToBoxAdapter(
-        child: Center(child: Text('No templates found')),
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            children: [
+              Icon(
+                PhosphorIconsRegular.magnifyingGlass,
+                size: 28,
+                color: context.appColors.textTertiary,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No templates found',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: context.appColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Try a different name.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: context.appColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     final rows = <Object>[
@@ -289,7 +369,14 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
         if (row is String) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text(row, style: AppTypography.caption),
+            child: Text(
+              row,
+              style: AppTypography.caption.copyWith(
+                color: context.appColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.8,
+              ),
+            ),
           );
         }
         return _row(row as NoteTemplate);
@@ -300,72 +387,121 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
   Widget _row(NoteTemplate template) {
     final service = ref.read(templateServiceProvider);
     final busy = _busy.contains(template.id);
-    final snippet = templateListSnippet(template);
-    return ListTile(
-      key: ValueKey('template-${template.id}'),
-      leading: const Icon(Icons.description_outlined),
-      title: Text(
-        template.displayName,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        '${template.isBuiltIn ? 'Built-in' : 'My Template'} · $snippet',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      onTap: () => setState(() {
-        _selected = template;
-        _committedNote = null;
-        _error = null;
-      }),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: template.isFavorite
-                ? 'Unfavorite ${template.displayName}'
-                : 'Favorite ${template.displayName}',
-            onPressed: busy
-                ? null
-                : () => _mutate(
-                    template.id,
-                    () => service.favorite(template.id, !template.isFavorite),
-                  ),
-            icon: Icon(
-              template.isFavorite
-                  ? Icons.star_rounded
-                  : Icons.star_outline_rounded,
-              color: template.isFavorite ? context.appColors.accent : null,
-            ),
+    final colors = context.appColors;
+    final snippet =
+        _builtInDescriptions[template.id] ?? templateListSnippet(template);
+    return Column(
+      children: [
+        ListTile(
+          key: ValueKey('template-${template.id}'),
+          contentPadding: const EdgeInsets.only(left: 20, right: 8),
+          minLeadingWidth: 20,
+          horizontalTitleGap: 12,
+          minVerticalPadding: 12,
+          leading: Icon(
+            PhosphorIconsRegular.fileText,
+            size: 22,
+            color: colors.textSecondary,
           ),
-          if (widget.management && !template.isBuiltIn)
-            PopupMenuButton<String>(
-              tooltip: 'Template actions',
-              enabled: !busy,
-              onSelected: (action) async {
-                if (action == 'rename') {
-                  await showTemplateNameDialog(
-                    context: context,
-                    initialName: template.displayName,
-                    rename: true,
-                    onSave: (name) => service.rename(template.id, name),
-                  );
-                } else if (await confirmDeleteTemplate(context) && mounted) {
-                  await _mutate(
-                    template.id,
-                    () => service.delete(template.id),
-                    success: 'Template deleted',
-                  );
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'rename', child: Text('Rename')),
-                PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
+          title: Text(
+            template.displayName,
+            style: AppTypography.bodyMedium.copyWith(color: colors.textPrimary),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            snippet,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.textSecondary,
             ),
-        ],
-      ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => setState(() {
+            _selected = template;
+            _committedNote = null;
+            _error = null;
+          }),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: template.isFavorite
+                    ? 'Unfavorite ${template.displayName}'
+                    : 'Favorite ${template.displayName}',
+                onPressed: busy
+                    ? null
+                    : () => _mutate(
+                        template.id,
+                        () =>
+                            service.favorite(template.id, !template.isFavorite),
+                      ),
+                icon: Icon(
+                  template.isFavorite
+                      ? PhosphorIconsFill.star
+                      : PhosphorIconsRegular.star,
+                  size: 20,
+                  color: template.isFavorite
+                      ? colors.accent
+                      : colors.textTertiary,
+                ),
+              ),
+              if (widget.management && !template.isBuiltIn)
+                PopupMenuButton<String>(
+                  tooltip: 'Template actions',
+                  icon: Icon(
+                    PhosphorIconsRegular.dotsThree,
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
+                  enabled: !busy,
+                  onSelected: (action) async {
+                    if (action == 'rename') {
+                      await showTemplateNameDialog(
+                        context: context,
+                        initialName: template.displayName,
+                        rename: true,
+                        onSave: (name) => service.rename(template.id, name),
+                      );
+                    } else if (await confirmDeleteTemplate(context) &&
+                        mounted) {
+                      await _mutate(
+                        template.id,
+                        () => service.delete(template.id),
+                        success: 'Template deleted',
+                      );
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'rename', child: Text('Rename')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 54, right: 20),
+          child: Divider(height: 1, thickness: 0.6, color: colors.divider),
+        ),
+      ],
     );
   }
 }
+
+const _builtInDescriptions = <String, String>{
+  'builtin.daily_planner.v1':
+      'Make room for priorities, tasks, and reflection.',
+  'builtin.meeting_notes.v1':
+      'Capture the discussion, decisions, and next steps.',
+  'builtin.study_notes.v1':
+      'Keep concepts, definitions, and questions together.',
+  'builtin.reading_notes.v1':
+      'Remember ideas, quotes, and your own reflections.',
+  'builtin.project_brief.v1':
+      'Outline the problem, goals, and scope of your work.',
+  'builtin.bug_report.v1': 'Record what happened and how to reproduce it.',
+  'builtin.weekly_review.v1': 'Reflect on the week and plan what comes next.',
+  'builtin.decision_log.v1':
+      'Keep the context and reasoning behind a decision.',
+};

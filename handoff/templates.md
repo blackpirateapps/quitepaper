@@ -93,8 +93,9 @@ streams with bundled definitions. Search, selection, focus, mutation guards and
 recoverable errors belong to each browser/dialog session and are disposed with
 that session; there is no global mutable template collection.
 
-Rows use bounded literal snippets, including a bounded inline excerpt for ASTs
-when available (a format label otherwise). A favorite toggle
+Rows use short editorial descriptions for built-ins and bounded literal
+snippets for user snapshots, including a bounded inline excerpt for ASTs when
+available (a format label otherwise). A favorite toggle
 never reparses bodies or touches ordinary note indexes. Search trims whitespace
 and matches names case-insensitively. Favorites sort alphabetically, user
 snapshots newest first, and built-ins keep catalog order. A favorite is displayed
@@ -170,16 +171,24 @@ Normal prose such as “Profile:” or “Content:” is not mistaken for a loca
   mutation guards and shared management behavior; Escape/Back return from
   preview before dismissal and restore search focus.
 - `template_preview.dart`: selected-document read-only existing Markdown renderer.
-- `templates_screen.dart`: Settings → Templates, rename/delete user records,
-  preview and ordinary creation; built-ins expose no rename/delete menus.
+- `templates_screen.dart`: Settings → General → Templates, immediately below
+  the cloud/account/security section. A single app-bar title, 680 dp content
+  column, compact filled search with a clear action, subtle dividers, explicit
+  typography and Phosphor controls follow the app's paper themes. Rename/delete
+  user records, preview and ordinary creation remain available; built-ins expose
+  no rename/delete menus.
 - `widgets/template_dialogs.dart`: adaptive save/rename/delete dialogs and safe
   errors; persistence failures preserve input/records and allow retry.
 - Phone and desktop notes overflow menus: New from Template. TagContextHeader
   supplies the same action in its separate tag menu with the active nested tag.
-- Desktop palette: Ctrl/Cmd+Shift+P, searchable New Note / New from Template
-  commands. This reuses the existing spotlight primitive and creation handlers;
-  the baseline had no general command registry. Initial notes focus permits the
-  shortcut before a field has been focused. Existing Ctrl/Cmd+N stays unchanged.
+- Phone and desktop palettes: searchable New Note / New from Template commands,
+  opened from the overflow menu or Ctrl/Cmd+Shift+P. Desktop uses the spotlight
+  primitive; Android uses a visible themed sheet with keyboard inset padding,
+  scrolling, close control and an empty-results message. Enter/Go activates the
+  first matching command. Both notes overflow layouts pair these actions with
+  Phosphor icons and wrapping labels. The existing creation handlers and
+  Ctrl/Cmd+N remain unchanged; the baseline had no general command registry.
+  Initial notes focus permits shortcuts before a field has been focused.
 
 Settings and picker management navigation use existing Material routes. A picker
 opened from a tag also passes that context if its management footer is used.

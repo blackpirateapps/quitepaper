@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/templates/application/template_providers.dart';
 import 'package:quitepaper/features/templates/application/template_service.dart';
@@ -55,7 +56,9 @@ void main() {
         ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
-      theme: ThemeData(platform: platform, brightness: brightness),
+      theme:
+          (brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light())
+              .copyWith(platform: platform),
       home: Scaffold(body: home),
     ),
   );
@@ -656,6 +659,56 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       },
     );
+  }
+
+  for (final size in [const Size(390, 844), const Size(568, 320)]) {
+    testWidgets('Android palette remains visible above keyboard at $size', (
+      tester,
+    ) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      NotesCommand? command;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                command = await showNotesCommandPalette(context);
+              },
+              child: const Text('Commands'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Commands'));
+      await settle(tester);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: size.height > 400 ? 300 : 150,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.enterText(find.byType(TextField), 'no matching command');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('No commands found'));
+      expect(find.text('No commands found').hitTestable(), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'template');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('New from Template'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomRight(find.text('New from Template')).dy,
+        lessThanOrEqualTo(size.height - tester.view.viewInsets.bottom),
+      );
+      await tester.tap(find.text('New from Template'));
+      await settle(tester);
+      expect(command, NotesCommand.newFromTemplate);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 100));
+    });
   }
 
   testWidgets(

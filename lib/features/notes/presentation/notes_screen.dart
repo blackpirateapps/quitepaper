@@ -1129,13 +1129,49 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   }
                                 },
                                 itemBuilder: (context) => [
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: 'templates',
-                                    child: Text('New from Template'),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.files,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'New from Template',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: 'commands',
-                                    child: Text('Command Palette'),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.command,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'Command Palette',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   PopupMenuItem(
                                     value: 'select',
@@ -2464,13 +2500,66 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             }
                                                           },
                                                           itemBuilder: (context) => [
-                                                            const PopupMenuItem(
-                                                              value: 'templates',
-                                                              child: Text('New from Template'),
+                                                            PopupMenuItem(
+                                                              value:
+                                                                  'templates',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .files,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'New from Template',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
                                                             ),
-                                                            const PopupMenuItem(
+                                                            PopupMenuItem(
                                                               value: 'commands',
-                                                              child: Text('Command Palette'),
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .command,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'Command Palette',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
                                                             ),
                                                             PopupMenuItem(
                                                               value: 'select',

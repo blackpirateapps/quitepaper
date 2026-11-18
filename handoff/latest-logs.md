@@ -7580,3 +7580,41 @@ there is no known unfinished feature implementation.
 
 Added [templates.md](templates.md), [templates-report.md](templates-report.md),
 updated the handoff map, editor/storage contracts and root `HANDOFF.md`.
+
+
+## 335. Templates UI polish and Android command palette (November 19, 2026)
+
+The templates entry previously preceded every Settings section, the management
+screen repeated its title and exposed large raw Markdown excerpts, and two
+notes-menu actions lacked the icon treatment used by adjacent actions.
+The palette's touch presentation inherited a transparent modal background and
+lacked keyboard handling, leaving its controls without a clear visible surface.
+
+- Moved Templates to the first General row after cloud/account/security settings,
+  with a Phosphor files icon and explanatory subtitle.
+- Matched the management app bar and 680 dp content column to Settings. Removed
+  the duplicate title; added a compact themed search field, clear action and
+  empty-search guidance. Both management and picker catalogs use explicit small
+  text styles, quiet dividers, Phosphor file/star/action controls and short
+  built-in descriptions instead of raw Markdown previews. User snapshots still
+  use the existing bounded excerpt helper; catalog rows remain lazy.
+- Added Phosphor files/command icons to both notes overflow layouts, keeping
+  their labels flexible so they fit within the popup menu width.
+- Gave the palette an opaque paper surface, title/close control, keyboard inset
+  spacing, bounded scrolling, themed search, empty results and Enter/Go
+  activation. Its two commands still use the notes screen's existing blank-note
+  and template-note creation handlers.
+
+Modified the settings screen, notes screen/palette, templates screen/browser,
+focused template widget/navigation tests and handoff documentation. Tests now
+use the actual app theme and exercise settings ordering, a single title, search
+clearing, both overflow icon sets, Android/desktop palette navigation and
+portrait/landscape keyboard layouts. No persistence or schema change.
+
+Validation: `flutter analyze` reports no issues. The final command
+`flutter test --no-pub --concurrency=1 test/templates/template_widget_test.dart test/templates/template_navigation_test.dart test/settings/settings_screen_test.dart`
+passes all **55 tests**. Both menu layouts also exercise New Note through the
+keyboard Go action and New from Template through touch selection. Light/dark
+widget-rendered catalog layouts and the Android keyboard palette were visually
+inspected using temporary snapshots. `git diff --check` passes. No full suite
+or physical Android device test ran.

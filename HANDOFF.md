@@ -892,3 +892,22 @@ that BackupImportSettingsScreen opens before asserting the import controls.
 Validation: `flutter analyze` is clean; all **37 tests** pass in
 `test/widget_test.dart` and `test/settings/settings_screen_test.dart`, including
 the originally failing case. `git diff --check` passes. No full suite ran.
+
+### Templates UI and Android command palette — November 19, 2026
+
+Templates now appears first under General, after the cloud/account/security
+section. Both notes overflow layouts show Phosphor icons beside New from
+Template and Command Palette, with labels that wrap within the menu width.
+The management page uses one title, the app's paper palette, a compact filled
+search field with clear action, understated section labels, readable built-in
+descriptions, fine dividers and Phosphor controls. Its content width matches
+Settings; the picker shares the same catalog styling.
+
+The command palette offers New Note and New from Template through the existing
+creation handlers. Android now has an opaque themed surface, close control,
+keyboard inset handling and scrolling in short viewports. Search reports empty
+results and Enter/Go activates the first matching action. See engineering log
+335 in `handoff/latest-logs.md` for verification and scope.
+
+Validation: `flutter analyze` clean; **55 focused tests pass** across template
+widgets/navigation and settings. `git diff --check` passes. No full suite ran.

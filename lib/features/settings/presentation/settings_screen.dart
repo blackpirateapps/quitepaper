@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_spacing.dart';
 import 'package:quitepaper/app/theme/app_typography.dart';
@@ -184,12 +185,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 // ==========================================
                 // Section: Cloud Sync & Encryption (3 Rows)
                 // ==========================================
-                _SettingsGroup(children: [
-                  _SettingsRow(icon: Icons.description_outlined, title: 'Templates',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TemplatesScreen())),
-                  ),
-                ]),
-                const SizedBox(height: AppSpacing.lg),
                 _buildSectionHeader(context, 'Cloud Sync & Encryption'),
                 _SettingsGroup(
                   children: [
@@ -398,6 +393,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 _buildSectionHeader(context, 'GENERAL'),
                 _SettingsGroup(
                   children: [
+                    _SettingsRow(
+                      icon: PhosphorIconsRegular.files,
+                      title: 'Templates',
+                      subtitle: 'Reusable starting points for your notes',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TemplatesScreen(),
+                        ),
+                      ),
+                    ),
+                    _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.tune_rounded,
                       title: 'Default Settings',

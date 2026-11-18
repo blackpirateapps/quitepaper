@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 // Google Fonts exposes this manifest specifically for deterministic tests.
 // ignore: implementation_imports
 import 'package:google_fonts/src/google_fonts_base.dart' as font_test;
@@ -56,29 +58,30 @@ void main() {
     notes = DriftNotesRepository(db);
   });
   tearDown(() => db.close());
-  Widget app(Widget home) => ProviderScope(
-    overrides: [
-      databaseProvider.overrideWithValue(db),
-      isNavSidebarVisibleProvider.overrideWith((ref) => false),
-      notesRepositoryProvider.overrideWithValue(notes),
-      sharedPreferencesProvider.overrideWithValue(prefs),
-      currentUserProvider.overrideWithValue(null),
-      syncStateProvider.overrideWithValue(const SyncState()),
-      templateServiceProvider.overrideWith(
-        (ref) => TemplateService(
-          repository: TemplateRepository(db),
-          notes: notes,
-          onNoteCreated: () {
-            ref.read(notesCollectionProvider.notifier).refresh();
-          },
+  Widget app(Widget home, {TargetPlatform platform = TargetPlatform.linux}) =>
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          isNavSidebarVisibleProvider.overrideWith((ref) => false),
+          notesRepositoryProvider.overrideWithValue(notes),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          currentUserProvider.overrideWithValue(null),
+          syncStateProvider.overrideWithValue(const SyncState()),
+          templateServiceProvider.overrideWith(
+            (ref) => TemplateService(
+              repository: TemplateRepository(db),
+              notes: notes,
+              onNoteCreated: () {
+                ref.read(notesCollectionProvider.notifier).refresh();
+              },
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light().copyWith(platform: platform),
+          home: home,
         ),
-      ),
-    ],
-    child: MaterialApp(
-      theme: ThemeData(platform: TargetPlatform.linux),
-      home: home,
-    ),
-  );
+      );
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 100));
@@ -136,9 +139,28 @@ void main() {
   testWidgets('Settings Templates row opens management screen', (tester) async {
     await tester.pumpWidget(app(const SettingsScreen()));
     await settle(tester);
+    expect(
+      tester.getTopLeft(find.text('Templates')).dy,
+      greaterThan(tester.getTopLeft(find.text('Set up Encrypted Sync')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Templates')).dy,
+      lessThan(tester.getTopLeft(find.text('Default Settings')).dy),
+    );
     await tester.tap(find.text('Templates'));
     await settle(tester);
     expect(find.byType(TemplatesScreen), findsOneWidget);
+    expect(find.text('Templates'), findsOneWidget);
+    expect(
+      find.text('Make room for priorities, tasks, and reflection.'),
+      findsOneWidget,
+    );
+    await tester.enterText(find.byType(TextField), 'no matching template');
+    await tester.pumpAndSettle();
+    expect(find.text('No templates found'), findsOneWidget);
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Daily Planner'), findsOneWidget);
     expect(
       find.text('Reusable starting points for your notes.'),
       findsOneWidget,
@@ -148,6 +170,67 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     await finish(tester);
   });
+  for (final desktop in [false, true]) {
+    testWidgets(
+      '${desktop ? 'desktop' : 'Android'} overflow icons and palette open the shared picker',
+      (tester) async {
+        tester.view.physicalSize = desktop
+            ? const Size(1440, 900)
+            : const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          app(
+            const NotesScreen(),
+            platform: desktop ? TargetPlatform.linux : TargetPlatform.android,
+          ),
+        );
+        await settle(tester);
+        await tester.tap(
+          find.byTooltip(desktop ? 'More actions' : 'More options').first,
+        );
+        await tester.pumpAndSettle();
+        for (final (label, icon) in [
+          ('New from Template', PhosphorIconsRegular.files),
+          ('Command Palette', PhosphorIconsRegular.command),
+        ]) {
+          final item = find.ancestor(
+            of: find.text(label),
+            matching: find.byType(PopupMenuItem<String>),
+          );
+          expect(
+            find.descendant(of: item, matching: find.byIcon(icon)),
+            findsOneWidget,
+          );
+        }
+        await tester.tap(find.text('Command Palette'));
+        await settle(tester);
+        expect(find.text('Search commands'), findsOneWidget);
+        expect(find.text('New Note').hitTestable(), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'template');
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('New from Template'));
+        await settle(tester);
+        expect(find.text('Choose a Template'), findsOneWidget);
+        expect(await db.select(db.notesTable).get(), isEmpty);
+        await tester.tap(find.byTooltip('Close templates'));
+        await settle(tester);
+        await tester.tap(
+          find.byTooltip(desktop ? 'More actions' : 'More options').first,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Command Palette'));
+        await settle(tester);
+        await tester.enterText(find.byType(TextField), 'new note');
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await settle(tester);
+        expect(find.byType(EditorScreen), findsOneWidget);
+        expect(find.text('Search commands'), findsNothing);
+        await finish(tester);
+      },
+    );
+  }
   testWidgets(
     'desktop command shortcut opens palette then shared picker without a blank note',
     (tester) async {
