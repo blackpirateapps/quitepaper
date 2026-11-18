@@ -744,3 +744,18 @@ rerun brings distinct selected coverage to **350 tests**. The full suite was
 not run, as explicitly requested. Physical-device validation is not claimed.
 See [subsystem guide](handoff/templates.md), [engineering report](handoff/templates-report.md)
 and engineering log 334 for architecture, exact commands and verification limits.
+
+
+## Phase 1 Templates — Independent Audit
+
+The [independent template audit](audits/templates-2026-11-18.md) of commit
+`bbe720c` recommends **BLOCK RELEASE**. Eight confirmed findings include two P0
+regressions: password protection can fail to persist during an active save, and
+editor exit can discard the latest edits. Encoded private attachment links also
+bypass template validation (P1). The report includes exact source locations,
+reproductions, a requirements matrix and an ordered remediation plan.
+
+Static analysis and 355 selected repository tests passed; 14 additional audit
+probes produced five passes and nine failed correctness assertions. The full
+suite was not run. No fixes were applied during the audit. These findings
+supersede the implementation report's safety claims until remediation is verified.
