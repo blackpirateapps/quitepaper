@@ -1,3 +1,7 @@
+import '../../email_import/application/email_import_gateway.dart';
+import '../../email_import/application/email_parser.dart';
+import '../../email_import/presentation/email_import_launcher.dart';
+import '../../editor/presentation/editor_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
@@ -14,10 +18,7 @@ import '../domain/quick_capture_payload.dart';
 /// Implements immediate keyboard focus, warm editorial aesthetics,
 /// debounced draft persistence, and source-aware navigation return.
 class QuickCaptureScreen extends ConsumerStatefulWidget {
-  const QuickCaptureScreen({
-    super.key,
-    required this.payload,
-  });
+  const QuickCaptureScreen({super.key, required this.payload});
 
   final QuickCapturePayload payload;
 
@@ -42,13 +43,20 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _textController = TextEditingController(text: widget.payload.initialContent);
+    _textController = TextEditingController(
+      text: widget.payload.initialContent,
+    );
     _focusNode = FocusNode();
 
     // Preserve cursor at end or initial position
     if (widget.payload.initialContent.isNotEmpty) {
       _textController.selection = TextSelection.fromPosition(
-        TextPosition(offset: widget.payload.cursorPosition.clamp(0, widget.payload.initialContent.length)),
+        TextPosition(
+          offset: widget.payload.cursorPosition.clamp(
+            0,
+            widget.payload.initialContent.length,
+          ),
+        ),
       );
     }
 
@@ -65,7 +73,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
   void _onTextChanged() {
     ref
         .read(quickCaptureControllerProvider(widget.payload).notifier)
-        .updateContent(_textController.text, cursor: _textController.selection.baseOffset);
+        .updateContent(
+          _textController.text,
+          cursor: _textController.selection.baseOffset,
+        );
   }
 
   @override
@@ -89,8 +100,9 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
   }
 
   Future<void> _handleSave() async {
-    final controller =
-        ref.read(quickCaptureControllerProvider(widget.payload).notifier);
+    final controller = ref.read(
+      quickCaptureControllerProvider(widget.payload).notifier,
+    );
     final success = await controller.save();
     if (success && mounted) {
       await CaptureNavigationHelper.closeCapture(
@@ -100,10 +112,38 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
     }
   }
 
+  Future<void> _saveAsEmail() async {
+    final text = _textController.text;
+    if (text.trim().isEmpty) return;
+    final request = EmailImportRequest(
+      sharedContent: const EmailParser().sharedText(
+        text: text,
+        subject: widget.payload.sharedSubject ?? widget.payload.titleHint ?? '',
+        isHtml: widget.payload.sharedHtml,
+      ),
+    );
+    final notes = await EmailImportLauncher.open(
+      context,
+      request,
+      openSavedNote: false,
+    );
+    if (!mounted || notes.isEmpty) return;
+    await ref
+        .read(quickCaptureControllerProvider(widget.payload).notifier)
+        .completeEmailImport();
+    if (!mounted) return;
+    final nav = Navigator.of(context);
+    nav.pop();
+    nav.push(
+      MaterialPageRoute<void>(builder: (_) => EditorScreen(note: notes.first)),
+    );
+  }
+
   Future<void> _handleClose() async {
     final state = ref.read(quickCaptureControllerProvider(widget.payload));
-    final controller =
-        ref.read(quickCaptureControllerProvider(widget.payload).notifier);
+    final controller = ref.read(
+      quickCaptureControllerProvider(widget.payload).notifier,
+    );
 
     if (!state.isEmpty && !state.isSaved) {
       await controller.flushDraft();
@@ -144,7 +184,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close_rounded, color: colors.iconSecondary, size: 20),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: colors.iconSecondary,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.of(sheetContext).pop(),
                     ),
                   ],
@@ -157,16 +201,21 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: drafts.length,
-                    separatorBuilder: (context, index) => Divider(height: 1, color: colors.divider),
+                    separatorBuilder: (context, index) =>
+                        Divider(height: 1, color: colors.divider),
                     itemBuilder: (_, index) {
                       final draft = drafts[index];
                       final snippet = draft.content.trim().split('\n').first;
-                      final displaySnippet = snippet.length > 60 ? '${snippet.substring(0, 57)}...' : snippet;
+                      final displaySnippet = snippet.length > 60
+                          ? '${snippet.substring(0, 57)}...'
+                          : snippet;
 
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(
-                          displaySnippet.isEmpty ? '(Empty draft)' : displaySnippet,
+                          displaySnippet.isEmpty
+                              ? '(Empty draft)'
+                              : displaySnippet,
                           style: AppTypography.body.copyWith(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.w500,
@@ -176,13 +225,23 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                         ),
                         subtitle: Text(
                           'Source: ${draft.source} • ${_formatRelative(draft.updatedAt)}',
-                          style: AppTypography.caption.copyWith(color: colors.textTertiary),
+                          style: AppTypography.caption.copyWith(
+                            color: colors.textTertiary,
+                          ),
                         ),
                         trailing: IconButton(
-                          icon: Icon(Icons.delete_outline_rounded, color: colors.iconMuted, size: 20),
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: colors.iconMuted,
+                            size: 20,
+                          ),
                           onPressed: () async {
                             await ref
-                                .read(quickCaptureControllerProvider(widget.payload).notifier)
+                                .read(
+                                  quickCaptureControllerProvider(
+                                    widget.payload,
+                                  ).notifier,
+                                )
                                 .discardDraft(draft.id);
                             if (drafts.length <= 1 && sheetContext.mounted) {
                               Navigator.of(sheetContext).pop();
@@ -191,12 +250,22 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                         ),
                         onTap: () {
                           ref
-                              .read(quickCaptureControllerProvider(widget.payload).notifier)
+                              .read(
+                                quickCaptureControllerProvider(
+                                  widget.payload,
+                                ).notifier,
+                              )
                               .resumeDraft(draft);
                           _textController.text = draft.content;
-                          _textController.selection = TextSelection.fromPosition(
-                            TextPosition(offset: draft.cursorPosition.clamp(0, draft.content.length)),
-                          );
+                          _textController.selection =
+                              TextSelection.fromPosition(
+                                TextPosition(
+                                  offset: draft.cursorPosition.clamp(
+                                    0,
+                                    draft.content.length,
+                                  ),
+                                ),
+                              );
                           Navigator.of(sheetContext).pop();
                         },
                       );
@@ -224,7 +293,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
     final colors = Theme.of(context).extension<AppColors>()!;
     final state = ref.watch(quickCaptureControllerProvider(widget.payload));
 
-    final detectedUrl = widget.payload.sourceUrl ??
+    final detectedUrl =
+        widget.payload.sourceUrl ??
         QuickCaptureNormalizer.extractUrl(_textController.text);
 
     return PopScope(
@@ -245,7 +315,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                 children: [
                   // 1. Top Bar: [✕ Quick Capture] ... [Save]
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -255,7 +328,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                             onTap: _handleClose,
                             borderRadius: BorderRadius.circular(AppRadii.sm),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 4,
+                              ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -306,16 +382,20 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                                         height: 14,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
                                         ),
                                       )
                                     : Text(
                                         'Save',
-                                        style: AppTypography.bodyMedium.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 15,
-                                        ),
+                                        style: AppTypography.bodyMedium
+                                            .copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                            ),
                                       ),
                               ),
                             ),
@@ -325,6 +405,17 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                     ),
                   ),
 
+                  if (widget.payload.origin == CaptureOrigin.share &&
+                      _textController.text.trim().isNotEmpty &&
+                      _textController.text.trim() != detectedUrl)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: state.isSaving ? null : _saveAsEmail,
+                        icon: const Icon(Icons.mail_outline, size: 18),
+                        label: const Text('Save as Email'),
+                      ),
+                    ),
                   // Divider below top bar
                   Divider(height: 1, thickness: 1, color: colors.divider),
 
@@ -332,15 +423,24 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                   if (state.errorMessage != null)
                     Container(
                       color: colors.error.withValues(alpha: 0.1),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline_rounded, color: colors.error, size: 18),
+                          Icon(
+                            Icons.error_outline_rounded,
+                            color: colors.error,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               state.errorMessage!,
-                              style: AppTypography.caption.copyWith(color: colors.error),
+                              style: AppTypography.caption.copyWith(
+                                color: colors.error,
+                              ),
                             ),
                           ),
                         ],
@@ -350,10 +450,17 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                   if (state.incomingPendingPayload != null)
                     Container(
                       color: colors.accent.withValues(alpha: 0.12),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
-                          Icon(Icons.share_arrival_time_outlined, color: colors.accent, size: 18),
+                          Icon(
+                            Icons.share_arrival_time_outlined,
+                            color: colors.accent,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -367,7 +474,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                           TextButton(
                             onPressed: () {
                               ref
-                                  .read(quickCaptureControllerProvider(widget.payload).notifier)
+                                  .read(
+                                    quickCaptureControllerProvider(
+                                      widget.payload,
+                                    ).notifier,
+                                  )
                                   .acceptIncomingPendingShare();
                               _textController.text =
                                   state.incomingPendingPayload!.initialContent;
@@ -378,7 +489,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                             icon: const Icon(Icons.close_rounded, size: 16),
                             onPressed: () {
                               ref
-                                  .read(quickCaptureControllerProvider(widget.payload).notifier)
+                                  .read(
+                                    quickCaptureControllerProvider(
+                                      widget.payload,
+                                    ).notifier,
+                                  )
                                   .dismissIncomingPendingShare();
                             },
                           ),
@@ -446,23 +561,37 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
 
                   // 3. Optional Action Bar: Clip full article / Resume draft
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          if (detectedUrl != null && detectedUrl.isNotEmpty) ...[
+                          if (detectedUrl != null &&
+                              detectedUrl.isNotEmpty) ...[
                             InkWell(
                               onTap: () {
-                                WebClipDialog.show(context, initialUrl: detectedUrl);
+                                WebClipDialog.show(
+                                  context,
+                                  initialUrl: detectedUrl,
+                                );
                               },
                               borderRadius: BorderRadius.circular(AppRadii.sm),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.language_rounded, size: 15, color: colors.accent),
+                                    Icon(
+                                      Icons.language_rounded,
+                                      size: 15,
+                                      color: colors.accent,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Clip full article',
@@ -479,14 +608,22 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen>
                           ],
                           if (state.availableDrafts.isNotEmpty) ...[
                             InkWell(
-                              onTap: () => _showDraftsSheet(state.availableDrafts),
+                              onTap: () =>
+                                  _showDraftsSheet(state.availableDrafts),
                               borderRadius: BorderRadius.circular(AppRadii.sm),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.history_rounded, size: 15, color: colors.textSecondary),
+                                    Icon(
+                                      Icons.history_rounded,
+                                      size: 15,
+                                      color: colors.textSecondary,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Resume unfinished capture (${state.availableDrafts.length})',

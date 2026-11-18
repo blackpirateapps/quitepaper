@@ -18,6 +18,7 @@ class QuickCaptureNormalizer {
     String? rawText,
     String? rawUri,
     String? rawSubject,
+    bool rawIsHtml = false,
     String? explicitSessionId,
     String? explicitTargetNoteId,
     DateTime? now,
@@ -33,7 +34,8 @@ class QuickCaptureNormalizer {
 
     // 2. Extract potential URL from text or URI parameter
     String? detectedUrl;
-    if (uri.isNotEmpty && (uri.startsWith('http://') || uri.startsWith('https://'))) {
+    if (uri.isNotEmpty &&
+        (uri.startsWith('http://') || uri.startsWith('https://'))) {
       detectedUrl = uri;
     } else {
       final match = urlRegex.firstMatch(text);
@@ -69,7 +71,9 @@ class QuickCaptureNormalizer {
       if (!subject.startsWith('http://') &&
           !subject.startsWith('https://') &&
           subject != normalizedContent.trim()) {
-        titleHint = subject.length > 120 ? '${subject.substring(0, 117)}...' : subject;
+        titleHint = subject.length > 120
+            ? '${subject.substring(0, 117)}...'
+            : subject;
       }
     }
 
@@ -80,6 +84,8 @@ class QuickCaptureNormalizer {
       initialContent: normalizedContent,
       sourceUrl: detectedUrl,
       titleHint: titleHint,
+      sharedHtml: rawIsHtml,
+      sharedSubject: rawSubject,
       cursorPosition: normalizedContent.length,
       createdAt: timestamp,
     );

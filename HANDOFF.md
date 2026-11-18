@@ -774,3 +774,15 @@ Editor retains original nodes/caret. Imported notes suppress automatic link
 preview fetching. Analysis is clean; 60 drop/editor tests plus 3 live append tests
 pass; Linux debug build succeeds. Package installer/device checks remain pending
 because packaging builders are unavailable. See log 338 for exact limits.
+
+### Email import phase 6 — Android sharing and Quick Capture
+
+Android SEND/SEND_MULTIPLE/VIEW email routing now uses bounded ContentResolver
+staging and native request IDs through the existing ShareIntentHandler. Cold/warm
+requests queue, initial/event overlap deduplicates, private copies are acknowledged
+and removed, and secure clears invalidate pending shares. Existing PDF/Markdown/
+text routing retains provider display names. Quick Capture offers explicit Save
+as Email for shared content and keeps URL-only clipping unchanged. Analysis is
+clean; 47 selected sharing/preview/Quick Capture/clipper tests pass. The GitHub
+Android debug APK builds; no device was connected for native provider replay.
+Existing NDK/Kotlin plugin build warnings are recorded in log 339.

@@ -112,3 +112,15 @@ checks, but installed-package/sandbox replay remains unverified because package
 builders are unavailable. No Flatpak grants changed. The drop plugin provides no
 hover filenames, so classification occurs on drop. Imported notes suppress remote
 link preview fetching when opened. See engineering log 338 for validation limits.
+
+## Phase 6 — Android integration
+
+The existing ShareIntentHandler now consumes bounded native normalization with
+request IDs and a serial coordinator. ContentResolver handles streams, names,
+MIME metadata and ClipData on cold/warm SEND/MULTIPLE/VIEW; private staging is
+acknowledged/removed and secure clears invalidate pending input. Quick Capture
+retains normal text/URL behavior and exposes explicit Save as Email.
+47 selected regressions pass, analysis is clean and the GitHub Android debug APK
+builds. Native hardware/provider replay is pending (adb reports no devices).
+The build retains existing Kotlin-plugin and NDK-version warnings; no unrelated
+package upgrade or build-policy change was introduced.

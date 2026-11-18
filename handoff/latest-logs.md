@@ -7656,3 +7656,53 @@ Validation:
   Therefore no email-specific hover overlay is fabricated for unknown content;
   the classified drop opens the receiving/parsing preview. Existing generic
   editor drop feedback is retained. Physical file-manager drag replay is pending.
+
+## 339. Email Import Phase 6 — Android Share Integration (November 19, 2026)
+
+Added IncomingShareReceiver as the bounded native normalization boundary for the
+existing ShareIntentHandler. SEND, SEND_MULTIPLE and VIEW read EXTRA_STREAM,
+ClipData, text/HTML and subjects; ContentResolver supplies MIME/display metadata
+without path guessing. Each stream is staged on a serial worker into an
+application-private UUID directory with owner-only access, technical filenames,
+50 MiB/file and 100-file/request limits. Errors expose only sanitized item numbers.
+The private copies are deleted when Dart acknowledges completion/cancellation;
+interrupted copies are purged on the next activity initialization. Temporary URI
+grants are never persisted. No storage permissions were added.
+
+The inspected receive_sharing_intent 1.9.0 plugin otherwise creates a second,
+unbounded plaintext copy. MainActivity therefore supplies normalized launch
+intents to that plugin on Android while delivering the original intent through
+the native normalizer to the **same existing Dart ShareIntentHandler**. Widget
+launch handling remains on the existing Quick Capture channel. Native request IDs
+and a bounded serial coordinator deduplicate initial/event delivery, preserve
+intentional new shares, wait for active drafts/previews, acknowledge failures and
+invalidate queued/active plaintext on secure cache clear. No restart creates a
+note without review. Generic binary SEND is registered; binary VIEW is not broadly
+registered. Message MIME VIEW/SEND and existing PDF/text/Markdown filters remain.
+
+Shared text still enters Quick Capture. An explicit Save as Email action opens
+the common preview with editable optional metadata and Shared content labeling;
+HTML is sanitized locally. Bare URLs keep clipping/capture behavior. Successful
+email confirmation removes the capture draft and opens the saved note; cancel
+leaves the draft unchanged. Generic file imports retain supplied display names
+instead of the technical staged path. Shared errors no longer expose raw paths.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected incoming coordinator, shared-text, preview, all Quick Capture tests and
+  browser-screen file: **47 passed**. Coverage includes initial/stream identity,
+  serial ordering, intentional re-shares, failure acknowledgment, secure clear,
+  queue bounds, explicit text-to-email preview/cancel, URL preservation and
+  existing captures/browser actions. A first command named a nonexistent clipper
+  screen test; corrected to web_clip_browser_screen_test.dart and reran.
+- `flutter build apk --debug --flavor github --no-pub`: **passed**, producing
+  `build/app/outputs/flutter-apk/app-github-debug.apk`; DEX inspection confirms the
+  native receiver and queue bound are present.
+- The Android build emits pre-existing plugin KGP migration and NDK-version
+  warnings (repository pins 27; installed plugins request 28). No Flutter/package
+  upgrade or unrelated build-policy change was made. Compilation succeeds.
+- `adb devices` (SDK platform-tools) reports no connected devices. Actual provider
+  grants, chooser registration, cold/warm Activity lifecycle, ClipData and OEM
+  share behavior require device instrumentation/manual replay; automated Dart
+  boundaries and native compilation are not a claim of hardware verification.
+- `git diff --check`: clean. No full Flutter suite ran.

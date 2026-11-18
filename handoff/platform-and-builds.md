@@ -165,3 +165,14 @@ report an error with picker fallback. desktop_drop exposes no hover file metadat
 so email-specific recognition happens on drop rather than assuming every drag is
 email. Native debug compilation is verified; distro package installation and
 physical file-manager/sandbox replay require the packaging tools and test hosts.
+
+Android incoming email uses `IncomingShareReceiver` to normalize SEND/MULTIPLE/VIEW
+into the existing Dart ShareIntentHandler. It streams ContentResolver data with
+bounds while grants are live, stages private temporary copies and removes them
+on acknowledgment or next-start recovery. The plugin receives sanitized Android
+intents to avoid its extra unbounded copy. No broad binary VIEW handler or new
+storage permission was added. Request IDs and serial routing prevent duplicate
+previews and protect active capture drafts. Shared text exposes Save as Email;
+URL-only shares retain clipping. The GitHub debug APK compiles; physical chooser,
+provider permission and Activity lifecycle replay remains unverified without a
+device. Existing NDK/KGP warnings are documented in engineering log 339.

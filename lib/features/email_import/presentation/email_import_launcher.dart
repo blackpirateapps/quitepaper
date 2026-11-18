@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,8 @@ import 'email_import_screen.dart';
 
 class EmailImportLauncher {
   static bool _active = false;
+  static Completer<void>? _idle;
+  static Future<void> get whenIdle => _idle?.future ?? Future.value();
   static bool get isActive => _active;
   static Future<List<Note>> open(
     BuildContext context,
@@ -20,6 +23,7 @@ class EmailImportLauncher {
   }) async {
     if (_active) return const [];
     _active = true;
+    _idle = Completer<void>();
     try {
       final bridge = EmailEditorBridge.active;
       final current = await bridge?.prepare();
@@ -78,6 +82,8 @@ class EmailImportLauncher {
     } finally {
       request.clear();
       _active = false;
+      _idle?.complete();
+      _idle = null;
     }
   }
 
