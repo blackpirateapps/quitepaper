@@ -63,6 +63,13 @@ logs [331](handoff/latest-logs.md#331-critical-github-dependency-alert-remediati
 and [332](handoff/latest-logs.md#332-remaining-security-alert-remediation-november-18-2026)
 for migration details and focused validation.
 
+The backend scopes a `jose` **5.10.0** override to `jwks-rsa` to prevent
+Firebase Admin startup crashes in Vercel's CommonJS loader. Its lockfile and
+fresh-process runtime regressions cover loading without `require(esm)` and
+RSA signing-key resolution. Firebase Admin remains 14.5.1 and the production
+dependency audit remains clean. See
+[engineering log 333](handoff/latest-logs.md#333-vercel-firebase-startup-esm-compatibility-november-18-2026).
+
 ## Linux CI Async Test Stability
 
 Image import tests now wait for the compression dialog or inserted attachment

@@ -7462,3 +7462,49 @@ Validation:
 Updated the root handoff, handoff index, sync guide and security review. The
 unrelated pre-existing smart-tables prompt remains outside the commit. GitHub
 rescans the pushed lockfile to close the six remediated Dependabot alerts.
+
+
+## 333. Vercel Firebase Startup ESM Compatibility (November 18, 2026)
+
+Reproduced the reported Vercel `ERR_REQUIRE_ESM` locally using Node 22.23.1
+with `--no-experimental-require-module`. Firebase Admin 14.5.1 pulls in
+`jwks-rsa` 4.1.0, whose CommonJS `src/utils.js` synchronously requires ESM-only
+`jose` 6.2.17 during Firebase Auth module loading. Local Node's default
+`require(esm)` interoperability masked the deployment failure. The dependency
+behavior is documented in the
+[upstream changelog](https://github.com/auth0/node-jwks-rsa/blob/master/CHANGELOG.md#v400-2026-02-27)
+and [Firebase issue 3181](https://github.com/firebase/firebase-admin-node/issues/3181).
+
+Added an npm override scoped to `jwks-rsa` that pins its `jose` dependency to
+**5.10.0**, providing a CommonJS entry point. Updated the lockfile without
+changing other package versions or platform metadata. Firebase Admin remains
+14.5.1, `jwks-rsa` remains 4.1.0 and Node remains `^22.12.0`. A fresh `npm ci`
+applies the fix without editing installed dependencies or adding install scripts.
+Revisit the override when upstream can load in this runtime without it.
+
+Added `backend/tests/firebase-runtime.test.ts` with two fresh-process
+regressions under `--no-experimental-require-module`. Both failed with the
+reported error before the override and pass after it. Coverage includes
+Firebase Auth/App Check loading and initialization, offline RSA JWKS resolution,
+verification of a real signature and rejection of tampered content. These
+checks bypass Vitest's loader and require no Firebase credentials or network.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/auth/auth_service_resiliency_test.dart test/sync/sync_api_client_retry_test.dart`:
+  **24 passed**.
+- In `backend/`, clean `npm ci` and `npm run build`: passed.
+- `npm test -- tests/firebase-runtime.test.ts tests/auth.test.ts tests/email-sync.test.ts tests/keys.test.ts`:
+  **18 passed across four selected files**, with no runtime warnings.
+- The compiled `dist/api/index.js` handler imports and returns HTTP 200 for
+  `/api/v1/health` under `--no-experimental-require-module`.
+- `npm audit --omit=dev --json`: **zero production vulnerabilities**. The
+  existing five development-only Picomatch package findings remain, as
+  documented in the security review.
+- `git diff --check`: clean. No full Flutter or backend test suite ran.
+
+Updated `HANDOFF.md` and the security review. The unrelated pre-existing
+smart-tables prompt remains outside the commit. Local runtime validation does
+not establish the status of a live Vercel deployment; Vercel must deploy the
+updated package manifest and lockfile to apply the fix.

@@ -67,6 +67,16 @@ Earlier critical Tinypool findings and the Vitest/Vite/source-map-js findings
 were addressed by the Vitest 4.1.12 upgrade. `npm audit --omit=dev` now reports
 zero vulnerabilities.
 
+Vercel startup compatibility requires a scoped npm override:
+`jwks-rsa > jose` resolves to **5.10.0**, which exports CommonJS as well as ESM.
+Firebase Admin remains **14.5.1** and `jwks-rsa` remains **4.1.0**. The latter's
+top-level `require('jose')` otherwise loads ESM-only jose 6 and crashes when the
+runtime loader lacks `require(esm)` support. After this override, production
+`npm audit --omit=dev` still reports zero vulnerabilities. Fresh-process tests
+verify Firebase module loading and RSA signing-key resolution with Node's
+`require(esm)` disabled; see engineering log 333. Revisit the override when
+upstream supports this loader path without it.
+
 ### Remaining upstream development dependency finding
 
 Full `npm audit` reports one underlying advisory,
