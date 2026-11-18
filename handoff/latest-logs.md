@@ -7706,3 +7706,86 @@ Validation:
   share behavior require device instrumentation/manual replay; automated Dart
   boundaries and native compilation are not a claim of hardware verification.
 - `git diff --check`: clean. No full Flutter suite ran.
+
+## 340. Email Import Phase 7 — Regression and Security Review (November 19, 2026)
+
+Expanded deterministic parser/security and integration coverage and ran the
+focused affected-subsystem gate in `tool/verify_email_import.sh`. No full Flutter
+or backend suite was invoked. The final implementation review corrected:
+
+- CRLF multiline plaintext and quoted-printable soft lines; plain headings/rules
+  stay literal while lists/quotes remain readable. Charset expansion is counted
+  against the decoded UTF-8 body budget without allocating another oversized
+  buffer. Encoded-header failures reject safely without upstream diagnostics.
+- Pre-DOM token, element-length and nesting checks, with a linear lexical scan
+  that avoids repeated body scans on unterminated tags. Nested layout tables
+  retain paragraphs/code once. Unsafe/incomplete web links remain inert.
+- Strict calendar/clock/timezone validation instead of the library's date rollover
+  or unknown-zone fallback. Original header strings remain preserved.
+- Generic-file detection requires a continuous initial RFC header block; quoted
+  From/Subject lines inside ordinary Markdown no longer intercept its import.
+- Canonical fingerprints preserve meaningful body/subject case and paragraph
+  structure. Shared-content defaults use the same identity during preview/save.
+  Newly discovered duplicates refresh review warnings rather than trapping Retry.
+- Active native request IDs remain protected when completed-ID history evicts old
+  entries. Malformed Android extras fail with sanitized receiving errors.
+- Imported assets avoid preloading plaintext caches. Deduplication hashing and
+  rich-append conversion run in workers; worker closures do not capture Drift.
+- Failed ciphertext deletion retains the preparation journal for later cleanup.
+  A regression exercises failed deletion and subsequent successful recovery.
+- The preview and launcher share one mutable request owner: lock clearing releases
+  shared text, source paths and filename-bearing errors. Partial commits retain
+  only note IDs for post-cancel reconciliation, list refresh and normal sync.
+  Hidden editors therefore cannot overwrite a successfully appended earlier item.
+- Batch progress uses the original selected count; skipped/invalid counts and
+  filename-bearing item errors are clear. Destination failures clear stale picks.
+- QPNote export now uses the complete note mapper. Newer local backup content can
+  retain restored sources without timestamp/body changes; older client envelopes
+  cannot erase provenance and schedule an encrypted repair push. Delete-vs-edit
+  checks account for source changes. Vault erase also clears preparation IDs.
+
+Automated evidence:
+
+- `flutter analyze`: no issues on the final code review checks.
+- `bash tool/verify_email_import.sh`: **301 passed** in the selected Flutter batch,
+  then **1 passed** in the specifically selected real QPNote export test (**302**
+  total). This includes email, capture, clipper, backup, database/migrations,
+  queries, sync/conflicts/fresh-device retention, attachments, editor conversion,
+  export and FTS. The script deliberately lists only relevant paths.
+- Subsequent review fixes: **49 passed** in parser/preview/desktop/live-editor
+  files; **26 passed** in email persistence plus attachment service; **17 passed**
+  in final preview/desktop/shared-text files. These runs overlap the broad gate
+  and must not be added as a count of unique tests. New email files collectively
+  contain 76 tests after the final cleanup regression.
+- Real two-device encrypted sync verifies canonical source retention, fresh-device
+  duplicate lookup and FTS search without server-visible subjects/senders.
+- A complete Visual → Markdown → Super → save → reopen widget cycle preserves
+  metadata, paragraphs/lists/tables/quotes/links, asset references and provenance.
+- The restore fixture releases its source executor before creating the independent
+  destination, eliminating the existing multiple-database diagnostic. An earlier
+  broad export-file run printed the existing PDF Courier fallback notice; the final
+  gate scopes this field-mapping change to the relevant QPNote export test.
+- `flutter build linux --debug --no-pub` and
+  `flutter build apk --debug --flavor github --no-pub`: passed. Android retains the
+  pre-existing KGP/NDK advisories from log 339; no device was connected.
+- Backend Node 22.23.1: `npm run build` passed;
+  `npm test -- tests/crypto-blind.test.ts tests/sync.test.ts tests/conflict.test.ts tests/attachments.test.ts`:
+  **18 passed in four files**. Backend production code/API schema is unchanged.
+- `git diff --check`: clean. Final documentation-phase checks follow separately.
+
+Performance observations (synthetic fixtures, Linux x64, Dart 3.13.2 JIT; parser
+only, one run per case, no mobile/release claim): 10,127-byte plaintext **109ms**;
+1,058,920-byte HTML **566ms**; 10,000,381-byte multipart **419ms**;
+41,943,563-byte multipart **1,529ms**; 50 × small messages **128ms** total.
+Main-isolate 10ms timers continued in every case (149 ticks during the largest).
+Whole-process peak RSS reached **580.4 MiB**, including JIT, source construction,
+isolate copying and prior cases; this is not a per-import retained-heap figure.
+`tool/email_import_benchmark.dart` and `docs/email-import/benchmark-linux-jit.json`
+provide reproducible inputs/raw observations. Encryption/storage timing, mobile
+memory and installed-package performance remain unmeasured.
+
+Platform limits remain explicit: physical Android chooser/provider/lifecycle and
+Linux file-manager/Flatpak replay are pending, packaging builders are unavailable,
+and existing cloud size policies can leave larger locally preserved assets
+pending. The preview warns about the 10 MB asset upload policy. No unrestricted
+filesystem permissions or external email parsing/network conversion were added.

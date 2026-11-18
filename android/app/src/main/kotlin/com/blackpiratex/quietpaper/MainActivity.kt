@@ -25,7 +25,7 @@ class MainActivity : FlutterActivity() {
         val original = intent
         setIntent(IncomingShareReceiver.pluginIntent(original))
         super.onCreate(savedInstanceState)
-        handleCaptureIntent(original, isInitial = true)
+        runCatching { handleCaptureIntent(original, isInitial = true) }
         if (savedInstanceState == null) incomingShares.receive(original)
     }
 
@@ -33,7 +33,7 @@ class MainActivity : FlutterActivity() {
         val normalized = IncomingShareReceiver.pluginIntent(intent)
         super.onNewIntent(normalized)
         setIntent(normalized)
-        handleCaptureIntent(intent, isInitial = false)
+        runCatching { handleCaptureIntent(intent, isInitial = false) }
         incomingShares.receive(intent)
     }
 

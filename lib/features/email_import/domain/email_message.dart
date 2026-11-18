@@ -35,7 +35,16 @@ class EmailAttachment {
   final String fileName, mimeType;
   final Uint8List bytes;
   final String? contentId, disposition;
-  bool get isInlineImage => contentId != null && mimeType.startsWith('image/');
+  bool get isInlineImage =>
+      contentId != null &&
+      const {
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'image/avif',
+      }.contains(mimeType);
 }
 
 /// An ephemeral preview. Never persist raw bytes outside the encrypted vault.

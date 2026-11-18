@@ -114,4 +114,27 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     },
   );
+  test(
+    'active request deduplication survives eviction of old completed identities',
+    () async {
+      final gate = Completer<void>();
+      final started = <String>[];
+      final coordinator = IncomingShareCoordinator(
+        handle: (r) async {
+          started.add(r['id'] as String);
+          await gate.future;
+        },
+        acknowledge: (_) async {},
+      );
+      coordinator.add({'id': 'active'});
+      for (var i = 0; i < 300; i++) {
+        coordinator.add({'id': 'later-$i'});
+      }
+      coordinator.add({'id': 'active'});
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(started.where((id) => id == 'active'), hasLength(1));
+      coordinator.dispose();
+    },
+  );
 }

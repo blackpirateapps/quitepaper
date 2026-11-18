@@ -1,5 +1,7 @@
+import '../../../core/security/sensitive_preview_registry.dart';
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import '../../../core/attachments/attachment_crypto.dart';
+import 'dart:isolate';
 import 'package:uuid/uuid.dart';
 import '../../../core/attachments/attachment_service.dart';
 import '../../../core/database/app_database.dart';
@@ -74,6 +76,7 @@ class EmailImportService {
       );
     }
     _saving = true;
+    final securityRevision = SensitivePreviewRegistry.revision.value;
     final ids = <String>[];
     var committed = false;
     try {
@@ -95,8 +98,12 @@ class EmailImportService {
       if (originalId != null) ids.add(originalId);
       // Stable representation + decoded hash reuses duplicate MIME leaves.
       final assetByKey = <String, String>{};
-      String key(EmailAttachment a) =>
-          '${a.isInlineImage}:${a.mimeType}:${sha256.convert(a.bytes)}';
+      final keys = <EmailAttachment, String>{};
+      for (final asset in email.attachments) {
+        keys[asset] =
+            '${asset.isInlineImage}:${asset.mimeType}:${await AttachmentCrypto.computeSha256Async(asset.bytes)}';
+      }
+      String key(EmailAttachment a) => keys[a]!;
       if (mode != EmailImportMode.archive) {
         for (final asset in email.attachments) {
           assetByKey.putIfAbsent(key(asset), () {
@@ -122,7 +129,8 @@ class EmailImportService {
             'Email import canceled.',
           );
         }
-        if (!attachments.keyManager.isUnlocked) {
+        if (!attachments.keyManager.isUnlocked ||
+            SensitivePreviewRegistry.revision.value != securityRevision) {
           throw const EmailImportException(
             'locked',
             'Unlock your notebook to continue.',
@@ -237,23 +245,9 @@ class EmailImportService {
         if (current != null) {
           final addition =
               '\n\n---\n\n# ${EmailHtmlConverter.escape(title)}\n\n$section';
-          if (current.isRichText) {
-            final doc = RichDocument.fromJson(
-              jsonDecode(current.content) as Map<String, dynamic>,
-            );
-            content = jsonEncode(
-              doc
-                  .copyWith(
-                    blocks: [
-                      ...doc.blocks,
-                      ...const RichDocumentParser().parse(addition).blocks,
-                    ],
-                  )
-                  .toJson(),
-            );
-          } else {
-            content = '${current.content}$addition';
-          }
+          final original = current.content;
+          final rich = current.isRichText;
+          content = await appendEmailSectionAsync(original, addition, rich);
         }
         final note =
             current?.copyWith(
@@ -308,3 +302,28 @@ class EmailImportService {
     }
   }
 }
+
+String appendEmailSection(String original, String addition, bool rich) {
+  if (!rich) return '$original$addition';
+  final doc = RichDocument.fromJson(
+    jsonDecode(original) as Map<String, dynamic>,
+  );
+  return jsonEncode(
+    doc
+        .copyWith(
+          blocks: [
+            ...doc.blocks,
+            ...const RichDocumentParser().parse(addition).blocks,
+          ],
+        )
+        .toJson(),
+  );
+}
+
+// Keep the worker closure outside the service method: its lexical context must
+// never capture the Drift transaction, repository or platform objects.
+Future<String> appendEmailSectionAsync(
+  String original,
+  String addition,
+  bool rich,
+) => Isolate.run(() => appendEmailSection(original, addition, rich));

@@ -12,18 +12,25 @@ class IncomingShareCoordinator {
   final Future<void> Function(String id) acknowledge;
   final void Function()? onFailure;
   final _seen = <String>{};
+  final _activeIds = <String>{};
   final _pending = Queue<Map<String, dynamic>>();
   bool _running = false, _disposed = false;
   Map<String, dynamic>? _current;
   void add(Map<String, dynamic> request) {
     final id = request['id'];
-    if (id is! String || id.isEmpty || !_seen.add(id)) return;
+    if (id is! String ||
+        id.isEmpty ||
+        _activeIds.contains(id) ||
+        !_seen.add(id)) {
+      return;
+    }
     if (_seen.length > 256) _seen.remove(_seen.first);
     if (_disposed || _pending.length >= 100) {
       onFailure?.call();
       acknowledge(id);
       return;
     }
+    _activeIds.add(id);
     _pending.add(request);
     _drain();
   }
@@ -43,6 +50,7 @@ class IncomingShareCoordinator {
         } finally {
           await acknowledge(id);
           _current = null;
+          _activeIds.remove(id);
           request.clear();
         }
       }
@@ -56,6 +64,7 @@ class IncomingShareCoordinator {
     _current?['invalidated'] = true;
     while (_pending.isNotEmpty) {
       final request = _pending.removeFirst();
+      _activeIds.remove(request['id']);
       acknowledge(request['id'] as String);
       request.clear();
     }

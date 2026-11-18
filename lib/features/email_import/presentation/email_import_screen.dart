@@ -51,7 +51,7 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
   List<NoteLinkSearchResultItem> _destinations = [];
   EmailImportMode _mode = EmailImportMode.editable;
   int _selected = 0, _generation = 0, _searchGeneration = 0;
-  int _failed = 0, _completed = 0;
+  int _failed = 0, _completed = 0, _batchTotal = 0, _invalidCount = 0;
   bool _loading = true,
       _saving = false,
       _cancel = false,
@@ -73,6 +73,8 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
     _cancel = true;
     widget.request.clear();
     _email = null;
+    _errors.clear();
+    _error = null;
     _items.clear();
     _destinations = [];
     _saved.clear();
@@ -121,6 +123,13 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
       final fingerprints = <String>{};
       for (var index = 0; index < count; index++) {
         if (!mounted || generation != _generation) return;
+        var fileLabel = 'Shared content';
+        if (widget.request.sharedContent == null) {
+          final input = widget.request.inputs[index];
+          fileLabel = EmailParser.sanitizeFileName(
+            input.name ?? input.path.replaceAll('\\', '/').split('/').last,
+          );
+        }
         try {
           final email =
               widget.request.sharedContent ??
@@ -149,9 +158,13 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
             _updateFields(email);
           }
         } on EmailImportException catch (e) {
-          _errors.add('Item ${index + 1}: ${e.message}');
+          _invalidCount++;
+          _errors.add('Item ${index + 1}: $fileLabel — ${e.message}');
         } catch (_) {
-          _errors.add('Item ${index + 1}: Could not read this email.');
+          _invalidCount++;
+          _errors.add(
+            'Item ${index + 1}: $fileLabel — Could not read this email.',
+          );
         }
         if (mounted) setState(() {});
       }
@@ -269,8 +282,25 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
   }
 
   Future<void> _chooseDestination(String id) async {
-    final note = await gateway.note(id);
-    if (mounted && !_locked) setState(() => _destination = note);
+    setState(() => _destination = null);
+    try {
+      final note = await gateway.note(id);
+      if (mounted && !_locked) {
+        setState(() {
+          _destination = note;
+          if (note == null) {
+            _error = 'The destination is unavailable. Choose another note.';
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted && !_locked) {
+        setState(
+          () => _error =
+              'Could not load the destination. Try selecting it again.',
+        );
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -286,8 +316,10 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
       _completed = 0;
     });
     final active = _items.where((i) => i.included).toList();
+    _batchTotal = active.length;
     for (final item in active) {
       if (_cancel || !mounted || _locked) break;
+      EmailMessage? savingEmail;
       try {
         var email = item.index == _items[_selected].index
             ? _email!
@@ -316,13 +348,14 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
             sentAt: email.sentAt,
             markdown: widget.request.sharedContent!.markdown,
             fingerprint: EmailParser.fingerprint(
-              _sender.text,
-              _title.text,
+              email.sender,
+              email.subject,
               _date.text,
               widget.request.sharedContent!.markdown,
             ),
           );
         }
+        savingEmail = email;
         final saved = await gateway.save(
           email: email,
           mode: _mode,
@@ -336,12 +369,26 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
           allowDuplicate: _allowDuplicate,
           isCancelled: () => _cancel || !mounted || _locked,
         );
+        widget.request.committedNoteIds.add(saved.id);
         if (_locked || !mounted) break;
         _saved.add(saved);
+        _errors.removeWhere(
+          (message) => message.startsWith('Item ${item.index + 1}:'),
+        );
         item.included = false;
         if (_mode == EmailImportMode.append) _destination = saved;
       } on EmailImportException catch (e) {
         if (e.code == 'cancelled') break;
+        if (e.code == 'duplicate' && savingEmail != null) {
+          try {
+            final matches = await gateway.duplicates(savingEmail);
+            item.duplicates
+              ..clear()
+              ..addAll(matches);
+          } catch (_) {
+            /* Keep the original, readable duplicate error. */
+          }
+        }
         _failed++;
         _errors.add('Item ${item.index + 1}: ${e.message}');
       } catch (_) {
@@ -422,14 +469,14 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
                               children: [
                                 if (_saving)
                                   Text(
-                                    'Importing emails — ${(_completed + 1).clamp(1, _items.length)} of ${_items.where((i) => i.included).length + _completed}',
+                                    'Importing emails — ${(_completed + 1).clamp(1, _batchTotal)} of $_batchTotal',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleMedium,
                                   ),
                                 if (_done) ...[
                                   Text(
-                                    'Imported: ${_saved.length} • Skipped: ${_items.where((i) => i.included).length - _failed} • Duplicates: ${_items.where((i) => i.duplicates.isNotEmpty).length} • Failed: $_failed',
+                                    'Imported: ${_saved.length} • Skipped: ${_items.length - _saved.length - _failed + _invalidCount} • Duplicates: ${_items.where((i) => i.duplicates.isNotEmpty).length} • Failed: $_failed',
                                   ),
                                   if (_saved.isNotEmpty)
                                     FilledButton(
@@ -555,6 +602,14 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
                                       ),
                                     ),
                                     ...email.warnings.map((w) => Text(w)),
+                                    if ((email.rawBytes?.length ?? 0) >
+                                            10000000 ||
+                                        email.attachments.any(
+                                          (a) => a.bytes.length > 10000000,
+                                        ))
+                                      const Text(
+                                        'Large assets are preserved locally and in backups. The current cloud upload limit is 10 MB per asset; larger assets will remain pending.',
+                                      ),
                                     const SizedBox(height: 16),
                                     DropdownButtonFormField<EmailImportMode>(
                                       isExpanded: true,

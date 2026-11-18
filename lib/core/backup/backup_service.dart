@@ -592,7 +592,11 @@ class BackupService {
               // Update with newer backup version
               totalUpdated++;
             } else {
-              // Local is newer or identical, skip
+              // Keep newer content while preserving authoritative provenance.
+              await database.mergeImportSources(
+                existing.id,
+                backupNote.importSources,
+              );
               totalSkipped++;
               continue;
             }

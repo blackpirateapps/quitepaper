@@ -271,4 +271,166 @@ void main() {
     expect(NoteImportSource.union([source, source]), [source]);
     expect(NoteImportSource.decode(null), isEmpty);
   });
+  test('pre-DOM HTML token budget rejects tiny-element allocation attacks', () {
+    expect(
+      () => EmailHtmlConverter().convert('<b></b>' * 60000),
+      throwsA(
+        isA<EmailImportException>().having(
+          (e) => e.code,
+          'code',
+          'html_complexity',
+        ),
+      ),
+    );
+  });
+  test(
+    'plaintext headings and rules remain literal; quotes and lists remain readable',
+    () {
+      expect(
+        EmailHtmlConverter.plainText('# Heading\n---\n> reply\n- item'),
+        r'\# Heading'
+        '\n'
+        r'\---'
+        '\n> reply\n- item',
+      );
+    },
+  );
+  test('nested layout tables preserve paragraphs, code and meaningful links', () {
+    final text = EmailHtmlConverter().convert(
+      '<table role="presentation"><tr><td><p>First</p><table><tr><td><p>Second</p><pre>code()</pre></td></tr></table><p>Third</p></td></tr></table>',
+    );
+    for (final word in ['First', 'Second', 'Third', 'code()']) {
+      expect(RegExp(RegExp.escape(word)).allMatches(text), hasLength(1));
+    }
+    expect(text, contains('First\n\nSecond'));
+    expect(text, contains('```'));
+    expect(
+      EmailHtmlConverter().convert('<a href="http:relative">inert</a>'),
+      'inert',
+    );
+  });
+  test('unsupported encoded headers reject without sensitive diagnostics', () {
+    final value = utf8
+        .decode(fixture('plain'))
+        .replaceFirst(
+          'Subject: Example',
+          'Subject: =?x-unknown?B?cHJpdmF0ZQ==?=',
+        );
+    expect(
+      () => parser.parseSync(Uint8List.fromList(utf8.encode(value))),
+      throwsA(isA<EmailImportException>()),
+    );
+  });
+  test(
+    'pre-DOM nesting budget handles deep formatting without rejecting optional paragraph closures',
+    () {
+      expect(
+        () => EmailHtmlConverter().convert('${'<b>' * 100}text${'</b>' * 100}'),
+        throwsA(isA<EmailImportException>()),
+      );
+      expect(
+        EmailHtmlConverter().convert('<p>Readable' * 100),
+        contains('Readable'),
+      );
+    },
+  );
+  test('decoded charset expansion counts UTF-8 body bytes before conversion', () {
+    final bytes = Uint8List.fromList([
+      ...utf8.encode(
+        'From: a@example.test\nSubject: Latin\nContent-Type: text/plain; charset=windows-1252\n\n',
+      ),
+      128,
+      128,
+    ]);
+    expect(
+      () =>
+          const EmailParser(limits: EmailLimits(bodyBytes: 3)).parseSync(bytes),
+      throwsA(isA<EmailImportException>()),
+    );
+  });
+  test('quoted-printable soft lines and CRLF plaintext preserve content', () {
+    for (final newline in ['\n', '\r\n']) {
+      final source =
+          'From: a@example.test\nSubject: Lines\nContent-Transfer-Encoding: quoted-printable\n\nFirst=\nSecond\n> Reply\n- item'
+              .replaceAll('\n', newline);
+      final parsed = parser.parseSync(Uint8List.fromList(utf8.encode(source)));
+      expect(parsed.markdown, contains('FirstSecond'));
+      expect(parsed.markdown, contains('> Reply'));
+      expect(parsed.markdown, contains('- item'));
+    }
+  });
+  test(
+    'canonical fingerprints preserve meaningful case and paragraph structure',
+    () {
+      expect(
+        EmailParser.fingerprint('Sender', 'Subject', 'date', 'PAID'),
+        isNot(EmailParser.fingerprint('Sender', 'Subject', 'date', 'paid')),
+      );
+      expect(
+        EmailParser.fingerprint('Sender', 'Subject', 'date', 'a\n\nb'),
+        isNot(EmailParser.fingerprint('Sender', 'Subject', 'date', 'a b')),
+      );
+      final shared = parser.sharedText(text: 'Shared body');
+      expect(
+        shared.fingerprint,
+        EmailParser.fingerprint(
+          shared.sender,
+          shared.subject,
+          shared.originalDate,
+          shared.markdown,
+        ),
+      );
+    },
+  );
+  test(
+    'invalid calendar, clock and timezone do not normalize into invented dates',
+    () {
+      for (final date in [
+        '31 Feb 2026 10:00:00 +0000',
+        '18 Nov 2026 25:80:00 +0000',
+        '18 Nov 2026 10:00:00 +2460',
+        '18 Nov 2026 10:00:00 UNKNOWN',
+        '18 Nov 2026 10:00:00',
+      ]) {
+        expect(EmailParser.strictSentDate(date), isNull);
+      }
+      expect(
+        EmailParser.strictSentDate('18 Nov 2026 10:30:00 +0530'),
+        DateTime.utc(2026, 11, 18, 5),
+      );
+    },
+  );
+  test(
+    'generic-file inspection only recognizes a continuous initial header block',
+    () {
+      expect(
+        EmailParser.looksLikeEmail(
+          utf8.encode(
+            'Ordinary Markdown\n\nFrom: a@example.test\nSubject: quotation\n\nBody',
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        EmailParser.looksLikeEmail(
+          utf8.encode(
+            'not a header\nFrom: a@example.test\nSubject: quotation\n\nBody',
+          ),
+        ),
+        isFalse,
+      );
+      expect(EmailParser.looksLikeEmail(fixture('folded')), isTrue);
+    },
+  );
+  test(
+    'unterminated HTML tags cannot cause repeated full-body regex scans',
+    () {
+      final malformed = '<a ' * 90000;
+      expect(() => EmailHtmlConverter().convert(malformed), returnsNormally);
+      expect(
+        () => EmailHtmlConverter().convert('<a title="${'x' * 70000}">'),
+        throwsA(isA<EmailImportException>()),
+      );
+    },
+  );
 }

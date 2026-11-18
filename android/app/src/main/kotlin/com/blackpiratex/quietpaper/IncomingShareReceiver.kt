@@ -40,6 +40,11 @@ class IncomingShareReceiver(private val activity: Activity) {
     }
 
     fun receive(intent: Intent?) {
+        try { receiveInternal(intent) }
+        catch (_: Exception) { publishError(UUID.randomUUID().toString(), "Could not read this share. Try sharing the file again.") }
+    }
+
+    private fun receiveInternal(intent: Intent?) {
         if (intent == null || intent.action !in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE, Intent.ACTION_VIEW)) return
         val id = UUID.randomUUID().toString()
         if (folders.size >= 100) { publishError(id, "The share queue is full. Finish the current import and share again."); return }

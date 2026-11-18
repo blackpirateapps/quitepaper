@@ -786,3 +786,15 @@ as Email for shared content and keeps URL-only clipping unchanged. Analysis is
 clean; 47 selected sharing/preview/Quick Capture/clipper tests pass. The GitHub
 Android debug APK builds; no device was connected for native provider replay.
 Existing NDK/Kotlin plugin build warnings are recorded in log 339.
+
+### Email import phase 7 — regression and security review
+
+The broad focused gate passes **302 tests** with clean analysis; follow-up runs
+pass 49 parser/editor/workflow tests, 26 persistence/attachment tests and 17 final
+UI/share tests after the review fixes. No full suite ran. Backend compilation and
+18 selected protocol tests pass; Linux and Android debug compilation succeeds.
+The review hardened pre-DOM/charset/date bounds, canonical duplicate fingerprints,
+interrupted cleanup, partial-batch editor reconciliation, source-only restore/sync
+merges, real QPNote export mapping and secure preview ownership. Synthetic Linux
+JIT parser observations are recorded, including 1.53s for a 40 MiB message with
+continued main-isolate timer activity. See log 340 and the implementation record.

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_query_provider.dart';
+import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../application/email_editor_bridge.dart';
 import '../application/email_import_gateway.dart';
@@ -29,31 +30,40 @@ class EmailImportLauncher {
       final current = await bridge?.prepare();
       if (!context.mounted) return const [];
       final container = ProviderScope.containerOf(context, listen: false);
+      request.currentNoteId ??= current?.id;
       final notes = await Navigator.of(context, rootNavigator: true)
           .push<List<Note>>(
             MaterialPageRoute(
               settings: const RouteSettings(name: '/email-import'),
-              builder: (_) => EmailImportScreen(
-                request: EmailImportRequest(
-                  inputs: request.inputs,
-                  sharedContent: request.sharedContent,
-                  currentNoteId: request.currentNoteId ?? current?.id,
-                ),
-              ),
+              builder: (_) => EmailImportScreen(request: request),
             ),
           );
       request.clear();
-      if (notes == null || notes.isEmpty) return const [];
-      for (final note in notes) {
-        if (note.id == current?.id) bridge?.accept(note);
+      // Even a canceled batch may have committed earlier items. Reconcile the
+      // active editor and list before returning so a later edit cannot erase them.
+      final committed = request.committedNoteIds.isNotEmpty;
+      if (committed && current != null) {
+        final latest = await container
+            .read(notesRepositoryProvider)
+            .getNoteById(current.id);
+        if (latest != null &&
+            !latest.isTrashed &&
+            latest.content != current.content) {
+          bridge?.accept(latest);
+        }
       }
-      container.read(notesCollectionProvider.notifier).refresh();
-      container.read(syncEngineProvider).triggerSyncDebounced();
+      if (committed) {
+        container.read(notesCollectionProvider.notifier).refresh();
+        container.read(syncEngineProvider).triggerSyncDebounced();
+      }
+      if (notes == null || notes.isEmpty) return const [];
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              notes.length == 1
+              !committed
+                  ? 'Opening existing note'
+                  : notes.length == 1
                   ? 'Email saved'
                   : '${notes.length} emails saved',
             ),
@@ -81,6 +91,7 @@ class EmailImportLauncher {
       return const [];
     } finally {
       request.clear();
+      request.committedNoteIds.clear();
       _active = false;
       _idle?.complete();
       _idle = null;

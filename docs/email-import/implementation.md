@@ -124,3 +124,27 @@ retains normal text/URL behavior and exposes explicit Save as Email.
 builds. Native hardware/provider replay is pending (adb reports no devices).
 The build retains existing Kotlin-plugin and NDK-version warnings; no unrelated
 package upgrade or build-policy change was introduced.
+
+## Phase 7 — regression review
+
+The focused gate passed 301 selected Flutter tests plus one specifically selected
+real QPNote export test (302 total). Follow-up parser/workflow/editor, persistence/
+attachment and final UI/share runs passed 49, 26 and 17 tests respectively; these
+sets overlap. Final feature files contain 76 tests. Static analysis is clean.
+Backend compilation and 18 selected opaque sync/attachment contract tests passed.
+Linux and GitHub Android debug builds succeeded, with inherited Android toolchain
+advisories and no physical-device claim.
+
+The review strengthened pre-DOM bounds, CRLF/charset/date adapters, meaningful
+fingerprints, source-only merges, QPNote mapping, lock-time request ownership,
+partial-batch reconciliation, progress counts and recoverable ciphertext cleanup.
+Only the selected message retains full preview bytes; imported assets do not
+preload the plaintext cache. Worker hashing and rich append conversion avoid
+capturing storage/platform objects.
+
+Synthetic parser observations are in `benchmark-linux-jit.json`, reproduced with
+`dart run tool/email_import_benchmark.dart`. The largest 41,943,563-byte case took
+1,529ms while a 10ms main-isolate timer fired 149 times. Whole-process peak RSS was
+580.4 MiB including JIT, source construction, worker copies and previous cases.
+These single Linux JIT runs measure parsing, not encryption, mobile or release
+performance. See engineering log 340 for all actual commands and limitations.

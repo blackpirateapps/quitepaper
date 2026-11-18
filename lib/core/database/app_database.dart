@@ -133,6 +133,27 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  Future<void> mergeImportSources(
+    String noteId,
+    List<NoteImportSource> incoming,
+  ) => transaction(() async {
+    final row = (await getNoteWithTags(noteId))?.note;
+    if (row == null) return;
+    final sources = NoteImportSource.union([
+      ...NoteImportSource.decode(row.importSources),
+      ...incoming,
+    ]);
+    final encoded = jsonEncode(sources.map((s) => s.toJson()).toList());
+    if (encoded == row.importSources) return;
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        importSources: Value(encoded),
+        isDirty: const Value(true),
+      ),
+    );
+    await _indexImportSources(noteId, sources);
+  });
+
   Future<void> rebuildImportSourceIndex() => transaction(() async {
     await customStatement('DELETE FROM note_import_source_index');
     final rows = await (select(
@@ -1399,6 +1420,17 @@ class AppDatabase extends _$AppDatabase {
         ...NoteImportSource.decode(priorSourceRow?.importSources),
         ...?importSources,
       ]);
+      final encodedSources = jsonEncode(
+        sources.map((s) => s.toJson()).toList(),
+      );
+      final incomingSources = jsonEncode(
+        NoteImportSource.union(
+          importSources ?? [],
+        ).map((s) => s.toJson()).toList(),
+      );
+      final effectiveDirty =
+          isDirty ||
+          (importSources != null && encodedSources != incomingSources);
       // Resolve the note's current tag set first so per-tag pins can be pruned
       // to tags the note still carries.
       final extractedTags = (preserveEmptyTags && tags != null)
@@ -1440,7 +1472,7 @@ class AppDatabase extends _$AppDatabase {
           isTrashed: Value(isTrashed),
           deletedAt: Value(deletedAt),
           serverRevision: Value(serverRevision),
-          isDirty: Value(isDirty),
+          isDirty: Value(effectiveDirty),
           syncedAt: Value(syncedAt),
           journalDate: Value(effectiveJournalDate),
           pinnedTags: Value(_encodePinnedTags(effectivePinned)),
@@ -2020,6 +2052,7 @@ class AppDatabase extends _$AppDatabase {
       await delete(tagsTable).go();
       await delete(placeAliasesTable).go();
       await delete(quickCaptureDraftsTable).go();
+      await customStatement('DELETE FROM email_import_preparations');
       await delete(notesTable).go();
       try {
         await customStatement('DELETE FROM note_search_prefix;');

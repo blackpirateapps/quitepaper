@@ -58,14 +58,16 @@ class EmailImportGateway {
 /// Mutable owner allows lock/logout to release shared plaintext as well as views.
 class EmailImportRequest {
   EmailImportRequest({
-    this.inputs = const [],
+    List<EmailInput> inputs = const [],
     this.sharedContent,
     this.currentNoteId,
-  });
+  }) : inputs = List.of(inputs);
   final List<EmailInput> inputs;
   EmailMessage? sharedContent;
-  final String? currentNoteId;
+  String? currentNoteId;
+  final committedNoteIds = <String>{};
   void clear() {
     sharedContent = null;
+    inputs.clear();
   }
 }

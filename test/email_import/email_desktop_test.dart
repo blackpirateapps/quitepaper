@@ -1,3 +1,5 @@
+import 'package:quitepaper/core/security/sensitive_preview_registry.dart';
+import 'package:quitepaper/features/email_import/presentation/email_import_launcher.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,6 +138,42 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Import Email'), findsNothing);
       expect(find.text('Import Email from all files'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'launcher clears the original shared request owner when vault locks',
+    (tester) async {
+      final gateway = FakeEmailGateway();
+      late BuildContext ctx;
+      final request = EmailImportRequest(sharedContent: gateway.email);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [emailImportGatewayProvider.overrideWithValue(gateway)],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: Builder(
+              builder: (context) {
+                ctx = context;
+                return const Scaffold();
+              },
+            ),
+          ),
+        ),
+      );
+      final result = EmailImportLauncher.open(
+        ctx,
+        request,
+        openSavedNote: false,
+      );
+      await tester.pumpAndSettle();
+      SensitivePreviewRegistry.invalidate();
+      await tester.pumpAndSettle();
+      expect(request.sharedContent, isNull);
+      expect(find.textContaining('Preview cleared.'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await result, isEmpty);
+      expect(gateway.saves, 0);
     },
   );
 }

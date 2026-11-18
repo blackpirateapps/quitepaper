@@ -32,13 +32,34 @@ class EmailParser {
 
   static bool looksLikeEmail(List<int> bytes) {
     final prefix = latin1.decode(bytes.take(65536).toList());
-    final fields = RegExp(
-      r'^(from|to|subject|date|message-id|mime-version|content-type):',
-      multiLine: true,
-      caseSensitive: false,
-    ).allMatches(prefix).map((m) => m[1]!.toLowerCase()).toSet();
+    final boundary = RegExp(r'\r?\n\r?\n').firstMatch(prefix);
+    if (boundary == null) return false;
+    final fields = <String>{};
+    var priorHeader = false;
+    for (final line
+        in prefix.substring(0, boundary.start).split(RegExp(r'\r?\n'))) {
+      if (line.startsWith(' ') || line.startsWith('\t')) {
+        if (!priorHeader) return false;
+        continue;
+      }
+      final match = RegExp(r'^([A-Za-z0-9-]+):').firstMatch(line);
+      if (match == null) return false;
+      priorHeader = true;
+      final name = match[1]!.toLowerCase();
+      if (const {
+        'from',
+        'to',
+        'subject',
+        'date',
+        'message-id',
+        'mime-version',
+        'content-type',
+      }.contains(name)) {
+        fields.add(name);
+      }
+    }
     return fields.length >= 2 &&
-        fields.any({'from', 'to', 'date', 'message-id'}.contains);
+        fields.any(const {'from', 'to', 'date', 'message-id'}.contains);
   }
 
   EmailMessage _parse(Uint8List bytes) {
@@ -61,9 +82,27 @@ class EmailParser {
     Map<String, List<String>>? topHeaders;
 
     String display(String value) {
-      // Reconstitute RFC 6532 UTF-8 from the lossless transport-byte view.
-      value = utf8.decode(latin1.encode(value), allowMalformed: true);
-      return MailCodec.decodeHeader(value) ?? '';
+      try {
+        value = utf8.decode(latin1.encode(value));
+      } catch (_) {
+        /* Legacy raw Latin-1 headers remain readable. */
+      }
+      var diagnostic = false;
+      final decoded = runZoned(
+        () => MailCodec.decodeHeader(value) ?? '',
+        zoneSpecification: ZoneSpecification(
+          print: (_, _, _, _) {
+            diagnostic = true;
+          },
+        ),
+      );
+      if (diagnostic) {
+        throw const EmailImportException(
+          'header_encoding',
+          'An email header uses an unsupported or malformed encoding.',
+        );
+      }
+      return decoded.replaceAll(RegExp(r'[\x00-\x1f\x7f]'), ' ');
     }
 
     _Body walk(int start, int end, int depth) {
@@ -165,6 +204,7 @@ class EmailParser {
       final encoding = h('content-transfer-encoding').toLowerCase();
       final decoded = _decode(encoded, encoding, cap);
       if (isBody) {
+        final previousBodyBytes = bodyTotal;
         bodyTotal += decoded.length;
         final charset = type.charset;
 
@@ -177,6 +217,9 @@ class EmailParser {
           );
         }
         final text = MailCodec.decodeAsText(decoded, '8bit', charset);
+        bodyTotal =
+            previousBodyBytes +
+            _boundedUtf8Length(text, limits.bodyBytes - previousBodyBytes);
         if (mime == 'text/html') {
           // Conversion is delayed until CID parts have been collected.
           return _Body(text: text, html: true);
@@ -242,12 +285,7 @@ class EmailParser {
     final subject = h('subject').trim();
     final sender = h('from').trim();
     final date = h('date');
-    DateTime? sentAt;
-    try {
-      sentAt = DateCodec.decodeDate(date)?.toUtc();
-    } catch (_) {
-      /* Date unavailable. */
-    }
+    final sentAt = strictSentDate(date);
     if (headers.values.any((v) => v.length > 1)) {
       warnings.add('Duplicate headers are preserved in the original email.');
     }
@@ -299,8 +337,91 @@ class EmailParser {
       originalDate: date,
       sentAt: DateTime.tryParse(date),
       markdown: markdown,
-      fingerprint: fingerprint(sender, subject, date, markdown),
+      fingerprint: fingerprint(
+        sender.trim().isEmpty ? 'Unknown sender' : sender.trim(),
+        subject.trim().isEmpty ? 'Untitled Email' : subject.trim(),
+        date,
+        markdown,
+      ),
     );
+  }
+
+  static DateTime? strictSentDate(String source) {
+    final clean = source.replaceAll(RegExp(r'\([^)]*\)'), '').trim();
+    final match = RegExp(
+      r'^(?:[A-Za-z]{3},\s*)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([+-]\d{4}|[A-Za-z]{1,5})$',
+      caseSensitive: false,
+    ).firstMatch(clean);
+    if (match == null) return null;
+    final day = int.parse(match[1]!);
+    final month =
+        const [
+          'jan',
+          'feb',
+          'mar',
+          'apr',
+          'may',
+          'jun',
+          'jul',
+          'aug',
+          'sep',
+          'oct',
+          'nov',
+          'dec',
+        ].indexOf(match[2]!.toLowerCase()) +
+        1;
+    var year = int.parse(match[3]!);
+    if (match[3]!.length <= 3) {
+      year += match[3]!.length == 2 ? (year < 50 ? 2000 : 1900) : 1900;
+    }
+    final hour = int.parse(match[4]!),
+        minute = int.parse(match[5]!),
+        second = int.parse(match[6] ?? '0');
+    if (month == 0 ||
+        day < 1 ||
+        day > DateTime.utc(year, month + 1, 0).day ||
+        hour > 23 ||
+        minute > 59 ||
+        second > 59) {
+      return null;
+    }
+    final zone = match[7]!;
+    if (zone.startsWith('+') || zone.startsWith('-')) {
+      if (int.parse(zone.substring(1, 3)) > 23 ||
+          int.parse(zone.substring(3)) > 59) {
+        return null;
+      }
+    }
+    var diagnostic = false;
+    final parsed = runZoned(
+      () => DateCodec.decodeDate(clean),
+      zoneSpecification: ZoneSpecification(
+        print: (_, _, _, _) {
+          diagnostic = true;
+        },
+      ),
+    );
+    return diagnostic ? null : parsed?.toUtc();
+  }
+
+  static int _boundedUtf8Length(String text, int cap) {
+    var length = 0;
+    for (final rune in text.runes) {
+      length += rune <= 0x7f
+          ? 1
+          : rune <= 0x7ff
+          ? 2
+          : rune <= 0xffff
+          ? 3
+          : 4;
+      if (length > cap) {
+        throw const EmailImportException(
+          'body_size',
+          'Decoded email body exceeds the 10 MiB import limit.',
+        );
+      }
+    }
+    return length;
   }
 
   static String? normalizeMessageId(String value) {
@@ -316,19 +437,26 @@ class EmailParser {
     String subject,
     String date,
     String body,
-  ) => sha256
-      .convert(
-        utf8.encode(
-          jsonEncode(
-            [sender, subject, date, body]
-                .map(
-                  (v) => v.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
-                )
-                .toList(),
+  ) {
+    String header(String value) => value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final canonicalBody = body
+        .replaceAll('\r\n', '\n')
+        .trim()
+        .replaceAll(RegExp(r'[ \t]+$', multiLine: true), '');
+    return sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              header(sender).toLowerCase(),
+              header(subject),
+              header(date),
+              canonicalBody,
+            ]),
           ),
-        ),
-      )
-      .toString();
+        )
+        .toString();
+  }
+
   static String sanitizeFileName(String name) {
     final safe = name
         .replaceAll('\\', '/')

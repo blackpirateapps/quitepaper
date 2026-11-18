@@ -24,6 +24,25 @@ import 'package:quitepaper/features/email_import/domain/email_message.dart';
 import 'package:quitepaper/features/email_import/domain/note_import_source.dart';
 import '../attachments/attachment_service_test.dart' show MockKeyManager;
 
+class _DeferredDeleteStorage extends AttachmentLocalStorage {
+  _DeferredDeleteStorage(Directory directory)
+    : super(customBaseDirectory: directory);
+  bool failDelete = true;
+  @override
+  Future<void> deleteEncryptedFile({
+    required String attachmentId,
+    String variant = 'original',
+    String? localPath,
+  }) async {
+    if (failDelete) return;
+    await super.deleteEncryptedFile(
+      attachmentId: attachmentId,
+      variant: variant,
+      localPath: localPath,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -75,6 +94,9 @@ void main() {
       expect(loaded.content, contains('invoice.pdf'));
       final assets = await vault.getAttachmentsForNote(note.id);
       expect(assets, hasLength(2));
+      for (final asset in assets) {
+        expect(storage.getDecryptedCache(asset.id), isNull);
+      }
       final original = assets.singleWhere(
         (a) => a.mimeType == 'message/rfc822',
       );
@@ -523,6 +545,95 @@ void main() {
         orderedEquals(email('mixed').rawBytes!),
       );
       await restoredDb.close();
+    },
+  );
+  test(
+    'legacy sync envelope preserves sources and schedules encrypted repair',
+    () async {
+      final saved = await service.save(
+        email: email('plain'),
+        mode: EmailImportMode.editable,
+        title: 'Saved',
+      );
+      await db.saveNote(
+        id: saved.id,
+        title: 'Remote edit',
+        content: saved.content,
+        createdAt: saved.createdAt,
+        updatedAt: saved.updatedAt,
+        isPinned: false,
+        isDirty: false,
+        serverRevision: 7,
+        importSources: [],
+      );
+      final row = (await db.getNoteWithTags(saved.id))!.note;
+      expect(NoteImportSource.decode(row.importSources), saved.importSources);
+      expect(row.isDirty, isTrue);
+      expect(row.serverRevision, 7);
+    },
+  );
+  test(
+    'merging provenance preserves newer note text and its timestamps',
+    () async {
+      final saved = await service.save(
+        email: email('plain'),
+        mode: EmailImportMode.editable,
+        title: 'Saved',
+      );
+      final additional = NoteImportSource(
+        fingerprint: 'another',
+        importedAt: DateTime.utc(2026),
+        subject: 'S',
+        sender: 'F',
+      );
+      final before = (await repo.getNoteById(saved.id))!;
+      await db.mergeImportSources(saved.id, [additional]);
+      final after = (await repo.getNoteById(saved.id))!;
+      expect(after.content, before.content);
+      expect(after.updatedAt, before.updatedAt);
+      expect(after.importSources, hasLength(2));
+      expect(
+        await db.findEmailDuplicates(fingerprint: 'another'),
+        hasLength(1),
+      );
+    },
+  );
+  test(
+    'failed file cleanup retains its durable journal until recovery can delete',
+    () async {
+      final deferred = _DeferredDeleteStorage(dir);
+      final guarded = EmailImportService(
+        database: db,
+        repository: repo,
+        attachments: AttachmentService(
+          database: db,
+          keyManager: keys,
+          storage: deferred,
+        ),
+      );
+      var checks = 0;
+      await expectLater(
+        guarded.save(
+          email: email('mixed'),
+          mode: EmailImportMode.editable,
+          title: 'Cancel',
+          isCancelled: () => ++checks > 1,
+        ),
+        throwsA(isA<EmailImportException>()),
+      );
+      expect(await db.getAllNotesRaw(), isEmpty);
+      expect(
+        await db.customSelect('SELECT * FROM email_import_preparations').get(),
+        isNotEmpty,
+      );
+      expect(await dir.list().toList(), isNotEmpty);
+      deferred.failDelete = false;
+      await guarded.recoverInterruptedImports();
+      expect(
+        await db.customSelect('SELECT * FROM email_import_preparations').get(),
+        isEmpty,
+      );
+      expect(await dir.list().toList(), isEmpty);
     },
   );
 }

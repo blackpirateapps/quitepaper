@@ -9,20 +9,93 @@ class EmailHtmlConverter {
       value.replaceAllMapped(RegExp(r'[\\`*_{\}\[\]<>!|]'), (m) => '\\${m[0]}');
 
   static String plainText(String value) => value
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n')
       .split('\n')
       .map((line) {
         // Keep ordinary reply and list structure while escaping inline markup.
         final match = RegExp(
           r'^(\s*(?:>\s*)*(?:(?:[-+*]|\d+[.)])\s+)?)(.*)$',
         ).firstMatch(line)!;
-        return '${match[1]}${escape(match[2]!)}';
+        var text = escape(match[2]!);
+        if (RegExp(r'^#{1,6}(?:\s|$)').hasMatch(text) ||
+            RegExp(r'^[-=_]{3,}\s*$').hasMatch(text)) {
+          text = '\\$text';
+        }
+        return '${match[1]}$text';
       })
       .join('\n');
 
   String convert(String source, {Set<String> contentIds = const {}}) {
+    // Check tokens before the DOM parser allocates nodes or builds deep stacks.
+    // The MIME body byte budget alone cannot bound a million tiny HTML tags.
+    var tokens = 0;
+    for (final unit in source.codeUnits) {
+      if (unit == 60 && ++tokens > 100000) {
+        throw const EmailImportException(
+          'html_complexity',
+          'Email HTML contains too many elements.',
+        );
+      }
+    }
+    final stack = <String>[];
+    const voidTags = {
+      'area',
+      'base',
+      'br',
+      'col',
+      'embed',
+      'hr',
+      'img',
+      'input',
+      'link',
+      'meta',
+      'param',
+      'source',
+      'track',
+      'wbr',
+    };
+    var cursor = 0;
+    final tagPattern = RegExp(
+      r'^<\s*(/\s*)?([a-zA-Z][a-zA-Z0-9:-]*)(?=[\s/>])',
+    );
+    while (cursor < source.length) {
+      final start = source.indexOf('<', cursor);
+      if (start < 0) break;
+      final end = source.indexOf('>', start + 1);
+      if (end < 0) break;
+      if (end - start > 65536) {
+        throw const EmailImportException(
+          'html_complexity',
+          'An email HTML element is too large.',
+        );
+      }
+      final token = source.substring(start, end + 1);
+      cursor = end + 1;
+      final match = tagPattern.firstMatch(token);
+      if (match == null) continue;
+      final tag = match[2]!.toLowerCase();
+      if (match[1] != null) {
+        final index = stack.lastIndexOf(tag);
+        if (index >= 0) stack.removeRange(index, stack.length);
+      } else if (!voidTags.contains(tag) && !token.endsWith('/>')) {
+        if (stack.isNotEmpty &&
+            stack.last == tag &&
+            {'p', 'li', 'tr', 'td', 'th', 'option'}.contains(tag)) {
+          stack.removeLast();
+        }
+        stack.add(tag);
+        if (stack.length > 80) {
+          throw const EmailImportException(
+            'html_complexity',
+            'Email HTML is nested too deeply.',
+          );
+        }
+      }
+    }
     final root = html.parseFragment(source);
     var nodes = 0;
-    String visit(Node node, int depth) {
+    String visit(Node node, int depth, {bool flow = false}) {
       if (++nodes > 200000 || depth > 80) {
         throw const EmailImportException(
           'html_complexity',
@@ -83,6 +156,12 @@ class EmailHtmlConverter {
         }
         return alt == 'Inline image' ? '' : alt;
       }
+      if (tag == 'table' &&
+          (el!.querySelector('table') != null ||
+              el.attributes['role'] == 'presentation' ||
+              el.querySelector('td p,td pre,td div,td table') != null)) {
+        return '\n\n${node.nodes.map((n) => visit(n, depth + 1, flow: true)).join()}\n\n';
+      }
       if (tag == 'pre') {
         final text = node.text ?? '';
         var fence = '```';
@@ -91,7 +170,10 @@ class EmailHtmlConverter {
         }
         return '\n\n$fence\n$text\n$fence\n\n';
       }
-      final children = node.nodes.map((n) => visit(n, depth + 1)).join();
+      final parts = node.nodes
+          .map((n) => visit(n, depth + 1, flow: flow))
+          .toList();
+      final children = parts.join();
       if (RegExp(r'^h[1-6]$').hasMatch(tag)) {
         return '\n\n${'#' * int.parse(tag[1])} ${children.trim()}\n\n';
       }
@@ -106,6 +188,7 @@ class EmailHtmlConverter {
         case 'article':
           return '\n\n${children.trim()}\n\n';
         case 'table':
+          if (flow) return '\n\n$children\n\n';
           final rows = children
               .trim()
               .split('\n')
@@ -138,15 +221,26 @@ class EmailHtmlConverter {
           final ordered = el?.parent?.localName == 'ol';
           return '\n${ordered ? '1.' : '-'} ${children.trim().replaceAll('\n', '\n  ')}';
         case 'tr':
-          return '\n| ${node.nodes.whereType<Element>().where((e) => {'td', 'th'}.contains(e.localName)).map((e) => visit(e, depth + 1).trim()).join(' | ')} |';
+          if (flow) return '\n\n$children\n\n';
+          final cells = <String>[];
+          for (var i = 0; i < node.nodes.length; i++) {
+            final child = node.nodes[i];
+            if (child is Element && {'td', 'th'}.contains(child.localName)) {
+              cells.add(parts[i].trim());
+            }
+          }
+          return '\n| ${cells.join(' | ')} |';
         case 'td':
         case 'th':
-          return children.replaceAll('\n', ' ');
+          return flow ? '\n\n$children\n\n' : children.replaceAll('\n', ' ');
         case 'a':
           final href = el?.attributes['href'] ?? '';
           final uri = Uri.tryParse(href);
           if (uri != null &&
               {'https', 'http', 'mailto'}.contains(uri.scheme.toLowerCase()) &&
+              (uri.scheme == 'mailto'
+                  ? uri.path.isNotEmpty
+                  : uri.host.isNotEmpty) &&
               !href.contains(RegExp(r'[\x00-\x20]'))) {
             final safe = href
                 .replaceAll('(', '%28')

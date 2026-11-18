@@ -249,7 +249,7 @@ void main() {
       ),
     );
     expect(
-      find.textContaining('Item 2: Not a supported email.'),
+      find.textContaining('Item 2: invalid — Not a supported email.'),
       findsOneWidget,
     );
     expect(

@@ -84,13 +84,15 @@ class ConflictResolver {
         base == null ||
         base.body != local.body ||
         base.title != local.title ||
-        !_listEquals(base.tags, local.tags);
+        !_listEquals(base.tags, local.tags) ||
+        !listEquals(base.importSources, local.importSources);
 
     final remoteHasEdits =
         base == null ||
         base.body != remote.body ||
         base.title != remote.title ||
-        !_listEquals(base.tags, remote.tags);
+        !_listEquals(base.tags, remote.tags) ||
+        !listEquals(base.importSources, remote.importSources);
 
     final deleteResult = metadataMergeEngine.mergeDeleteVsEdit(
       baseDeleted: false,
@@ -500,7 +502,8 @@ class ConflictResolver {
         isArchived: existing?.note.isArchived ?? false,
         isTrashed: existing?.note.isTrashed ?? false,
         tags: resolvedTags,
-        importSources: resolvedImportSources ?? conflict.remotePlaintext?.importSources,
+        importSources:
+            resolvedImportSources ?? conflict.remotePlaintext?.importSources,
         serverRevision: conflict.remoteRevision,
         isDirty: true,
       );

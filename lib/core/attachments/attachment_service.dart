@@ -254,6 +254,7 @@ class AttachmentService implements AssetResolver {
     preparedId: assetId,
     maximumBytes: (original ? 50 : 25) * 1024 * 1024,
     kind: inlineImage ? 'image' : 'file',
+    cachePlaintext: false,
   );
 
   Future<({AttachmentEntity attachment, String markdownSnippet})>
@@ -265,6 +266,7 @@ class AttachmentService implements AssetResolver {
     String? preparedId,
     int maximumBytes = maxGenericFileSizeBytes,
     String kind = 'file',
+    bool cachePlaintext = true,
   }) async {
     if (bytes.length > maximumBytes) {
       throw FileTooLargeException(
@@ -319,7 +321,9 @@ class AttachmentService implements AssetResolver {
     );
 
     // 3. Cache decrypted plaintext in memory for instant local access
-    _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    if (cachePlaintext) {
+      _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    }
 
     // 4. Save metadata to Drift database (ocrState remains 'not_requested' for generic files)
     await database.saveAttachment(
@@ -696,6 +700,9 @@ class AttachmentService implements AssetResolver {
     final entity = await database.getAttachment(attachmentId);
     if (entity == null) {
       await _storage.deleteEncryptedFile(attachmentId: attachmentId);
+      if (await _storage.hasEncryptedFile(attachmentId: attachmentId)) {
+        throw StateError('Attachment cleanup is pending file access.');
+      }
       return;
     }
     final variants = await database.getVariantsForAttachment(attachmentId);
@@ -717,6 +724,12 @@ class AttachmentService implements AssetResolver {
       );
     }
 
+    if (await _storage.hasEncryptedFile(
+      attachmentId: attachmentId,
+      localPath: entity.localPath,
+    )) {
+      throw StateError('Attachment cleanup is pending file access.');
+    }
     await database.deleteAttachmentVariants(attachmentId);
     await database.deleteAttachmentOcrPages(attachmentId);
     await database.removeSyncQueueEntriesForEntity(attachmentId);

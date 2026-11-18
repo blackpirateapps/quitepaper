@@ -82,6 +82,8 @@ void main() {
       expect(payload.attachments.first.id, attachmentId);
       expect(payload.attachments.first.encryptedPayloadBase64, isNotNull);
 
+      // The backup is complete; release its executor before the independent restore.
+      await db.close();
       // Restore into fresh DB and directory
       final cleanDb = AppDatabase.memory();
       final cleanDir = await Directory.systemTemp.createTemp('qp_clean_restore_');

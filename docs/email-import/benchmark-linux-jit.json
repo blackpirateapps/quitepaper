@@ -1,0 +1,62 @@
+{
+  "runtime": "3.13.2 (stable) (Tue Aug 25 01:01:12 2026 -0700) on \"linux_x64\"",
+  "os": "linux",
+  "measurements": [
+    {
+      "case": "10 KB plaintext",
+      "raw_bytes": 10127,
+      "count": 1,
+      "elapsed_ms": 109,
+      "decoded_attachment_bytes_per_message": 0,
+      "main_isolate_timer_ticks": 9,
+      "rss_before_bytes": 432177152,
+      "rss_after_bytes": 482828288,
+      "process_peak_rss_bytes": 482332672
+    },
+    {
+      "case": "1 MB HTML",
+      "raw_bytes": 1058920,
+      "count": 1,
+      "elapsed_ms": 566,
+      "decoded_attachment_bytes_per_message": 0,
+      "main_isolate_timer_ticks": 56,
+      "rss_before_bytes": 492949504,
+      "rss_after_bytes": 326565888,
+      "process_peak_rss_bytes": 522514432
+    },
+    {
+      "case": "10 MB multipart",
+      "raw_bytes": 10000381,
+      "count": 1,
+      "elapsed_ms": 419,
+      "decoded_attachment_bytes_per_message": 7500000,
+      "main_isolate_timer_ticks": 41,
+      "rss_before_bytes": 370229248,
+      "rss_after_bytes": 365834240,
+      "process_peak_rss_bytes": 522514432
+    },
+    {
+      "case": "40 MiB multipart",
+      "raw_bytes": 41943563,
+      "count": 1,
+      "elapsed_ms": 1529,
+      "decoded_attachment_bytes_per_message": 31457280,
+      "main_isolate_timer_ticks": 149,
+      "rss_before_bytes": 566534144,
+      "rss_after_bytes": 517566464,
+      "process_peak_rss_bytes": 608567296
+    },
+    {
+      "case": "50 small emails",
+      "raw_bytes": 10127,
+      "count": 50,
+      "elapsed_ms": 128,
+      "decoded_attachment_bytes_per_message": 0,
+      "main_isolate_timer_ticks": 12,
+      "rss_before_bytes": 517566464,
+      "rss_after_bytes": 517656576,
+      "process_peak_rss_bytes": 608567296
+    }
+  ],
+  "limits": "Synthetic warm/cold JIT single runs; process RSS includes source construction, isolate copying and previous cases. No mobile, native UI or package performance claim."
+}
