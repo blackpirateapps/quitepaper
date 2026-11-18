@@ -880,3 +880,15 @@ selected tests pass** across templates, editor save/security/frontmatter/history
 modal widgets and password encryption. `git diff --check` passes. The full suite
 was not run. Exact commands, commit mapping and native-device/performance limits
 are in [fix verification](handoff/audits/templates-2026-11-18-fixes.md).
+
+### Settings import navigation regression test — November 19, 2026
+
+The phone settings test now scrolls to Backup and import before tapping it.
+The Templates row had moved that destination below the 360×800 viewport,
+causing a missed tap and a subsequent missing import-section lookup. Both scroll
+operations are scoped to their respective settings screens, and the test checks
+that BackupImportSettingsScreen opens before asserting the import controls.
+
+Validation: `flutter analyze` is clean; all **37 tests** pass in
+`test/widget_test.dart` and `test/settings/settings_screen_test.dart`, including
+the originally failing case. `git diff --check` passes. No full suite ran.
