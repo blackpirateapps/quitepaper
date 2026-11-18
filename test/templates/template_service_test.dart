@@ -303,6 +303,50 @@ void main() {
       editor.dispose();
     },
   );
+  for (final newline in ['\n', '\r\n']) {
+    for (final titleIndex in [0, 1, 3]) {
+      for (final oldTitle in ['Old', '"Old # title"', "'Bob''s # title'"]) {
+        test(
+          'frontmatter round trip newline=${jsonEncode(newline)}, position=$titleIndex, value=$oldTitle',
+          () async {
+            final lines = [
+              'author: Alice',
+              '# retained comment',
+              'custom: value',
+            ];
+            lines.insert(titleIndex, 'title: $oldTitle  # title comment');
+            final body = [
+              '---',
+              ...lines,
+              '---',
+              'Body',
+              'untouched ✓',
+              '',
+            ].join(newline);
+            final note = source(content: body);
+            await notes.saveNote(note);
+            const title = 'New "quoted" title # ✓';
+            final template = await service.saveNoteAsTemplate(
+              noteId: note.id,
+              name: title,
+              flush: () async {},
+            );
+            final created = await service.instantiate(template.id);
+            expect(
+              created.content,
+              body.replaceFirst(
+                'title: $oldTitle',
+                'title: ${jsonEncode(title)}',
+              ),
+            );
+            expect(template.content, body);
+            expect((await notes.getNoteById(note.id))!.content, body);
+          },
+        );
+      }
+    }
+  }
+
   test(
     'creation failure never announces success or leaves a partial note',
     () async {

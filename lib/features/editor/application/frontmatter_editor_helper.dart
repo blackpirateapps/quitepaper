@@ -46,9 +46,9 @@ abstract final class FrontmatterEditorHelper {
     String? journalDate;
 
     // Calculate line offsets within the frontmatter block
-    final openDelimiterEnd = content.indexOf('\n') + 1;
+    final openDelimiterEnd = content.indexOf('\n', content.indexOf('---')) + 1;
     var currentOffset = openDelimiterEnd;
-    final lines = blockText.split(RegExp(r'\r?\n'));
+    final lines = blockText.split('\n');
 
     String? currentListKey;
     final currentListItems = <String>[];
@@ -103,10 +103,13 @@ abstract final class FrontmatterEditorHelper {
     }
 
     for (var i = 0; i < lines.length; i++) {
-      final line = lines[i];
+      final rawLine = lines[i];
+      final line = rawLine.endsWith('\r')
+          ? rawLine.substring(0, rawLine.length - 1)
+          : rawLine;
       final lineStart = currentOffset;
       final lineEnd = lineStart + line.length;
-      currentOffset = lineEnd + 1; // +1 for newline character
+      currentOffset = lineStart + rawLine.length + 1;
 
       final trimmed = line.trim();
 
@@ -167,7 +170,9 @@ abstract final class FrontmatterEditorHelper {
       final rawKey = line.substring(0, colonIndex).trim();
       final key = rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
       final valPart = line.substring(colonIndex + 1);
-      final rawVal = valPart.trim();
+      final rawVal = (_isTitleKey(key)
+          ? _withoutTitleComment(valPart)
+          : valPart).trim();
 
       final keyStart = lineStart + line.indexOf(rawKey);
       final keyEnd = keyStart + rawKey.length;
@@ -369,14 +374,15 @@ abstract final class FrontmatterEditorHelper {
       );
     } else {
       // Insert title at the beginning of the frontmatter block
-      final openDelimiterEnd = documentText.indexOf('\n') + 1;
+      final openDelimiterEnd = documentText.indexOf('\n', documentText.indexOf('---')) + 1;
+      final newline = documentText[openDelimiterEnd - 2] == '\r' ? '\r\n' : '\n';
       final safeTitle = quoteValue ? jsonEncode(newTitle) : newTitle.contains(':') || newTitle.contains('#')
           ? '"${newTitle.replaceAll('"', r'\"')}"'
           : newTitle;
       return documentText.replaceRange(
         openDelimiterEnd,
         openDelimiterEnd,
-        'title: $safeTitle\n',
+        'title: $safeTitle$newline',
       );
     }
   }
@@ -779,6 +785,32 @@ abstract final class FrontmatterEditorHelper {
 
   static String _escapeYamlString(String s) {
     return s.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  }
+
+  // Only an unquoted # preceded by whitespace begins a YAML title comment.
+  // Keep its original spacing and bytes outside the property's value range.
+  static String _withoutTitleComment(String value) {
+    final scalar = value.trimLeft();
+    String? quote;
+    for (var i = 0; i < scalar.length; i++) {
+      final char = scalar[i];
+      if (quote != null) {
+        if (quote == '"' && char == r'\') {
+          i++;
+        } else if (char == quote) {
+          if (quote == "'" && i + 1 < scalar.length && scalar[i + 1] == "'") {
+            i++;
+          } else {
+            quote = null;
+          }
+        }
+      } else if (i == 0 && (char == '"' || char == "'")) {
+        quote = char;
+      } else if (char == '#' && (i == 0 || scalar[i - 1].trim().isEmpty)) {
+        return value.substring(0, value.length - scalar.length + i);
+      }
+    }
+    return value;
   }
 
   static String _stripQuotes(String s) {

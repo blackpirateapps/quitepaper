@@ -824,3 +824,15 @@ Validation: `flutter analyze` clean; 38 relevant template/editorial/adaptive-mod
 widget tests pass. Both Android-style sheets and Linux-style dialogs survive
 drag, barrier, Escape and system Back during gated use/save operations, then
 return one committed result. No full suite ran.
+
+### QPT-006 template audit fix — November 19, 2026
+
+Frontmatter source offsets now count original newline widths, preserving CRLF
+when replacing title values or inserting a title. Title value ranges exclude
+unquoted inline YAML comments, retaining comment spacing and quoted hash marks.
+Template title normalization retains its final consistency check.
+
+Validation: `flutter analyze` clean; 50 relevant template service/frontmatter
+unit/preservation tests pass. Eighteen real SQLite save/use combinations compare
+all unrelated bytes for LF/CRLF, three title positions, quoted values and inline
+comments. Source/template bytes remain unchanged. No full suite ran.
