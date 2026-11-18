@@ -30,6 +30,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
   EditorNotifier({
     required Note initialNote,
     required this.repository,
+    this.retainDuringSave,
     bool initialPreviewMode = false,
   }) : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
        super(
@@ -42,6 +43,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
        );
 
   final NotesRepository repository;
+  final VoidCallback Function()? retainDuringSave;
   final Debouncer _debouncer;
   int _saveRevision = 0;
 
@@ -108,7 +110,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       isUnlocked: true,
       isDirty: true,
     );
-    await flushForTemplate();
+    await flushPendingChanges();
   }
 
   Future<void> removePasswordProtection() async {
@@ -119,12 +121,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
       isUnlocked: true,
       isDirty: true,
     );
-    await flushForTemplate();
+    await flushPendingChanges();
   }
 
   Future<void> lockNow() async {
     if (state.activePassword != null || state.note.isPasswordProtected) {
-      await flushForTemplate();
+      await flushPendingChanges();
       state = state.copyWith(isUnlocked: false, clearActivePassword: true);
     }
   }
@@ -223,20 +225,25 @@ class EditorNotifier extends StateNotifier<EditorState> {
   Future<void>? _pendingSave;
 
   Future<void> saveNow() {
-    return _pendingSave ??= _drainSaves().whenComplete(() {
+    if (_pendingSave != null) return _pendingSave!;
+    final release = retainDuringSave?.call();
+    return _pendingSave = _drainSaves().whenComplete(() {
       _pendingSave = null;
+      release?.call();
     });
   }
 
   /// Await local persistence, including edits made while an earlier save ran.
   /// Existing autosave presents failures through dirty state; snapshots must
   /// fail explicitly rather than read a stale persisted body.
-  Future<void> flushForTemplate() async {
+  Future<void> flushForTemplate() => flushPendingChanges();
+
+  Future<void> flushPendingChanges() async {
     _debouncer.cancel();
     await saveNow();
     if (mounted && state.isDirty) await saveNow();
     if (!mounted || state.isDirty || state.isSaving) {
-      throw StateError('The note could not be saved before taking a snapshot.');
+      throw StateError('The latest note changes could not be saved.');
     }
   }
 
@@ -325,13 +332,14 @@ class EditorNotifier extends StateNotifier<EditorState> {
   /// Cleans up note if empty upon exit
   Future<void> handleExitCleanup() async {
     _debouncer.cancel();
+    await saveNow();
     if (state.activePassword == null &&
         state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
       await repository.deletePermanently(state.note.id);
     } else {
-      await saveNow();
+      await flushPendingChanges();
     }
   }
 
@@ -409,6 +417,10 @@ final editorProviderFamily = StateNotifierProvider.autoDispose
       return EditorNotifier(
         initialNote: params.note,
         repository: repository,
+        retainDuringSave: () {
+          final link = ref.keepAlive();
+          return link.close;
+        },
         initialPreviewMode: params.initialPreviewMode,
       );
     });

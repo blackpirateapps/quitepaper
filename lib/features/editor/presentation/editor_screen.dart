@@ -350,6 +350,35 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         : note.content;
   }
 
+  bool _exitInProgress = false;
+  bool _allowExit = false;
+
+  Future<void> _requestExit() async {
+    if (_exitInProgress) return;
+    _exitInProgress = true;
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await ref.read(editorProviderFamily(_editorParams).notifier).handleExitCleanup();
+      if (!mounted) return;
+      await _commitSessionVersionIfNeeded();
+      if (!mounted) return;
+      setState(() => _allowExit = true);
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save this note. Please try closing it again.'),
+        ));
+      }
+    } finally {
+      _exitInProgress = false;
+    }
+  }
+
   EditorParams get _editorParams => EditorParams(
         widget.note,
         initialPreviewMode: widget.initialPreviewMode,
@@ -360,6 +389,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
+      _bodyEditorKey.currentState?.flushPendingChanges();
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
       _commitSessionVersionIfNeeded();
     }
@@ -1875,12 +1905,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyV, meta: true): _handlePaste,
       },
       child: PopScope(
-        canPop: true,
+        canPop: _allowExit,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop) {
-            _commitSessionVersionIfNeeded();
-            editorNotifier.handleExitCleanup();
-          }
+          if (!didPop) _requestExit();
         },
         child: DropTarget(
           onDragEntered: (_) {
@@ -1926,11 +1953,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       QuietIconButton(
                         icon: Icons.close_rounded,
                         tooltip: 'Close note',
-                        onPressed: () {
-                          _commitSessionVersionIfNeeded();
-                          editorNotifier.handleExitCleanup();
-                          widget.onClose?.call();
-                        },
+                        onPressed: _requestExit,
                       ),
                     ],
                   )
@@ -1938,9 +1961,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     ? QuietIconButton(
                         icon: Icons.arrow_back_rounded,
                         tooltip: 'Back',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+                        onPressed: _requestExit,
                       )
                     : null),
             actions: [

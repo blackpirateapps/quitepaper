@@ -773,3 +773,16 @@ Validation: `flutter analyze` clean; 16 relevant save-race/service tests pass,
 including real SQLite protection, removal, password change, lock and failure
 cases. The shared drain also supplies the persistence foundation for QPT-002.
 No full suite ran.
+
+### QPT-002 template audit fix — November 19, 2026
+
+Back, system Back and the split-pane Close action now await canonical editor
+flushing and exit cleanup before leaving. Failed persistence retains the route
+and dirty buffer for retry. Lifecycle saves publish pending Visual edits first.
+Riverpod keeps the notifier alive during active persistence; exit waits for older
+writes before empty-draft deletion. Templates and security transitions share the
+same general pending-change flush contract.
+
+Validation: `flutter analyze` clean; 47 relevant editor/save-race/integration
+tests pass. New real-route tests cover delayed older writes, newer edits, Back,
+provider disposal and a failed-save retry. No full suite ran.

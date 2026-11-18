@@ -20,6 +20,7 @@ import 'package:quitepaper/features/templates/application/template_service.dart'
 import 'package:quitepaper/features/templates/data/template_repository.dart';
 import 'package:quitepaper/features/templates/presentation/widgets/template_dialogs.dart';
 import 'template_domain_test.dart' show richFixture;
+import 'template_save_race_test.dart' show GatedNotes;
 
 void main() {
   late AppDatabase db;
@@ -61,6 +62,78 @@ void main() {
   Future<void> finish(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 1));
+  }
+
+  for (final fail in [false, true]) {
+    testWidgets('route Back awaits queued save; failure=$fail', (tester) async {
+      final note = Note(
+        id: 'exit-source',
+        title: 'Source',
+        content: 'Original',
+        createdAt: DateTime.utc(2020),
+        updatedAt: DateTime.utc(2020),
+      );
+      final gated = GatedNotes(db);
+      await gated.saveNote(note);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            notesRepositoryProvider.overrideWithValue(gated),
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditorScreen(note: note),
+                    ),
+                  ),
+                  child: const Text('Open editor'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open editor'));
+      await settle(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(EditorScreen)),
+      );
+      final notifier = container.read(
+        editorProviderFamily(EditorParams(note)).notifier,
+      );
+      gated.gate();
+      notifier.updateContent('First');
+      final saving = notifier.saveNow();
+      await tester.pump();
+      expect(gated.entered!.isCompleted, true);
+      notifier.updateContent('Latest irreplaceable edit');
+      gated.fail = fail;
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.byType(EditorScreen), findsOneWidget);
+      gated.release!.complete();
+      await settle(tester);
+      await saving;
+      if (fail) {
+        expect(find.byType(EditorScreen), findsOneWidget);
+        expect(notifier.state.isDirty, true);
+        gated.fail = false;
+        await tester.binding.handlePopRoute();
+        await settle(tester);
+      }
+      expect(find.byType(EditorScreen), findsNothing);
+      expect(
+        (await notes.getNoteById(note.id))!.content,
+        'Latest irreplaceable edit',
+      );
+      await finish(tester);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   for (final style in EditorEditingStyle.values) {

@@ -156,6 +156,34 @@ void main() {
     },
   );
 
+  test('exit drains newer edits before disposal', () async {
+    notes.gate();
+    editor.updateContent('First');
+    final saving = editor.saveNow();
+    await notes.entered!.future;
+    editor.updateContent('Latest irreplaceable edit');
+    final exiting = editor.handleExitCleanup();
+    notes.release!.complete();
+    await saving;
+    await exiting;
+    expect(editor.state.isDirty, false);
+    expect(
+      (await notes.getNoteById('source'))!.content,
+      'Latest irreplaceable edit',
+    );
+  });
+
+  test('exit failure preserves dirty buffer for retry', () async {
+    notes.fail = true;
+    editor.updateContent('Keep this buffer');
+    await expectLater(editor.handleExitCleanup(), throwsStateError);
+    expect(editor.state.isDirty, true);
+    expect(editor.state.note.content, 'Keep this buffer');
+    notes.fail = false;
+    await editor.handleExitCleanup();
+    expect((await notes.getNoteById('source'))!.content, 'Keep this buffer');
+  });
+
   test(
     'failed protection stays dirty and cannot report successful persistence',
     () async {
