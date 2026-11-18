@@ -7341,3 +7341,56 @@ Historical release entries, audit evidence, engineering logs and the verbatim
 handoff backup retain their original versions. Dependency versions, legacy
 format defaults and the backend package's independent version are preserved.
 The unrelated pre-existing smart-tables prompt remains outside the commit.
+
+
+## 331. Critical GitHub Dependency Alert Remediation (November 18, 2026)
+
+Read GitHub's open Dependabot and secret-scanning alerts. The two critical
+findings were both in `backend/package-lock.json`, through Vitest 3.2.7's
+Tinypool 1.1.1 dependency:
+
+- [Alert #7](https://github.com/blackpirateapps/quitepaper/security/dependabot/7):
+  GHSA-85c8-ppgw-ccpr / CVE-2026-104849, inherited `run()` options can select an
+  attacker-controlled worker after prototype pollution (fixed in Tinypool 2.1.2).
+- [Alert #8](https://github.com/blackpirateapps/quitepaper/security/dependabot/8):
+  GHSA-5gmw-xhrv-c9v3 / CVE-2026-104848, inherited worker options can inject
+  executable arguments or environment variables (fixed in Tinypool 2.1.1).
+
+Upgraded the backend's Vitest requirement from `^3.0.5` to `^4.1.12` and
+regenerated its npm lockfile. Vitest 4 removes Tinypool entirely, addressing both
+critical findings without forcing an unsupported transitive major-version
+override. Vitest and its mocker resolve to 4.1.12, also covering the reported
+path-traversal/manual-mock-registration advisories. The refreshed development
+toolchain resolves Vite 8.3.8 and source-map-js 1.2.2. Backend production source,
+direct runtime dependency versions and Flutter dependencies are unchanged.
+
+Use Node 22 LTS 22.12+ for the Vite toolchain; validation used Node 22.23.1.
+The initial npm 10.9.8 install hit an Arborist `edgesOut` resolver exception.
+Regenerated using npm 11.21.3, then verified a clean `npm ci` using the existing
+npm 10.9.8. No permanent npm configuration change or peer-dependency bypass was
+needed.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/sync/sync_api_client_retry_test.dart`: **5 passed**.
+- In `backend/`, `npm ci` and `npm run build`: passed.
+- In `backend/`, `npm test -- tests/auth.test.ts tests/crypto-blind.test.ts tests/sync.test.ts tests/conflict.test.ts tests/admin.test.ts`:
+  **26 passed across five selected files**, exercising worker isolation,
+  authentication, source inspection, sync, conflicts and admin access.
+- In `backend/`, `npm audit --audit-level=critical --json`: exit 0, **0 critical**;
+  **17 lower-severity package findings remain** (7 high, 9 moderate, 1 low).
+  These npm package counts differ from GitHub's per-advisory alert counts.
+- Lockfile inspection confirms no Tinypool package remains. `git diff --check`
+  passes. No full Flutter or backend test suite ran.
+
+GitHub's code-scanning endpoint returned HTTP 404, `no analysis found`, with a
+token-scope hint; its code-quality endpoint also returned HTTP 404. No claim of
+a clean code-scanning/code-quality report is made. Secret scanning lists one
+existing Google API key alert; this work neither changes its status nor rotates
+the key. Lower-severity dependency findings remain for separate remediation.
+GitHub must rescan the pushed dependency graph to close resolved alerts.
+
+Modified files: `backend/package.json`, `backend/package-lock.json`,
+`HANDOFF.md` and this log. The unrelated pre-existing untracked smart-tables
+prompt remains outside the commit.

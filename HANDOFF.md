@@ -45,6 +45,16 @@ to derive build numbers from the Git commit count. See the
 [version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
 and [engineering log 330](handoff/latest-logs.md#330-release-version-bump-to-164-build-22-november-18-2026).
 
+## Critical Dependency Security Alerts
+
+The backend test runner now uses Vitest **4.1.12**, removing Tinypool and fixing
+critical Dependabot alerts **#7 and #8**. The refreshed lockfile also updates
+Vitest's mocker, Vite and source-map-js. Local npm audit reports **zero critical
+vulnerabilities**; lower-severity findings and the existing Google API key alert
+remain outside this remediation. Use Node 22 LTS **22.12+** for backend tests.
+See [engineering log 331](handoff/latest-logs.md#331-critical-github-dependency-alert-remediation-november-18-2026)
+for the findings, validation and remaining scope.
+
 ## Linux CI Async Test Stability
 
 Image import tests now wait for the compression dialog or inserted attachment
