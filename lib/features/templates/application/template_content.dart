@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:html/parser.dart' as html;
+import 'package:html/dom.dart' as dom;
 import '../../editor/application/frontmatter_editor_helper.dart';
 import '../../editor/application/rich_document_parser.dart';
 import '../../editor/application/rich_document_serializer.dart';
@@ -35,14 +36,6 @@ void validateTemplateContent(NoteTemplate template) {
       'The document format does not match its content.',
     );
   }
-  // Include encoded URIs and metadata, as well as parsed document nodes below.
-  final decoded = content.replaceAll(r'\/', '/');
-  if (RegExp(
-    r'(?:\bqp:(?!/*note(?:/|%2f))|\bfile:/|\bcontent://|\bdata:(?:image|audio|video|application)/)',
-    caseSensitive: false,
-  ).hasMatch(decoded)) {
-    throw const TemplateException(unsupportedTemplateContent);
-  }
   try {
     RichDocument document;
     if (template.storageFormat == TemplateStorageFormat.richAst) {
@@ -74,16 +67,6 @@ void validateTemplateContent(NoteTemplate template) {
         throw const FormatException('Unsupported rich document fields');
       }
     } else {
-      for (final match in RegExp(
-        r'<!--\s*qp-link-preview:\s*(.*?)-->',
-        dotAll: true,
-      ).allMatches(content)) {
-        final metadata =
-            jsonDecode(match.group(1)!.trim()) as Map<String, dynamic>;
-        if (metadata['img'] != null && metadata['img'] != '') {
-          throw const TemplateException(unsupportedTemplateContent);
-        }
-      }
       document = const RichDocumentParser().parse(content);
       _validateMarkdownResources(content);
     }
@@ -156,6 +139,26 @@ void _validateMarkdownResources(String content) {
   final fragment = html.parseFragment(
     md.markdownToHtml(content, extensionSet: md.ExtensionSet.gitHubFlavored),
   );
+  void validateComments(dom.Node node) {
+    if (node is dom.Comment) {
+      final match = RegExp(
+        r'^\s*qp-link-preview:\s*(.*?)\s*$',
+        dotAll: true,
+      ).firstMatch(node.data ?? '');
+      if (match != null) {
+        final metadata = jsonDecode(match.group(1)!) as Map<String, dynamic>;
+        if (metadata['img'] != null && metadata['img'] != '') {
+          throw const TemplateException(unsupportedTemplateContent);
+        }
+        _validateResourceFields(metadata);
+      }
+    }
+    for (final child in node.nodes) {
+      validateComments(child);
+    }
+  }
+
+  validateComments(fragment);
   for (final element in fragment.querySelectorAll('*')) {
     if (const {
           'img',

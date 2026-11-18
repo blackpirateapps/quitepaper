@@ -799,3 +799,15 @@ snapshot saving and instantiation, including imported template rows.
 Validation: `flutter analyze` clean; 44 relevant content/domain/service tests
 pass. Regressions include Unicode-escaped JSON, entity/percent-encoded Markdown,
 headings/lists/quotes/tables and real SQLite save/use refusal. No full suite ran.
+
+### QPT-004 template audit fix — November 19, 2026
+
+Removed whole-document resource-string matching. Validation now distinguishes
+rendered resource elements and actual preview metadata comments from code and
+escaped text. Literal rich code/plain-text spans are also preserved. Private
+live links, media and thumbnail-bearing previews remain refused.
+
+Validation: `flutter analyze` clean; 56 relevant content/domain/service tests
+pass, including fenced/indented/inline code, escaped markup, literal preview
+comments, live-resource counterparts and a verbatim SQLite snapshot/use round
+trip. No full suite ran.
