@@ -104,3 +104,20 @@ per note; adding a persisted domain field requires updating this shared mapper.
 - 3-Way merge engine specification: [Historical Logs v1.5, Section 59](archive/logs-v1.5.md#59-production-grade-conflict-aware-cloud-sync--3-way-merge-engine)
 - Fresh device sync recovery: [Latest Logs, Section 237](latest-logs.md#237-note-reconciliation--pruned-sync-log-recovery-on-fresh-devices-october-2026)
 - Foreign key sync race fix: [Latest Logs, Section 235](latest-logs.md#235-fix-zero-knowledge-ocr-sync-foreign-key-constraint-failure-and-defensive-note-pull-pagination-october-2026)
+
+## Email import provenance (schema 21)
+
+`Note.importSources` is a versioned list in `notes.import_sources`, encoded inside
+`NotePlaintext` for cloud sync and included in backups/QPNote metadata. Ordinary
+saves union sources to preserve metadata from prior editor snapshots; sync merges
+union stable identities. Schema 21 defaults old notes to `[]`. The local
+`note_import_source_index` stores derived hashes/fingerprints/Message-IDs with
+indexed lookups and note-delete cascading. `saveNote` maintains it atomically;
+`rebuildImportSourceIndex` reconstructs it from canonical notes.
+
+`email_import_preparations` journals newly allocated asset UUIDs before encrypted
+file writes. Note/asset metadata, tags, FTS and journal deletion commit together.
+Rollback cleans ciphertext even without an attachment row; next-session recovery
+retries interrupted preparation. Never run recovery concurrently with an import.
+Email-specific local asset budgets exceed the existing cloud upload/account limit;
+larger local assets remain subject to normal explicit sync failure/retry behavior.

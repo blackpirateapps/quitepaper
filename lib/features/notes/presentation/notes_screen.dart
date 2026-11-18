@@ -3451,6 +3451,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       isArchived: false,
       isTrashed: false,
       tags: List<String>.from(note.tags),
+      importSources: note.importSources,
     );
     await ref.read(notesRepositoryProvider).saveNote(newNote);
     ref.read(notesCollectionProvider.notifier).refresh();

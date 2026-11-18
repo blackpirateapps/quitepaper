@@ -1,3 +1,4 @@
+import '../../email_import/domain/note_import_source.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../../core/ocr/ocr_models.dart';
@@ -689,6 +690,7 @@ class NoteExportSnapshot {
     this.isTrashed = false,
     this.deletedAt,
     this.tags = const [],
+    this.importSources = const [],
     this.isPasswordProtected = false,
     this.passwordHint,
     this.attachments = const [],
@@ -706,6 +708,7 @@ class NoteExportSnapshot {
   final bool isTrashed;
   final DateTime? deletedAt;
   final List<String> tags;
+  final List<NoteImportSource> importSources;
   final bool isPasswordProtected;
   final String? passwordHint;
   final List<ExportAttachmentItem> attachments;
@@ -725,6 +728,7 @@ class NoteExportSnapshot {
     bool? isTrashed,
     DateTime? deletedAt,
     List<String>? tags,
+    List<NoteImportSource>? importSources,
     bool? isPasswordProtected,
     String? passwordHint,
     List<ExportAttachmentItem>? attachments,
@@ -742,6 +746,7 @@ class NoteExportSnapshot {
       isTrashed: isTrashed ?? this.isTrashed,
       deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
+      importSources: importSources ?? this.importSources,
       isPasswordProtected: isPasswordProtected ?? this.isPasswordProtected,
       passwordHint: passwordHint ?? this.passwordHint,
       attachments: attachments ?? this.attachments,

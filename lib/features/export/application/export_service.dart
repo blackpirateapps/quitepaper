@@ -193,6 +193,7 @@ class ExportService {
       // Build immutable snapshot
       final snapshot = NoteExportSnapshot(
         noteId: note.id,
+        importSources: note.importSources,
         title: cleanTitle,
         markdown: transformedMarkdown,
         createdAt: note.createdAt,

@@ -1,3 +1,4 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -93,12 +94,89 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
+
+  Future<void> _createEmailImportTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS note_import_source_index (note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE, identity TEXT NOT NULL, raw_hash TEXT, fingerprint TEXT NOT NULL, message_id TEXT, PRIMARY KEY(note_id, identity))',
+    );
+    for (final key in ['raw_hash', 'fingerprint', 'message_id']) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS email_source_${key}_idx ON note_import_source_index ($key)',
+      );
+    }
+    // Durable write-ahead list of *new* asset IDs; contains no email content.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS email_import_preparations (asset_id TEXT PRIMARY KEY)',
+    );
+  }
+
+  Future<void> _indexImportSources(
+    String noteId,
+    List<NoteImportSource> sources,
+  ) async {
+    await customStatement(
+      'DELETE FROM note_import_source_index WHERE note_id = ?',
+      [noteId],
+    );
+    for (final source in sources) {
+      await customStatement(
+        'INSERT INTO note_import_source_index (note_id, identity, raw_hash, fingerprint, message_id) VALUES (?, ?, ?, ?, ?)',
+        [
+          noteId,
+          source.identity,
+          source.rawHash,
+          source.fingerprint,
+          source.messageId,
+        ],
+      );
+    }
+  }
+
+  Future<void> rebuildImportSourceIndex() => transaction(() async {
+    await customStatement('DELETE FROM note_import_source_index');
+    final rows = await (select(
+      notesTable,
+    )..where((n) => n.importSources.isNotValue('[]'))).get();
+    for (final row in rows) {
+      await _indexImportSources(
+        row.id,
+        NoteImportSource.decode(row.importSources),
+      );
+    }
+  });
+
+  Future<List<({String noteId, bool exact})>> findEmailDuplicates({
+    String? rawHash,
+    required String fingerprint,
+    String? messageId,
+  }) async {
+    final rows = await customSelect(
+      'SELECT s.note_id, s.raw_hash, s.fingerprint FROM note_import_source_index s JOIN notes n ON n.id=s.note_id WHERE n.is_trashed=0 AND n.deleted_at IS NULL AND (s.raw_hash=? OR s.fingerprint=? OR s.message_id=?)',
+      variables: [
+        Variable<String>(rawHash ?? ''),
+        Variable<String>(fingerprint),
+        Variable<String>(messageId ?? ''),
+      ],
+    ).get();
+    return rows
+        .map(
+          (r) => (
+            noteId: r.read<String>('note_id'),
+            exact:
+                (rawHash != null &&
+                    r.readNullable<String>('raw_hash') == rawHash) ||
+                r.read<String>('fingerprint') == fingerprint,
+          ),
+        )
+        .toList();
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await _createEmailImportTables();
       await _createFts5TablesAndTriggers();
     },
     onUpgrade: (m, from, to) async {
@@ -287,6 +365,10 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
         );
+      }
+      if (from < 21) {
+        await _addColumnSafely(m, notesTable, notesTable.importSources);
+        await _createEmailImportTables();
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
@@ -1298,6 +1380,7 @@ class AppDatabase extends _$AppDatabase {
     DateTime? deletedAt,
     List<String>? tags,
     List<String>? pinnedTags,
+    List<NoteImportSource>? importSources,
     String? journalDate,
     int serverRevision = 0,
     bool isDirty = true,
@@ -1309,13 +1392,20 @@ class AppDatabase extends _$AppDatabase {
         JournalMetadataService.extractJournalMetadata(content).journalDate;
 
     await transaction(() async {
+      final priorSourceRow = await (select(
+        notesTable,
+      )..where((n) => n.id.equals(id))).getSingleOrNull();
+      final sources = NoteImportSource.union([
+        ...NoteImportSource.decode(priorSourceRow?.importSources),
+        ...?importSources,
+      ]);
       // Resolve the note's current tag set first so per-tag pins can be pruned
       // to tags the note still carries.
       final extractedTags = (preserveEmptyTags && tags != null)
           ? tags
           : ((tags != null && tags.isNotEmpty)
-              ? tags
-              : TagParser.extractTags('$title\n$content'));
+                ? tags
+                : TagParser.extractTags('$title\n$content'));
       final normalizedTagSet = extractedTags
           .map(TagParser.normalizeTag)
           .where(TagParser.isValidTag)
@@ -1354,9 +1444,13 @@ class AppDatabase extends _$AppDatabase {
           syncedAt: Value(syncedAt),
           journalDate: Value(effectiveJournalDate),
           pinnedTags: Value(_encodePinnedTags(effectivePinned)),
+          importSources: Value(
+            jsonEncode(sources.map((s) => s.toJson()).toList()),
+          ),
         ),
       );
 
+      await _indexImportSources(id, sources);
       await _syncNoteTags(
         id,
         extractedTags,
@@ -1738,9 +1832,9 @@ class AppDatabase extends _$AppDatabase {
   /// Returns a lightweight mapping of Note ID to Note Title without reading or
   /// deserializing large note content bodies.
   Future<Map<String, String>> getNoteTitlesMap() async {
-    final rows = await (selectOnly(notesTable)
-          ..addColumns([notesTable.id, notesTable.title]))
-        .get();
+    final rows = await (selectOnly(
+      notesTable,
+    )..addColumns([notesTable.id, notesTable.title])).get();
     return {
       for (final r in rows)
         r.read(notesTable.id)!: r.read(notesTable.title) ?? '',
@@ -1750,19 +1844,21 @@ class AppDatabase extends _$AppDatabase {
   /// Calculates storage breakdown by resource category directly from SQLite
   /// using lightweight projected columns instead of hydrating all class entities.
   Future<StorageBreakdown> getStorageBreakdownMetrics() async {
-    final attRows = await (selectOnly(attachmentsTable)
-          ..addColumns([
-            attachmentsTable.kind,
-            attachmentsTable.mimeType,
-            attachmentsTable.byteSize,
-          ])
-          ..where(attachmentsTable.isDeleted.equals(false)))
-        .get();
+    final attRows =
+        await (selectOnly(attachmentsTable)
+              ..addColumns([
+                attachmentsTable.kind,
+                attachmentsTable.mimeType,
+                attachmentsTable.byteSize,
+              ])
+              ..where(attachmentsTable.isDeleted.equals(false)))
+            .get();
 
-    final docRows = await (selectOnly(documentsTable)
-          ..addColumns([documentsTable.byteSize])
-          ..where(documentsTable.isDeleted.equals(false)))
-        .get();
+    final docRows =
+        await (selectOnly(documentsTable)
+              ..addColumns([documentsTable.byteSize])
+              ..where(documentsTable.isDeleted.equals(false)))
+            .get();
 
     var imgBytes = 0;
     var imgCount = 0;
@@ -1802,6 +1898,7 @@ class AppDatabase extends _$AppDatabase {
       otherCount: otherCount,
     );
   }
+
   Future<List<AttachmentEntity>> getAllAttachmentsRaw() async =>
       select(attachmentsTable).get();
   Future<List<DocumentEntity>> getAllDocumentsRaw() async =>

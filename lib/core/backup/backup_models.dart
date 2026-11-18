@@ -1,11 +1,8 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'package:flutter/foundation.dart';
 import '../crypto/crypto_service.dart';
 
-enum RestoreStrategy {
-  merge,
-  keepBoth,
-  replace,
-}
+enum RestoreStrategy { merge, keepBoth, replace }
 
 @immutable
 class BackupNote {
@@ -21,6 +18,7 @@ class BackupNote {
     required this.updatedAt,
     this.deletedAt,
     this.journalDate,
+    this.importSources = const [],
   });
 
   final String id;
@@ -34,20 +32,22 @@ class BackupNote {
   final DateTime updatedAt;
   final DateTime? deletedAt;
   final String? journalDate;
+  final List<NoteImportSource> importSources;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'content': content,
-        'tags': tags,
-        'isPinned': isPinned,
-        'isArchived': isArchived,
-        'isTrashed': isTrashed,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
-        if (journalDate != null) 'journalDate': journalDate,
-      };
+    'id': id,
+    'title': title,
+    'content': content,
+    'importSources': importSources.map((s) => s.toJson()).toList(),
+    'tags': tags,
+    'isPinned': isPinned,
+    'isArchived': isArchived,
+    'isTrashed': isTrashed,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+    if (journalDate != null) 'journalDate': journalDate,
+  };
 
   factory BackupNote.fromJson(Map<String, dynamic> json) {
     return BackupNote(
@@ -58,14 +58,17 @@ class BackupNote {
       isPinned: json['isPinned'] as bool? ?? false,
       isArchived: json['isArchived'] as bool? ?? false,
       isTrashed: json['isTrashed'] as bool? ?? false,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       deletedAt: json['deletedAt'] != null
           ? DateTime.tryParse(json['deletedAt'] as String)
           : null,
       journalDate: json['journalDate'] as String?,
+      importSources: NoteImportSource.decode(json['importSources']),
     );
   }
 }
@@ -93,15 +96,15 @@ class BackupAttachmentOcrPage {
   final DateTime processedAt;
 
   Map<String, dynamic> toJson() => {
-        'attachmentId': attachmentId,
-        'pageNumber': pageNumber,
-        'encryptedPayload': encryptedPayload,
-        'ocrSchemaVersion': ocrSchemaVersion,
-        'ocrEngine': ocrEngine,
-        'ocrEngineVersion': ocrEngineVersion,
-        'language': language,
-        'processedAt': processedAt.toIso8601String(),
-      };
+    'attachmentId': attachmentId,
+    'pageNumber': pageNumber,
+    'encryptedPayload': encryptedPayload,
+    'ocrSchemaVersion': ocrSchemaVersion,
+    'ocrEngine': ocrEngine,
+    'ocrEngineVersion': ocrEngineVersion,
+    'language': language,
+    'processedAt': processedAt.toIso8601String(),
+  };
 
   factory BackupAttachmentOcrPage.fromJson(Map<String, dynamic> json) {
     return BackupAttachmentOcrPage(
@@ -112,7 +115,8 @@ class BackupAttachmentOcrPage {
       ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
       ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
       language: json['language'] as String? ?? 'en',
-      processedAt: DateTime.tryParse(json['processedAt'] as String? ?? '') ??
+      processedAt:
+          DateTime.tryParse(json['processedAt'] as String? ?? '') ??
           DateTime.now(),
     );
   }
@@ -157,36 +161,41 @@ class BackupAttachment {
   final List<BackupAttachmentOcrPage> ocrPages;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        if (noteId != null) 'noteId': noteId,
-        'fileName': fileName,
-        'kind': kind,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'mimeType': mimeType,
-        'byteSize': byteSize,
-        if (width != null) 'width': width,
-        if (height != null) 'height': height,
-        'sha256': sha256,
-        'encryptionKeyVersion': encryptionKeyVersion,
-        if (encryptedPayloadBase64 != null)
-          'encryptedPayloadBase64': encryptedPayloadBase64,
-        'ocrState': ocrState,
-        'ocrLanguage': ocrLanguage,
-        if (ocrPages.isNotEmpty)
-          'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
-      };
+    'id': id,
+    if (noteId != null) 'noteId': noteId,
+    'fileName': fileName,
+    'kind': kind,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'mimeType': mimeType,
+    'byteSize': byteSize,
+    if (width != null) 'width': width,
+    if (height != null) 'height': height,
+    'sha256': sha256,
+    'encryptionKeyVersion': encryptionKeyVersion,
+    if (encryptedPayloadBase64 != null)
+      'encryptedPayloadBase64': encryptedPayloadBase64,
+    'ocrState': ocrState,
+    'ocrLanguage': ocrLanguage,
+    if (ocrPages.isNotEmpty)
+      'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
+  };
 
   factory BackupAttachment.fromJson(Map<String, dynamic> json) {
     final rawOcrPages = json['ocrPages'] as List? ?? [];
     return BackupAttachment(
       id: json['id'] as String,
       noteId: json['noteId'] as String?,
-      fileName: json['fileName'] as String? ?? json['filename'] as String? ?? 'attachment',
+      fileName:
+          json['fileName'] as String? ??
+          json['filename'] as String? ??
+          'attachment',
       kind: json['kind'] as String? ?? 'image',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       mimeType: json['mimeType'] as String? ?? 'image/png',
       byteSize: json['byteSize'] as int? ?? 0,
@@ -199,8 +208,10 @@ class BackupAttachment {
       ocrLanguage: json['ocrLanguage'] as String? ?? 'en',
       ocrPages: rawOcrPages
           .whereType<Map>()
-          .map((p) => BackupAttachmentOcrPage.fromJson(
-              Map<String, dynamic>.from(p)))
+          .map(
+            (p) =>
+                BackupAttachmentOcrPage.fromJson(Map<String, dynamic>.from(p)),
+          )
           .toList(),
     );
   }
@@ -229,15 +240,15 @@ class BackupDocumentOcrPage {
   final DateTime processedAt;
 
   Map<String, dynamic> toJson() => {
-        'documentId': documentId,
-        'pageNumber': pageNumber,
-        'encryptedPayload': encryptedPayload,
-        'ocrSchemaVersion': ocrSchemaVersion,
-        'ocrEngine': ocrEngine,
-        'ocrEngineVersion': ocrEngineVersion,
-        'language': language,
-        'processedAt': processedAt.toIso8601String(),
-      };
+    'documentId': documentId,
+    'pageNumber': pageNumber,
+    'encryptedPayload': encryptedPayload,
+    'ocrSchemaVersion': ocrSchemaVersion,
+    'ocrEngine': ocrEngine,
+    'ocrEngineVersion': ocrEngineVersion,
+    'language': language,
+    'processedAt': processedAt.toIso8601String(),
+  };
 
   factory BackupDocumentOcrPage.fromJson(Map<String, dynamic> json) {
     return BackupDocumentOcrPage(
@@ -248,7 +259,8 @@ class BackupDocumentOcrPage {
       ocrEngine: json['ocrEngine'] as String? ?? 'quietpaper_ocr_v1',
       ocrEngineVersion: json['ocrEngineVersion'] as String? ?? '1.0.0',
       language: json['language'] as String? ?? 'en',
-      processedAt: DateTime.tryParse(json['processedAt'] as String? ?? '') ??
+      processedAt:
+          DateTime.tryParse(json['processedAt'] as String? ?? '') ??
           DateTime.now(),
     );
   }
@@ -291,24 +303,24 @@ class BackupDocument {
   final List<BackupDocumentOcrPage> ocrPages;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        if (noteId != null) 'noteId': noteId,
-        'title': title,
-        'source': source,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'mimeType': mimeType,
-        'byteSize': byteSize,
-        'pageCount': pageCount,
-        'sha256': sha256,
-        'encryptionKeyVersion': encryptionKeyVersion,
-        if (encryptedPayloadBase64 != null)
-          'encryptedPayloadBase64': encryptedPayloadBase64,
-        'ocrState': ocrState,
-        'ocrLanguage': ocrLanguage,
-        if (ocrPages.isNotEmpty)
-          'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
-      };
+    'id': id,
+    if (noteId != null) 'noteId': noteId,
+    'title': title,
+    'source': source,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'mimeType': mimeType,
+    'byteSize': byteSize,
+    'pageCount': pageCount,
+    'sha256': sha256,
+    'encryptionKeyVersion': encryptionKeyVersion,
+    if (encryptedPayloadBase64 != null)
+      'encryptedPayloadBase64': encryptedPayloadBase64,
+    'ocrState': ocrState,
+    'ocrLanguage': ocrLanguage,
+    if (ocrPages.isNotEmpty)
+      'ocrPages': ocrPages.map((p) => p.toJson()).toList(),
+  };
 
   factory BackupDocument.fromJson(Map<String, dynamic> json) {
     final rawOcrPages = json['ocrPages'] as List? ?? [];
@@ -317,9 +329,11 @@ class BackupDocument {
       noteId: json['noteId'] as String?,
       title: json['title'] as String? ?? 'Scanned Document',
       source: json['source'] as String? ?? 'scanner',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       mimeType: json['mimeType'] as String? ?? 'application/pdf',
       byteSize: json['byteSize'] as int? ?? 0,
@@ -331,7 +345,9 @@ class BackupDocument {
       ocrLanguage: json['ocrLanguage'] as String? ?? 'en',
       ocrPages: rawOcrPages
           .whereType<Map>()
-          .map((p) => BackupDocumentOcrPage.fromJson(Map<String, dynamic>.from(p)))
+          .map(
+            (p) => BackupDocumentOcrPage.fromJson(Map<String, dynamic>.from(p)),
+          )
           .toList(),
     );
   }
@@ -372,23 +388,23 @@ class BackupManifest {
   final int totalPlaceAliases;
 
   Map<String, dynamic> toJson() => {
-        'format': format,
-        'version': version,
-        'appVersion': appVersion,
-        'createdAt': createdAt.toIso8601String(),
-        'isEncrypted': isEncrypted,
-        'metadata': {
-          'totalNotes': totalNotes,
-          'activeNotes': activeNotes,
-          'archivedNotes': archivedNotes,
-          'trashedNotes': trashedNotes,
-          'pinnedNotes': pinnedNotes,
-          'totalTags': totalTags,
-          'totalAttachments': totalAttachments,
-          'totalDocuments': totalDocuments,
-          'totalPlaceAliases': totalPlaceAliases,
-        },
-      };
+    'format': format,
+    'version': version,
+    'appVersion': appVersion,
+    'createdAt': createdAt.toIso8601String(),
+    'isEncrypted': isEncrypted,
+    'metadata': {
+      'totalNotes': totalNotes,
+      'activeNotes': activeNotes,
+      'archivedNotes': archivedNotes,
+      'trashedNotes': trashedNotes,
+      'pinnedNotes': pinnedNotes,
+      'totalTags': totalTags,
+      'totalAttachments': totalAttachments,
+      'totalDocuments': totalDocuments,
+      'totalPlaceAliases': totalPlaceAliases,
+    },
+  };
 
   factory BackupManifest.fromJson(Map<String, dynamic> json) {
     final meta = json['metadata'] as Map<String, dynamic>? ?? {};
@@ -396,7 +412,8 @@ class BackupManifest {
       format: json['format'] as String? ?? 'quietpaper:backup:v1',
       version: json['version'] as int? ?? 1,
       appVersion: json['appVersion'] as String? ?? '1.0.0',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
       isEncrypted: json['isEncrypted'] as bool? ?? false,
       totalNotes: meta['totalNotes'] as int? ?? 0,
@@ -431,16 +448,16 @@ class BackupPayload {
   final List<BackupPlaceAlias> placeAliases;
 
   Map<String, dynamic> toJson() => {
-        ...manifest.toJson(),
-        'tags': tags,
-        'notes': notes.map((n) => n.toJson()).toList(),
-        if (attachments.isNotEmpty)
-          'attachments': attachments.map((a) => a.toJson()).toList(),
-        if (documents.isNotEmpty)
-          'documents': documents.map((d) => d.toJson()).toList(),
-        if (placeAliases.isNotEmpty)
-          'placeAliases': placeAliases.map((p) => p.toJson()).toList(),
-      };
+    ...manifest.toJson(),
+    'tags': tags,
+    'notes': notes.map((n) => n.toJson()).toList(),
+    if (attachments.isNotEmpty)
+      'attachments': attachments.map((a) => a.toJson()).toList(),
+    if (documents.isNotEmpty)
+      'documents': documents.map((d) => d.toJson()).toList(),
+    if (placeAliases.isNotEmpty)
+      'placeAliases': placeAliases.map((p) => p.toJson()).toList(),
+  };
 
   factory BackupPayload.fromJson(Map<String, dynamic> json) {
     final manifest = BackupManifest.fromJson(json);
@@ -505,12 +522,12 @@ class BackupPlaceAlias {
   final int encryptionKeyVersion;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'contentCiphertext': contentCiphertext,
-        'contentNonce': contentNonce,
-        'contentVersion': contentVersion,
-        'encryptionKeyVersion': encryptionKeyVersion,
-      };
+    'id': id,
+    'contentCiphertext': contentCiphertext,
+    'contentNonce': contentNonce,
+    'contentVersion': contentVersion,
+    'encryptionKeyVersion': encryptionKeyVersion,
+  };
 
   factory BackupPlaceAlias.fromJson(Map<String, dynamic> json) =>
       BackupPlaceAlias(
@@ -545,16 +562,15 @@ class EncryptedBackupEnvelope {
   final BackupManifest? manifestSummary;
 
   Map<String, dynamic> toJson() => {
-        'format': format,
-        'version': version,
-        'kdfAlgorithm': kdfAlgorithm,
-        'kdfSalt': kdfSalt,
-        'kdfParameters': kdfParameters.toJson(),
-        'nonce': nonce,
-        'ciphertext': ciphertext,
-        if (manifestSummary != null)
-          'manifestSummary': manifestSummary!.toJson(),
-      };
+    'format': format,
+    'version': version,
+    'kdfAlgorithm': kdfAlgorithm,
+    'kdfSalt': kdfSalt,
+    'kdfParameters': kdfParameters.toJson(),
+    'nonce': nonce,
+    'ciphertext': ciphertext,
+    if (manifestSummary != null) 'manifestSummary': manifestSummary!.toJson(),
+  };
 
   factory EncryptedBackupEnvelope.fromJson(Map<String, dynamic> json) {
     final rawManifest = json['manifestSummary'] as Map<String, dynamic>?;
@@ -564,12 +580,15 @@ class EncryptedBackupEnvelope {
       kdfAlgorithm: json['kdfAlgorithm'] as String? ?? 'argon2id',
       kdfSalt: json['kdfSalt'] as String? ?? '',
       kdfParameters: json['kdfParameters'] != null
-          ? KdfParameters.fromJson(json['kdfParameters'] as Map<String, dynamic>)
+          ? KdfParameters.fromJson(
+              json['kdfParameters'] as Map<String, dynamic>,
+            )
           : KdfParameters.standard,
       nonce: json['nonce'] as String? ?? '',
       ciphertext: json['ciphertext'] as String? ?? '',
-      manifestSummary:
-          rawManifest != null ? BackupManifest.fromJson(rawManifest) : null,
+      manifestSummary: rawManifest != null
+          ? BackupManifest.fromJson(rawManifest)
+          : null,
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../../email_import/domain/note_import_source.dart';
 import '../../../core/database/app_database.dart';
 import '../domain/note_model.dart';
 
@@ -13,6 +14,7 @@ Note mapNoteEntity(NoteEntity entity, {required List<String> tags}) => Note(
   isTrashed: entity.isTrashed,
   deletedAt: entity.deletedAt,
   tags: tags,
+  importSources: NoteImportSource.decode(entity.importSources),
   pinnedTags: decodePinnedTagsJson(entity.pinnedTags),
   journalDate: entity.journalDate,
   shareId: entity.shareId,

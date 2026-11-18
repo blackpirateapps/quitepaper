@@ -7549,3 +7549,44 @@ Validation: `flutter analyze`: no issues;
 Fixtures and boundary tests cover parser formats, malicious content, decoding and
 resource errors, input normalization and background parsing. `dart format` and
 `git diff --check` pass. No full suite ran. Persistence and UI follow in phases 3–4.
+
+## 336. Email Import Phase 3 — Storage and Sync (November 19, 2026)
+
+Added optional typed import sources throughout Note, shared entity mapping,
+repository, encrypted NotePlaintext, desktop/CLI sync, conflict merging and
+resolution, backup generation/restoration, duplication and QPNote export metadata.
+Drift **20 → 21** defensively adds notes.import_sources with empty-array default.
+Canonical sources union by stable identity so older editor snapshots cannot erase
+provenance. Local indexed hashes/fingerprints/Message-IDs are derived in the same
+save transaction and cascade on deletion; restores and sync use this same path.
+The backend receives no new plaintext email fields or import endpoints.
+
+EmailImportService checks confirmation options, duplicates, keys and destination,
+journals fresh asset UUIDs before preparation, imports through AttachmentService,
+and commits the note, tags, FTS, source index and journal removal together.
+Original bytes remain exact encrypted generic assets; decoded attachments and CID
+images reuse identical representations and never request OCR. Archive mode saves
+metadata and original only. Appends splice parsed blocks into rich ASTs while
+preserving existing block identities, or concatenate Markdown, rejecting stale,
+missing, protected and trashed destinations. SQLite timestamp precision is
+accounted for in revision checks. Failed/canceled work rolls back database rows
+and removes ciphertext; a durable journal supports restart cleanup even when
+metadata rolled back. Existing generic attachment size policy is unchanged;
+email-specific imports permit 50 MiB originals / 25 MiB parts locally. The existing
+10 MB cloud asset policy can leave larger assets pending; no success is fabricated.
+
+Validation:
+- `dart run build_runner build --delete-conflicting-outputs`: successful generated
+  Drift update; current builder reports that the obsolete flag is ignored.
+- `flutter analyze`: no issues.
+- Selected persistence, migrations, conflict resolver, backup, attachment service,
+  sync engine and notes-query files: **63 passed**.
+- After adding real backup/restore coverage and export/CLI propagation, selected
+  email persistence, QPNote validator/package, export service and CLI runner files:
+  **34 passed**. Email persistence now has 15 tests, including real encryption,
+  restart, schema-20 migration, restored bytes/indexes, stale append rollback,
+  CID assets, exact/related duplicates, lock/cancel and interruption recovery.
+- Initial focused runs caught test API names and timestamp-zone/precision
+  assumptions; fixed them and reran successfully. No failures were suppressed.
+- `git diff --check`: clean. No full suite, backend tests or device replay ran;
+  backend source and its API contract are unchanged.

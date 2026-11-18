@@ -80,3 +80,16 @@ versioned `NoteImportSource` establish the shared feature contracts.
 cases. They cover Unicode, RFC 2047/2231, alternative fallback, mixed/related/
 nested MIME, binary and attached-message bytes, malformed data, filenames,
 unsafe HTML/URLs, resource budgets, isolate parsing, normalization and provenance.
+
+## Phase 3 — storage and synchronization
+
+Schema 21 and source propagation are implemented across note mapping, repository,
+encrypted sync/merge, backup/restore, duplication, CLI upload and QPNote export.
+The transaction coordinator handles new/editable/archive/append, source identity,
+CID replacement, representation deduplication, stale destination checks and
+rollback. A durable UUID preparation journal enables interrupted-file cleanup.
+63 selected existing/new regressions passed, followed by 34 persistence/export/CLI
+tests after adding full backup restoration coverage. Flutter analysis is clean.
+Original and MIME asset limits are enforced locally; the existing cloud 10 MB
+policy is unchanged and may prevent large-asset upload. Such assets remain local
+and pending/error under the standard encrypted sync machinery.

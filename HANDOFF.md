@@ -739,3 +739,15 @@ strict pre-decode budgets, safe HTML-to-Markdown conversion and local CID
 placeholders. Raw bytes remain untouched; source hashes and versioned provenance
 are ready for persistence. All 18 focused parser/security tests pass; Flutter
 analysis is clean. No full suite ran. See log 335 and the implementation record.
+
+### Email import phase 3 — encrypted persistence, provenance and recovery
+
+Drift schema **21** adds canonical `importSources`, an indexed derived duplicate
+lookup and a durable asset-preparation journal. Email saves use existing encrypted
+assets and a single note/tag/search transaction; failed/canceled/interrupted saves
+remove newly prepared ciphertext. Markdown and rich-AST appends preserve existing
+content and revalidate their destination. Provenance survives sync encryption,
+union merges, backups/restores, duplication, CLI uploads and QPNote exports.
+Existing cloud upload limits remain independent of larger local email limits.
+Analysis is clean; 63 focused storage/sync/database regressions and a further
+34 focused persistence/export/CLI tests pass. No full suite ran. See log 336.

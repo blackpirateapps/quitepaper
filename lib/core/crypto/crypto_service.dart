@@ -1,3 +1,4 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart' as standard_crypto;
@@ -26,13 +27,13 @@ class EncryptedEnvelope {
   final int contentVersion;
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        'algorithm': algorithm,
-        'keyVersion': keyVersion,
-        'nonce': nonce,
-        'ciphertext': ciphertext,
-        'contentVersion': contentVersion,
-      };
+    'version': version,
+    'algorithm': algorithm,
+    'keyVersion': keyVersion,
+    'nonce': nonce,
+    'ciphertext': ciphertext,
+    'contentVersion': contentVersion,
+  };
 
   factory EncryptedEnvelope.fromJson(Map<String, dynamic> json) {
     return EncryptedEnvelope(
@@ -75,22 +76,28 @@ class NotePlaintext {
     required this.body,
     required this.tags,
     this.pinnedTags = const [],
+    this.importSources = const [],
   });
 
   final String title;
   final String body;
   final List<String> tags;
+  final List<NoteImportSource> importSources;
 
   /// Tags this note is pinned within (per-tag pins). Carried INSIDE the
   /// ciphertext so the sync server never learns which tags a note is pinned in.
   final List<String> pinnedTags;
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'body': body,
-        'tags': tags,
-        if (pinnedTags.isNotEmpty) 'pinnedTags': pinnedTags,
-      };
+    'title': title,
+    'body': body,
+    'tags': tags,
+    if (importSources.isNotEmpty)
+      'importSources': NoteImportSource.union(
+        importSources,
+      ).map((s) => s.toJson()).toList(),
+    if (pinnedTags.isNotEmpty) 'pinnedTags': pinnedTags,
+  };
 
   factory NotePlaintext.fromJson(Map<String, dynamic> json) {
     final rawTags = json['tags'];
@@ -108,6 +115,7 @@ class NotePlaintext {
       body: json['body'] as String? ?? '',
       tags: tagsList,
       pinnedTags: pinnedList,
+      importSources: NoteImportSource.decode(json['importSources']),
     );
   }
 
@@ -118,12 +126,17 @@ class NotePlaintext {
           runtimeType == other.runtimeType &&
           title == other.title &&
           body == other.body &&
+          listEquals(importSources, other.importSources) &&
           listEquals(tags, other.tags) &&
           listEquals(pinnedTags, other.pinnedTags);
 
   @override
   int get hashCode =>
-      title.hashCode ^ body.hashCode ^ tags.hashCode ^ pinnedTags.hashCode;
+      Object.hashAll(importSources) ^
+      title.hashCode ^
+      body.hashCode ^
+      tags.hashCode ^
+      pinnedTags.hashCode;
 }
 
 /// Plaintext tag content object before encryption
@@ -148,14 +161,14 @@ class TagPlaintext {
   final bool clearColor;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        if (renamedFrom != null) 'renamedFrom': renamedFrom,
-        if (renamedTo != null) 'renamedTo': renamedTo,
-        'icon': icon,
-        'color': color,
-        if (clearIcon || icon == null) 'clearIcon': true,
-        if (clearColor || color == null) 'clearColor': true,
-      };
+    'name': name,
+    if (renamedFrom != null) 'renamedFrom': renamedFrom,
+    if (renamedTo != null) 'renamedTo': renamedTo,
+    'icon': icon,
+    'color': color,
+    if (clearIcon || icon == null) 'clearIcon': true,
+    if (clearColor || color == null) 'clearColor': true,
+  };
 
   factory TagPlaintext.fromJson(Map<String, dynamic> json) {
     final clearIcon = json['clearIcon'] as bool? ?? false;
@@ -214,10 +227,10 @@ class PlaceAliasPlaintext {
   final String displayName;
 
   Map<String, dynamic> toJson() => {
-        'matchKey': matchKey,
-        'canonicalKey': canonicalKey,
-        'displayName': displayName,
-      };
+    'matchKey': matchKey,
+    'canonicalKey': canonicalKey,
+    'displayName': displayName,
+  };
 
   factory PlaceAliasPlaintext.fromJson(Map<String, dynamic> json) =>
       PlaceAliasPlaintext(
@@ -244,7 +257,8 @@ class PlaceAliasPlaintext {
 @immutable
 class KdfParameters {
   const KdfParameters({
-    this.memory = 19 * 1024, // 19 MB (RFC 9106 recommended minimum for interactive)
+    this.memory =
+        19 * 1024, // 19 MB (RFC 9106 recommended minimum for interactive)
     this.iterations = 2,
     this.parallelism = 1,
     this.hashLength = 32,
@@ -258,11 +272,11 @@ class KdfParameters {
   final int hashLength;
 
   Map<String, dynamic> toJson() => {
-        'memory': memory,
-        'iterations': iterations,
-        'parallelism': parallelism,
-        'hashLength': hashLength,
-      };
+    'memory': memory,
+    'iterations': iterations,
+    'parallelism': parallelism,
+    'hashLength': hashLength,
+  };
 
   factory KdfParameters.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const KdfParameters();
@@ -311,21 +325,21 @@ class WrappedMasterKeyData {
   final String? keyAuthCommitment;
 
   Map<String, dynamic> toJson() => {
-        'keyVersion': keyVersion,
-        'wrappedMasterKey': wrappedMasterKey,
-        'wrappedNonce': wrappedNonce,
-        'kdfAlgorithm': kdfAlgorithm,
-        'kdfSalt': kdfSalt,
-        'kdfParameters': kdfParameters.toJson(),
-        'encryptionFormatVersion': encryptionFormatVersion,
-        if (recoveryWrappedMasterKey != null)
-          'recoveryWrappedMasterKey': recoveryWrappedMasterKey,
-        if (recoveryNonce != null) 'recoveryNonce': recoveryNonce,
-        if (recoverySalt != null) 'recoverySalt': recoverySalt,
-        if (recoveryParameters != null)
-          'recoveryParameters': recoveryParameters!.toJson(),
-        if (keyAuthCommitment != null) 'keyAuthCommitment': keyAuthCommitment,
-      };
+    'keyVersion': keyVersion,
+    'wrappedMasterKey': wrappedMasterKey,
+    'wrappedNonce': wrappedNonce,
+    'kdfAlgorithm': kdfAlgorithm,
+    'kdfSalt': kdfSalt,
+    'kdfParameters': kdfParameters.toJson(),
+    'encryptionFormatVersion': encryptionFormatVersion,
+    if (recoveryWrappedMasterKey != null)
+      'recoveryWrappedMasterKey': recoveryWrappedMasterKey,
+    if (recoveryNonce != null) 'recoveryNonce': recoveryNonce,
+    if (recoverySalt != null) 'recoverySalt': recoverySalt,
+    if (recoveryParameters != null)
+      'recoveryParameters': recoveryParameters!.toJson(),
+    if (keyAuthCommitment != null) 'keyAuthCommitment': keyAuthCommitment,
+  };
 
   factory WrappedMasterKeyData.fromJson(Map<String, dynamic> json) {
     return WrappedMasterKeyData(
@@ -475,10 +489,9 @@ abstract class CryptoService {
 
 /// Production implementation of CryptoService using Argon2id and XChaCha20-Poly1305
 class DefaultCryptoService implements CryptoService {
-  DefaultCryptoService({
-    Cipher? cipher,
-  })  : _cipher = cipher ?? Xchacha20.poly1305Aead(),
-        _isDefaultCipher = cipher == null;
+  DefaultCryptoService({Cipher? cipher})
+    : _cipher = cipher ?? Xchacha20.poly1305Aead(),
+      _isDefaultCipher = cipher == null;
 
   final Cipher _cipher;
 
@@ -531,10 +544,7 @@ class DefaultCryptoService implements CryptoService {
       parallelism: parameters.parallelism,
       hashLength: parameters.hashLength,
     );
-    return kdf.deriveKeyFromPassword(
-      password: password,
-      nonce: salt,
-    );
+    return kdf.deriveKeyFromPassword(password: password, nonce: salt);
   }
 
   @override
@@ -594,14 +604,13 @@ class DefaultCryptoService implements CryptoService {
       throw const FormatException('Invalid ciphertext length for key unwrap');
     }
 
-    final cipherBytes = combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final cipherBytes = combinedCiphertext.sublist(
+      0,
+      combinedCiphertext.length - 16,
+    );
     final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
 
-    final secretBox = SecretBox(
-      cipherBytes,
-      nonce: nonce,
-      mac: Mac(macBytes),
-    );
+    final secretBox = SecretBox(cipherBytes, nonce: nonce, mac: Mac(macBytes));
 
     final decrypted = await _cipher.decrypt(
       secretBox,
@@ -659,14 +668,13 @@ class DefaultCryptoService implements CryptoService {
       throw const FormatException('Ciphertext too short for Poly1305 MAC');
     }
 
-    final cipherBytes = combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final cipherBytes = combinedCiphertext.sublist(
+      0,
+      combinedCiphertext.length - 16,
+    );
     final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
 
-    final secretBox = SecretBox(
-      cipherBytes,
-      nonce: nonce,
-      mac: Mac(macBytes),
-    );
+    final secretBox = SecretBox(cipherBytes, nonce: nonce, mac: Mac(macBytes));
 
     final masterSecretKey = SecretKey(masterKeyBytes);
 
@@ -676,7 +684,8 @@ class DefaultCryptoService implements CryptoService {
       aad: aad,
     );
 
-    final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+    final jsonMap =
+        jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
     return NotePlaintext.fromJson(jsonMap);
   }
 
@@ -729,14 +738,13 @@ class DefaultCryptoService implements CryptoService {
       throw const FormatException('Ciphertext too short for Poly1305 MAC');
     }
 
-    final cipherBytes = combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final cipherBytes = combinedCiphertext.sublist(
+      0,
+      combinedCiphertext.length - 16,
+    );
     final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
 
-    final secretBox = SecretBox(
-      cipherBytes,
-      nonce: nonce,
-      mac: Mac(macBytes),
-    );
+    final secretBox = SecretBox(cipherBytes, nonce: nonce, mac: Mac(macBytes));
 
     final masterSecretKey = SecretKey(masterKeyBytes);
 
@@ -746,7 +754,8 @@ class DefaultCryptoService implements CryptoService {
       aad: aad,
     );
 
-    final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+    final jsonMap =
+        jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
     return TagPlaintext.fromJson(jsonMap);
   }
 
@@ -803,23 +812,21 @@ class DefaultCryptoService implements CryptoService {
   }) async {
     final nonce = base64Decode(envelope.nonce);
     final combinedCiphertext = base64Decode(envelope.ciphertext);
-    final aad =
-        utf8.encode('$_placeAliasAadPrefix:$placeAliasId:v${envelope.version}');
+    final aad = utf8.encode(
+      '$_placeAliasAadPrefix:$placeAliasId:v${envelope.version}',
+    );
 
     if (combinedCiphertext.length < 16) {
       throw const FormatException('Ciphertext too short for Poly1305 MAC');
     }
 
-    final cipherBytes =
-        combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
-    final macBytes =
-        combinedCiphertext.sublist(combinedCiphertext.length - 16);
-
-    final secretBox = SecretBox(
-      cipherBytes,
-      nonce: nonce,
-      mac: Mac(macBytes),
+    final cipherBytes = combinedCiphertext.sublist(
+      0,
+      combinedCiphertext.length - 16,
     );
+    final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
+
+    final secretBox = SecretBox(cipherBytes, nonce: nonce, mac: Mac(macBytes));
 
     final masterSecretKey = SecretKey(masterKeyBytes);
 
@@ -829,14 +836,17 @@ class DefaultCryptoService implements CryptoService {
       aad: aad,
     );
 
-    final jsonMap = jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+    final jsonMap =
+        jsonDecode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
     return PlaceAliasPlaintext.fromJson(jsonMap);
   }
 
   @override
   String generateRecoveryKey() {
     final bytes = generateRandomBytes(32);
-    final hexChars = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final hexChars = bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
     final chunks = <String>[];
     for (var i = 0; i < hexChars.length; i += 4) {
       chunks.add(hexChars.substring(i, i + 4));
@@ -891,8 +901,10 @@ class DefaultCryptoService implements CryptoService {
     if (combinedCiphertext.length < 16) {
       throw const FormatException('Ciphertext too short for Poly1305 MAC');
     }
-    final cipherBytes =
-        combinedCiphertext.sublist(0, combinedCiphertext.length - 16);
+    final cipherBytes = combinedCiphertext.sublist(
+      0,
+      combinedCiphertext.length - 16,
+    );
     final macBytes = combinedCiphertext.sublist(combinedCiphertext.length - 16);
 
     // Offload large payloads to a background isolate (see [encryptRawBytes]).
@@ -911,11 +923,7 @@ class DefaultCryptoService implements CryptoService {
       );
     }
 
-    final secretBox = SecretBox(
-      cipherBytes,
-      nonce: nonce,
-      mac: Mac(macBytes),
-    );
+    final secretBox = SecretBox(cipherBytes, nonce: nonce, mac: Mac(macBytes));
 
     final decrypted = await _cipher.decrypt(
       secretBox,

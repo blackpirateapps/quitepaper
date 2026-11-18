@@ -1,3 +1,4 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:drift/drift.dart';
@@ -23,10 +24,9 @@ class BackupService {
     DocumentLocalStorage? documentStorage,
     FlutterSecureStorage? secureStorage,
     this.appVersion = '1.6.4',
-
-  })  : _storage = storage ?? AttachmentLocalStorage(),
-        _documentStorage = documentStorage ?? DocumentLocalStorage(),
-        _secureStorage = secureStorage ?? const QuietSecureStorage();
+  }) : _storage = storage ?? AttachmentLocalStorage(),
+       _documentStorage = documentStorage ?? DocumentLocalStorage(),
+       _secureStorage = secureStorage ?? const QuietSecureStorage();
 
   final AppDatabase database;
   final CryptoService cryptoService;
@@ -52,8 +52,7 @@ class BackupService {
     final retentionCount =
         sharedPreferences.getInt(_kAutoBackupRetentionCount) ?? 5;
     final lastStr = sharedPreferences.getString(_kAutoBackupLastBackupAt);
-    final lastBackupAt =
-        lastStr != null ? DateTime.tryParse(lastStr) : null;
+    final lastBackupAt = lastStr != null ? DateTime.tryParse(lastStr) : null;
     final hasPassword =
         sharedPreferences.getBool('$_kAutoBackupEnabled:has_pass') ?? false;
 
@@ -70,12 +69,16 @@ class BackupService {
     await sharedPreferences.setBool(_kAutoBackupEnabled, config.enabled);
     if (config.folderPath != null) {
       await sharedPreferences.setString(
-          _kAutoBackupFolderPath, config.folderPath!);
+        _kAutoBackupFolderPath,
+        config.folderPath!,
+      );
     } else {
       await sharedPreferences.remove(_kAutoBackupFolderPath);
     }
     await sharedPreferences.setInt(
-        _kAutoBackupRetentionCount, config.retentionCount);
+      _kAutoBackupRetentionCount,
+      config.retentionCount,
+    );
     if (config.lastBackupAt != null) {
       await sharedPreferences.setString(
         _kAutoBackupLastBackupAt,
@@ -148,6 +151,7 @@ class BackupService {
         updatedAt: n.updatedAt,
         deletedAt: n.deletedAt,
         journalDate: n.journalDate,
+        importSources: NoteImportSource.decode(n.importSources),
       );
     }).toList();
 
@@ -156,7 +160,10 @@ class BackupService {
     // Query attachments for included notes
     final allAttachments = await database.getAllAttachments();
     final filteredAttachments = allAttachments
-        .where((a) => !a.isDeleted && (a.noteId == null || noteIds.contains(a.noteId)))
+        .where(
+          (a) =>
+              !a.isDeleted && (a.noteId == null || noteIds.contains(a.noteId)),
+        )
         .toList();
 
     final backupAttachments = <BackupAttachment>[];
@@ -181,31 +188,37 @@ class BackupService {
         );
       }).toList();
 
-      backupAttachments.add(BackupAttachment(
-        id: att.id,
-        noteId: att.noteId,
-        fileName: att.fileName,
-        kind: att.kind,
-        createdAt: att.createdAt,
-        updatedAt: att.updatedAt,
-        mimeType: att.mimeType,
-        byteSize: att.byteSize,
-        width: att.width,
-        height: att.height,
-        sha256: att.sha256,
-        encryptionKeyVersion: att.encryptionKeyVersion,
-        encryptedPayloadBase64:
-            encryptedBytes != null ? base64Encode(encryptedBytes) : null,
-        ocrState: att.ocrState,
-        ocrLanguage: att.ocrLanguage,
-        ocrPages: backupOcrPages,
-      ));
+      backupAttachments.add(
+        BackupAttachment(
+          id: att.id,
+          noteId: att.noteId,
+          fileName: att.fileName,
+          kind: att.kind,
+          createdAt: att.createdAt,
+          updatedAt: att.updatedAt,
+          mimeType: att.mimeType,
+          byteSize: att.byteSize,
+          width: att.width,
+          height: att.height,
+          sha256: att.sha256,
+          encryptionKeyVersion: att.encryptionKeyVersion,
+          encryptedPayloadBase64: encryptedBytes != null
+              ? base64Encode(encryptedBytes)
+              : null,
+          ocrState: att.ocrState,
+          ocrLanguage: att.ocrLanguage,
+          ocrPages: backupOcrPages,
+        ),
+      );
     }
 
     // Query scanned/imported documents for included notes
     final allDocuments = await database.getAllDocuments();
     final filteredDocuments = allDocuments
-        .where((d) => !d.isDeleted && (d.noteId == null || noteIds.contains(d.noteId)))
+        .where(
+          (d) =>
+              !d.isDeleted && (d.noteId == null || noteIds.contains(d.noteId)),
+        )
         .toList();
 
     final backupDocuments = <BackupDocument>[];
@@ -229,28 +242,32 @@ class BackupService {
         );
       }).toList();
 
-      backupDocuments.add(BackupDocument(
-        id: doc.id,
-        noteId: doc.noteId,
-        title: doc.title,
-        source: doc.source,
-        createdAt: doc.createdAt,
-        updatedAt: doc.updatedAt,
-        mimeType: doc.mimeType,
-        byteSize: doc.byteSize,
-        pageCount: doc.pageCount,
-        sha256: doc.sha256,
-        encryptionKeyVersion: doc.encryptionKeyVersion,
-        encryptedPayloadBase64:
-            encryptedBytes != null ? base64Encode(encryptedBytes) : null,
-        ocrState: doc.ocrState,
-        ocrLanguage: doc.ocrLanguage,
-        ocrPages: backupOcrPages,
-      ));
+      backupDocuments.add(
+        BackupDocument(
+          id: doc.id,
+          noteId: doc.noteId,
+          title: doc.title,
+          source: doc.source,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+          mimeType: doc.mimeType,
+          byteSize: doc.byteSize,
+          pageCount: doc.pageCount,
+          sha256: doc.sha256,
+          encryptionKeyVersion: doc.encryptionKeyVersion,
+          encryptedPayloadBase64: encryptedBytes != null
+              ? base64Encode(encryptedBytes)
+              : null,
+          ocrState: doc.ocrState,
+          ocrLanguage: doc.ocrLanguage,
+          ocrPages: backupOcrPages,
+        ),
+      );
     }
 
-    final activeCount =
-        backupNotes.where((n) => !n.isArchived && !n.isTrashed).length;
+    final activeCount = backupNotes
+        .where((n) => !n.isArchived && !n.isTrashed)
+        .length;
     final archivedCount = backupNotes.where((n) => n.isArchived).length;
     final trashedCount = backupNotes.where((n) => n.isTrashed).length;
 
@@ -268,8 +285,9 @@ class BackupService {
             encryptionKeyVersion: row.encryptionKeyVersion,
           ),
     ];
-    final pinnedCount =
-        backupNotes.where((n) => n.isPinned && !n.isTrashed).length;
+    final pinnedCount = backupNotes
+        .where((n) => n.isPinned && !n.isTrashed)
+        .length;
 
     final manifest = BackupManifest(
       format: 'quietpaper:backup:v1',
@@ -388,8 +406,8 @@ class BackupService {
     final prefix = isAutoBackup ? 'quietpaper_autobackup' : 'quietpaper_backup';
     final fileName = customFileName != null && customFileName.isNotEmpty
         ? (customFileName.endsWith('.qpbackup')
-            ? customFileName
-            : '$customFileName.qpbackup')
+              ? customFileName
+              : '$customFileName.qpbackup')
         : '${prefix}_$dateStr.qpbackup';
 
     final targetDir = Directory(directoryPath);
@@ -490,7 +508,8 @@ class BackupService {
 
           final decryptedJson = utf8.decode(decryptedBytes);
           final payload = BackupPayload.fromJson(
-              jsonDecode(decryptedJson) as Map<String, dynamic>);
+            jsonDecode(decryptedJson) as Map<String, dynamic>,
+          );
 
           return BackupValidationResult(
             isValid: true,
@@ -563,9 +582,9 @@ class BackupService {
         String? journalDateToSave = backupNote.journalDate;
 
         if (strategy == RestoreStrategy.merge) {
-          final existing = await (database.select(database.notesTable)
-                ..where((n) => n.id.equals(backupNote.id)))
-              .getSingleOrNull();
+          final existing = await (database.select(
+            database.notesTable,
+          )..where((n) => n.id.equals(backupNote.id))).getSingleOrNull();
 
           if (existing != null) {
             // Compare timestamps
@@ -581,9 +600,9 @@ class BackupService {
             totalRestored++;
           }
         } else if (strategy == RestoreStrategy.keepBoth) {
-          final existing = await (database.select(database.notesTable)
-                ..where((n) => n.id.equals(backupNote.id)))
-              .getSingleOrNull();
+          final existing = await (database.select(
+            database.notesTable,
+          )..where((n) => n.id.equals(backupNote.id))).getSingleOrNull();
 
           if (existing != null) {
             noteIdToSave = uuid.v4();
@@ -592,7 +611,9 @@ class BackupService {
             }
             // Strip journalDate and frontmatter from conflict duplicate
             journalDateToSave = null;
-            contentToSave = JournalMetadataService.removeJournalFrontmatter(contentToSave);
+            contentToSave = JournalMetadataService.removeJournalFrontmatter(
+              contentToSave,
+            );
             totalConflicts++;
           } else {
             totalRestored++;
@@ -613,6 +634,7 @@ class BackupService {
           isTrashed: backupNote.isTrashed,
           deletedAt: backupNote.deletedAt,
           tags: backupNote.tags,
+          importSources: backupNote.importSources,
           journalDate: journalDateToSave,
           serverRevision: 0,
           isDirty: true,
@@ -626,8 +648,9 @@ class BackupService {
         if (backupAtt.encryptedPayloadBase64 != null &&
             backupAtt.encryptedPayloadBase64!.isNotEmpty) {
           try {
-            final encryptedBytes =
-                base64Decode(backupAtt.encryptedPayloadBase64!);
+            final encryptedBytes = base64Decode(
+              backupAtt.encryptedPayloadBase64!,
+            );
             localSavedPath = await _storage.saveEncryptedBytes(
               attachmentId: backupAtt.id,
               encryptedBytes: encryptedBytes,
@@ -679,11 +702,12 @@ class BackupService {
         if (backupDoc.encryptedPayloadBase64 != null &&
             backupDoc.encryptedPayloadBase64!.isNotEmpty) {
           try {
-            final encryptedBytes =
-                base64Decode(backupDoc.encryptedPayloadBase64!);
+            final encryptedBytes = base64Decode(
+              backupDoc.encryptedPayloadBase64!,
+            );
             localSavedPath = await _documentStorage.saveEncryptedBytes(
-               documentId: backupDoc.id,
-               encryptedBytes: encryptedBytes,
+              documentId: backupDoc.id,
+              encryptedBytes: encryptedBytes,
             );
           } catch (_) {}
         }
@@ -757,7 +781,9 @@ class BackupService {
   /// Performs an automated rolling backup if enabled and 24 hours have elapsed
   Future<File?> performAutoBackupIfDue() async {
     final config = getAutoBackupConfig();
-    if (!config.enabled || config.folderPath == null || config.folderPath!.isEmpty) {
+    if (!config.enabled ||
+        config.folderPath == null ||
+        config.folderPath!.isEmpty) {
       return null;
     }
 
