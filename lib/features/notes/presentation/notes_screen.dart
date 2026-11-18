@@ -1,3 +1,7 @@
+import '../../email_import/presentation/email_workspace_actions.dart';
+import '../../email_import/presentation/email_import_launcher.dart';
+import '../../email_import/application/email_import_gateway.dart';
+import '../../email_import/application/email_input.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -174,6 +178,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       return;
     }
 
+    final emails = args.where((arg)=>arg.toLowerCase().endsWith('.eml')).map((arg)=>EmailInput(path:arg)).toList();
+    if(emails.isNotEmpty && mounted) {
+      await EmailImportLauncher.open(context,EmailImportRequest(inputs:emails));
+      return;
+    }
     final mdPath = CliArgsHelper.findMarkdownFile(args);
     if (mdPath != null) {
       final file = File(mdPath);
@@ -212,6 +221,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     }
 
+    if (await EmailDesktopRouter.route(context, resolvedPaths.toList())) return;
     for (final path in resolvedPaths) {
       final file = File(path);
       if (!await file.exists()) continue;

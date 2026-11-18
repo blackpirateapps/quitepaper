@@ -1,3 +1,5 @@
+import '../../email_import/application/email_editor_bridge.dart';
+import '../../email_import/presentation/email_workspace_actions.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -166,6 +168,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   final _superEditorController = QuietSuperEditorController();
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
+  late final EmailEditorBridge _emailBridge;
+  Future<Note?> _prepareEmailPreview() async {
+    if(!mounted) return null;
+    final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
+    if (_richDocumentController != null && _isWysiwyg) {
+      notifier.updateContent(_richDocumentController!.hasFrontmatter ? _richDocumentController!.toMarkdown() : _richDocumentController!.toJsonString());
+    }
+    await notifier.saveNow();
+    if(!mounted) return null;
+    final state = ref.read(editorProviderFamily(_editorParams));
+    if(state.isDirty || state.isSaving) throw StateError('Editor save pending');
+    return state.note;
+  }
+  void _acceptEmailAppend(Note note) {
+    if(!mounted || note.id != widget.note.id) return;
+    final selection = _contentController.selection;
+    final richSelection = _richDocumentController?.selection;
+    _contentController.removeListener(_onContentChanged);
+    _lastContentText=note.content;
+    _contentController.value=TextEditingValue(text:note.content,selection:selection.isValid ? selection : const TextSelection.collapsed(offset:0));
+    _contentController.addListener(_onContentChanged);
+    if(richSelection!=null) _richDocumentController?.updateSelection(richSelection);
+    ref.read(editorProviderFamily(_editorParams).notifier).acceptImportedNote(note);
+    setState(() {});
+  }
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
   final _overflowButtonKey = GlobalKey();
@@ -179,6 +206,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
+    _emailBridge=EmailEditorBridge(prepare:_prepareEmailPreview,accept:_acceptEmailAppend);
+    _emailBridge.attach();
     WidgetsBinding.instance.addObserver(this);
 
     final frontmatterDoc = FrontmatterEditorHelper.parse(widget.note.content);
@@ -657,6 +686,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Future<void> _maybeBakeLinkPreviews() async {
     if (!mounted || _isDeactivated) return;
     if (!ref.read(smartWebLinksProvider)) return;
+    if (ref.read(editorProviderFamily(_editorParams)).note.importSources.isNotEmpty) return;
     // Super Editor promotes unbaked lone links into LinkPreviewNodes with
     // live skeleton loading animations and failure diagnostics in-situ.
     if (_isSuperEditor) return;
@@ -1635,6 +1665,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
+    _emailBridge.detach();
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
       ref.read(audioPlaybackServiceProvider).stop();
@@ -2237,6 +2268,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     editingStyle: effectiveEditingStyle,
+                                    allowRemoteLinkPreviews: note.importSources.isEmpty,
                                     stripFrontmatter: showsPropertiesSection && frontmatterDoc.hasFrontmatter,
                                     readOnly: editorState.isReadOnly,
                                     onNoteLinkPrompt: _handleNoteLinkPrompt,
@@ -3415,6 +3447,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _handleDroppedFiles(DropDoneDetails details) async {
+    if(await EmailDesktopRouter.route(context,EmailDesktopRouter.paths(details))) return;
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isReadOnly || !editorState.isUnlocked) return;
 

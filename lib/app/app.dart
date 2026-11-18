@@ -1,4 +1,5 @@
 import 'dart:ui';
+import '../features/email_import/presentation/email_workspace_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/platform_layout_helper.dart';
@@ -113,7 +114,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
               maxScaleFactor: 1.35,
             ),
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: EmailWorkspaceActions(navigatorKey:rootNavigatorKey, child:child ?? const SizedBox.shrink()),
         );
       },
       home: const AppRoot(),

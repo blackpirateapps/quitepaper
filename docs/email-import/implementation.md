@@ -102,3 +102,13 @@ Parsing and save go through an injectable application gateway. Batch previews
 retain only one full email at a time and verify source hashes again at save.
 Secure cache invalidation clears retained preview plaintext and stale callbacks.
 24 selected UI/storage tests and a final 9-widget rerun pass; analysis is clean.
+
+## Phase 5 — Linux integration
+
+Global/workspace/editor drops, multi-picker, command discovery, file associations
+and live-editor adoption are connected. 60 focused drop/editor tests plus 3 live
+append tests pass; Linux debug compilation succeeds. Packaging scripts pass syntax
+checks, but installed-package/sandbox replay remains unverified because package
+builders are unavailable. No Flatpak grants changed. The drop plugin provides no
+hover filenames, so classification occurs on drop. Imported notes suppress remote
+link preview fetching when opened. See engineering log 338 for validation limits.

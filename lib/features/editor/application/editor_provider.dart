@@ -44,6 +44,12 @@ class EditorNotifier extends StateNotifier<EditorState> {
   final NotesRepository repository;
   final Debouncer _debouncer;
 
+  void acceptImportedNote(Note note) {
+    if (note.id != state.note.id) return;
+    _debouncer.cancel();
+    state = state.copyWith(note: note, isDirty: false, isSaving: false);
+  }
+
   void toggleReadOnly() {
     state = state.copyWith(isReadOnly: !state.isReadOnly);
   }

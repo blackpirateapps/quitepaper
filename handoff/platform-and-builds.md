@@ -153,3 +153,15 @@ clipboard of the machine running `qp`. Keyring access requires `secret-tool`
 (`libsecret-tools` on Debian/Ubuntu). Opening an image uses `xdg-open`, requires a
 locally downloaded image and an interactive terminal, and removes its private
 temporary plaintext copy when you press Enter after closing the viewer.
+
+## Email import entry points
+
+Settings → Backup & Import → Import Email selects multiple `.eml` files; the
+all-files action handles generic extensions. Desktop Ctrl+Shift+I opens the picker;
+Ctrl/Cmd+Shift+P opens searchable import commands. Linux file associations and
+workspace/editor drops route into the same confirmation screen. No extra Flatpak
+filesystem grants were added: portal paths are kept intact, and denied drops
+report an error with picker fallback. desktop_drop exposes no hover file metadata,
+so email-specific recognition happens on drop rather than assuming every drag is
+email. Native debug compilation is verified; distro package installation and
+physical file-manager/sandbox replay require the packaging tools and test hosts.

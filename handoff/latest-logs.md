@@ -7619,3 +7619,40 @@ visible storage errors, Escape, mixed invalid batches, lock clearing and dark
 390px layout. Initial widgets caught missing keyboard focus and narrow dropdown
 overflow, both fixed. `dart format` and `git diff --check` pass. No full suite ran.
 Platform entry points are connected in the next two phases.
+
+## 338. Email Import Phase 5 — Linux Integration (November 19, 2026)
+
+Connected application-wide desktop drops, existing note-list/editor drop paths,
+settings import actions, filtered multi-picker and explicit all-files fallback,
+Ctrl+Shift+I and searchable Ctrl/Cmd+Shift+P commands. Linux desktop metadata
+registers message/rfc822 and message/global; initial .eml launch arguments open
+preview. Mixed drops feed every input into review, listing rejected/unsupported
+items rather than silently dropping them. URI-list normalization preserves portal
+paths and ignores ordinary text. Nested drop handlers await one shared bounded
+classification; non-email files still reach their original handlers.
+
+EmailEditorBridge flushes existing user edits before preview, prioritizes the
+current destination, and adopts committed appends without a stale autosave.
+Markdown keeps its text selection; rich AST keeps existing blocks/selection;
+Super Editor appends only the new section after the frame, preserving its current
+nodes, caret and history. Imported notes disable automatic remote link preview
+baking/promotion so opening the result does not fetch email-linked resources.
+The app retains existing normal link behavior for other notes.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected desktop email, dual-mode editor and Super Editor files: **60 passed**.
+- `test/email_import/email_editor_bridge_test.dart`: **3 passed**, exercising live
+  appends in each mode, source retention and no later stale autosave. This test
+  caught a build-phase toolbar notification; deferred append fixes it.
+- `flutter build linux --debug`: succeeded, producing the standard native bundle.
+- `bash -n` passes DEB/AppImage/Flatpak scripts. `git diff --check`: clean.
+- Full suite was not run. Package installation/runtime tests were not performed:
+  dpkg-deb, rpmbuild, appimagetool and flatpak-builder are unavailable. Flatpak
+  runtime exists, but no newly built bundle is available for sandbox replay.
+  Existing filesystem grants are unchanged; inaccessible dropped paths surface
+  an import error and the picker remains the portal access fallback.
+- desktop_drop 0.8.4 exposes only coordinates during hover, not filenames/types.
+  Therefore no email-specific hover overlay is fabricated for unknown content;
+  the classified drop opens the receiving/parsing preview. Existing generic
+  editor drop feedback is retained. Physical file-manager drag replay is pending.

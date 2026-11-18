@@ -38,6 +38,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   const QuietSuperEditor({
     super.key,
     required this.initialMarkdown,
+    this.allowRemoteLinkPreviews = true,
     required this.onChanged,
     this.controller,
     this.focusNode,
@@ -51,6 +52,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   });
 
   final String initialMarkdown;
+  final bool allowRemoteLinkPreviews;
   final ValueChanged<String> onChanged;
   final QuietSuperEditorController? controller;
   final FocusNode? focusNode;
@@ -114,7 +116,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // Promote baked two-line `[title](url)` + sentinel-comment pairs into
     // embedded web-link preview nodes, and promote lone unbaked web links into
     // loading preview nodes with animated skeleton loaders.
-    promoteLinkPreviewNodes(document, promoteUnbaked: true);
+    promoteLinkPreviewNodes(document, promoteUnbaked: widget.allowRemoteLinkPreviews);
 
     // Promote code block paragraphs with raw languages parsed from fences.
     promoteQuietCodeBlockNodes(document, split.body);
@@ -230,6 +232,29 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       if (!structuralChange && widget.stripFrontmatter && newSplit.body == oldSplit.body) {
         _frontmatterPrefix = newSplit.prefix;
         _lastSerializedMarkdown = widget.initialMarkdown;
+      } else if (newSplit.body.startsWith(oldSplit.body) &&
+          newSplit.body.substring(oldSplit.body.length).trimLeft().startsWith('---') &&
+          newSplit.body.substring(oldSplit.body.length).contains('## Email Details')) {
+        // Confirmed email append: retain original nodes, caret, composition and
+        // history. Only deserialize the appended section, once.
+        final suffix = newSplit.body.substring(oldSplit.body.length);
+        final added = deserializeQuietMathDocument(normalizeMarkdownForSuperEditor(suffix));
+        promoteQuietAttachmentNodes(added);
+        promoteQuietCodeBlockNodes(added, suffix);
+        promoteQuietMathBlockNodes(added);
+        _isInternalUpdate = true;
+        _frontmatterPrefix = newSplit.prefix;
+        _lastSerializedMarkdown = widget.initialMarkdown;
+        final targetEditor = _editor;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          try {
+            if (identical(targetEditor, _editor)) {
+              _editor.execute([for (final node in added) InsertNodeAtEndOfDocumentRequest(node)]);
+            }
+          } finally { _isInternalUpdate = false; }
+        });
+
       } else {
         widget.controller?.detach();
         _editor.document.removeListener(_onDocumentChange);

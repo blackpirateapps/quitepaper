@@ -762,3 +762,15 @@ selected email retains full preview bytes; other batch entries retain summaries.
 Lock/logout cache invalidation releases preview plaintext and disables saving.
 Analysis is clean; 24 focused preview/persistence tests pass, with a further
 9-widget rerun after source-change checks. No full suite ran. See log 337.
+
+### Email import phase 5 — Linux entry points and editor integration
+
+Workspace/editor drops, settings multi-file picker, generic-file fallback,
+Ctrl+Shift+I, searchable Ctrl/Cmd+Shift+P commands and Linux `.eml` associations
+now share the same preview. Mixed batches identify invalid inputs. Nested drop
+handlers share classification so ordinary image/document drops remain operational.
+Live editors flush prior edits and adopt appends across all three modes; Super
+Editor retains original nodes/caret. Imported notes suppress automatic link
+preview fetching. Analysis is clean; 60 drop/editor tests plus 3 live append tests
+pass; Linux debug build succeeds. Package installer/device checks remain pending
+because packaging builders are unavailable. See log 338 for exact limits.

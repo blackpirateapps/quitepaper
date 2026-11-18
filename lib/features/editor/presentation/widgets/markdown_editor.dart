@@ -35,6 +35,7 @@ class MarkdownEditor extends StatefulWidget {
   const MarkdownEditor({
     super.key,
     required this.controller,
+    this.allowRemoteLinkPreviews = true,
     required this.focusNode,
     this.editingStyle = EditorEditingStyle.markdown,
     this.stripFrontmatter = false,
@@ -56,6 +57,7 @@ class MarkdownEditor extends StatefulWidget {
   });
 
   final MarkdownEditingController controller;
+  final bool allowRemoteLinkPreviews;
   final FocusNode focusNode;
   final EditorEditingStyle editingStyle;
   final bool stripFrontmatter;
@@ -496,7 +498,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   Widget build(BuildContext context) {
     if (widget.editingStyle == EditorEditingStyle.superEditor) {
       return QuietSuperEditor(
-        controller: widget.superController,
+          allowRemoteLinkPreviews: widget.allowRemoteLinkPreviews,        controller: widget.superController,
         initialMarkdown: widget.controller.text,
         focusNode: widget.focusNode,
         readOnly: widget.readOnly,
