@@ -173,6 +173,30 @@ void main() {
     );
   });
 
+  test('exit during queued protection persists latest ciphertext', () async {
+    notes.gate();
+    editor.updateContent('First secret');
+    final saving = editor.saveNow();
+    await notes.entered!.future;
+    final protecting = editor.setPasswordProtection(password: 'secret');
+    editor.updateContent('Latest secret before exit');
+    final exiting = editor.handleExitCleanup();
+    notes.release!.complete();
+    await saving;
+    await protecting;
+    await exiting;
+    final saved = (await notes.getNoteById('source'))!;
+    expect(saved.isPasswordProtected, true);
+    expect(
+      (await NoteSecurityService.decryptNote(
+        encryptedContent: saved.content,
+        password: 'secret',
+      )).content,
+      'Latest secret before exit',
+    );
+    expect(editor.state.isDirty, false);
+  });
+
   test('exit failure preserves dirty buffer for retry', () async {
     notes.fail = true;
     editor.updateContent('Keep this buffer');

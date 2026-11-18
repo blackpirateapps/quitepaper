@@ -864,3 +864,19 @@ landscape, a small desktop window, doubled text size and both themes. They
 exercise scrolling to search/rows, keyboard-safe actions and actual creation.
 No full suite ran. All eight findings have dedicated fixes; the original audit
 now links to [remediation details](handoff/audits/templates-2026-11-18-fixes.md).
+
+### Template audit — shared editor follow-up and final verification
+
+Protection enable/change/remove/lock failures now show a recoverable error,
+retain the dirty editor and avoid success messages. Security actions publish
+pending Visual edits first. Exit takes its final canonical flush after session
+history finishes, preserving edits made during that asynchronous history write.
+New tests exercise those paths, encrypted exit and actual inactive/paused
+lifecycle flushing with Flutter's valid transition sequence.
+
+All **eight confirmed template findings are fixed**, each in its own commit,
+with this shared editor follow-up. Final `flutter analyze` is clean and **241
+selected tests pass** across templates, editor save/security/frontmatter/history,
+modal widgets and password encryption. `git diff --check` passes. The full suite
+was not run. Exact commands, commit mapping and native-device/performance limits
+are in [fix verification](handoff/audits/templates-2026-11-18-fixes.md).

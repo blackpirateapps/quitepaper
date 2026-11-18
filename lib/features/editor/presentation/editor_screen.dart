@@ -358,9 +358,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _exitInProgress = true;
     try {
       _bodyEditorKey.currentState?.flushPendingChanges();
-      await ref.read(editorProviderFamily(_editorParams).notifier).handleExitCleanup();
-      if (!mounted) return;
       await _commitSessionVersionIfNeeded();
+      if (!mounted) return;
+      await ref.read(editorProviderFamily(_editorParams).notifier).handleExitCleanup();
       if (!mounted) return;
       setState(() => _allowExit = true);
       if (widget.onClose != null) {
@@ -376,6 +376,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
     } finally {
       _exitInProgress = false;
+    }
+  }
+
+  Future<void> _runNoteProtectionChange(
+    Future<void> Function() operation, {
+    String? successMessage,
+  }) async {
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await operation();
+      if (mounted && successMessage != null) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(successMessage),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save note protection. Keep this note open and try again.'),
+        ));
+      }
     }
   }
 
@@ -4056,19 +4080,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   Navigator.of(sheetCtx).pop();
                   final res = await SetNotePasswordDialog.show(context);
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password protection enabled',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password protection enabled'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4091,19 +4109,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     isChangingPassword: true,
                   );
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password updated',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password updated'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4120,16 +4132,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
                 onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  await notifier.removePasswordProtection();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note password protection removed'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
+                  await _runNoteProtectionChange(
+                    notifier.removePasswordProtection,
+                    successMessage: 'Note password protection removed',
+                  );
                 },
               ),
               ListTile(
@@ -4143,9 +4149,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     color: colors.textPrimary,
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  notifier.lockNow();
+                  await _runNoteProtectionChange(notifier.lockNow);
                 },
               ),
             ],

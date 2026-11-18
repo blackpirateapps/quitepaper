@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_edit
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/note_password_dialogs.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 import 'package:quitepaper/features/templates/application/template_providers.dart';
 import 'package:quitepaper/features/templates/application/template_service.dart';
@@ -134,6 +136,229 @@ void main() {
       await finish(tester);
       expect(tester.takeException(), isNull);
     });
+  }
+
+  testWidgets('exit waits for edits made during the session history write', (
+    tester,
+  ) async {
+    final note = Note(
+      id: 'history-exit',
+      title: 'Source',
+      content: 'Original',
+      createdAt: DateTime.utc(2020),
+      updatedAt: DateTime.utc(2020),
+    );
+    final gated = _HistoryGatedNotes(db);
+    notes = gated;
+    await notes.saveNote(note);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          notesRepositoryProvider.overrideWithValue(notes),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => EditorScreen(note: note),
+                  ),
+                ),
+                child: const Text('Open editor'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open editor'));
+    await settle(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(EditorScreen)),
+    );
+    final notifier = container.read(
+      editorProviderFamily(EditorParams(note)).notifier,
+    );
+    notifier.updateContent(
+      'A meaningful change that creates a session history entry',
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(gated.historyEntered.isCompleted, true);
+    notifier.updateContent('Latest irreplaceable edit during history');
+    gated.historyRelease.complete();
+    await settle(tester);
+    expect(find.byType(EditorScreen), findsNothing);
+    expect(
+      (await notes.getNoteById(note.id))!.content,
+      'Latest irreplaceable edit during history',
+    );
+    await finish(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final lifecycle in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.paused,
+  ]) {
+    testWidgets(
+      'lifecycle $lifecycle flushes pending Visual content during save',
+      (tester) async {
+        final note = Note(
+          id: 'lifecycle',
+          title: 'Source',
+          content: 'Original',
+          createdAt: DateTime.utc(2020),
+          updatedAt: DateTime.utc(2020),
+        );
+        final gated = GatedNotes(db);
+        notes = gated;
+        await notes.saveNote(note);
+        await tester.pumpWidget(app(note, EditorEditingStyle.wysiwyg));
+        await settle(tester);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(EditorScreen)),
+        );
+        final notifier = container.read(
+          editorProviderFamily(EditorParams(note)).notifier,
+        );
+        gated.gate();
+        notifier.updateContent('First edit');
+        final saving = notifier.saveNow();
+        await tester.pump();
+        expect(gated.entered!.isCompleted, true);
+        final field = find
+            .descendant(
+              of: find.byType(RichTextEditor),
+              matching: find.byType(EditableText),
+            )
+            .first;
+        await tester.enterText(
+          field,
+          'Latest Visual edit before backgrounding',
+        );
+        if (lifecycle == AppLifecycleState.paused) {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+        }
+        tester.binding.handleAppLifecycleStateChanged(lifecycle);
+        gated.release!.complete();
+        await settle(tester);
+        await saving;
+        if (lifecycle == AppLifecycleState.paused) {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+        }
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await settle(tester);
+        expect(
+          (await notes.getNoteById(note.id))!.plainText,
+          contains('Latest Visual edit before backgrounding'),
+        );
+        expect(notifier.state.isDirty, false);
+        await finish(tester);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final action in ['protect', 'change', 'remove', 'lock']) {
+    testWidgets(
+      'failed $action operation shows recovery and retains dirty editor',
+      (tester) async {
+        final note = Note(
+          id: 'protection-failure',
+          title: 'Source',
+          content: 'Private writing',
+          createdAt: DateTime.utc(2020),
+          updatedAt: DateTime.utc(2020),
+        );
+        final failing = GatedNotes(db);
+        notes = failing;
+        await notes.saveNote(note);
+        await tester.pumpWidget(app(note, EditorEditingStyle.markdown));
+        await settle(tester);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(EditorScreen)),
+        );
+        final notifier = container.read(
+          editorProviderFamily(EditorParams(note)).notifier,
+        );
+        if (action != 'protect') {
+          await tester.runAsync(
+            () => notifier.setPasswordProtection(password: 'existing-secret'),
+          );
+          notifier.updateContent('Newest private writing');
+        }
+        final persisted = (await notes.getNoteById(note.id))!;
+        failing.fail = true;
+        await tester.tap(find.byTooltip('More options'));
+        await settle(tester);
+        await tester.tap(find.text('Privacy'));
+        await settle(tester);
+        final label = switch (action) {
+          'protect' => 'Protect with password',
+          'change' => 'Change note password',
+          'remove' => 'Remove password protection',
+          _ => 'Lock note now',
+        };
+        await tester.tap(find.text(label));
+        await settle(tester);
+        if (action == 'protect' || action == 'change') {
+          final fields = find.descendant(
+            of: find.byType(SetNotePasswordDialog),
+            matching: find.byType(TextField),
+          );
+          await tester.enterText(fields.at(0), 'replacement-secret');
+          await tester.enterText(fields.at(1), 'replacement-secret');
+          await tester.tap(find.text('Set Password'));
+          await settle(tester);
+        }
+        for (
+          var i = 0;
+          i < 60 &&
+              find
+                  .text(
+                    'Could not save note protection. Keep this note open and try again.',
+                  )
+                  .evaluate()
+                  .isEmpty;
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(
+          find.text(
+            'Could not save note protection. Keep this note open and try again.',
+          ),
+          findsOneWidget,
+        );
+        expect(notifier.state.isDirty, true);
+        expect(notifier.state.isUnlocked, true);
+        expect((await notes.getNoteById(note.id))!.content, persisted.content);
+        expect(tester.takeException(), isNull);
+        failing.fail = false;
+        await tester.runAsync(notifier.flushPendingChanges);
+        expect(notifier.state.isDirty, false);
+        await finish(tester);
+      },
+    );
   }
 
   for (final style in EditorEditingStyle.values) {
@@ -308,5 +533,17 @@ void main() {
       expect(find.text('Save as Template'), findsNothing);
       await finish(tester);
     });
+  }
+}
+
+class _HistoryGatedNotes extends GatedNotes {
+  _HistoryGatedNotes(super.db);
+  final historyEntered = Completer<void>();
+  final historyRelease = Completer<void>();
+  @override
+  Future<int> getNextVersionNumber(String noteId) async {
+    historyEntered.complete();
+    await historyRelease.future;
+    return super.getNextVersionNumber(noteId);
   }
 }
