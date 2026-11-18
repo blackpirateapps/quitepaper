@@ -1,0 +1,60 @@
+# Email import implementation record
+
+## Phase 1 — repository audit (2026-11-19)
+
+Branch: `feat/email-import`, based on `e812cc6`. Flutter 3.47.2 / Dart 3.13.2.
+Read root handoff, modular index and architecture/editor/storage/documents/platform/
+search guides, recent engineering logs and the complete `prompts/email.md` spec.
+Source, rather than historical guide examples, establishes the following contracts.
+
+- `Note` carries canonical Markdown or RichDocument JSON. `mapNoteEntity` is the
+  common full/paginated mapper. Drift schema is **20**, not the old guide's v3.
+  `AppDatabase.saveNote` transaction maintains tags, FTS and links. Extend this
+  boundary with optional source records and a derived indexed source table.
+- `NotePlaintext` is the encrypted sync payload. `SyncEngine`, conflict resolver,
+  CLI upload and backup note models require provenance propagation. Union source
+  identities on merges; do not add server-visible email fields or endpoints.
+- `AttachmentService.importGenericFileFromBytes` encrypts into the existing vault;
+  `importImageFromBytes(skipOcr: true)` supplies CID images. Generic storage and
+  cloud uploads currently cap at 10,000,000 bytes. Email's 50 MiB original and
+  25 MiB decoded-part limits require an explicit local import allowance; preserve
+  upload retry/errors when account/server limits prevent larger asset sync.
+  `purgeLocalAttachment` removes preparation leftovers. Use transaction rollback
+  plus ciphertext cleanup, with durable recovery for interrupted preparation.
+- Main notes workspace has three `DropTarget`s, all calling
+  `_handleDroppedFileToNewNote`, which handles only its first file. Editor owns a
+  separate `DropTarget` / `_handleDroppedFiles`. Intercept email batches before
+  either existing insertion path, preserving ordinary image/document behavior.
+- Settings `BackupImportSettingsScreen` owns existing import actions. No global
+  command palette implementation exists (the platform guide describes one).
+  Add a small searchable desktop command entry point using existing modal styles.
+- `ShareIntentHandler` uses installed `receive_sharing_intent` **1.9.0** and handles
+  only the first file. Inspected plugin Kotlin: it copies content URIs via
+  `FileDirectory`, ignores ClipData and subjects, and may emit both initial and
+  stream delivery. Extend the current handler with bounded ContentResolver
+  normalization and request IDs rather than relying on path conversion.
+- `QuickCaptureCoordinator` queues distinct active shares. Preserve this behavior
+  and expose explicit Save as Email; ordinary text/URLs retain existing routing.
+- HTML clipper converter is article oriented (frontmatter, remote images). Email
+  needs a dedicated network-free sanitizer/converter, sharing canonical Markdown
+  conventions without changing clipper semantics.
+- Parser dependency candidate: enough_mail (MPL-2.0, maintained MIME and charset
+  support); inspect resolved implementation before use. Wrap it with preflight
+  size/header/part/depth/transfer-decoding limits, since convenience decoding alone
+  does not establish bounded processing. Run parsing in a worker isolate.
+  Upstream: https://pub.dev/packages/enough_mail and its license/changelog.
+- Flatpak already permits Documents/Downloads and portal-selected files. Do not
+  broaden finish-args. File URI decoding must preserve portal paths and report
+  inaccessible drops. DEB/RPM/AppImage consume the same native bundle.
+
+## Validation strategy
+
+Every phase runs `flutter analyze`, only relevant selected tests, `git diff --check`,
+updates HANDOFF and the numbered engineering log, then commits and pushes before
+starting the next phase. Never run the full Flutter test suite. Parser fixtures,
+real in-memory Drift/encrypted-vault tests, preview widgets and platform boundary
+regressions are required. Final validation includes Linux and Android compilation
+where installed tooling permits. Record unavailable packaging/device checks
+explicitly; automated tests do not establish physical-device behavior.
+
+Phase 1 baseline results are recorded in engineering log 334.

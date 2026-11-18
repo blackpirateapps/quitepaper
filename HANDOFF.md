@@ -720,3 +720,13 @@ Validation: `flutter analyze` is clean; **51 relevant version/update/CLI/backup/
 device/export tests pass**. Version/site checks confirm matching website pages,
 valid HTML/XML, current version metadata and preserved historical release notes.
 No full suite ran.
+
+## Email import — phase 1 repository audit (November 19, 2026)
+
+Implementation is proceeding on `feat/email-import` in the eight phases specified
+in `prompts/email.md`, committing/pushing each phase independently. The
+[source-level audit](docs/email-import/implementation.md) identifies actual schema
+20, encrypted note/attachment and backup boundaries, separate editor/workspace
+drops, Android plugin limitations, and the missing global command palette.
+Phase 1 changes documentation only. Analysis is clean and 20 focused existing
+Quick Capture/converter/database-query tests pass. No full suite ran. See log 334.

@@ -7508,3 +7508,21 @@ Updated `HANDOFF.md` and the security review. The unrelated pre-existing
 smart-tables prompt remains outside the commit. Local runtime validation does
 not establish the status of a live Vercel deployment; Vercel must deploy the
 updated package manifest and lockfile to apply the fix.
+
+## 334. Email Import Phase 1 — Repository Audit (November 19, 2026)
+
+Completed source reconnaissance on `feat/email-import` before implementation.
+`docs/email-import/implementation.md` maps parser, vault, Drift schema 20,
+repository/mapper, FTS, backup, encrypted sync/merge, desktop drops, settings,
+Android ContentResolver/plugin and Quick Capture integration boundaries.
+The resolved sharing plugin is 1.9.0; its initial/stream overlap, path conversion,
+missing ClipData/subject handling and current first-item routing need adapters.
+No existing application command palette was found. Existing cloud asset limits
+are smaller than required local email import limits; preserve explicit pending
+sync errors rather than claiming every larger asset can upload.
+
+Validation: `flutter analyze` reports no issues.
+`flutter test --no-pub --concurrency=1 test/quick_capture/quick_capture_coordinator_test.dart test/web_clipper/html_to_markdown_converter_test.dart test/notes/notes_query_database_test.dart`
+passes **20 tests**. An initial command named a nonexistent query-executor test;
+corrected to the actual database-query test file. No full suite ran. No runtime
+code changed. Physical Android and Linux packaging validation remain later work.
