@@ -18,7 +18,7 @@ Welcome to **Quiet Paper**! This folder contains the modularized engineering han
 | **[latest-logs.md](latest-logs.md)** | Active engineering logs, feature implementations, and bugfixes for **v1.6.0+ (October 2026 – Present)**. | Sections 165–284 (Active) |
 | **[archive/logs-v1.5.md](archive/logs-v1.5.md)** | Historical engineering logs for Quiet Paper **v1.5.0 through v1.5.9**. | Sections 46–164 (Archive) |
 | **[archive/logs-v1.0-v1.4.md](archive/logs-v1.0-v1.4.md)** | Historical engineering logs for Quiet Paper **v1.0.0 through v1.4.x**. | Sections 10–45 (Archive) |
-| **[backup/HANDOFF.original.md](backup/HANDOFF.original.md)** | Full, bit-for-bit verbatim backup of the pre-modularization 11,433-line document. | Backup (Read-Only) |
+| **[backup/HANDOFF.original.md](backup/HANDOFF.original.md)** | Backup of the pre-modularization 11,433-line document; Firebase client API key redacted on November 18, 2026. | Backup (Read-Only) |
 
 ---
 

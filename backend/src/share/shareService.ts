@@ -49,9 +49,9 @@ export async function createShare(
   if (!parsed.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid share payload: ${parsed.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid share payload: ${parsed.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parsed.error.errors
+      parsed.error.issues
     );
   }
 
@@ -155,9 +155,9 @@ export async function authorizeShareUpload(
   if (!parsed.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid share upload request: ${parsed.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid share upload request: ${parsed.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parsed.error.errors
+      parsed.error.issues
     );
   }
 
@@ -226,9 +226,9 @@ export async function updateShare(
   if (!parsed.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid share update: ${parsed.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid share update: ${parsed.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parsed.error.errors
+      parsed.error.issues
     );
   }
 

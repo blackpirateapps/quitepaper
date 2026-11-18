@@ -231,7 +231,7 @@ export async function handleAdminRequest(req: RequestLike, db: Client): Promise<
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: { error: { code: 'BAD_REQUEST', message: 'Invalid plan payload', details: parsed.error.errors } },
+        body: { error: { code: 'BAD_REQUEST', message: 'Invalid plan payload', details: parsed.error.issues } },
       };
     }
 

@@ -4,7 +4,7 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 > [!NOTE]
 > The engineering handoff documentation has been organized into modular, domain-specific guides and versioned logs located in the **[`handoff/`](handoff/)** directory. 
-> A complete, verbatim backup of the original 11,433-line document is preserved at [`handoff/backup/HANDOFF.original.md`](handoff/backup/HANDOFF.original.md).
+> A backup of the original 11,433-line document is preserved at [`handoff/backup/HANDOFF.original.md`](handoff/backup/HANDOFF.original.md), with the Firebase client API key redacted on November 18, 2026.
 
 ---
 
@@ -25,7 +25,7 @@ All documentation is partitioned for fast, targeted access by engineers and AI a
 | **[handoff/latest-logs.md](handoff/latest-logs.md)** | **Active engineering logs** for **v1.6.0+ (October 2026 – Present)**. New handoff entries should be appended here. |
 | **[handoff/archive/logs-v1.5.md](handoff/archive/logs-v1.5.md)** | Historical engineering logs for **v1.5.0 through v1.5.9**. |
 | **[handoff/archive/logs-v1.0-v1.4.md](handoff/archive/logs-v1.0-v1.4.md)** | Historical engineering logs for **v1.0.0 through v1.4.x**. |
-| **[handoff/backup/HANDOFF.original.md](handoff/backup/HANDOFF.original.md)** | Unmodified, bit-for-bit verbatim backup of the pre-modularization document. |
+| **[handoff/backup/HANDOFF.original.md](handoff/backup/HANDOFF.original.md)** | Pre-modularization backup; Firebase client API key redacted. |
 
 ---
 
@@ -45,15 +45,23 @@ to derive build numbers from the Git commit count. See the
 [version checklist](handoff/platform-and-builds.md#3-app-version-bump-checklist)
 and [engineering log 330](handoff/latest-logs.md#330-release-version-bump-to-164-build-22-november-18-2026).
 
-## Critical Dependency Security Alerts
+## Dependency and Client-Key Security Alerts
 
 The backend test runner now uses Vitest **4.1.12**, removing Tinypool and fixing
-critical Dependabot alerts **#7 and #8**. The refreshed lockfile also updates
-Vitest's mocker, Vite and source-map-js. Local npm audit reports **zero critical
-vulnerabilities**; lower-severity findings and the existing Google API key alert
-remain outside this remediation. Use Node 22 LTS **22.12+** for backend tests.
-See [engineering log 331](handoff/latest-logs.md#331-critical-github-dependency-alert-remediation-november-18-2026)
-for the findings, validation and remaining scope.
+critical Dependabot alerts **#7 and #8**. Firebase Admin **14.5.1**, Zod **4.6.7**
+and patched transitive packages remediate the six remaining dependency alerts.
+Use Node 22 LTS **22.12+** for the backend. Production npm audit reports **zero
+vulnerabilities**. The full dependency tree still reports the development-only
+Picomatch advisory, which has no patched release; see
+[the security review](docs/security-review.md#5-dependency-and-client-key-alert-status-november-18-2026).
+
+The owner verified Firebase-only restrictions on the public Firebase client key,
+and secret-scanning alert **#1** is resolved as a false positive. The hardcoded
+fallback and documentation copies are removed; authentication loads public
+backend configuration or uses an explicit build/runtime key. See engineering
+logs [331](handoff/latest-logs.md#331-critical-github-dependency-alert-remediation-november-18-2026)
+and [332](handoff/latest-logs.md#332-remaining-security-alert-remediation-november-18-2026)
+for migration details and focused validation.
 
 ## Linux CI Async Test Stability
 

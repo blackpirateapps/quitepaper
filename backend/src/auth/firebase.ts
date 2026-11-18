@@ -1,11 +1,12 @@
-import admin from 'firebase-admin';
+import { cert, getApp, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 let initialized = false;
 
-export function initFirebaseAdmin(): admin.app.App {
-  if (!initialized && admin.apps.length === 0) {
+export function initFirebaseAdmin(): App {
+  if (!initialized && getApps().length === 0) {
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -19,8 +20,8 @@ export function initFirebaseAdmin(): admin.app.App {
       privateKey = privateKey.replace(/\\n/g, '\n');
 
       try {
-        admin.initializeApp({
-          credential: admin.credential.cert({
+        initializeApp({
+          credential: cert({
             projectId: projectId || undefined,
             clientEmail: clientEmail.trim(),
             privateKey,
@@ -31,16 +32,16 @@ export function initFirebaseAdmin(): admin.app.App {
         throw e;
       }
     } else if (process.env.FIREBASE_CONFIG || process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      admin.initializeApp();
+      initializeApp();
     } else {
       // Default placeholder app for development/mocking
-      admin.initializeApp({
+      initializeApp({
         projectId: projectId || 'quietpaper-demo',
       });
     }
     initialized = true;
   }
-  return admin.app();
+  return getApp();
 }
 
 export async function verifyFirebaseIdToken(token: string): Promise<{ uid: string; email?: string }> {
@@ -54,7 +55,7 @@ export async function verifyFirebaseIdToken(token: string): Promise<{ uid: strin
   }
 
   initFirebaseAdmin();
-  const decoded = await admin.auth().verifyIdToken(token, true);
+  const decoded = await getAuth().verifyIdToken(token, true);
   return {
     uid: decoded.uid,
     email: decoded.email,

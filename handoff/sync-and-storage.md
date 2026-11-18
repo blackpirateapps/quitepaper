@@ -63,6 +63,16 @@ per note; adding a persisted domain field requires updating this shared mapper.
 - **Runtime**: TypeScript on Vercel Serverless Functions.
 - **Database**: Turso (distributed libSQL / SQLite edge database).
 - **Auth Verification**: Firebase Admin SDK (`requireFirebaseAuth` middleware).
+- **Backend dependency baseline**: Node 22 LTS 22.12+, Firebase Admin 14.5.1
+  (modular `firebase-admin/app` and `firebase-admin/auth` imports) and Zod 4.6.7.
+  Validation uses `error.issues`; `z.guid()` preserves the existing UUID-shaped
+  identifier contract without imposing new RFC variant-bit requirements.
+- **Firebase client configuration**: Flutter has no committed fallback key.
+  Configure `FIREBASE_API_KEY` (or `FIREBASE_WEB_API_KEY`) on the backend so
+  `/api/v1/config` can provide the public client key, or supply an explicit client
+  key / `--dart-define=FIREBASE_API_KEY=...`. Missing configuration stops
+  authentication before sending credentials. Client keys must be restricted to
+  Firebase APIs; Admin credentials stay server-side.
 - **Crypto-Blind Guarantee**: The backend database schema contains only opaque binary payloads (`ciphertext`, `nonce`, `salt`, `revision`, `device_id`). The backend has zero decryption keys, zero plaintext inspection logic, and no access to note contents.
 
 ### Synchronization Engine (`lib/core/sync/`)

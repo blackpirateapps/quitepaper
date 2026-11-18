@@ -7394,3 +7394,71 @@ GitHub must rescan the pushed dependency graph to close resolved alerts.
 Modified files: `backend/package.json`, `backend/package-lock.json`,
 `HANDOFF.md` and this log. The unrelated pre-existing untracked smart-tables
 prompt remains outside the commit.
+
+
+## 332. Remaining Security Alert Remediation (November 18, 2026)
+
+Read the six remaining open Dependabot alerts (#1, #4, #5, #6, #16 and #17),
+secret-scanning alert #1 and the full npm audit after log 331. Upgraded Firebase
+Admin from 13.10.0 to **14.5.1** and Zod from 3.25.76 to **4.6.7**. The refreshed
+dependency tree removes uuid entirely and resolves @grpc/grpc-js **1.14.7**,
+@fastify/busboy **3.2.6** and fast-xml-parser **5.12.1**. Vitest remains 4.1.12;
+Tinypool remains absent.
+
+Firebase Admin 14 removes the legacy namespace API and requires Node 22+. Auth
+initialization/token verification now use modular `firebase-admin/app` and
+`firebase-admin/auth` imports. Email backfill uses the modular Auth type/client.
+Preserved certificate normalization, application-default credentials, test auth
+hooks and revoked-token checking. `backend/package.json` pins Node `^22.12.0`,
+also meeting the Vite toolchain minimum. Validation used Node 22.23.1 / npm 10.9.8;
+dependency resolution used npm 11.21.3 after the resolver issue recorded in log 331.
+
+Migrated removed Zod `error.errors` reads to `error.issues` in admin, attachment,
+document and public-share validation. Custom minimum-length issues use `origin`.
+Zod 4's stricter UUID bit validation would reject previously accepted IDs, so
+`z.guid()` preserves the existing shape contract. Added regression tests for
+early rejection of oversized sync/tag/version/place-alias/annotation/OCR/reference
+and share-attachment arrays without reading child properties, legacy IDs,
+tombstone/default behavior and structured HTTP 400 validation errors. Email tests
+now mock the modular Firebase Auth client, exercising successful batch lookup and
+offline fallbacks without Google metadata requests or warnings.
+
+Removed the committed Firebase client-key fallback and redacted its two archived
+documentation copies, updating the backup descriptions to acknowledge the
+redaction. Builds may supply `FIREBASE_API_KEY`, runtime callers may supply a key,
+and the backend public config endpoint remains the normal discovery path.
+Missing configuration fails before credential-bearing requests; rejected keys
+can still refresh configuration and retry once. The existing deployed endpoint
+was checked for a non-empty key without logging the value. Added its variable to
+`backend/.env.example`.
+
+The owner confirmed **Firebase-only API restrictions are verified**. Based on
+that confirmation and Firebase's public-client-key documentation, resolved
+GitHub secret-scanning alert #1 as `false_positive`, with an audit comment.
+No cloud configuration, key rotation, Git history rewrite or plugin connection
+occurred. Flutter coverage verifies backend discovery, unavailable config,
+rotation retry, cleared settings and explicit build/runtime key precedence.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/auth/auth_service_resiliency_test.dart test/sync/sync_api_client_retry_test.dart`:
+  **24 passed**.
+- `flutter test --no-pub --dart-define=FIREBASE_API_KEY=build-test-key test/auth/auth_service_resiliency_test.dart --plain-name 'FirebaseAuthService uses only build configuration when no key is supplied'`:
+  verifies the configured-build path separately.
+- In `backend/`, clean `npm ci` and `npm run build`: passed.
+- `npm test -- tests/validation.test.ts tests/auth.test.ts tests/email-sync.test.ts tests/keys.test.ts tests/sync.test.ts tests/shares.test.ts tests/attachments.test.ts tests/documents.test.ts tests/admin.test.ts tests/devices.test.ts`:
+  **92 passed in ten selected files**, with no runtime warnings on the final run.
+- `npm audit --omit=dev --json`: exit 0, **zero production vulnerabilities**.
+- Full npm audit still reports **five high package findings** representing one
+  underlying Picomatch advisory, GHSA-fc5q-39xc-vjpf. There is no patched release;
+  the linked upstream PR explicitly leaves the attack case unfixed. This
+  development-only finding is documented in `docs/security-review.md`, not
+  suppressed. npm's proposed Vitest downgrade would reintroduce fixed security
+  vulnerabilities and was not applied.
+- No Google-style key literals remain in `lib/` or `handoff/`. `git diff --check`
+  passes. No full Flutter or backend test suite ran.
+
+Updated the root handoff, handoff index, sync guide and security review. The
+unrelated pre-existing smart-tables prompt remains outside the commit. GitHub
+rescans the pushed lockfile to close the six remediated Dependabot alerts.
