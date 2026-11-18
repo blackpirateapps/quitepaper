@@ -759,3 +759,17 @@ Static analysis and 355 selected repository tests passed; 14 additional audit
 probes produced five passes and nine failed correctness assertions. The full
 suite was not run. No fixes were applied during the audit. These findings
 supersede the implementation report's safety claims until remediation is verified.
+
+### QPT-001 template audit fix — November 19, 2026
+
+Editor writes now capture immutable content, password and hint inputs and drain
+serialized save revisions, including security-only changes made during a write.
+Protection changes await persistence and reject failed writes; locking retains
+credentials until the newest encrypted write completes. Missing replacement
+hints clear the previous hint. Persisted protected sources remain ineligible for
+templates at the service boundary.
+
+Validation: `flutter analyze` clean; 16 relevant save-race/service tests pass,
+including real SQLite protection, removal, password change, lock and failure
+cases. The shared drain also supplies the persistence foundation for QPT-002.
+No full suite ran.
