@@ -145,69 +145,59 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
-                  child: Row(
-                    children: [
+                Expanded(
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(child: _header(selected)),
+                      if (_error != null)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              _error!,
+                              style: TextStyle(color: context.appColors.error),
+                            ),
+                          ),
+                        ),
                       if (selected != null)
-                        IconButton(
-                          tooltip: 'Back to templates',
-                          onPressed: _creating ? null : _back,
-                          icon: const Icon(Icons.arrow_back),
-                        ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selected?.displayName ??
-                                  (widget.management
-                                      ? 'Templates'
-                                      : 'Choose a Template'),
-                              style: AppTypography.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                        SliverFillRemaining(
+                          child: TemplatePreview(
+                            key: ValueKey(selected.id),
+                            template: selected,
+                          ),
+                        )
+                      else ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: TextField(
+                              controller: _search,
+                              focusNode: _searchFocus,
+                              autofocus: !widget.management,
+                              decoration: const InputDecoration(
+                                hintText: 'Search templates',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              onChanged: (_) => setState(() {}),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              selected == null
-                                  ? (widget.management
-                                        ? 'Reusable starting points for your notes.'
-                                        : 'Start with a reusable structure.')
-                                  : selected.isBuiltIn
-                                  ? 'Built-in'
-                                  : 'My Template',
-                              style: AppTypography.caption,
+                          ),
+                        ),
+                        catalog.when(
+                          loading: () => const SliverToBoxAdapter(
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                          error: (error, _) => SliverToBoxAdapter(
+                            child: Center(
+                              child: Text(templateErrorMessage(error)),
                             ),
-                          ],
+                          ),
+                          data: _catalogSliver,
                         ),
-                      ),
-                      if (!widget.management)
-                        IconButton(
-                          tooltip: 'Close templates',
-                          onPressed: _creating
-                              ? null
-                              : () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
+                      ],
                     ],
                   ),
                 ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: context.appColors.error),
-                    ),
-                  ),
-                if (selected != null) ...[
-                  Expanded(
-                    child: TemplatePreview(
-                      key: ValueKey(selected.id),
-                      template: selected,
-                    ),
-                  ),
+                if (selected != null)
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: FilledButton(
@@ -220,80 +210,90 @@ class _TemplateBrowserState extends ConsumerState<TemplateBrowser> {
                             : 'Use Template',
                       ),
                     ),
-                  ),
-                ] else ...[
+                  )
+                else if (widget.onManage != null)
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: TextField(
-                      controller: _search,
-                      focusNode: _searchFocus,
-                      autofocus: !widget.management,
-                      decoration: const InputDecoration(
-                        hintText: 'Search templates',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (_) => setState(() {}),
+                    padding: const EdgeInsets.all(12),
+                    child: TextButton(
+                      onPressed: widget.onManage,
+                      child: const Text('Manage Templates'),
                     ),
                   ),
-                  Expanded(
-                    child: catalog.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (error, _) =>
-                          Center(child: Text(templateErrorMessage(error))),
-                      data: (templates) {
-                        final sections = templateSections(
-                          templates,
-                          _search.text,
-                        );
-                        if (sections.isEmpty) {
-                          return const Center(
-                            child: Text('No templates found'),
-                          );
-                        }
-                        // Sliver/list builder creates only visible rows, even at 1,000+ templates.
-                        final rows = <Object>[
-                          for (final section in sections) ...[
-                            section.title,
-                            ...section.templates,
-                          ],
-                        ];
-                        return ListView.builder(
-                          itemCount: rows.length,
-                          itemBuilder: (context, index) {
-                            final row = rows[index];
-                            if (row is String) {
-                              return Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  16,
-                                  20,
-                                  8,
-                                ),
-                                child: Text(row, style: AppTypography.caption),
-                              );
-                            }
-                            final template = row as NoteTemplate;
-                            return _row(template);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  if (widget.onManage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: TextButton(
-                        onPressed: widget.onManage,
-                        child: const Text('Manage Templates'),
-                      ),
-                    ),
-                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _header(NoteTemplate? selected) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+    child: Row(
+      children: [
+        if (selected != null)
+          IconButton(
+            tooltip: 'Back to templates',
+            onPressed: _creating ? null : _back,
+            icon: const Icon(Icons.arrow_back),
+          ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                selected?.displayName ??
+                    (widget.management ? 'Templates' : 'Choose a Template'),
+                style: AppTypography.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                selected == null
+                    ? (widget.management
+                          ? 'Reusable starting points for your notes.'
+                          : 'Start with a reusable structure.')
+                    : selected.isBuiltIn
+                    ? 'Built-in'
+                    : 'My Template',
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+        ),
+        if (!widget.management)
+          IconButton(
+            tooltip: 'Close templates',
+            onPressed: _creating ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+      ],
+    ),
+  );
+
+  Widget _catalogSliver(List<NoteTemplate> templates) {
+    final sections = templateSections(templates, _search.text);
+    if (sections.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(child: Text('No templates found')),
+      );
+    }
+    final rows = <Object>[
+      for (final section in sections) ...[section.title, ...section.templates],
+    ];
+    return SliverList.builder(
+      itemCount: rows.length,
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        if (row is String) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Text(row, style: AppTypography.caption),
+          );
+        }
+        return _row(row as NoteTemplate);
+      },
     );
   }
 

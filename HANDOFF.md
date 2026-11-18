@@ -850,3 +850,17 @@ management action resets state for a subsequent explicit creation.
 Validation: `flutter analyze` clean; 58 relevant service/widget/navigation tests
 pass. Injected notification failures, a pending callback and failed opening
 retries all preserve one committed note. No full suite ran.
+
+### QPT-008 template audit fix — November 19, 2026
+
+The browser scrolls header, search, errors and lazy catalog rows in one sliver
+viewport. Preview fills the remaining scrolling area; Use Template and Manage
+Templates stay in the reachable action footer. Fixed header/search heights no
+longer compete with the keyboard-reduced list height.
+
+Validation: `flutter analyze` clean; 34 relevant picker/navigation tests pass.
+Eight constrained cases cover the original 320×568/300-inset reproduction,
+landscape, a small desktop window, doubled text size and both themes. They
+exercise scrolling to search/rows, keyboard-safe actions and actual creation.
+No full suite ran. All eight findings have dedicated fixes; the original audit
+now links to [remediation details](handoff/audits/templates-2026-11-18-fixes.md).

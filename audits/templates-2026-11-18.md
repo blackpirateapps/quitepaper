@@ -1,5 +1,9 @@
 # Quiet Paper Phase 1 Template System — Independent production audit
 
+> Remediation update — November 19, 2026: all eight confirmed findings have
+> dedicated fixes and regression coverage. See the [fix verification report](../handoff/audits/templates-2026-11-18-fixes.md).
+> The original findings and release recommendation below describe the audited commit.
+
 Audit date: November 18, 2026. Audited commit: `bbe720c65e9dbe3017a97e68ada0c07f74f018c8` (`feat(templates): add local note templates and backup integration`). Branch: `audit/templates-2026-11-18`.
 
 Baseline: actual parent commit `98ceebcc33e765c8e33633bc48d036b8950e7e75`. Initial working tree: clean. Toolchain: Flutter 3.47.2 / Dart 3.13.2, matching the repository CI pin. All evidence paths below are relative to `/tmp/quietpaper-template-audit/` unless identified as repository paths.

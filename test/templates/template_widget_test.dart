@@ -40,6 +40,7 @@ void main() {
     Widget home, {
     TargetPlatform platform = TargetPlatform.android,
     Brightness brightness = Brightness.light,
+    double textScale = 1,
   }) => ProviderScope(
     overrides: [
       databaseProvider.overrideWithValue(db),
@@ -48,6 +49,12 @@ void main() {
       sharedPreferencesProvider.overrideWithValue(prefs),
     ],
     child: MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       theme: ThemeData(platform: platform, brightness: brightness),
       home: Scaffold(body: home),
     ),
@@ -387,6 +394,72 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 100));
   });
+
+  for (final brightness in Brightness.values) {
+    for (final scenario in [
+      (const Size(320, 568), 300.0, 1.0, TargetPlatform.android),
+      (const Size(568, 320), 150.0, 1.0, TargetPlatform.android),
+      (const Size(320, 568), 300.0, 2.0, TargetPlatform.android),
+      (const Size(480, 320), 0.0, 2.0, TargetPlatform.linux),
+    ]) {
+      testWidgets('constrained picker stays operable $brightness $scenario', (
+        tester,
+      ) async {
+        final (size, inset, scale, platform) = scenario;
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.view.viewInsets = FakeViewPadding(bottom: inset);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpWidget(
+          app(
+            opener(),
+            platform: platform,
+            brightness: brightness,
+            textScale: scale,
+          ),
+        );
+        await tester.tap(find.text('Open picker'));
+        await settle(tester);
+        expect(tester.takeException(), isNull);
+        expect(find.text('Manage Templates').hitTestable(), findsOneWidget);
+        final browserScroll = find
+            .descendant(
+              of: find.byType(TemplateBrowser),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.scrollUntilVisible(
+          find.byType(TextField),
+          80,
+          scrollable: browserScroll,
+        );
+        await tester.enterText(find.byType(TextField), 'Daily');
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Daily Planner'),
+          80,
+          scrollable: browserScroll,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Daily Planner'));
+        await settle(tester);
+        expect(find.text('Use Template').hitTestable(), findsOneWidget);
+        expect(
+          tester.getBottomRight(find.text('Use Template')).dy,
+          lessThanOrEqualTo(size.height - inset),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Use Template'));
+        await settle(tester);
+        expect(created!.title, 'Daily Planner');
+        expect((await db.select(db.notesTable).get()).length, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+      });
+    }
+  }
 
   testWidgets(
     'favorite and delete failures retain persisted state and visible row',
