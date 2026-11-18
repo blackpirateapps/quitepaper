@@ -209,7 +209,25 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debouncer.run(saveNow);
   }
 
-  Future<void> saveNow() async {
+  Future<void>? _pendingSave;
+
+  Future<void> saveNow() {
+    return _pendingSave ??= _saveNow().whenComplete(() { _pendingSave = null; });
+  }
+
+  /// Await local persistence, including edits made while an earlier save ran.
+  /// Existing autosave presents failures through dirty state; snapshots must
+  /// fail explicitly rather than read a stale persisted body.
+  Future<void> flushForTemplate() async {
+    _debouncer.cancel();
+    await saveNow();
+    if (mounted && state.isDirty) await saveNow();
+    if (!mounted || state.isDirty || state.isSaving) {
+      throw StateError('The note could not be saved before taking a snapshot.');
+    }
+  }
+
+  Future<void> _saveNow() async {
     if (!mounted) return;
     if (!state.isDirty) return;
 
@@ -265,10 +283,11 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
       if (mounted) {
         state = state.copyWith(
-          isDirty: false,
+          isDirty: state.note != noteToSave,
           isSaving: false,
           lastSavedAt: DateTime.now(),
         );
+        if (state.isDirty) _debouncedSave();
       }
     } catch (_) {
       if (mounted) {

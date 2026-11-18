@@ -34,6 +34,9 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
 import '../../onboarding/presentation/widgets/first_note_tips_card.dart';
+import '../../templates/application/template_providers.dart';
+import '../../templates/application/template_service.dart';
+import '../../templates/presentation/widgets/template_dialogs.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
@@ -163,6 +166,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
+  final _bodyEditorKey = GlobalKey<MarkdownEditorState>();
   final _superEditorController = QuietSuperEditorController();
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
@@ -196,8 +200,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             : _lastAutoDerivedTitle);
 
     _titleController = TextEditingController(text: initialTitle);
-    _contentController = MarkdownEditingController(text: widget.note.content);
-    _lastContentText = widget.note.content;
+    final initialBody = _editorBodyProjection(widget.note);
+    _contentController = MarkdownEditingController(text: initialBody);
+    _lastContentText = initialBody;
     _titleFocusNode = FocusNode(onKeyEvent: _handleTitleKeyEvent);
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
@@ -295,8 +300,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           : _lastAutoDerivedTitle;
 
       _titleController.text = newTitle;
-      _contentController.text = widget.note.content;
-      _lastContentText = widget.note.content;
+      _lastContentText = _editorBodyProjection(widget.note);
+      _contentController.text = _lastContentText;
       // Re-bake link previews for the newly opened note (Smart web links ON).
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _maybeBakeLinkPreviews());
@@ -317,7 +322,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       if (oldWidget.note.content != widget.note.content &&
           !_contentFocusNode.hasFocus) {
-        _contentController.text = widget.note.content;
+        _lastContentText = _editorBodyProjection(widget.note);
+        _contentController.text = _lastContentText;
         if (!_isTitleManuallySet && widget.note.title.isEmpty) {
           final autoTitle = Note.deriveTitle(widget.note.content);
           _lastAutoDerivedTitle = autoTitle;
@@ -330,6 +336,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         _isTitleManuallySet = widget.note.title.trim().isNotEmpty;
       }
     }
+  }
+
+  // Source and Super Editor consume Markdown. Project canonical rich JSON for
+  // display without publishing a content mutation merely by opening a note.
+  // The notifier retains the original bytes until an actual document edit.
+  String _editorBodyProjection(Note note) {
+    final style = ref
+        .read(editorProviderFamily(_editorParams))
+        .effectiveEditingStyle(ref.read(editorEditingStyleProvider));
+    return note.isRichText && style != EditorEditingStyle.wysiwyg
+        ? note.markdownContent
+        : note.content;
   }
 
   EditorParams get _editorParams => EditorParams(
@@ -490,9 +508,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _commitSessionVersionIfNeeded() async {
+    _bodyEditorKey.currentState?.flushPendingChanges();
     final finalTitle = _titleController.text;
-    final finalContent = _contentController.text;
     final currentNote = ref.read(editorProviderFamily(_editorParams)).note;
+    final finalContent = currentNote.content;
     final finalTags = currentNote.tags;
 
     if (_sessionTracker.isMeaningfulSession(
@@ -2234,6 +2253,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
                                   // Body markdown editor
                                   MarkdownEditor(
+                                    key: _bodyEditorKey,
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     editingStyle: effectiveEditingStyle,
@@ -4406,6 +4426,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             ),
             Divider(height: 16, color: colors.divider),
             if (!note.isTrashed) ...[
+              if (TemplateService.eligible(note,
+                  readOnly: isReadOnly,
+                  locked: !ref.read(editorProviderFamily(_editorParams)).isUnlocked ||
+                      ref.read(editorProviderFamily(_editorParams)).activePassword != null))
+                FutureBuilder<Note?>(
+                  future: ref.read(notesRepositoryProvider).getNoteById(note.id),
+                  builder: (context, snapshot) => snapshot.data == null
+                      ? const SizedBox.shrink()
+                      : ListTile(
+                          leading: Icon(Icons.description_outlined, color: colors.textSecondary),
+                          title: const Text('Save as Template'),
+                          onTap: () {
+                            Navigator.of(sheetCtx).pop();
+                            _saveAsTemplate();
+                          },
+                        ),
+                ),
               if (!isPreview && !isReadOnly) ...[
                 ListTile(
                   leading: Icon(
@@ -4652,6 +4689,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         );
     }
+  }
+
+  Future<void> _saveAsTemplate() async {
+    // The menu checks source persistence; the service revalidates the newest
+    // persisted note after flushing, including deletion while the dialog opens.
+    final service = ref.read(templateServiceProvider);
+    await showTemplateNameDialog(
+      context: context,
+      initialName: _titleController.text.trim().isEmpty
+          ? 'Untitled Template' : _titleController.text,
+      onSave: (name) async {
+        final current = ref.read(editorProviderFamily(_editorParams));
+        await service.saveNoteAsTemplate(
+          noteId: current.note.id,
+          name: name,
+          readOnly: current.isReadOnly,
+          locked: !current.isUnlocked || current.activePassword != null,
+          flush: () async {
+            _bodyEditorKey.currentState?.flushPendingChanges();
+            await ref
+                .read(editorProviderFamily(_editorParams).notifier)
+                .flushForTemplate();
+          },
+        );
+      },
+    );
   }
 
   void _switchEditingStyle(

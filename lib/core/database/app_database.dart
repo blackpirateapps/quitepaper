@@ -19,6 +19,7 @@ import 'tables/note_links_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
+import 'tables/note_templates_table.dart';
 import 'tables/place_aliases_table.dart';
 import 'tables/quick_capture_drafts_table.dart';
 import 'tables/sync_conflicts_table.dart';
@@ -84,6 +85,8 @@ class TagWithCount {
     NoteLinksTable,
     PlaceAliasesTable,
     QuickCaptureDraftsTable,
+    NoteTemplatesTable,
+    TemplateFavoritesTable,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -93,7 +96,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -287,6 +290,12 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
         );
+      }
+      if (from < 21) {
+        await transaction(() async {
+          await _createTableSafely(m, noteTemplatesTable);
+          await _createTableSafely(m, templateFavoritesTable);
+        });
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
@@ -1923,6 +1932,8 @@ class AppDatabase extends _$AppDatabase {
       await delete(tagsTable).go();
       await delete(placeAliasesTable).go();
       await delete(quickCaptureDraftsTable).go();
+      await delete(templateFavoritesTable).go();
+      await delete(noteTemplatesTable).go();
       await delete(notesTable).go();
       try {
         await customStatement('DELETE FROM note_search_prefix;');

@@ -267,3 +267,15 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 - Typewriter Scrolling: [Latest Logs, Section 223](latest-logs.md#223-typewriter-scrolling-ambient-cursor-vertical-centering-across-all-editor-modes-october-2026)
 - RichDocument Visual Editor AST: [Latest Logs, Section 136 & 140](latest-logs.md#136-production-grade-richdocument-visual-editor-architecture)
 - iA Writer Quattro Typography Integration: [Historical Logs v1.5, Section 32](archive/logs-v1.5.md#32-ia-writer-quattro-typography-integration--cdn-font-delivery)
+
+
+## Template snapshots and canonical display projection
+
+Save as Template flushes `MarkdownEditorState.flushPendingChanges` and awaits
+`EditorNotifier.flushForTemplate` before reading the persisted note. Overlapping
+autosaves are serialized; edits made during a save remain dirty and reschedule.
+Source snapshots preserve Markdown/RichDocument bytes and exclude specially
+protected, journal, trash and read-only content. Opening a canonical rich note in
+Markdown Source or Super Editor uses a display projection without rewriting the
+stored JSON. Session history reads the canonical notifier content after flushing
+pending visual edits. See [templates.md](templates.md) for the complete contract.

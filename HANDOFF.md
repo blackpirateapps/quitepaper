@@ -720,3 +720,27 @@ Validation: `flutter analyze` is clean; **51 relevant version/update/CLI/backup/
 device/export tests pass**. Version/site checks confirm matching website pages,
 valid HTML/XML, current version metadata and preserved historical release notes.
 No full suite ran.
+
+
+## Phase 1 Local Note Templates — November 18, 2026
+
+Implemented independent full-note templates, eight bundled structures, adaptive
+search/preview/picker UI, persistent favorites, user rename/delete, editor saving,
+Settings and notes/tag-menu entry points, and a desktop command palette. Drift
+schema **21** stores snapshots/favorites separately from ordinary notes; template
+records never enter cloud synchronization. New notes use existing repository,
+indexing and encrypted-sync behavior with fresh metadata and active-tag context.
+
+Snapshots safely flush the current editor, preserve canonical document bytes and
+exclude specially protected, journal, trash, read-only and binary/media content.
+Source/Super Editor display projections keep rich JSON unchanged until a real
+edit. Optional backup v1 sections preserve encrypted backup compatibility,
+legacy restore and transactional rollback. Vault erasure removes both tables.
+
+Validation: `flutter analyze` reports no issues and `git diff --check` passes.
+**349 selected tests passed**, followed by a clean final **91-test**
+focused run (77 templates + 14 tag hierarchy checks). A new excerpt test in that
+rerun brings distinct selected coverage to **350 tests**. The full suite was
+not run, as explicitly requested. Physical-device validation is not claimed.
+See [subsystem guide](handoff/templates.md), [engineering report](handoff/templates-report.md)
+and engineering log 334 for architecture, exact commands and verification limits.

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/journal/domain/journal_weather.dart';
 import '../../../core/location/location_models.dart';
@@ -349,6 +350,7 @@ abstract final class FrontmatterEditorHelper {
   static String updateTitle({
     required String documentText,
     required String newTitle,
+    bool quoteValue = false,
   }) {
     final doc = parse(documentText);
     if (!doc.hasFrontmatter) {
@@ -357,7 +359,7 @@ abstract final class FrontmatterEditorHelper {
 
     final titleProp = doc.getProperty('title');
     if (titleProp != null) {
-      final safeTitle = newTitle.contains(':') || newTitle.contains('#')
+      final safeTitle = quoteValue ? jsonEncode(newTitle) : newTitle.contains(':') || newTitle.contains('#')
           ? '"${newTitle.replaceAll('"', r'\"')}"'
           : newTitle;
       return documentText.replaceRange(
@@ -368,7 +370,7 @@ abstract final class FrontmatterEditorHelper {
     } else {
       // Insert title at the beginning of the frontmatter block
       final openDelimiterEnd = documentText.indexOf('\n') + 1;
-      final safeTitle = newTitle.contains(':') || newTitle.contains('#')
+      final safeTitle = quoteValue ? jsonEncode(newTitle) : newTitle.contains(':') || newTitle.contains('#')
           ? '"${newTitle.replaceAll('"', r'\"')}"'
           : newTitle;
       return documentText.replaceRange(
@@ -781,6 +783,14 @@ abstract final class FrontmatterEditorHelper {
 
   static String _stripQuotes(String s) {
     var str = s.trim();
+    if (str.startsWith('"') && str.endsWith('"')) {
+      try {
+        final decoded = jsonDecode(str);
+        if (decoded is String) return decoded;
+      } on FormatException {
+        // Non-JSON YAML quotes retain the existing tolerant parsing behavior.
+      }
+    }
     if ((str.startsWith('"') && str.endsWith('"')) ||
         (str.startsWith("'") && str.endsWith("'"))) {
       if (str.length >= 2) {

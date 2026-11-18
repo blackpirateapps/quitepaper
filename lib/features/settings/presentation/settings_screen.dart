@@ -16,6 +16,7 @@ import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
 import 'package:quitepaper/features/sync/presentation/conflict_list_screen.dart';
 import 'package:quitepaper/features/sync/presentation/sync_auth_screen.dart';
 import 'about_app_screen.dart';
+import '../../templates/presentation/templates_screen.dart';
 import 'appearance_settings_screen.dart';
 import 'backup_import_settings_screen.dart';
 import 'default_settings_screen.dart';
@@ -183,6 +184,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 // ==========================================
                 // Section: Cloud Sync & Encryption (3 Rows)
                 // ==========================================
+                _SettingsGroup(children: [
+                  _SettingsRow(icon: Icons.description_outlined, title: 'Templates',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TemplatesScreen())),
+                  ),
+                ]),
+                const SizedBox(height: AppSpacing.lg),
                 _buildSectionHeader(context, 'Cloud Sync & Encryption'),
                 _SettingsGroup(
                   children: [

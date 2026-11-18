@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../crypto/crypto_service.dart';
+import '../../features/templates/domain/note_template.dart';
 
 enum RestoreStrategy {
   merge,
@@ -421,6 +422,8 @@ class BackupPayload {
     this.attachments = const [],
     this.documents = const [],
     this.placeAliases = const [],
+    this.templates = const [],
+    this.templateFavorites = const [],
   });
 
   final BackupManifest manifest;
@@ -429,9 +432,13 @@ class BackupPayload {
   final List<BackupAttachment> attachments;
   final List<BackupDocument> documents;
   final List<BackupPlaceAlias> placeAliases;
+  final List<NoteTemplate> templates;
+  final List<String> templateFavorites;
 
   Map<String, dynamic> toJson() => {
         ...manifest.toJson(),
+        'templates': templates.map((t) => t.toJson()).toList(),
+        'templateFavorites': templateFavorites,
         'tags': tags,
         'notes': notes.map((n) => n.toJson()).toList(),
         if (attachments.isNotEmpty)
@@ -479,6 +486,8 @@ class BackupPayload {
       attachments: attachments,
       documents: documents,
       placeAliases: placeAliases,
+      templates: (json['templates'] as List? ?? const []).map((e) => NoteTemplate.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+      templateFavorites: (json['templateFavorites'] as List? ?? const []).cast<String>().toList(growable: false),
     );
   }
 }
