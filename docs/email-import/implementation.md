@@ -58,3 +58,25 @@ where installed tooling permits. Record unavailable packaging/device checks
 explicitly; automated tests do not establish physical-device behavior.
 
 Phase 1 baseline results are recorded in engineering log 334.
+
+## Phase 2 — parser and models
+
+Added enough_mail **3.0.0**, MPL-2.0, inspected resolved sources and license.
+Only RFC header/parameter/date/charset codecs are used. The bounded MIME range
+walker avoids the library's eager message tree parsing and its diagnostic output;
+upstream diagnostics are suppressed within parsing zones so malformed content is
+never printed. New transitive packages are enough_convert, basic_utils, asn1lib,
+encrypter_plus and pointycastle; no existing package version changed.
+
+`EmailInput` normalizes file URIs, reads bounded files and inspects content.
+`EmailParser` runs in an isolate, preserves raw bytes, selects alternatives,
+collects attached messages opaquely, validates transfer encodings and enforces
+raw/header/body/part/depth/attachment budgets before decoding. `EmailHtmlConverter`
+never resolves URLs and emits images only for matching CID parts. HTML is never
+rendered directly. `EmailMessage`, `EmailAttachment`, `EmailImportMode` and
+versioned `NoteImportSource` establish the shared feature contracts.
+
+18 focused tests use 22 deterministic email fixtures plus generated boundary
+cases. They cover Unicode, RFC 2047/2231, alternative fallback, mixed/related/
+nested MIME, binary and attached-message bytes, malformed data, filenames,
+unsafe HTML/URLs, resource budgets, isolate parsing, normalization and provenance.

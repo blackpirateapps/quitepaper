@@ -730,3 +730,12 @@ in `prompts/email.md`, committing/pushing each phase independently. The
 drops, Android plugin limitations, and the missing global command palette.
 Phase 1 changes documentation only. Analysis is clean and 20 focused existing
 Quick Capture/converter/database-query tests pass. No full suite ran. See log 334.
+
+### Email import phase 2 — bounded parser and domain models
+
+Added network-free MIME parsing in `lib/features/email_import`, with background
+isolate execution, RFC header/charset codecs from enough_mail 3.0.0 (MPL-2.0),
+strict pre-decode budgets, safe HTML-to-Markdown conversion and local CID
+placeholders. Raw bytes remain untouched; source hashes and versioned provenance
+are ready for persistence. All 18 focused parser/security tests pass; Flutter
+analysis is clean. No full suite ran. See log 335 and the implementation record.

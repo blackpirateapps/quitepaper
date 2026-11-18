@@ -7526,3 +7526,26 @@ Validation: `flutter analyze` reports no issues.
 passes **20 tests**. An initial command named a nonexistent query-executor test;
 corrected to the actual database-query test file. No full suite ran. No runtime
 code changed. Physical Android and Linux packaging validation remain later work.
+
+## 335. Email Import Phase 2 — Bounded MIME Parser (November 19, 2026)
+
+Implemented pure Dart models, normalized bounded file input, MIME range walking,
+RFC 2047 headers, RFC 2231 filenames, UTF-8/declared charset decoding, strict base64
+and quoted-printable validation, alternative selection, mixed/related/nested
+parts, opaque attached emails, metadata, SHA-256 and canonical fingerprints.
+Parsing runs in a worker isolate. Budgets enforce 50 MiB source/total attachments,
+25 MiB individual attachments, 10 MiB bodies, 200 parts, 20 levels and 64 KiB
+headers. A dedicated DOM converter preserves editable structure, blocks active
+HTML, remote/data/file images and unsafe links, and emits local CID placeholders.
+The original email is preserved byte-for-byte in the ephemeral model.
+
+Added enough_mail 3.0.0 after inspecting its resolved implementation and MPL-2.0
+license. The adapter uses codecs rather than unbounded convenience parsing and
+suppresses upstream content-bearing diagnostics. No existing dependency version
+changed. Added versioned NoteImportSource serialization and deterministic union.
+
+Validation: `flutter analyze`: no issues;
+`flutter test --no-pub test/email_import/email_parser_test.dart`: **18 passed**.
+Fixtures and boundary tests cover parser formats, malicious content, decoding and
+resource errors, input normalization and background parsing. `dart format` and
+`git diff --check` pass. No full suite ran. Persistence and UI follow in phases 3–4.

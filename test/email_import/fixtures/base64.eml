@@ -1,0 +1,9 @@
+From: Alice <alice@example.test>
+To: Bob <bob@example.test>
+Subject: Example
+Date: Wed, 18 Nov 2026 10:30:00 +0530
+Message-ID: <Example@Example.Test>
+Content-Transfer-Encoding: base64
+Content-Type: text/plain; charset=utf-8
+
+SGVsbG8g4pyT

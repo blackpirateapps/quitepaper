@@ -1,0 +1,18 @@
+From: Alice <alice@example.test>
+To: Bob <bob@example.test>
+Subject: Example
+Date: Wed, 18 Nov 2026 10:30:00 +0530
+Message-ID: <Example@Example.Test>
+Content-Type: multipart/mixed; boundary=mix
+
+--mix
+Content-Type: text/plain
+
+Body
+--mix
+Content-Type: application/pdf
+Content-Disposition: attachment; filename=invoice.pdf
+Content-Transfer-Encoding: base64
+
+JVBERg==
+--mix--
