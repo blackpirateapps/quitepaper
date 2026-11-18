@@ -751,3 +751,14 @@ union merges, backups/restores, duplication, CLI uploads and QPNote exports.
 Existing cloud upload limits remain independent of larger local email limits.
 Analysis is clean; 63 focused storage/sync/database regressions and a further
 34 focused persistence/export/CLI tests pass. No full suite ran. See log 336.
+
+### Email import phase 4 — review and confirmation UI
+
+Added the responsive Import Email route and injectable application gateway.
+Preview supports titles/tags, optional shared-content metadata, all three modes,
+explicit destination search, attachments, duplicate review, bounded batch parsing,
+progress, cancellation, retryable errors and completion summaries. Only the
+selected email retains full preview bytes; other batch entries retain summaries.
+Lock/logout cache invalidation releases preview plaintext and disables saving.
+Analysis is clean; 24 focused preview/persistence tests pass, with a further
+9-widget rerun after source-change checks. No full suite ran. See log 337.

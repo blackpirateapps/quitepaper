@@ -93,3 +93,12 @@ tests after adding full backup restoration coverage. Flutter analysis is clean.
 Original and MIME asset limits are enforced locally; the existing cloud 10 MB
 policy is unchanged and may prevent large-asset upload. Such assets remain local
 and pending/error under the standard encrypted sync machinery.
+
+## Phase 4 — preview workflow
+
+Added responsive review, three modes, destination search, optional shared metadata,
+title/tags, attachments, duplicate review, error/progress/summary and cancellation.
+Parsing and save go through an injectable application gateway. Batch previews
+retain only one full email at a time and verify source hashes again at save.
+Secure cache invalidation clears retained preview plaintext and stale callbacks.
+24 selected UI/storage tests and a final 9-widget rerun pass; analysis is clean.

@@ -272,6 +272,7 @@ class EmailImportService {
               importSources: [provenance],
             );
         await repository.saveNote(note, preserveEmptyTags: true);
+        checkCancelled();
         for (final id in ids) {
           await database.customStatement(
             'DELETE FROM email_import_preparations WHERE asset_id=?',

@@ -7590,3 +7590,32 @@ Validation:
   assumptions; fixed them and reran successfully. No failures were suppressed.
 - `git diff --check`: clean. No full suite, backend tests or device replay ran;
   backend source and its API contract are unchanged.
+
+## 337. Email Import Phase 4 — Preview Workflow (November 19, 2026)
+
+Implemented EmailImportScreen and an injectable EmailImportGateway over the
+parser, duplicate index, repository, destination search and persistence service.
+The route provides editable title and tags, optional shared sender/recipients/date,
+metadata/body/attachment review, all three import modes, explicit append target,
+current-note prioritization, duplicate/open-existing/copy choices, keyboard Escape,
+Back, disabled repeat Save, progress, cancellation, per-item errors and batch
+summary/navigation results. Shared content cannot select archive mode. Source
+changes after batch review are rejected before saving. Failed items remain
+selected for review/retry. No note is created until confirmation.
+
+Batch discovery is sequential and bounded to 100 inputs. Only the selected email
+retains raw/decoded preview bytes; other entries retain small summaries and source
+fingerprints, and are parsed again at save with source identity checks. Sensitive
+preview invalidation is tied to existing secure attachment-cache clearing, used
+by lock/logout. It clears plaintext, controllers and pending shared content and
+prevents late parser/search callbacks from restoring it. A final cancel/lock check
+after repository save keeps the current database transaction reversible.
+
+Validation: `flutter analyze`: no issues. Selected preview and persistence files:
+**24 passed** (9 widgets and 15 storage tests); the 9-widget file passes again
+after the source-change/late-lock guards. Widget tests cover title/tag edits,
+metadata, successful return, duplicates, append target, disabled Save/progress,
+visible storage errors, Escape, mixed invalid batches, lock clearing and dark
+390px layout. Initial widgets caught missing keyboard focus and narrow dropdown
+overflow, both fixed. `dart format` and `git diff --check` pass. No full suite ran.
+Platform entry points are connected in the next two phases.
