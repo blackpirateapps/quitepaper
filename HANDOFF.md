@@ -786,3 +786,16 @@ same general pending-change flush contract.
 Validation: `flutter analyze` clean; 47 relevant editor/save-race/integration
 tests pass. New real-route tests cover delayed older writes, newer edits, Back,
 provider disposal and a failed-save retry. No full suite ran.
+
+### QPT-003 template audit fix — November 19, 2026
+
+Attachment validation checks decoded canonical resource fields throughout rich
+ASTs and parses nested table Markdown. Markdown destinations are inspected after
+Markdown rendering and HTML parsing, covering entities, reference links and raw
+HTML attributes. URI normalization detects encoded private schemes/paths while
+ordinary HTTP and note links remain supported. Validation still runs on both
+snapshot saving and instantiation, including imported template rows.
+
+Validation: `flutter analyze` clean; 44 relevant content/domain/service tests
+pass. Regressions include Unicode-escaped JSON, entity/percent-encoded Markdown,
+headings/lists/quotes/tables and real SQLite save/use refusal. No full suite ran.

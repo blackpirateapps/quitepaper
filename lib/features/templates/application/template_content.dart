@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:html/parser.dart' as html;
 import '../../editor/application/frontmatter_editor_helper.dart';
 import '../../editor/application/rich_document_parser.dart';
 import '../../editor/application/rich_document_serializer.dart';
@@ -65,6 +66,7 @@ void validateTemplateContent(NoteTemplate template) {
           throw const FormatException('Invalid heading level');
         }
       }
+      _validateResourceFields(raw);
       document = RichDocument.fromJson(raw);
       // The editor parser is deliberately tolerant. Reject fields/types that it
       // would silently drop, rather than turning a corrupt template into a note.
@@ -83,16 +85,7 @@ void validateTemplateContent(NoteTemplate template) {
         }
       }
       document = const RichDocumentParser().parse(content);
-      final nodes = md.Document(
-        extensionSet: md.ExtensionSet.gitHubFlavored,
-      ).parseLines(content.split('\n'));
-      if (_hasImage(nodes) ||
-          RegExp(
-            r'<(?:img|audio|video|object|embed|iframe)\b',
-            caseSensitive: false,
-          ).hasMatch(content)) {
-        throw const TemplateException(unsupportedTemplateContent);
-      }
+      _validateMarkdownResources(content);
     }
     for (final block in document.blocks) {
       if (block is ImageBlock ||
@@ -111,11 +104,76 @@ void validateTemplateContent(NoteTemplate template) {
   }
 }
 
-bool _hasImage(List<md.Node> nodes) => nodes.any(
-  (node) =>
-      node is md.Element &&
-      (node.tag == 'img' || _hasImage(node.children ?? const [])),
-);
+// Inspect decoded canonical destination fields at every nesting depth, including
+// inline attributes, table cells and link-preview metadata. Text/code strings
+// are deliberately not treated as resource ownership references.
+void _validateResourceFields(dynamic value) {
+  if (value is Map) {
+    for (final entry in value.entries) {
+      if (const {'linkUrl', 'url', 'uri', 'src', 'href'}.contains(entry.key) &&
+          entry.value is String &&
+          _isPrivateDestination(entry.value as String)) {
+        throw const TemplateException(unsupportedTemplateContent);
+      }
+      if (entry.key == 'markdown' && entry.value is String) {
+        _validateMarkdownResources(entry.value as String);
+      }
+      _validateResourceFields(entry.value);
+    }
+  } else if (value is List) {
+    for (final child in value) {
+      _validateResourceFields(child);
+    }
+  }
+}
+
+bool _isPrivateDestination(String destination) {
+  var normalized = destination.trim();
+  // URI components can themselves contain escaped scheme/path characters.
+  for (var i = 0; i < 3; i++) {
+    try {
+      final decoded = Uri.decodeComponent(normalized);
+      if (decoded == normalized) break;
+      normalized = decoded;
+    } on FormatException {
+      break;
+    }
+  }
+  final uri = Uri.tryParse(normalized);
+  if (uri == null) return false;
+  return switch (uri.scheme.toLowerCase()) {
+    'qp' => uri.host.toLowerCase() != 'note',
+    'file' || 'content' => true,
+    'data' => RegExp(
+      r'^data:(image|audio|video|application)/',
+      caseSensitive: false,
+    ).hasMatch(normalized),
+    _ => false,
+  };
+}
+
+void _validateMarkdownResources(String content) {
+  final fragment = html.parseFragment(
+    md.markdownToHtml(content, extensionSet: md.ExtensionSet.gitHubFlavored),
+  );
+  for (final element in fragment.querySelectorAll('*')) {
+    if (const {
+          'img',
+          'audio',
+          'video',
+          'object',
+          'embed',
+          'iframe',
+        }.contains(element.localName) ||
+        element.attributes.entries.any(
+          (entry) =>
+              const {'href', 'src', 'data', 'poster'}.contains(entry.key) &&
+              _isPrivateDestination(entry.value),
+        )) {
+      throw const TemplateException(unsupportedTemplateContent);
+    }
+  }
+}
 
 bool _preserves(dynamic input, dynamic output) {
   if (input is Map && output is Map) {
