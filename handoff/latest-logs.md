@@ -7508,3 +7508,113 @@ Updated `HANDOFF.md` and the security review. The unrelated pre-existing
 smart-tables prompt remains outside the commit. Local runtime validation does
 not establish the status of a live Vercel deployment; Vercel must deploy the
 updated package manifest and lockfile to apply the fix.
+
+
+## 334. Phase 1 Local Note Templates (November 18, 2026)
+
+Implemented the supplied Phase 1 template specification on
+`audit/templates-2026-11-18`. The prompt was an untracked file in the main
+checkout and was copied into this branch without changing that checkout.
+
+Added eight immutable built-in Markdown structures and independent UUID-backed
+user snapshots, name search, read-only previews, favorites, rename/delete and
+new ordinary notes. Dedicated Drift schema **21** tables keep template data out
+of note lists, indexes, tag counts and cloud synchronization. A version-20
+migration fixture verifies preservation of notes, tags, journals, attachments
+and sync metadata. Full local-vault erasure removes snapshots and favorite rows.
+
+The service flushes pending Visual edits and awaits local autosave before
+re-reading a source. Overlapping saves retain and reschedule newer edits.
+Protected content stays ineligible even when unlocked; journal, trash,
+read-only and transient sources are excluded. Document/attachment/local media
+references are rejected with the specified explanation, not stripped. Original
+canonical Markdown/AST bytes remain independent of source and generated notes.
+
+Instantiation resolves/validates by stable ID and uses the existing note
+repository with fresh identity/timestamps, clear state flags and normalized
+snapshot/active-tag metadata. Safely quoted YAML title changes affect only the
+new copy. Markdown Source and Super Editor receive a display projection of rich
+JSON without rewriting stored content merely on open. All editor modes and the
+save → instantiate → edit independence flow have real widget integration tests.
+
+Shared adaptive UI connects editor overflow, phone/desktop list overflow,
+separate nested-tag menus, Settings and a Ctrl/Cmd+Shift+P spotlight command
+palette. The baseline had a spotlight primitive but no general command registry.
+Blank New Note and Ctrl/Cmd+N retain their existing handlers. Search and row
+snippets are bounded; only selected documents undergo full preview validation.
+
+Backups gain optional template/favorite collections inside the existing v1
+payload and authenticated encrypted envelope. Old backups remain valid. Merge
+uses stable IDs/newer timestamps; replacement clears obsolete local data.
+Template restoration participates in the existing transaction and rolls back if
+a later note restore fails. Explicit unencrypted backups retain that existing
+user choice; no plaintext sidecar or cloud template payload is introduced.
+
+Validation uses Flutter **3.47.2** / Dart **3.13.2** and one test worker:
+
+- Regenerated Drift code with `dart run build_runner build --delete-conflicting-outputs`.
+- An initial selected regression run passed **250 tests**.
+- Combined template and selected regression coverage passed **349 tests**.
+- Final focused rerun `flutter test --no-pub --concurrency=1 test/templates test/tags/tag_hierarchy_ui_test.dart`
+  passed **91 tests**: **77 template tests** and **14 tag hierarchy tests**, with
+  no runtime warnings. This includes a new bounded-row-excerpt test added after
+  the combined run, giving **350 distinct selected tests** across the runs.
+- Actual encrypted backups, legacy restore, rollback, restart persistence,
+  unsupported media, protected sources, all editor formats, tag navigation,
+  submission guards, themes, keyboard insets and 1,000-template scale cases pass.
+- The eight bundled bodies match the specification verbatim.
+- Final `flutter analyze`: **no issues**. `git diff --check`: passed.
+
+The combined run exposed existing Drift test-harness warnings. The attachment
+backup test now explicitly documents its independent database setup, and four
+tag-widget scopes now inject their in-memory database/repository instead of
+opening implicit connections. No assertions were removed or weakened. Navigation
+tests use bundled font bytes through Google Fonts' testing hook, so unrelated
+sidebar font downloads are not part of offline template verification.
+
+The complete Flutter test suite was **not run**, following the user's explicit
+instruction that it hangs their laptop. No physical Android/desktop build or
+live backend deployment is claimed. The report uses
+`IMPLEMENTED — Verification incomplete` for those excluded verification steps;
+there is no known unfinished feature implementation.
+
+Added [templates.md](templates.md), [templates-report.md](templates-report.md),
+updated the handoff map, editor/storage contracts and root `HANDOFF.md`.
+
+
+## 335. Templates UI polish and Android command palette (November 19, 2026)
+
+The templates entry previously preceded every Settings section, the management
+screen repeated its title and exposed large raw Markdown excerpts, and two
+notes-menu actions lacked the icon treatment used by adjacent actions.
+The palette's touch presentation inherited a transparent modal background and
+lacked keyboard handling, leaving its controls without a clear visible surface.
+
+- Moved Templates to the first General row after cloud/account/security settings,
+  with a Phosphor files icon and explanatory subtitle.
+- Matched the management app bar and 680 dp content column to Settings. Removed
+  the duplicate title; added a compact themed search field, clear action and
+  empty-search guidance. Both management and picker catalogs use explicit small
+  text styles, quiet dividers, Phosphor file/star/action controls and short
+  built-in descriptions instead of raw Markdown previews. User snapshots still
+  use the existing bounded excerpt helper; catalog rows remain lazy.
+- Added Phosphor files/command icons to both notes overflow layouts, keeping
+  their labels flexible so they fit within the popup menu width.
+- Gave the palette an opaque paper surface, title/close control, keyboard inset
+  spacing, bounded scrolling, themed search, empty results and Enter/Go
+  activation. Its two commands still use the notes screen's existing blank-note
+  and template-note creation handlers.
+
+Modified the settings screen, notes screen/palette, templates screen/browser,
+focused template widget/navigation tests and handoff documentation. Tests now
+use the actual app theme and exercise settings ordering, a single title, search
+clearing, both overflow icon sets, Android/desktop palette navigation and
+portrait/landscape keyboard layouts. No persistence or schema change.
+
+Validation: `flutter analyze` reports no issues. The final command
+`flutter test --no-pub --concurrency=1 test/templates/template_widget_test.dart test/templates/template_navigation_test.dart test/settings/settings_screen_test.dart`
+passes all **55 tests**. Both menu layouts also exercise New Note through the
+keyboard Go action and New from Template through touch selection. Light/dark
+widget-rendered catalog layouts and the Android keyboard palette were visually
+inspected using temporary snapshots. `git diff --check` passes. No full suite
+or physical Android device test ran.

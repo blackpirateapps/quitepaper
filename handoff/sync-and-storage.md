@@ -41,8 +41,8 @@ per note; adding a persisted domain field requires updating this shared mapper.
 
 ### Schema & Tables (`lib/core/database/tables/`)
 - [`NotesTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/notes_table.dart):
-  - Primary store for notes (`id`, `title`, `body`, `folder`, `is_pinned`, `is_archived`, `is_trashed`, `created_at`, `updated_at`, `synced_at`, `revision`, `dirty`).
-  - Contains format indicator (`storage_format`: markdown vs. rich_ast).
+  - Primary store for notes (`id`, `title`, `content`, lifecycle flags, timestamps, `server_revision`, `is_dirty`, journal/share metadata and per-tag pins).
+  - Content is Markdown or self-identifying RichDocument JSON; ordinary notes have no `storage_format` column. Template snapshots store an explicit format separately.
 - [`TagsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/tags_table.dart) & [`NoteTagsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/note_tags_table.dart):
   - Normalised tag relations with deterministic IDs for cross-device tag synchronization.
 - [`SyncQueueTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/sync_queue_table.dart):
@@ -104,3 +104,14 @@ per note; adding a persisted domain field requires updating this shared mapper.
 - 3-Way merge engine specification: [Historical Logs v1.5, Section 59](archive/logs-v1.5.md#59-production-grade-conflict-aware-cloud-sync--3-way-merge-engine)
 - Fresh device sync recovery: [Latest Logs, Section 237](latest-logs.md#237-note-reconciliation--pruned-sync-log-recovery-on-fresh-devices-october-2026)
 - Foreign key sync race fix: [Latest Logs, Section 235](latest-logs.md#235-fix-zero-knowledge-ocr-sync-foreign-key-constraint-failure-and-defensive-note-pull-pagination-october-2026)
+
+
+## Local-only note templates (schema 21)
+
+`note_templates` and `template_favorites` are independent local collections with
+no dirty/revision columns and no cloud-sync pathway. Only explicitly instantiated
+ordinary notes use normal repository indexing and client-encrypted sync.
+`.qpbackup` v1 optionally includes snapshots and favorite IDs inside its existing
+encrypted payload; restore writes participate in the existing transaction and
+legacy backups remain supported. Explicit unencrypted backups retain that choice.
+Full local erasure removes both tables' data. See [templates.md](templates.md).

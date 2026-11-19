@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_spacing.dart';
 import 'package:quitepaper/app/theme/app_typography.dart';
@@ -16,6 +17,7 @@ import 'package:quitepaper/core/widgets/quiet_icon_button.dart';
 import 'package:quitepaper/features/sync/presentation/conflict_list_screen.dart';
 import 'package:quitepaper/features/sync/presentation/sync_auth_screen.dart';
 import 'about_app_screen.dart';
+import '../../templates/presentation/templates_screen.dart';
 import 'appearance_settings_screen.dart';
 import 'backup_import_settings_screen.dart';
 import 'default_settings_screen.dart';
@@ -391,6 +393,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 _buildSectionHeader(context, 'GENERAL'),
                 _SettingsGroup(
                   children: [
+                    _SettingsRow(
+                      icon: PhosphorIconsRegular.files,
+                      title: 'Templates',
+                      subtitle: 'Reusable starting points for your notes',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TemplatesScreen(),
+                        ),
+                      ),
+                    ),
+                    _buildDivider(colors),
                     _SettingsRow(
                       icon: Icons.tune_rounded,
                       title: 'Default Settings',

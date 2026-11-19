@@ -34,6 +34,9 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
 import '../../onboarding/presentation/widgets/first_note_tips_card.dart';
+import '../../templates/application/template_providers.dart';
+import '../../templates/application/template_service.dart';
+import '../../templates/presentation/widgets/template_dialogs.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
@@ -163,6 +166,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
+  final _bodyEditorKey = GlobalKey<MarkdownEditorState>();
   final _superEditorController = QuietSuperEditorController();
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
@@ -196,8 +200,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             : _lastAutoDerivedTitle);
 
     _titleController = TextEditingController(text: initialTitle);
-    _contentController = MarkdownEditingController(text: widget.note.content);
-    _lastContentText = widget.note.content;
+    final initialBody = _editorBodyProjection(widget.note);
+    _contentController = MarkdownEditingController(text: initialBody);
+    _lastContentText = initialBody;
     _titleFocusNode = FocusNode(onKeyEvent: _handleTitleKeyEvent);
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
@@ -295,8 +300,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           : _lastAutoDerivedTitle;
 
       _titleController.text = newTitle;
-      _contentController.text = widget.note.content;
-      _lastContentText = widget.note.content;
+      _lastContentText = _editorBodyProjection(widget.note);
+      _contentController.text = _lastContentText;
       // Re-bake link previews for the newly opened note (Smart web links ON).
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _maybeBakeLinkPreviews());
@@ -317,7 +322,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       if (oldWidget.note.content != widget.note.content &&
           !_contentFocusNode.hasFocus) {
-        _contentController.text = widget.note.content;
+        _lastContentText = _editorBodyProjection(widget.note);
+        _contentController.text = _lastContentText;
         if (!_isTitleManuallySet && widget.note.title.isEmpty) {
           final autoTitle = Note.deriveTitle(widget.note.content);
           _lastAutoDerivedTitle = autoTitle;
@@ -332,6 +338,71 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  // Source and Super Editor consume Markdown. Project canonical rich JSON for
+  // display without publishing a content mutation merely by opening a note.
+  // The notifier retains the original bytes until an actual document edit.
+  String _editorBodyProjection(Note note) {
+    final style = ref
+        .read(editorProviderFamily(_editorParams))
+        .effectiveEditingStyle(ref.read(editorEditingStyleProvider));
+    return note.isRichText && style != EditorEditingStyle.wysiwyg
+        ? note.markdownContent
+        : note.content;
+  }
+
+  bool _exitInProgress = false;
+  bool _allowExit = false;
+
+  Future<void> _requestExit() async {
+    if (_exitInProgress) return;
+    _exitInProgress = true;
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await _commitSessionVersionIfNeeded();
+      if (!mounted) return;
+      await ref.read(editorProviderFamily(_editorParams).notifier).handleExitCleanup();
+      if (!mounted) return;
+      setState(() => _allowExit = true);
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save this note. Please try closing it again.'),
+        ));
+      }
+    } finally {
+      _exitInProgress = false;
+    }
+  }
+
+  Future<void> _runNoteProtectionChange(
+    Future<void> Function() operation, {
+    String? successMessage,
+  }) async {
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await operation();
+      if (mounted && successMessage != null) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(successMessage),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save note protection. Keep this note open and try again.'),
+        ));
+      }
+    }
+  }
+
   EditorParams get _editorParams => EditorParams(
         widget.note,
         initialPreviewMode: widget.initialPreviewMode,
@@ -342,6 +413,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
+      _bodyEditorKey.currentState?.flushPendingChanges();
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
       _commitSessionVersionIfNeeded();
     }
@@ -490,9 +562,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _commitSessionVersionIfNeeded() async {
+    _bodyEditorKey.currentState?.flushPendingChanges();
     final finalTitle = _titleController.text;
-    final finalContent = _contentController.text;
     final currentNote = ref.read(editorProviderFamily(_editorParams)).note;
+    final finalContent = currentNote.content;
     final finalTags = currentNote.tags;
 
     if (_sessionTracker.isMeaningfulSession(
@@ -1856,12 +1929,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyV, meta: true): _handlePaste,
       },
       child: PopScope(
-        canPop: true,
+        canPop: _allowExit,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop) {
-            _commitSessionVersionIfNeeded();
-            editorNotifier.handleExitCleanup();
-          }
+          if (!didPop) _requestExit();
         },
         child: DropTarget(
           onDragEntered: (_) {
@@ -1907,11 +1977,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       QuietIconButton(
                         icon: Icons.close_rounded,
                         tooltip: 'Close note',
-                        onPressed: () {
-                          _commitSessionVersionIfNeeded();
-                          editorNotifier.handleExitCleanup();
-                          widget.onClose?.call();
-                        },
+                        onPressed: _requestExit,
                       ),
                     ],
                   )
@@ -1919,9 +1985,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     ? QuietIconButton(
                         icon: Icons.arrow_back_rounded,
                         tooltip: 'Back',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+                        onPressed: _requestExit,
                       )
                     : null),
             actions: [
@@ -2234,6 +2298,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
                                   // Body markdown editor
                                   MarkdownEditor(
+                                    key: _bodyEditorKey,
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     editingStyle: effectiveEditingStyle,
@@ -4015,19 +4080,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   Navigator.of(sheetCtx).pop();
                   final res = await SetNotePasswordDialog.show(context);
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password protection enabled',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password protection enabled'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4050,19 +4109,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     isChangingPassword: true,
                   );
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password updated',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password updated'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4079,16 +4132,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
                 onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  await notifier.removePasswordProtection();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note password protection removed'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
+                  await _runNoteProtectionChange(
+                    notifier.removePasswordProtection,
+                    successMessage: 'Note password protection removed',
+                  );
                 },
               ),
               ListTile(
@@ -4102,9 +4149,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     color: colors.textPrimary,
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  notifier.lockNow();
+                  await _runNoteProtectionChange(notifier.lockNow);
                 },
               ),
             ],
@@ -4406,6 +4453,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             ),
             Divider(height: 16, color: colors.divider),
             if (!note.isTrashed) ...[
+              if (TemplateService.eligible(note,
+                  readOnly: isReadOnly,
+                  locked: !ref.read(editorProviderFamily(_editorParams)).isUnlocked ||
+                      ref.read(editorProviderFamily(_editorParams)).activePassword != null))
+                FutureBuilder<Note?>(
+                  future: ref.read(notesRepositoryProvider).getNoteById(note.id),
+                  builder: (context, snapshot) => snapshot.data == null
+                      ? const SizedBox.shrink()
+                      : ListTile(
+                          leading: Icon(Icons.description_outlined, color: colors.textSecondary),
+                          title: const Text('Save as Template'),
+                          onTap: () {
+                            Navigator.of(sheetCtx).pop();
+                            _saveAsTemplate();
+                          },
+                        ),
+                ),
               if (!isPreview && !isReadOnly) ...[
                 ListTile(
                   leading: Icon(
@@ -4652,6 +4716,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         );
     }
+  }
+
+  Future<void> _saveAsTemplate() async {
+    // The menu checks source persistence; the service revalidates the newest
+    // persisted note after flushing, including deletion while the dialog opens.
+    final service = ref.read(templateServiceProvider);
+    await showTemplateNameDialog(
+      context: context,
+      initialName: _titleController.text.trim().isEmpty
+          ? 'Untitled Template' : _titleController.text,
+      onSave: (name) async {
+        final current = ref.read(editorProviderFamily(_editorParams));
+        await service.saveNoteAsTemplate(
+          noteId: current.note.id,
+          name: name,
+          readOnly: current.isReadOnly,
+          locked: !current.isUnlocked || current.activePassword != null,
+          flush: () async {
+            _bodyEditorKey.currentState?.flushPendingChanges();
+            await ref
+                .read(editorProviderFamily(_editorParams).notifier)
+                .flushForTemplate();
+          },
+        );
+      },
+    );
   }
 
   void _switchEditingStyle(

@@ -108,7 +108,7 @@ class QuietEditorialDialogCard extends StatelessWidget {
             if (onClose != null) {
               onClose!();
             } else {
-              Navigator.of(context).pop();
+              Navigator.of(context).maybePop();
             }
           },
         },
