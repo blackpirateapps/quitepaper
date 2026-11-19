@@ -60,7 +60,9 @@ class DocumentSyncService {
     if (_isUploading) {
       return const DocumentSyncResult();
     }
-    if (authService.currentUser == null || !keyManager.isUnlocked) {
+    if (authService.currentUser == null ||
+        !keyManager.isUnlocked ||
+        !keyManager.hasKeyData) {
       return const DocumentSyncResult();
     }
 

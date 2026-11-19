@@ -1036,3 +1036,36 @@ A final **29-test** email persistence/editor run also passes, including pending
 Visual edits, both v21 migrations and combined backup recovery; these runs overlap.
 The full test suite and app builds were not run for this review. Physical-device
 validation remains subject to the limits recorded in the email guide.
+
+## Cloud sign-in with a device-only notebook — November 19, 2026
+
+The reported error, `The cloud vault uses a different key from local assets`,
+comes from the device-key guard introduced in `ead7229`, after Firebase sign-in
+has succeeded. Commit `2dc6e4d` removed the bundled Firebase client API key, but
+the live public config endpoint still supplies a key accepted by Firebase.
+Opening email preview can create a device-only key even without saving an import;
+previously there was no path to connect that notebook to an existing cloud vault.
+
+The app now provides `LocalVaultKeyMigration` to the secure key manager. Once the
+cloud password or recovery key unwraps the account key, local attachments,
+variants, PDFs/annotated derivatives, OCR, annotations and keyed place aliases are
+re-encrypted under it. Notes, email provenance and asset IDs remain intact, and
+the cloud master key is preserved. Migrated assets are queued for upload; obsolete
+cloud blob pointers are cleared so metadata-only upload shortcuts cannot retain
+old-key ciphertext. PDF thumbnails regenerate as needed.
+
+Both keys and the destination wrapped-key data are journaled in secure storage
+before changing ciphertext. Atomic file replacement, transactional database writes,
+and a completion marker permit restart or explicit retry after partial migration.
+Missing/damaged originals stop migration and retain the keys. Lock/erase races
+cannot expose a late unlocked key; erasure waits before removing the journal.
+Login page and dialog distinguish migration errors from incorrect passwords.
+Sync and attachment/document uploads now require wrapped account-key data, closing
+the Firebase-auth-event race that could upload using the device-only key.
+
+Validation: `flutter analyze` reports no issues. **183 focused tests pass** with
+`flutter test test/crypto test/auth test/sync test/email_import/email_persistence_test.dart test/email_import/email_sync_test.dart test/attachments/attachment_sync_test.dart test/documents/document_sync_service_test.dart test/devices/devices_test.dart`.
+A final overlapping **24-test** migration/local-key run passes, including offline
+email preservation, cloud-key note encryption, password/recovery unlock, partial
+file and secure-record persistence, restart/retry, and lock/erase races.
+`git diff --check` passes. No full suite, app build, or physical-device login ran.
