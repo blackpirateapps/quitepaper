@@ -77,7 +77,7 @@ class SyncEngine {
       if (_isDisposed) return;
       if (user == null) {
         _updateState(const SyncState(status: SyncStatus.localOnly));
-      } else if (!keyManager.isUnlocked) {
+      } else if (!keyManager.isUnlocked || !keyManager.hasKeyData) {
         _updateState(_state.copyWith(status: SyncStatus.pendingSync));
       } else {
         triggerSyncDebounced();
@@ -94,7 +94,11 @@ class SyncEngine {
   /// Triggers a debounced sync in the background
   void triggerSyncDebounced() {
     if (_isDisposed) return;
-    if (authService.currentUser == null || !keyManager.isUnlocked) return;
+    if (authService.currentUser == null ||
+        !keyManager.isUnlocked ||
+        !keyManager.hasKeyData) {
+      return;
+    }
     _syncDebouncer.run(() {
       if (_isDisposed) return;
       syncNow();
@@ -175,7 +179,7 @@ class SyncEngine {
       _updateState(_state.copyWith(status: SyncStatus.localOnly));
       return;
     }
-    if (!keyManager.isUnlocked) {
+    if (!keyManager.isUnlocked || !keyManager.hasKeyData) {
       _updateState(
         _state.copyWith(
           status: SyncStatus.pendingSync,
@@ -1375,7 +1379,6 @@ class SyncEngine {
             resolvedTitle: rebaseResult.mergedPlaintext.title,
             resolvedContent: rebaseResult.mergedPlaintext.body,
             resolvedTags: rebaseResult.mergedPlaintext.tags,
-
           );
 
           await database.saveConflict(

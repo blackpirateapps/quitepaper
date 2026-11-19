@@ -60,7 +60,9 @@ class AttachmentSyncService {
     if (_isUploading) {
       return const AttachmentSyncResult();
     }
-    if (authService.currentUser == null || !keyManager.isUnlocked) {
+    if (authService.currentUser == null ||
+        !keyManager.isUnlocked ||
+        !keyManager.hasKeyData) {
       return const AttachmentSyncResult();
     }
 

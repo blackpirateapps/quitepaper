@@ -6,6 +6,14 @@ import '../storage/quiet_secure_storage.dart';
 import 'crypto_service.dart';
 import '../attachments/attachment_storage.dart';
 
+class LocalVaultMigrationException implements Exception {
+  @override
+  String toString() =>
+      'Local encrypted files could not be prepared for cloud sign-in. '
+      'Your local files and keys are retained. Please retry sign-in; '
+      'restore any missing or damaged local files if this continues.';
+}
+
 /// Key Manager interface managing secure key storage and lifecycle
 abstract class KeyManager {
   bool get isUnlocked;
@@ -66,6 +74,7 @@ class SecureKeyManager implements KeyManager {
   SecureKeyManager({
     CryptoService? cryptoService,
     FlutterSecureStorage? secureStorage,
+    this.migrateLocalVault,
   }) : _crypto = cryptoService ?? DefaultCryptoService(),
        _storage =
            secureStorage ??
@@ -75,10 +84,14 @@ class SecureKeyManager implements KeyManager {
 
   final CryptoService _crypto;
   final FlutterSecureStorage _storage;
+  final Future<void> Function(Uint8List oldKey, Uint8List newKey)?
+  migrateLocalVault;
 
   static const String _storageKeyWrappedData =
       'quietpaper_wrapped_master_key_v1';
   static const String _storageKeyMasterKey = 'quietpaper_master_key_v1';
+  static const String _storageKeyTransition =
+      'quietpaper_local_key_transition_v1';
 
   Uint8List? _cachedMasterKey;
   WrappedMasterKeyData? _cachedWrappedData;
@@ -88,19 +101,21 @@ class SecureKeyManager implements KeyManager {
   bool _explicitlyLocked = false;
   int _lockRevision = 0;
   String? _deviceKeyCommitment;
+  bool _keyTransitionInProgress = false;
+  Future<void>? _keyMigration;
 
   @override
-  bool get isUnlocked => _cachedMasterKey != null;
+  bool get isUnlocked => !_keyTransitionInProgress && _cachedMasterKey != null;
 
   @override
   bool get hasKeyData => _cachedWrappedData != null;
 
   @override
-  Uint8List? get cachedMasterKey => _cachedMasterKey;
+  Uint8List? get cachedMasterKey => isUnlocked ? _cachedMasterKey : null;
 
   @override
   Uint8List getMasterKey() {
-    if (_cachedMasterKey != null) {
+    if (isUnlocked) {
       return _cachedMasterKey!;
     }
     throw StateError('KeyManager is locked. Master key is not in memory.');
@@ -119,6 +134,7 @@ class SecureKeyManager implements KeyManager {
     if (_explicitlyLocked) return;
     final revision = _lockRevision;
     try {
+      await _resumeDeviceKeyTransition();
       final results = await Future.wait([
         _storage.read(key: _storageKeyWrappedData),
         _storage.read(key: _storageKeyMasterKey),
@@ -151,7 +167,12 @@ class SecureKeyManager implements KeyManager {
   @override
   Future<void> ensureLocalKey() async {
     await initialize();
-    if (isUnlocked || hasKeyData || _explicitlyLocked) return;
+    if (isUnlocked ||
+        hasKeyData ||
+        _explicitlyLocked ||
+        _keyTransitionInProgress) {
+      return;
+    }
     if (!_storageHealthy) throw StateError('Secure storage is unavailable.');
     final pending = _localKeyInitialization ??= _createLocalKey();
     try {
@@ -178,13 +199,136 @@ class SecureKeyManager implements KeyManager {
     }
   }
 
-  void _checkDeviceKey(Uint8List key) {
+  Future<void> _checkDeviceKey(Uint8List key, WrappedMasterKeyData data) async {
+    final previous = _keyMigration;
+    if (previous != null) await previous;
+    final pending = _checkDeviceKeyImpl(key, data);
+    _keyMigration = pending;
+    try {
+      await pending;
+    } catch (_) {
+      key.fillRange(0, key.length, 0);
+      if (migrateLocalVault == null) rethrow;
+      lock();
+      throw LocalVaultMigrationException();
+    } finally {
+      if (identical(_keyMigration, pending)) _keyMigration = null;
+    }
+  }
+
+  Future<void> _checkDeviceKeyImpl(
+    Uint8List key,
+    WrappedMasterKeyData data,
+  ) async {
+    final pending = await _storage.read(key: _storageKeyTransition);
+    if (pending != null) {
+      final transition = jsonDecode(pending) as Map<String, dynamic>;
+      if (transition['newKey'] != base64Encode(key)) {
+        key.fillRange(0, key.length, 0);
+        throw StateError(
+          'Finish the previous vault sign-in before switching accounts.',
+        );
+      }
+      _keyTransitionInProgress = true;
+      try {
+        await _resumeDeviceKeyTransition();
+        _deviceKeyCommitment = null;
+        _cachedMasterKey = Uint8List.fromList(key);
+        _cachedWrappedData = data;
+      } catch (_) {
+        key.fillRange(0, key.length, 0);
+        lock();
+        rethrow;
+      } finally {
+        _keyTransitionInProgress = false;
+      }
+    }
     if (_deviceKeyCommitment != null &&
         _crypto.computeKeyAuthCommitment(key) != _deviceKeyCommitment) {
-      key.fillRange(0, key.length, 0);
-      throw StateError(
-        'The cloud vault uses a different key from local assets.',
+      if (migrateLocalVault == null) {
+        key.fillRange(0, key.length, 0);
+        throw StateError(
+          'The cloud vault uses a different key from local assets.',
+        );
+      }
+      _keyTransitionInProgress = true;
+      try {
+        // Keep both keys durably until every local ciphertext and the active
+        // secure key records are committed. Never overwrite the only old key.
+        final localKey = Uint8List.fromList(
+          _cachedMasterKey ??
+              base64Decode((await _storage.read(key: _storageKeyMasterKey))!),
+        );
+        try {
+          await _storage.write(
+            key: _storageKeyTransition,
+            value: jsonEncode({
+              'oldKey': base64Encode(localKey),
+              'newKey': base64Encode(key),
+              'wrappedKey': data.toJson(),
+            }),
+          );
+        } finally {
+          localKey.fillRange(0, localKey.length, 0);
+        }
+        await _resumeDeviceKeyTransition();
+        _deviceKeyCommitment = null;
+        _cachedMasterKey?.fillRange(0, _cachedMasterKey!.length, 0);
+        _cachedMasterKey = Uint8List.fromList(key);
+        _cachedWrappedData = data;
+      } catch (_) {
+        key.fillRange(0, key.length, 0);
+        lock();
+        _initialization = null;
+        rethrow;
+      } finally {
+        _keyTransitionInProgress = false;
+      }
+    }
+  }
+
+  Future<void> _resumeDeviceKeyTransition() async {
+    final saved = await _storage.read(key: _storageKeyTransition);
+    if (saved == null) return;
+    final migrate = migrateLocalVault;
+    if (migrate == null) throw StateError('Local vault migration is required.');
+    final transition = jsonDecode(saved) as Map<String, dynamic>;
+    final oldKey = base64Decode(transition['oldKey'] as String);
+    final newKey = base64Decode(transition['newKey'] as String);
+    try {
+      final data = WrappedMasterKeyData.fromJson(
+        transition['wrappedKey'] as Map<String, dynamic>,
       );
+      if (oldKey.length != 32 ||
+          newKey.length != 32 ||
+          (data.keyAuthCommitment != null &&
+              data.keyAuthCommitment !=
+                  _crypto.computeKeyAuthCommitment(newKey))) {
+        throw StateError('Local vault migration key data is invalid.');
+      }
+      final revision = _lockRevision;
+      await migrate(oldKey, newKey);
+      if (revision != _lockRevision) {
+        throw StateError('Notebook locked during sign-in. Please retry.');
+      }
+      await _storage.write(
+        key: _storageKeyMasterKey,
+        value: base64Encode(newKey),
+      );
+      await _storage.write(
+        key: _storageKeyWrappedData,
+        value: jsonEncode(data.toJson()),
+      );
+      if (revision != _lockRevision) {
+        throw StateError('Notebook locked during sign-in. Please retry.');
+      }
+      await _storage.delete(key: _storageKeyTransition);
+      if (revision != _lockRevision) {
+        throw StateError('Notebook locked during sign-in. Please retry.');
+      }
+    } finally {
+      oldKey.fillRange(0, oldKey.length, 0);
+      newKey.fillRange(0, newKey.length, 0);
     }
   }
 
@@ -194,6 +338,9 @@ class SecureKeyManager implements KeyManager {
     String? recoveryKey,
     KdfParameters kdfParameters = const KdfParameters(),
   }) async {
+    await initialize();
+    await _localKeyInitialization;
+    if (!_storageHealthy) throw StateError('Secure storage is unavailable.');
     final masterKey = _cachedMasterKey ?? await _crypto.generateMasterKey();
 
     // Password derivation & wrap
@@ -249,7 +396,7 @@ class SecureKeyManager implements KeyManager {
       keyAuthCommitment: _crypto.computeKeyAuthCommitment(masterKey),
     );
 
-    _checkDeviceKey(masterKey);
+    await _checkDeviceKey(masterKey, data);
     _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
@@ -267,6 +414,14 @@ class SecureKeyManager implements KeyManager {
     required String password,
     WrappedMasterKeyData? remoteWrappedKey,
   }) async {
+    await initialize();
+    await _localKeyInitialization;
+    if (!_storageHealthy &&
+        await _storage.read(key: _storageKeyTransition) == null) {
+      throw StateError(
+        'Secure storage is unavailable. Please restart and retry.',
+      );
+    }
     final data = remoteWrappedKey ?? _cachedWrappedData;
     if (data == null) {
       throw StateError('No wrapped key data found to unlock.');
@@ -285,7 +440,7 @@ class SecureKeyManager implements KeyManager {
       wrappingKey: passwordKey,
     );
 
-    _checkDeviceKey(masterKey);
+    await _checkDeviceKey(masterKey, data);
     _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
@@ -302,6 +457,14 @@ class SecureKeyManager implements KeyManager {
     required String recoveryKey,
     WrappedMasterKeyData? remoteWrappedKey,
   }) async {
+    await initialize();
+    await _localKeyInitialization;
+    if (!_storageHealthy &&
+        await _storage.read(key: _storageKeyTransition) == null) {
+      throw StateError(
+        'Secure storage is unavailable. Please restart and retry.',
+      );
+    }
     final data = remoteWrappedKey ?? _cachedWrappedData;
     if (data == null ||
         data.recoveryWrappedMasterKey == null ||
@@ -323,7 +486,7 @@ class SecureKeyManager implements KeyManager {
       wrappingKey: recKey,
     );
 
-    _checkDeviceKey(masterKey);
+    await _checkDeviceKey(masterKey, data);
     _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
@@ -341,7 +504,7 @@ class SecureKeyManager implements KeyManager {
     String? newRecoveryKey,
     KdfParameters kdfParameters = const KdfParameters(),
   }) async {
-    if (_cachedMasterKey == null) {
+    if (!isUnlocked) {
       throw StateError('KeyManager must be unlocked to change password.');
     }
 
@@ -422,14 +585,21 @@ class SecureKeyManager implements KeyManager {
   @override
   Future<void> clearLocalKeys() async {
     lock();
-    try {
-      await _localKeyInitialization;
-    } catch (_) {}
+    for (final pending in [
+      _initialization,
+      _localKeyInitialization,
+      _keyMigration,
+    ]) {
+      try {
+        await pending;
+      } catch (_) {}
+    }
     _deviceKeyCommitment = null;
     _cachedWrappedData = null;
     try {
       await _storage.delete(key: _storageKeyWrappedData);
       await _storage.delete(key: _storageKeyMasterKey);
+      await _storage.delete(key: _storageKeyTransition);
     } catch (_) {}
   }
 
