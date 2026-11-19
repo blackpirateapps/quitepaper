@@ -15,7 +15,8 @@ Welcome to **Quiet Paper**! This folder contains the modularized engineering han
 | **[journal-and-audio.md](journal-and-audio.md)** | Daily journaling, paper calendar archive, YAML frontmatter, voice memos, on-device audio transcription & web clipper. | Subsystem Guide |
 | **[tags-and-search.md](tags-and-search.md)** | Nested tag hierarchy (`#parent/child`), tag sync idempotency, universal fuzzy search & category filters. | Subsystem Guide |
 | **[platform-and-builds.md](platform-and-builds.md)** | Multi-platform targets (Android, Linux, iOS, Desktop), automated CI build numbers, Linux packages (DEB, RPM, AppImage, Flatpak) & onboarding. | Subsystem Guide |
-| **[latest-logs.md](latest-logs.md)** | Active engineering logs, feature implementations, and bugfixes for **v1.6.0+ (October 2026 – Present)**. | Sections 165–284 (Active) |
+| **[email-import.md](email-import.md)** | Local MIME email import, Linux/Android entry points, preview, encrypted assets/provenance, recovery and verification limits. | Subsystem Guide |
+| **[latest-logs.md](latest-logs.md)** | Active engineering logs, feature implementations, and bugfixes for **v1.6.0+ (October 2026 – Present)**. | Sections 165–341 (Active) |
 | **[archive/logs-v1.5.md](archive/logs-v1.5.md)** | Historical engineering logs for Quiet Paper **v1.5.0 through v1.5.9**. | Sections 46–164 (Archive) |
 | **[archive/logs-v1.0-v1.4.md](archive/logs-v1.0-v1.4.md)** | Historical engineering logs for Quiet Paper **v1.0.0 through v1.4.x**. | Sections 10–45 (Archive) |
 | **[backup/HANDOFF.original.md](backup/HANDOFF.original.md)** | Backup of the pre-modularization 11,433-line document; Firebase client API key redacted on November 18, 2026. | Backup (Read-Only) |

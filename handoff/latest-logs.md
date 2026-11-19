@@ -7789,3 +7789,34 @@ Linux file-manager/Flatpak replay are pending, packaging builders are unavailabl
 and existing cloud size policies can leave larger locally preserved assets
 pending. The preview warns about the 10 MB asset upload policy. No unrestricted
 filesystem permissions or external email parsing/network conversion were added.
+
+## 341. Email Import Phase 8 — Final Handoff (November 19, 2026)
+
+Published `handoff/email-import.md` as the canonical subsystem guide and
+`docs/email-import/engineering-report.md` as the requested functionality,
+architecture, major-file, schema/sync, testing, security and remaining-risk report.
+Updated the root/index and storage, editor, platform, search and document guides.
+The implementation record and synthetic benchmark preserve phase evidence.
+
+Final checks completed before the instruction to stop local builds:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub --concurrency=1 test/email_import`: **76 passed**.
+- `flutter build linux --debug --no-pub`: passed.
+- `flutter build apk --debug --flavor github --no-pub`: passed; inherited NDK/KGP
+  advisories remain as recorded in log 339.
+- `dart build cli -t bin/qp.dart -o build/cli`: passed, producing the native qp CLI.
+- Prior phase 7 evidence: 302 focused Flutter checks, targeted follow-ups and
+  18 selected backend contract tests passed; those overlapping counts are not
+  presented as a unique aggregate. No full Flutter or backend suite ran.
+
+After the user's instruction, checked that no build process remained active and
+finished documentation only. No further builds were started. Final documentation
+uses the existing completed checks and passes `git diff --check`.
+
+All eight phases have separate commits/pushes on `feat/email-import`. Physical
+Android chooser/provider/lifecycle and installed Linux packaging/sandbox replay
+remain unverified. The existing cloud size policy can leave larger locally
+preserved assets pending, and text-only shares cannot supply missing source data.
+The report makes these limits explicit rather than claiming production hardware
+verification. No deployment, release, branch merge or unrelated upgrade occurred.

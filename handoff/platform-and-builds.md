@@ -176,3 +176,9 @@ previews and protect active capture drafts. Shared text exposes Save as Email;
 URL-only shares retain clipping. The GitHub debug APK compiles; physical chooser,
 provider permission and Activity lifecycle replay remains unverified without a
 device. Existing NDK/KGP warnings are documented in engineering log 339.
+
+The consolidated [email guide](email-import.md) and
+[engineering report](../docs/email-import/engineering-report.md) separate compiled
+Linux/Android/CLI evidence from outstanding device and installed-package checks.
+Local compilation completed before the user's instruction to stop builds; no
+subsequent build was run for the final documentation commit.

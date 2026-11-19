@@ -148,3 +148,13 @@ Synthetic parser observations are in `benchmark-linux-jit.json`, reproduced with
 580.4 MiB including JIT, source construction, worker copies and previous cases.
 These single Linux JIT runs measure parsing, not encryption, mobile or release
 performance. See engineering log 340 for all actual commands and limitations.
+
+## Phase 8 — final documentation
+
+Added the canonical handoff guide and A–H engineering report, and updated subsystem
+indexes/guides. Final analysis and all 76 email-feature tests passed. Linux,
+Android GitHub debug and standalone CLI compilation completed before the user's
+instruction to stop builds; no further builds were started afterward. The final
+commit is documentation only, using that completed validation plus diff checks.
+Physical-device/installed-package checks and existing cloud size constraints are
+explicitly recorded. All eight phases are committed and pushed independently.

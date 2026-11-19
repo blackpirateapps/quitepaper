@@ -121,3 +121,9 @@ Rollback cleans ciphertext even without an attachment row; next-session recovery
 retries interrupted preparation. Never run recovery concurrently with an import.
 Email-specific local asset budgets exceed the existing cloud upload/account limit;
 larger local assets remain subject to normal explicit sync failure/retry behavior.
+
+The final [email import guide](email-import.md) documents preparation recovery and
+older-client repair pushes. `mergeImportSources` preserves newer local content
+when restoring source records; real encrypted two-device coverage checks source
+retention and reconstruction of duplicate/search indexes. Cleanup journals remain
+when ciphertext deletion fails and retry before the next import preview.

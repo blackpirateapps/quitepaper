@@ -103,3 +103,11 @@ The OCR system lives in [`lib/core/ocr/`](file:///home/dog/git/quitepaper/lib/co
 - DeepSeek-OCR Table Formatting & Ollama Integration: [Latest Logs, Section 211–214](latest-logs.md#211-deepseek-ocr-table-formatting--native-markdown-table-conversion-october-2026)
 - Zero-Knowledge OCR Text Sync: [Latest Logs, Section 218 & 235](latest-logs.md#218-feature-zero-knowledge-ocr-text-sync-manual-only-recognition-policy-and-3-way-conflict-merge-pipeline-october-2026)
 - Google ML Kit OCR Integration & Isolate Processing: [Historical Logs v1.0–v1.4, Section 46–52](archive/logs-v1.0-v1.4.md#46-hardware-accelerated-google-ml-kit-ocr-engine-integration)
+
+## Email source assets
+
+Email originals and decoded MIME parts use the existing encrypted asset vault.
+CID images become ordinary local asset references; no email import starts OCR.
+Prepared imports do not preload plaintext caches. Original `.eml` bytes remain
+unchanged and use existing attachment open/share/export controls. See the
+[email import guide](email-import.md) for budgets, recovery and cloud-size limits.

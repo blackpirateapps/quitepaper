@@ -22,6 +22,7 @@ All documentation is partitioned for fast, targeted access by engineers and AI a
 | **[handoff/journal-and-audio.md](handoff/journal-and-audio.md)** | Daily journal, paper calendar archive, YAML frontmatter properties, audio voice memos, on-device transcription, and web clipper. |
 | **[handoff/tags-and-search.md](handoff/tags-and-search.md)** | Nested tag hierarchy (`#parent/child`), Pure Bear List editorial aesthetic redesign (Sections 247 & 249), tag sync idempotency, universal fuzzy search & relevance ranking. |
 | **[handoff/platform-and-builds.md](handoff/platform-and-builds.md)** | Multi-platform targets (Android, Linux, iOS, Desktop), CI/CD pipelines, automated build numbers, Linux packaging (DEB, RPM, AppImage, Flatpak), Linux native file sharing (`shareXFiles`), and first-run onboarding. |
+| **[handoff/email-import.md](handoff/email-import.md)** | Email import entry points, bounded MIME conversion, encrypted provenance/assets, workflow, recovery and platform validation limits. |
 | **[handoff/latest-logs.md](handoff/latest-logs.md)** | **Active engineering logs** for **v1.6.0+ (October 2026 – Present)**. New handoff entries should be appended here. |
 | **[handoff/archive/logs-v1.5.md](handoff/archive/logs-v1.5.md)** | Historical engineering logs for **v1.5.0 through v1.5.9**. |
 | **[handoff/archive/logs-v1.0-v1.4.md](handoff/archive/logs-v1.0-v1.4.md)** | Historical engineering logs for **v1.0.0 through v1.4.x**. |
@@ -798,3 +799,16 @@ interrupted cleanup, partial-batch editor reconciliation, source-only restore/sy
 merges, real QPNote export mapping and secure preview ownership. Synthetic Linux
 JIT parser observations are recorded, including 1.53s for a 40 MiB message with
 continued main-isolate timer activity. See log 340 and the implementation record.
+
+### Email import phase 8 — documentation and final verification
+
+All eight implementation phases are complete on `feat/email-import`, committed
+and pushed independently. The [email import guide](handoff/email-import.md) and
+[engineering report](docs/email-import/engineering-report.md) describe the final
+architecture, usage, schema 21, cleanup, test evidence and explicit limitations.
+Final analysis is clean and **76 email-feature tests pass**; the recorded broader
+focused gate passed **302 tests**, and **18 selected backend contract tests pass**.
+No full Flutter suite ran. Final Linux/Android/CLI compilation completed before
+the instruction to stop local builds; no further builds were run afterward.
+Physical Android and installed Linux package validation remain outstanding, and
+existing cloud size policies still apply. See log 341.
