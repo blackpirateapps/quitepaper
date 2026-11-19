@@ -153,3 +153,32 @@ clipboard of the machine running `qp`. Keyring access requires `secret-tool`
 (`libsecret-tools` on Debian/Ubuntu). Opening an image uses `xdg-open`, requires a
 locally downloaded image and an interactive terminal, and removes its private
 temporary plaintext copy when you press Enter after closing the viewer.
+
+## Email import entry points
+
+Settings → Backup & Import → Import Email selects multiple `.eml` files; the
+all-files action handles generic extensions. Desktop Ctrl+Shift+I opens the picker;
+Ctrl/Cmd+Shift+P opens searchable import commands. Linux file associations and
+workspace/editor drops route into the same confirmation screen. No extra Flatpak
+filesystem grants were added: portal paths are kept intact, and denied drops
+report an error with picker fallback. desktop_drop exposes no hover file metadata,
+so email-specific recognition happens on drop rather than assuming every drag is
+email. Native debug compilation is verified; distro package installation and
+physical file-manager/sandbox replay require the packaging tools and test hosts.
+
+Android incoming email uses `IncomingShareReceiver` to normalize SEND/MULTIPLE/VIEW
+into the existing Dart ShareIntentHandler. It streams ContentResolver data with
+bounds while grants are live, stages private temporary copies and removes them
+on acknowledgment or next-start recovery. The plugin receives sanitized Android
+intents to avoid its extra unbounded copy. No broad binary VIEW handler or new
+storage permission was added. Request IDs and serial routing prevent duplicate
+previews and protect active capture drafts. Shared text exposes Save as Email;
+URL-only shares retain clipping. The GitHub debug APK compiles; physical chooser,
+provider permission and Activity lifecycle replay remains unverified without a
+device. Existing NDK/KGP warnings are documented in engineering log 339.
+
+The consolidated [email guide](email-import.md) and
+[engineering report](../docs/email-import/engineering-report.md) separate compiled
+Linux/Android/CLI evidence from outstanding device and installed-package checks.
+Local compilation completed before the user's instruction to stop builds; no
+subsequent build was run for the final documentation commit.

@@ -12,6 +12,16 @@ enum NotesCommand {
     'New from Template',
     'Choose a reusable starting point',
     PhosphorIconsRegular.files,
+  ),
+  importEmail(
+    'Import Email',
+    'Choose .eml files • Ctrl+Shift+I',
+    Icons.mail_outline,
+  ),
+  importEmailAllFiles(
+    'Import Email from all files',
+    'For messages with a generic type or missing extension',
+    Icons.mail_outline,
   );
 
   const NotesCommand(this.label, this.description, this.icon);
@@ -22,15 +32,18 @@ enum NotesCommand {
 
 /// Both touch and keyboard entry points return to the notes screen's existing
 /// creation handlers, so opening or dismissing the palette never creates a note.
-Future<NotesCommand?> showNotesCommandPalette(BuildContext context) =>
-    QuietAdaptiveModal.show<NotesCommand>(
-      context: context,
-      type: AdaptiveModalType.spotlight,
-      builder: (_) => const _NotesCommandPalette(),
-    );
+Future<NotesCommand?> showNotesCommandPalette(
+  BuildContext context, {
+  List<NotesCommand> commands = NotesCommand.values,
+}) => QuietAdaptiveModal.show<NotesCommand>(
+  context: context,
+  type: AdaptiveModalType.spotlight,
+  builder: (_) => _NotesCommandPalette(commands: commands),
+);
 
 class _NotesCommandPalette extends StatefulWidget {
-  const _NotesCommandPalette();
+  const _NotesCommandPalette({required this.commands});
+  final List<NotesCommand> commands;
   @override
   State<_NotesCommandPalette> createState() => _NotesCommandPaletteState();
 }
@@ -42,8 +55,12 @@ class _NotesCommandPaletteState extends State<_NotesCommandPalette> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final media = MediaQuery.of(context);
-    final commands = NotesCommand.values
-        .where((command) => command.label.toLowerCase().contains(_query))
+    final commands = widget.commands
+        .where(
+          (command) => '${command.label} ${command.description}'
+              .toLowerCase()
+              .contains(_query),
+        )
         .toList();
     return Padding(
       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),

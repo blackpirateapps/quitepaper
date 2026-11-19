@@ -1,3 +1,4 @@
+import '../../notes/data/note_entity_mapper.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
@@ -48,28 +49,31 @@ class ExportService {
     QpNoteValidator? qpNoteValidator,
     ImageExporter? imageExporter,
     this.tempDirectoryProvider,
-  })  : _securityGuard = securityGuard ?? const ExportSecurityGuard(),
-        _attachmentResolver = attachmentResolver ??
-            AttachmentExportResolver(
-              database: database,
-              attachmentService: attachmentService,
-              documentService: documentService,
-            ),
-        _ocrResolver = ocrResolver ??
-            OcrExportResolver(
-              database: database,
-              keyManager: keyManager,
-              docProcessingService: docProcessingService,
-            ),
-        _noteLinkResolver = noteLinkResolver ?? NoteLinkResolver(database: database),
-        _markdownExporter = markdownExporter ?? const MarkdownExporter(),
-        _pdfExporter = pdfExporter ?? const PdfExporter(),
-        _htmlExporter = htmlExporter ?? const HtmlExporter(),
-        _plainTextExporter = plainTextExporter ?? const PlainTextExporter(),
-        _docxExporter = docxExporter ?? const DocxExporter(),
-        _qpNoteExporter = qpNoteExporter ?? QpNotePackageExporter(),
-        _qpNoteValidator = qpNoteValidator ?? QpNoteValidator(),
-        _imageExporter = imageExporter ?? const ImageExporter();
+  }) : _securityGuard = securityGuard ?? const ExportSecurityGuard(),
+       _attachmentResolver =
+           attachmentResolver ??
+           AttachmentExportResolver(
+             database: database,
+             attachmentService: attachmentService,
+             documentService: documentService,
+           ),
+       _ocrResolver =
+           ocrResolver ??
+           OcrExportResolver(
+             database: database,
+             keyManager: keyManager,
+             docProcessingService: docProcessingService,
+           ),
+       _noteLinkResolver =
+           noteLinkResolver ?? NoteLinkResolver(database: database),
+       _markdownExporter = markdownExporter ?? const MarkdownExporter(),
+       _pdfExporter = pdfExporter ?? const PdfExporter(),
+       _htmlExporter = htmlExporter ?? const HtmlExporter(),
+       _plainTextExporter = plainTextExporter ?? const PlainTextExporter(),
+       _docxExporter = docxExporter ?? const DocxExporter(),
+       _qpNoteExporter = qpNoteExporter ?? QpNotePackageExporter(),
+       _qpNoteValidator = qpNoteValidator ?? QpNoteValidator(),
+       _imageExporter = imageExporter ?? const ImageExporter();
 
   final AppDatabase database;
   final KeyManager keyManager;
@@ -105,26 +109,20 @@ class ExportService {
 
     try {
       // 1. Preparing note phase
-      onProgress?.call(const ExportProgressState(
-        phase: ExportPhase.preparingNote,
-        progress: 0.1,
-      ));
+      onProgress?.call(
+        const ExportProgressState(
+          phase: ExportPhase.preparingNote,
+          progress: 0.1,
+        ),
+      );
 
       final noteWithTags = await database.getNoteWithTags(request.noteId);
       if (noteWithTags == null) {
         throw ArgumentError('Note not found: ${request.noteId}');
       }
 
-      final note = Note(
-        id: noteWithTags.note.id,
-        title: noteWithTags.note.title,
-        content: noteWithTags.note.content,
-        createdAt: noteWithTags.note.createdAt,
-        updatedAt: noteWithTags.note.updatedAt,
-        isPinned: noteWithTags.note.isPinned,
-        isArchived: noteWithTags.note.isArchived,
-        isTrashed: noteWithTags.note.isTrashed,
-        deletedAt: noteWithTags.note.deletedAt,
+      final note = mapNoteEntity(
+        noteWithTags.note,
         tags: noteWithTags.tagNames,
       );
       final rawTags = noteWithTags.tagNames;
@@ -140,7 +138,8 @@ class ExportService {
           : Note.deriveTitle(unlocked.content);
 
       // Create isolated temporary workspace
-      final systemTemp = await (tempDirectoryProvider?.call() ?? getTemporaryDirectory());
+      final systemTemp =
+          await (tempDirectoryProvider?.call() ?? getTemporaryDirectory());
       final workspacePath = p.join(
         systemTemp.path,
         'quietpaper_export_${_uuid.v4()}',
@@ -149,10 +148,12 @@ class ExportService {
       await tempWorkspace.create(recursive: true);
 
       // 2. Resolving attachments phase
-      onProgress?.call(const ExportProgressState(
-        phase: ExportPhase.resolvingAttachments,
-        progress: 0.3,
-      ));
+      onProgress?.call(
+        const ExportProgressState(
+          phase: ExportPhase.resolvingAttachments,
+          progress: 0.3,
+        ),
+      );
 
       // If note content is stored in RichDocument JSON format, compile to canonical Markdown
       final canonicalMarkdown = Note(
@@ -163,18 +164,21 @@ class ExportService {
         updatedAt: note.updatedAt,
       ).markdownContent;
 
-      final attachmentResult = await _attachmentResolver.resolveResourcesForNote(
-        noteId: request.noteId,
-        canonicalMarkdown: canonicalMarkdown,
-        strategy: request.attachmentStrategy,
-      );
+      final attachmentResult = await _attachmentResolver
+          .resolveResourcesForNote(
+            noteId: request.noteId,
+            canonicalMarkdown: canonicalMarkdown,
+            strategy: request.attachmentStrategy,
+          );
       warnings.addAll(attachmentResult.warnings);
 
       // 3. Resolving OCR phase
-      onProgress?.call(const ExportProgressState(
-        phase: ExportPhase.resolvingOcr,
-        progress: 0.5,
-      ));
+      onProgress?.call(
+        const ExportProgressState(
+          phase: ExportPhase.resolvingOcr,
+          progress: 0.5,
+        ),
+      );
 
       final ocrResult = await _ocrResolver.resolveOcrData(
         documents: attachmentResult.documents,
@@ -193,6 +197,7 @@ class ExportService {
       // Build immutable snapshot
       final snapshot = NoteExportSnapshot(
         noteId: note.id,
+        importSources: note.importSources,
         title: cleanTitle,
         markdown: transformedMarkdown,
         createdAt: note.createdAt,
@@ -210,10 +215,12 @@ class ExportService {
       );
 
       // 5. Rendering document phase
-      onProgress?.call(const ExportProgressState(
-        phase: ExportPhase.renderingDocument,
-        progress: 0.7,
-      ));
+      onProgress?.call(
+        const ExportProgressState(
+          phase: ExportPhase.renderingDocument,
+          progress: 0.7,
+        ),
+      );
 
       final outputFilename = FilenameGenerator.generateFilename(
         title: snapshot.effectiveTitle,
@@ -261,10 +268,12 @@ class ExportService {
           );
           break;
         case ExportFormat.qpnote:
-          onProgress?.call(const ExportProgressState(
-            phase: ExportPhase.compressingPackage,
-            progress: 0.8,
-          ));
+          onProgress?.call(
+            const ExportProgressState(
+              phase: ExportPhase.compressingPackage,
+              progress: 0.8,
+            ),
+          );
           result = await _qpNoteExporter.exportQpNote(
             snapshot: snapshot,
             request: request,
@@ -287,25 +296,22 @@ class ExportService {
 
       // 6. Optional Native Share
       if (request.shareAfterExport) {
-        onProgress?.call(const ExportProgressState(
-          phase: ExportPhase.sharing,
-          progress: 0.9,
-        ));
+        onProgress?.call(
+          const ExportProgressState(phase: ExportPhase.sharing, progress: 0.9),
+        );
         await shareExportResult(result);
         result = result.copyWith(isShared: true);
       }
 
-      onProgress?.call(const ExportProgressState(
-        phase: ExportPhase.complete,
-        progress: 1.0,
-      ));
+      onProgress?.call(
+        const ExportProgressState(phase: ExportPhase.complete, progress: 1.0),
+      );
 
       return result;
     } catch (e) {
-      onProgress?.call(ExportProgressState(
-        phase: ExportPhase.failed,
-        message: e.toString(),
-      ));
+      onProgress?.call(
+        ExportProgressState(phase: ExportPhase.failed, message: e.toString()),
+      );
       rethrow;
     }
   }
@@ -322,10 +328,9 @@ class ExportService {
       imageRasterizer: imageRasterizer,
     );
 
-    onProgress?.call(const ExportProgressState(
-      phase: ExportPhase.saving,
-      progress: 0.95,
-    ));
+    onProgress?.call(
+      const ExportProgressState(phase: ExportPhase.saving, progress: 0.95),
+    );
 
     final bytes = await result.file.readAsBytes();
 
@@ -363,10 +368,7 @@ class ExportService {
       mimeType: result.mimeType,
     );
 
-    await Share.shareXFiles(
-      [xFile],
-      subject: result.filename,
-    );
+    await Share.shareXFiles([xFile], subject: result.filename);
   }
 
   /// Validates a `.qpnote` package file or bytes.

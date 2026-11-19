@@ -1,3 +1,7 @@
+import '../../email_import/presentation/email_workspace_actions.dart';
+import '../../email_import/presentation/email_import_launcher.dart';
+import '../../email_import/application/email_import_gateway.dart';
+import '../../email_import/application/email_input.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -176,6 +180,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       return;
     }
 
+    final emails = args.where((arg)=>arg.toLowerCase().endsWith('.eml')).map((arg)=>EmailInput(path:arg)).toList();
+    if(emails.isNotEmpty && mounted) {
+      await EmailImportLauncher.open(context,EmailImportRequest(inputs:emails));
+      return;
+    }
     final mdPath = CliArgsHelper.findMarkdownFile(args);
     if (mdPath != null) {
       final file = File(mdPath);
@@ -214,6 +223,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     }
 
+    if (await EmailDesktopRouter.route(context, resolvedPaths.toList())) return;
     for (final path in resolvedPaths) {
       final file = File(path);
       if (!await file.exists()) continue;
@@ -3413,7 +3423,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Future<void> _showCommands() async {
     final action = await showNotesCommandPalette(context);
     if (!mounted) return;
-    if (action == NotesCommand.newFromTemplate) {
+    if (action == NotesCommand.importEmail ||
+        action == NotesCommand.importEmailAllFiles) {
+      await EmailImportLauncher.pick(
+        context,
+        allFiles: action == NotesCommand.importEmailAllFiles,
+      );
+    } else if (action == NotesCommand.newFromTemplate) {
       await _newFromTemplate();
     } else if (action == NotesCommand.newNote) {
       if (MediaQuery.sizeOf(context).width >= 900) {
@@ -3614,6 +3630,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       isArchived: false,
       isTrashed: false,
       tags: List<String>.from(note.tags),
+      importSources: note.importSources,
     );
     await ref.read(notesRepositoryProvider).saveNote(newNote);
     ref.read(notesCollectionProvider.notifier).refresh();

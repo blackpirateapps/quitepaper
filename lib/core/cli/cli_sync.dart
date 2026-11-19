@@ -1,3 +1,4 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -147,6 +148,7 @@ class CliSync {
         title: note.title,
         body: note.content,
         tags: note.tags,
+        importSources: NoteImportSource.decode(snapshot['import_sources']),
         pinnedTags: snapshot['pinned_tags'] == null
             ? []
             : (jsonDecode(snapshot['pinned_tags'] as String) as List)

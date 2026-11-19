@@ -1,0 +1,8 @@
+From: Alice <alice@example.test>
+To: Bob <bob@example.test>
+Subject: Example
+Date: Wed, 18 Nov 2026 10:30:00 +0530
+Message-ID: <Example@Example.Test>
+Content-Type: text/html
+
+<script>alert(1)</script><style>body{}</style><iframe src="https://bad.test"></iframe><img src="https://track.test/x" width="1" height="1"><p onclick="steal()">Visible</p><a href="javascript:alert(1)">unsafe</a><a href="https://safe.test/path">safe</a><img src="file:///secret" alt="blocked"><img src="data:image/png;base64,AAAA">

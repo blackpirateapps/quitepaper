@@ -711,6 +711,37 @@ void main() {
     });
   }
 
+  testWidgets('command palette includes email and template actions', (
+    tester,
+  ) async {
+    NotesCommand? command;
+    await tester.pumpWidget(
+      app(
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              command = await showNotesCommandPalette(context);
+            },
+            child: const Text('Commands'),
+          ),
+        ),
+        platform: TargetPlatform.linux,
+      ),
+    );
+    await tester.tap(find.text('Commands'));
+    await settle(tester);
+    expect(find.text('New from Template'), findsOneWidget);
+    expect(find.text('Import Email'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'generic');
+    await tester.pumpAndSettle();
+    expect(find.text('New from Template'), findsNothing);
+    expect(find.text('Import Email'), findsNothing);
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await settle(tester);
+    expect(command, NotesCommand.importEmailAllFiles);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 100));
+  });
   testWidgets(
     'desktop command palette filters and returns shared template action',
     (tester) async {

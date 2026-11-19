@@ -246,6 +246,7 @@ class DriftNotesRepository implements NotesRepository {
       isTrashed: note.isTrashed,
       deletedAt: note.deletedAt,
       tags: note.tags,
+      importSources: note.importSources,
       journalDate: note.journalDate,
       preserveEmptyTags: preserveEmptyTags,
     );

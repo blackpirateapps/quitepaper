@@ -22,6 +22,7 @@ All documentation is partitioned for fast, targeted access by engineers and AI a
 | **[handoff/journal-and-audio.md](handoff/journal-and-audio.md)** | Daily journal, paper calendar archive, YAML frontmatter properties, audio voice memos, on-device transcription, and web clipper. |
 | **[handoff/tags-and-search.md](handoff/tags-and-search.md)** | Nested tag hierarchy (`#parent/child`), Pure Bear List editorial aesthetic redesign (Sections 247 & 249), tag sync idempotency, universal fuzzy search & relevance ranking. |
 | **[handoff/platform-and-builds.md](handoff/platform-and-builds.md)** | Multi-platform targets (Android, Linux, iOS, Desktop), CI/CD pipelines, automated build numbers, Linux packaging (DEB, RPM, AppImage, Flatpak), Linux native file sharing (`shareXFiles`), and first-run onboarding. |
+| **[handoff/email-import.md](handoff/email-import.md)** | Email import entry points, bounded MIME conversion, encrypted provenance/assets, workflow, recovery and platform validation limits. |
 | **[handoff/latest-logs.md](handoff/latest-logs.md)** | **Active engineering logs** for **v1.6.0+ (October 2026 – Present)**. New handoff entries should be appended here. |
 | **[handoff/archive/logs-v1.5.md](handoff/archive/logs-v1.5.md)** | Historical engineering logs for **v1.5.0 through v1.5.9**. |
 | **[handoff/archive/logs-v1.0-v1.4.md](handoff/archive/logs-v1.0-v1.4.md)** | Historical engineering logs for **v1.0.0 through v1.4.x**. |
@@ -721,6 +722,107 @@ device/export tests pass**. Version/site checks confirm matching website pages,
 valid HTML/XML, current version metadata and preserved historical release notes.
 No full suite ran.
 
+## Email import — phase 1 repository audit (November 19, 2026)
+
+Implementation is proceeding on `feat/email-import` in the eight phases specified
+in `prompts/email.md`, committing/pushing each phase independently. The
+[source-level audit](docs/email-import/implementation.md) identifies actual schema
+20, encrypted note/attachment and backup boundaries, separate editor/workspace
+drops, Android plugin limitations, and the missing global command palette.
+Phase 1 changes documentation only. Analysis is clean and 20 focused existing
+Quick Capture/converter/database-query tests pass. No full suite ran. See log 334.
+
+### Email import phase 2 — bounded parser and domain models
+
+Added network-free MIME parsing in `lib/features/email_import`, with background
+isolate execution, RFC header/charset codecs from enough_mail 3.0.0 (MPL-2.0),
+strict pre-decode budgets, safe HTML-to-Markdown conversion and local CID
+placeholders. Raw bytes remain untouched; source hashes and versioned provenance
+are ready for persistence. All 18 focused parser/security tests pass; Flutter
+analysis is clean. No full suite ran. See log 335 and the implementation record.
+
+### Email import phase 3 — encrypted persistence, provenance and recovery
+
+Drift schema **21** adds canonical `importSources`, an indexed derived duplicate
+lookup and a durable asset-preparation journal. Email saves use existing encrypted
+assets and a single note/tag/search transaction; failed/canceled/interrupted saves
+remove newly prepared ciphertext. Markdown and rich-AST appends preserve existing
+content and revalidate their destination. Provenance survives sync encryption,
+union merges, backups/restores, duplication, CLI uploads and QPNote exports.
+Existing cloud upload limits remain independent of larger local email limits.
+Analysis is clean; 63 focused storage/sync/database regressions and a further
+34 focused persistence/export/CLI tests pass. No full suite ran. See log 336.
+
+### Email import phase 4 — review and confirmation UI
+
+Added the responsive Import Email route and injectable application gateway.
+Preview supports titles/tags, optional shared-content metadata, all three modes,
+explicit destination search, attachments, duplicate review, bounded batch parsing,
+progress, cancellation, retryable errors and completion summaries. Only the
+selected email retains full preview bytes; other batch entries retain summaries.
+Lock/logout cache invalidation releases preview plaintext and disables saving.
+Analysis is clean; 24 focused preview/persistence tests pass, with a further
+9-widget rerun after source-change checks. No full suite ran. See log 337.
+
+### Email import phase 5 — Linux entry points and editor integration
+
+Workspace/editor drops, settings multi-file picker, generic-file fallback,
+Ctrl+Shift+I, searchable Ctrl/Cmd+Shift+P commands and Linux `.eml` associations
+now share the same preview. Mixed batches identify invalid inputs. Nested drop
+handlers share classification so ordinary image/document drops remain operational.
+Live editors flush prior edits and adopt appends across all three modes; Super
+Editor retains original nodes/caret. Imported notes suppress automatic link
+preview fetching. Analysis is clean; 60 drop/editor tests plus 3 live append tests
+pass; Linux debug build succeeds. Package installer/device checks remain pending
+because packaging builders are unavailable. See log 338 for exact limits.
+
+### Email import phase 6 — Android sharing and Quick Capture
+
+Android SEND/SEND_MULTIPLE/VIEW email routing now uses bounded ContentResolver
+staging and native request IDs through the existing ShareIntentHandler. Cold/warm
+requests queue, initial/event overlap deduplicates, private copies are acknowledged
+and removed, and secure clears invalidate pending shares. Existing PDF/Markdown/
+text routing retains provider display names. Quick Capture offers explicit Save
+as Email for shared content and keeps URL-only clipping unchanged. Analysis is
+clean; 47 selected sharing/preview/Quick Capture/clipper tests pass. The GitHub
+Android debug APK builds; no device was connected for native provider replay.
+Existing NDK/Kotlin plugin build warnings are recorded in log 339.
+
+### Email import phase 7 — regression and security review
+
+The broad focused gate passes **302 tests** with clean analysis; follow-up runs
+pass 49 parser/editor/workflow tests, 26 persistence/attachment tests and 17 final
+UI/share tests after the review fixes. No full suite ran. Backend compilation and
+18 selected protocol tests pass; Linux and Android debug compilation succeeds.
+The review hardened pre-DOM/charset/date bounds, canonical duplicate fingerprints,
+interrupted cleanup, partial-batch editor reconciliation, source-only restore/sync
+merges, real QPNote export mapping and secure preview ownership. Synthetic Linux
+JIT parser observations are recorded, including 1.53s for a 40 MiB message with
+continued main-isolate timer activity. See log 340 and the implementation record.
+
+### Email import phase 8 — documentation and final verification
+
+All eight implementation phases are complete on `feat/email-import`, committed
+and pushed independently. The [email import guide](handoff/email-import.md) and
+[engineering report](docs/email-import/engineering-report.md) describe the final
+architecture, usage, schema 21, cleanup, test evidence and explicit limitations.
+Final analysis is clean and **76 email-feature tests pass**; the recorded broader
+focused gate passed **302 tests**, and **18 selected backend contract tests pass**.
+No full Flutter suite ran. Final Linux/Android/CLI compilation completed before
+the instruction to stop local builds; no further builds were run afterward.
+Physical Android and installed Linux package validation remain outstanding, and
+existing cloud size policies still apply. See log 341.
+
+### Offline email import initialization fix
+
+Email preview now initializes a device-protected encryption key for fresh notebooks
+used without Cloud Sync, then checks unlock state. It reuses persisted keys after
+restart, preserves real lock/logout clearing, and retains selections for retryable
+storage failures. Existing encrypted libraries and different cloud vault keys are
+protected from accidental key replacement. See [log 342](handoff/latest-logs.md)
+and [offline encryption setup](handoff/email-import.md#offline-encryption-setup).
+No app builds were run for this fix; validation uses analysis and focused tests.
+
 
 ## Phase 1 Local Note Templates — November 18, 2026
 
@@ -911,3 +1013,26 @@ results and Enter/Go activates the first matching action. See engineering log
 
 Validation: `flutter analyze` clean; **55 focused tests pass** across template
 widgets/navigation and settings. `git diff --check` passes. No full suite ran.
+
+## PR #14 integration review — November 19, 2026
+
+Reconciled email import with the templates feature merged in PR #15. The combined
+Drift schema is **22**: its defensive migration accepts both schema-21 layouts,
+adds email provenance/index/journal and missing template tables, and preserves
+existing notes, template snapshots and favorites. Backup payloads and vault erasure
+retain both features. Added regressions for both v21 upgrade paths and a combined
+email/template backup JSON round trip.
+
+The notes command palette now exposes both template and email actions, including
+the generic-file fallback; the global email shortcut reuses the same searchable,
+keyboard-aware palette. Email preview flushes pending Visual edits through the
+editor's persistence barrier before taking its destination snapshot. Historical
+phase logs retain their original schema numbers; current email guides use v22.
+
+Validation: final `flutter analyze` reports no issues. The focused integration gate
+passes **418 tests** across email import, local keys, database migration, templates,
+backup, sync/conflicts, Quick Capture, attachments, exports, editor and settings.
+A final **29-test** email persistence/editor run also passes, including pending
+Visual edits, both v21 migrations and combined backup recovery; these runs overlap.
+The full test suite and app builds were not run for this review. Physical-device
+validation remains subject to the limits recorded in the email guide.

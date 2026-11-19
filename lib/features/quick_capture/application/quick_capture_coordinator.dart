@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,8 @@ class QuickCaptureCoordinator {
   );
 
   static bool _initialized = false;
+  static Completer<void>? _idle;
+  static Future<void> get whenIdle => _idle?.future ?? Future.value();
   static bool _isRouteOpen = false;
   static QuickCapturePayload? _activePayload;
   static final _pendingShares = <QuickCapturePayload>[];
@@ -103,6 +106,7 @@ class QuickCaptureCoordinator {
       return;
     }
 
+    _idle ??= Completer<void>();
     _isRouteOpen = true;
     _activePayload = payload;
     nav.push<void>(QuickCaptureScreen.route(payload)).then((_) {
@@ -111,6 +115,9 @@ class QuickCaptureCoordinator {
       _activePayload = null;
       if (_pendingShares.isNotEmpty) {
         openCapture(_pendingShares.removeAt(0));
+      } else {
+        _idle?.complete();
+        _idle = null;
       }
     });
   }
@@ -127,6 +134,8 @@ class QuickCaptureCoordinator {
               first.titleHint == second.titleHint));
 
   static void dispose() {
+    _idle?.complete();
+    _idle = null;
     _initialized = false;
     _isRouteOpen = false;
     _navigatorKey = null;

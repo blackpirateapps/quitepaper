@@ -62,14 +62,14 @@ class QuickCaptureController extends StateNotifier<QuickCaptureState> {
   QuickCaptureController({
     required AppDatabase database,
     required QuickCapturePayload initialPayload,
-  })  : _db = database,
-        super(
-          QuickCaptureState(
-            payload: initialPayload,
-            content: initialPayload.initialContent,
-            cursorPosition: initialPayload.cursorPosition,
-          ),
-        ) {
+  }) : _db = database,
+       super(
+         QuickCaptureState(
+           payload: initialPayload,
+           content: initialPayload.initialContent,
+           cursorPosition: initialPayload.cursorPosition,
+         ),
+       ) {
     _loadDrafts();
     if (initialPayload.initialContent.trim().isNotEmpty) {
       _persistDraft();
@@ -151,7 +151,8 @@ class QuickCaptureController extends StateNotifier<QuickCaptureState> {
       final derived = Note.deriveTitle(content);
       final title = (derived.isNotEmpty && derived != 'Untitled')
           ? derived
-          : (state.payload.titleHint ?? (derived.isNotEmpty ? derived : 'Untitled'));
+          : (state.payload.titleHint ??
+                (derived.isNotEmpty ? derived : 'Untitled'));
 
       final now = DateTime.now();
       final note = Note(
@@ -178,6 +179,12 @@ class QuickCaptureController extends StateNotifier<QuickCaptureState> {
       );
       return false;
     }
+  }
+
+  Future<void> completeEmailImport() async {
+    _debounceTimer?.cancel();
+    state = state.copyWith(isSaved: true, isSaving: false);
+    await _db.deleteQuickCaptureDraft(state.payload.id);
   }
 
   /// Handles an additional incoming share delivered while Quick Capture is already open.
@@ -269,9 +276,10 @@ class QuickCaptureController extends StateNotifier<QuickCaptureState> {
 
 /// Provider family for the Quick Capture controller keyed by session ID.
 final quickCaptureControllerProvider = StateNotifierProvider.autoDispose
-    .family<QuickCaptureController, QuickCaptureState, QuickCapturePayload>(
-  (ref, payload) {
-    final db = ref.watch(databaseProvider);
-    return QuickCaptureController(database: db, initialPayload: payload);
-  },
-);
+    .family<QuickCaptureController, QuickCaptureState, QuickCapturePayload>((
+      ref,
+      payload,
+    ) {
+      final db = ref.watch(databaseProvider);
+      return QuickCaptureController(database: db, initialPayload: payload);
+    });

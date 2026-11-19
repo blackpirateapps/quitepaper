@@ -1,3 +1,4 @@
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -38,8 +39,9 @@ class SyncEngine {
     OcrCrypto? ocrCrypto,
     this.onDeviceRevoked,
     this.onSyncCompleted,
-  })  : conflictResolver = conflictResolver ?? ConflictResolver(database: database),
-        _ocrCrypto = ocrCrypto ?? OcrCrypto() {
+  }) : conflictResolver =
+           conflictResolver ?? ConflictResolver(database: database),
+       _ocrCrypto = ocrCrypto ?? OcrCrypto() {
     _init();
   }
 
@@ -57,8 +59,9 @@ class SyncEngine {
   final void Function(String message)? onDeviceRevoked;
   final void Function()? onSyncCompleted;
 
-  final Debouncer _syncDebouncer =
-      Debouncer(duration: const Duration(milliseconds: 700));
+  final Debouncer _syncDebouncer = Debouncer(
+    duration: const Duration(milliseconds: 700),
+  );
   final _stateController = StreamController<SyncState>.broadcast();
   SyncState _state = const SyncState();
 
@@ -127,11 +130,13 @@ class SyncEngine {
         for (final m in imgMatches) {
           final id = m.group(1);
           if (id != null) {
-            references.add(SyncReferenceItem(
-              resourceType: 'attachment',
-              resourceId: id,
-              noteId: n.id,
-            ));
+            references.add(
+              SyncReferenceItem(
+                resourceType: 'attachment',
+                resourceId: id,
+                noteId: n.id,
+              ),
+            );
           }
         }
 
@@ -141,11 +146,13 @@ class SyncEngine {
         for (final m in docMatches) {
           final id = m.group(1);
           if (id != null) {
-            references.add(SyncReferenceItem(
-              resourceType: 'document',
-              resourceId: id,
-              noteId: n.id,
-            ));
+            references.add(
+              SyncReferenceItem(
+                resourceType: 'document',
+                resourceId: id,
+                noteId: n.id,
+              ),
+            );
           }
         }
       }
@@ -169,17 +176,20 @@ class SyncEngine {
       return;
     }
     if (!keyManager.isUnlocked) {
-      _updateState(_state.copyWith(
-        status: SyncStatus.pendingSync,
-        errorMessage:
-            'Quiet Paper encryption password is required to unlock notes.',
-      ));
+      _updateState(
+        _state.copyWith(
+          status: SyncStatus.pendingSync,
+          errorMessage:
+              'Quiet Paper encryption password is required to unlock notes.',
+        ),
+      );
       return;
     }
 
     _isSyncing = true;
     _updateState(
-        _state.copyWith(status: SyncStatus.syncing, errorMessage: null));
+      _state.copyWith(status: SyncStatus.syncing, errorMessage: null),
+    );
 
     try {
       final masterKey = keyManager.getMasterKey();
@@ -221,6 +231,7 @@ class SyncEngine {
           body: note.content,
           tags: tags,
           pinnedTags: decodePinnedTagsJson(note.pinnedTags),
+          importSources: NoteImportSource.decode(note.importSources),
         );
 
         final envelope = await cryptoService.encryptNote(
@@ -317,8 +328,12 @@ class SyncEngine {
       if (dirtyTags.isNotEmpty) {
         final tagPayloads = <TagSyncPayload>[];
         for (final tag in dirtyTags) {
-          final renamedFrom = await database.getSyncMetadata('tag_renamed_from_${tag.id}');
-          final renamedTo = await database.getSyncMetadata('tag_renamed_to_${tag.id}');
+          final renamedFrom = await database.getSyncMetadata(
+            'tag_renamed_from_${tag.id}',
+          );
+          final renamedTo = await database.getSyncMetadata(
+            'tag_renamed_to_${tag.id}',
+          );
           final tagPlaintext = TagPlaintext(
             name: tag.name,
             renamedFrom: renamedFrom,
@@ -334,20 +349,22 @@ class SyncEngine {
             tagId: tag.id,
             keyVersion: 1,
           );
-          tagPayloads.add(TagSyncPayload(
-            id: tag.id,
-            contentCiphertext: envelope.ciphertext,
-            contentNonce: envelope.nonce,
-            contentVersion: envelope.contentVersion,
-            encryptionKeyVersion: envelope.keyVersion,
-            isPinned: tag.isPinned,
-            pinnedOrder: tag.pinnedOrder,
-            createdAt: tag.createdAt ?? DateTime.now(),
-            updatedAt: tag.updatedAt ?? DateTime.now(),
-            isDeleted: tag.isDeleted,
-            deletedAt: tag.deletedAt,
-            baseRevision: tag.serverRevision > 0 ? tag.serverRevision : null,
-          ));
+          tagPayloads.add(
+            TagSyncPayload(
+              id: tag.id,
+              contentCiphertext: envelope.ciphertext,
+              contentNonce: envelope.nonce,
+              contentVersion: envelope.contentVersion,
+              encryptionKeyVersion: envelope.keyVersion,
+              isPinned: tag.isPinned,
+              pinnedOrder: tag.pinnedOrder,
+              createdAt: tag.createdAt ?? DateTime.now(),
+              updatedAt: tag.updatedAt ?? DateTime.now(),
+              isDeleted: tag.isDeleted,
+              deletedAt: tag.deletedAt,
+              baseRevision: tag.serverRevision > 0 ? tag.serverRevision : null,
+            ),
+          );
         }
 
         try {
@@ -377,19 +394,22 @@ class SyncEngine {
       if (dirtyPlaceAliases.isNotEmpty) {
         final placeAliasPayloads = <PlaceAliasSyncPayload>[];
         for (final alias in dirtyPlaceAliases) {
-          placeAliasPayloads.add(PlaceAliasSyncPayload(
-            id: alias.id,
-            contentCiphertext: alias.contentCiphertext,
-            contentNonce: alias.contentNonce,
-            contentVersion: alias.contentVersion,
-            encryptionKeyVersion: alias.encryptionKeyVersion,
-            createdAt: alias.createdAt ?? DateTime.now(),
-            updatedAt: alias.updatedAt ?? DateTime.now(),
-            isDeleted: alias.isDeleted,
-            deletedAt: alias.deletedAt,
-            baseRevision:
-                alias.serverRevision > 0 ? alias.serverRevision : null,
-          ));
+          placeAliasPayloads.add(
+            PlaceAliasSyncPayload(
+              id: alias.id,
+              contentCiphertext: alias.contentCiphertext,
+              contentNonce: alias.contentNonce,
+              contentVersion: alias.contentVersion,
+              encryptionKeyVersion: alias.encryptionKeyVersion,
+              createdAt: alias.createdAt ?? DateTime.now(),
+              updatedAt: alias.updatedAt ?? DateTime.now(),
+              isDeleted: alias.isDeleted,
+              deletedAt: alias.deletedAt,
+              baseRevision: alias.serverRevision > 0
+                  ? alias.serverRevision
+                  : null,
+            ),
+          );
         }
 
         try {
@@ -418,15 +438,17 @@ class SyncEngine {
         final dirtyAnnotations = await database.getDirtyDocumentAnnotations();
         if (dirtyAnnotations.isNotEmpty) {
           final annotationPayloads = dirtyAnnotations
-              .map((row) => DocumentAnnotationSyncPayload(
-                    documentId: row.documentId,
-                    pageNumber: row.pageNumber,
-                    // contentCiphertext = the base64 QPAN envelope already in the row.
-                    contentCiphertext: row.encryptedPayload,
-                    annotationCount: row.annotationCount,
-                    updatedAtMs: row.updatedAt.millisecondsSinceEpoch,
-                    baseRevision: row.revision > 0 ? row.revision : null,
-                  ))
+              .map(
+                (row) => DocumentAnnotationSyncPayload(
+                  documentId: row.documentId,
+                  pageNumber: row.pageNumber,
+                  // contentCiphertext = the base64 QPAN envelope already in the row.
+                  contentCiphertext: row.encryptedPayload,
+                  annotationCount: row.annotationCount,
+                  updatedAtMs: row.updatedAt.millisecondsSinceEpoch,
+                  baseRevision: row.revision > 0 ? row.revision : null,
+                ),
+              )
               .toList();
 
           const uuid = Uuid();
@@ -470,7 +492,10 @@ class SyncEngine {
 
       while (hasMoreTags) {
         try {
-          final tagPullRes = await apiClient.pullTags(cursor: currentTagCursor, limit: 50);
+          final tagPullRes = await apiClient.pullTags(
+            cursor: currentTagCursor,
+            limit: 50,
+          );
           for (final change in tagPullRes.changes) {
             try {
               if (change.isDeleted) {
@@ -543,11 +568,16 @@ class SyncEngine {
                 );
               }
             } catch (tagDecErr) {
-              debugPrint('Failed to decrypt/apply pulled tag ${change.id}: $tagDecErr');
+              debugPrint(
+                'Failed to decrypt/apply pulled tag ${change.id}: $tagDecErr',
+              );
             }
           }
           currentTagCursor = tagPullRes.cursor;
-          await database.setSyncMetadata('tag_sync_cursor', currentTagCursor.toString());
+          await database.setSyncMetadata(
+            'tag_sync_cursor',
+            currentTagCursor.toString(),
+          );
           hasMoreTags = tagPullRes.hasMore;
         } catch (tagPullErr) {
           debugPrint('Tags pull error: $tagPullErr');
@@ -568,24 +598,27 @@ class SyncEngine {
             limit: 50,
           );
         } on SyncCursorExpiredException catch (exp) {
-          debugPrint('Sync cursor expired ($exp). Resetting cursor for full resync...');
+          debugPrint(
+            'Sync cursor expired ($exp). Resetting cursor for full resync...',
+          );
           await resetSyncCursor();
           currentCursor = 0;
-          pullResponse = await apiClient.pullChanges(
-            cursor: 0,
-            limit: 50,
-          );
+          pullResponse = await apiClient.pullChanges(cursor: 0, limit: 50);
         }
 
         for (final change in pullResponse.changes) {
           await _applyPulledNoteChange(change, masterKey);
         }
 
-        if (pullResponse.changes.isEmpty || pullResponse.cursor <= currentCursor) {
+        if (pullResponse.changes.isEmpty ||
+            pullResponse.cursor <= currentCursor) {
           hasMore = false;
         } else {
           currentCursor = pullResponse.cursor;
-          await database.setSyncMetadata('sync_cursor', currentCursor.toString());
+          await database.setSyncMetadata(
+            'sync_cursor',
+            currentCursor.toString(),
+          );
           hasMore = pullResponse.hasMore;
         }
       }
@@ -626,17 +659,19 @@ class SyncEngine {
             keyVersion: 1,
           );
 
-          versionPayloads.add(NoteVersionSyncPayload(
-            id: v.id,
-            noteId: v.noteId,
-            versionNumber: v.versionNumber,
-            contentCiphertext: envelope.ciphertext,
-            contentNonce: envelope.nonce,
-            charCount: v.charCount,
-            wordCount: v.wordCount,
-            deltaSummary: v.deltaSummary,
-            createdAt: v.createdAt,
-          ));
+          versionPayloads.add(
+            NoteVersionSyncPayload(
+              id: v.id,
+              noteId: v.noteId,
+              versionNumber: v.versionNumber,
+              contentCiphertext: envelope.ciphertext,
+              contentNonce: envelope.nonce,
+              charCount: v.charCount,
+              wordCount: v.wordCount,
+              deltaSummary: v.deltaSummary,
+              createdAt: v.createdAt,
+            ),
+          );
         }
 
         if (versionPayloads.isNotEmpty) {
@@ -669,7 +704,10 @@ class SyncEngine {
 
       while (hasMoreVersions) {
         try {
-          final vPullRes = await apiClient.pullVersions(cursor: currentVCursor, limit: 50);
+          final vPullRes = await apiClient.pullVersions(
+            cursor: currentVCursor,
+            limit: 50,
+          );
           for (final change in vPullRes.changes) {
             try {
               final envelope = EncryptedEnvelope(
@@ -702,11 +740,16 @@ class SyncEngine {
                 syncedAt: DateTime.now(),
               );
             } catch (vDecErr) {
-              debugPrint('Failed to decrypt pulled version ${change.id}: $vDecErr');
+              debugPrint(
+                'Failed to decrypt pulled version ${change.id}: $vDecErr',
+              );
             }
           }
           currentVCursor = vPullRes.cursor;
-          await database.setSyncMetadata('version_sync_cursor', currentVCursor.toString());
+          await database.setSyncMetadata(
+            'version_sync_cursor',
+            currentVCursor.toString(),
+          );
           hasMoreVersions = vPullRes.hasMore;
         } catch (vPullErr) {
           debugPrint('Note versions pull error: $vPullErr');
@@ -718,8 +761,9 @@ class SyncEngine {
       // cursor (§2.3). The server returns opaque ciphertext by revision; we
       // store the envelope verbatim (the store decrypts lazily on load, since
       // ids are deterministic and bind the AAD). Convergent same-id upsert.
-      final paCursorStr =
-          await database.getSyncMetadata('place_alias_sync_cursor');
+      final paCursorStr = await database.getSyncMetadata(
+        'place_alias_sync_cursor',
+      );
       var currentPaCursor = int.tryParse(paCursorStr ?? '0') ?? 0;
       var hasMorePlaceAliases = true;
 
@@ -733,7 +777,9 @@ class SyncEngine {
             try {
               await database.upsertSyncedPlaceAlias(
                 id: change.id,
-                contentCiphertext: change.isDeleted ? '' : change.contentCiphertext,
+                contentCiphertext: change.isDeleted
+                    ? ''
+                    : change.contentCiphertext,
                 contentNonce: change.isDeleted ? '' : change.contentNonce,
                 contentVersion: change.contentVersion,
                 encryptionKeyVersion: change.encryptionKeyVersion,
@@ -745,12 +791,15 @@ class SyncEngine {
               );
             } catch (paApplyErr) {
               debugPrint(
-                  'Failed to apply pulled place alias ${change.id}: $paApplyErr');
+                'Failed to apply pulled place alias ${change.id}: $paApplyErr',
+              );
             }
           }
           currentPaCursor = paPullRes.cursor;
           await database.setSyncMetadata(
-              'place_alias_sync_cursor', currentPaCursor.toString());
+            'place_alias_sync_cursor',
+            currentPaCursor.toString(),
+          );
           hasMorePlaceAliases = paPullRes.hasMore;
         } catch (paPullErr) {
           debugPrint('Place aliases pull error: $paPullErr');
@@ -770,8 +819,9 @@ class SyncEngine {
         keyManager: keyManager,
         crypto: annotationCrypto,
       );
-      final annCursorStr =
-          await database.getSyncMetadata('annotation_sync_cursor');
+      final annCursorStr = await database.getSyncMetadata(
+        'annotation_sync_cursor',
+      );
       var currentAnnCursor = int.tryParse(annCursorStr ?? '0') ?? 0;
       var hasMoreAnnotations = true;
 
@@ -805,8 +855,10 @@ class SyncEngine {
                 documentId: change.documentId,
                 pageIndex: pageIndex,
               );
-              final local =
-                  await annotationService.loadPage(change.documentId, pageIndex);
+              final local = await annotationService.loadPage(
+                change.documentId,
+                pageIndex,
+              );
               final merged = mergeAnnotations(local, remote);
               await annotationService.savePage(
                 documentId: change.documentId,
@@ -821,12 +873,15 @@ class SyncEngine {
               );
             } catch (annDecErr) {
               debugPrint(
-                  'Failed to merge pulled annotation page ${change.documentId} p${change.pageNumber}: $annDecErr');
+                'Failed to merge pulled annotation page ${change.documentId} p${change.pageNumber}: $annDecErr',
+              );
             }
           }
           currentAnnCursor = annPullRes.cursor;
           await database.setSyncMetadata(
-              'annotation_sync_cursor', currentAnnCursor.toString());
+            'annotation_sync_cursor',
+            currentAnnCursor.toString(),
+          );
           hasMoreAnnotations = annPullRes.hasMore;
         } catch (annPullErr) {
           debugPrint('Document annotations pull error: $annPullErr');
@@ -876,11 +931,13 @@ class SyncEngine {
             for (final m in imgMatches) {
               final id = m.group(1);
               if (id != null) {
-                references.add(SyncReferenceItem(
-                  resourceType: 'attachment',
-                  resourceId: id,
-                  noteId: n.id,
-                ));
+                references.add(
+                  SyncReferenceItem(
+                    resourceType: 'attachment',
+                    resourceId: id,
+                    noteId: n.id,
+                  ),
+                );
               }
             }
 
@@ -890,11 +947,13 @@ class SyncEngine {
             for (final m in docMatches) {
               final id = m.group(1);
               if (id != null) {
-                references.add(SyncReferenceItem(
-                  resourceType: 'document',
-                  resourceId: id,
-                  noteId: n.id,
-                ));
+                references.add(
+                  SyncReferenceItem(
+                    resourceType: 'document',
+                    resourceId: id,
+                    noteId: n.id,
+                  ),
+                );
               }
             }
           }
@@ -917,25 +976,33 @@ class SyncEngine {
         final errorMsg = attachmentErrors.isNotEmpty
             ? attachmentErrors.first
             : 'Failed to upload $attachmentsFailed file(s) to Cloudinary';
-        _updateState(SyncState(
-          status: hasActiveConflicts ? SyncStatus.conflict : SyncStatus.syncError,
-          lastSyncedAt: DateTime.now(),
-          pendingCount: 0,
-          conflictsCount: pendingConflicts,
-          attachmentsSynced: attachmentsUploaded,
-          attachmentsFailed: attachmentsFailed,
-          errorMessage: errorMsg,
-        ));
+        _updateState(
+          SyncState(
+            status: hasActiveConflicts
+                ? SyncStatus.conflict
+                : SyncStatus.syncError,
+            lastSyncedAt: DateTime.now(),
+            pendingCount: 0,
+            conflictsCount: pendingConflicts,
+            attachmentsSynced: attachmentsUploaded,
+            attachmentsFailed: attachmentsFailed,
+            errorMessage: errorMsg,
+          ),
+        );
       } else {
-        _updateState(SyncState(
-          status: hasActiveConflicts ? SyncStatus.conflict : SyncStatus.synced,
-          lastSyncedAt: DateTime.now(),
-          pendingCount: 0,
-          conflictsCount: pendingConflicts,
-          attachmentsSynced: attachmentsUploaded,
-          attachmentsFailed: 0,
-          errorMessage: null,
-        ));
+        _updateState(
+          SyncState(
+            status: hasActiveConflicts
+                ? SyncStatus.conflict
+                : SyncStatus.synced,
+            lastSyncedAt: DateTime.now(),
+            pendingCount: 0,
+            conflictsCount: pendingConflicts,
+            attachmentsSynced: attachmentsUploaded,
+            attachmentsFailed: 0,
+            errorMessage: null,
+          ),
+        );
       }
       onSyncCompleted?.call();
     } on DeviceRevokedException catch (revErr) {
@@ -947,26 +1014,30 @@ class SyncEngine {
       try {
         await authService.signOut();
       } catch (_) {}
-      _updateState(_state.copyWith(
-        status: SyncStatus.localOnly,
-        errorMessage: msg,
-      ));
+      _updateState(
+        _state.copyWith(status: SyncStatus.localOnly, errorMessage: msg),
+      );
     } catch (e) {
       final errStr = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
-      final isOffline = errStr.contains('SocketException') ||
+      final isOffline =
+          errStr.contains('SocketException') ||
           errStr.contains('ClientException') ||
           errStr.contains('Network is unreachable') ||
           errStr.contains('Connection refused');
 
       final pendingConflicts = await database.getPendingConflictsCount();
 
-      _updateState(_state.copyWith(
-        status: isOffline
-            ? SyncStatus.offline
-            : (pendingConflicts > 0 ? SyncStatus.conflict : SyncStatus.syncError),
-        conflictsCount: pendingConflicts,
-        errorMessage: errStr,
-      ));
+      _updateState(
+        _state.copyWith(
+          status: isOffline
+              ? SyncStatus.offline
+              : (pendingConflicts > 0
+                    ? SyncStatus.conflict
+                    : SyncStatus.syncError),
+          conflictsCount: pendingConflicts,
+          errorMessage: errStr,
+        ),
+      );
     } finally {
       _isSyncing = false;
     }
@@ -1041,13 +1112,19 @@ class SyncEngine {
               body: localNote.note.content,
               tags: localNote.tagNames,
               pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
+              importSources: NoteImportSource.decode(
+                localNote.note.importSources,
+              ),
             )
           : const NotePlaintext(title: '', body: '', tags: []);
       final localIsDeleted = localNote == null || localNote.note.isTrashed;
 
       // 4. Fetch ancestor
-      final basePlaintext =
-          await _fetchBasePlaintext(noteId, c.baseRevision, masterKey);
+      final basePlaintext = await _fetchBasePlaintext(
+        noteId,
+        c.baseRevision,
+        masterKey,
+      );
 
       // 5. 3-way merge
       final mergeResult = conflictResolver.merge3Way(
@@ -1092,6 +1169,7 @@ class SyncEngine {
           resolvedTitle: mergeResult.mergedPlaintext.title,
           resolvedContent: mergeResult.mergedPlaintext.body,
           resolvedTags: mergeResult.mergedPlaintext.tags,
+
           explanation: mergeResult.explanation,
         );
 
@@ -1175,7 +1253,9 @@ class SyncEngine {
         );
       }
     } catch (e) {
-      debugPrint('Failed to fetch historical ancestor for note $noteId rev $baseRevision: $e');
+      debugPrint(
+        'Failed to fetch historical ancestor for note $noteId rev $baseRevision: $e',
+      );
     }
 
     return null;
@@ -1186,7 +1266,9 @@ class SyncEngine {
     try {
       manifest = await apiClient.getNotesManifest();
     } catch (e) {
-      debugPrint('[SyncEngine] Could not fetch notes manifest for reconciliation: $e');
+      debugPrint(
+        '[SyncEngine] Could not fetch notes manifest for reconciliation: $e',
+      );
       return;
     }
 
@@ -1211,10 +1293,14 @@ class SyncEngine {
     }
 
     if (missingIds.isNotEmpty) {
-      debugPrint('[SyncEngine] Reconciling: fetching ${missingIds.length} missing notes from server...');
+      debugPrint(
+        '[SyncEngine] Reconciling: fetching ${missingIds.length} missing notes from server...',
+      );
       const fetchBatchSize = 50;
       for (var i = 0; i < missingIds.length; i += fetchBatchSize) {
-        final end = (i + fetchBatchSize < missingIds.length) ? i + fetchBatchSize : missingIds.length;
+        final end = (i + fetchBatchSize < missingIds.length)
+            ? i + fetchBatchSize
+            : missingIds.length;
         final batch = missingIds.sublist(i, end);
         try {
           final fetchedNotes = await apiClient.fetchMissingNotes(batch);
@@ -1222,7 +1308,9 @@ class SyncEngine {
             await _applyPulledNoteChange(change, masterKey);
           }
         } catch (fetchErr) {
-          debugPrint('[SyncEngine] Failed to fetch chunk of missing notes: $fetchErr');
+          debugPrint(
+            '[SyncEngine] Failed to fetch chunk of missing notes: $fetchErr',
+          );
         }
       }
     }
@@ -1269,7 +1357,8 @@ class SyncEngine {
 
           final rebaseResult = conflictResolver.merge3Way(
             base: pendingConflict.remotePlaintext,
-            local: pendingConflict.localPlaintext ??
+            local:
+                pendingConflict.localPlaintext ??
                 const NotePlaintext(title: '', body: '', tags: []),
             remote: newRemote,
             localIsDeleted: pendingConflict.localIsDeleted,
@@ -1286,6 +1375,7 @@ class SyncEngine {
             resolvedTitle: rebaseResult.mergedPlaintext.title,
             resolvedContent: rebaseResult.mergedPlaintext.body,
             resolvedTags: rebaseResult.mergedPlaintext.tags,
+
           );
 
           await database.saveConflict(
@@ -1301,7 +1391,8 @@ class SyncEngine {
           );
         } catch (rebaseErr) {
           debugPrint(
-              'Failed to rebase conflict for note ${change.id}: $rebaseErr');
+            'Failed to rebase conflict for note ${change.id}: $rebaseErr',
+          );
         }
       }
       return;
@@ -1313,12 +1404,16 @@ class SyncEngine {
       if (localNote != null && localNote.note.isDirty) {
         // Delete-vs-Edit conflict on pull!
         final basePlaintext = await _fetchBasePlaintext(
-            change.id, localNote.note.serverRevision, masterKey);
+          change.id,
+          localNote.note.serverRevision,
+          masterKey,
+        );
         final localPlaintext = NotePlaintext(
           title: localNote.note.title,
           body: localNote.note.content,
           tags: localNote.tagNames,
           pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
+          importSources: NoteImportSource.decode(localNote.note.importSources),
         );
         const remotePlaintext = NotePlaintext(title: '', body: '', tags: []);
 
@@ -1398,12 +1493,18 @@ class SyncEngine {
         if (localNote != null && localNote.note.isDirty) {
           // Colliding local edit while pulling!
           final basePlaintext = await _fetchBasePlaintext(
-              change.id, localNote.note.serverRevision, masterKey);
+            change.id,
+            localNote.note.serverRevision,
+            masterKey,
+          );
           final localPlaintext = NotePlaintext(
             title: localNote.note.title,
             body: localNote.note.content,
             tags: localNote.tagNames,
             pinnedTags: decodePinnedTagsJson(localNote.note.pinnedTags),
+            importSources: NoteImportSource.decode(
+              localNote.note.importSources,
+            ),
           );
 
           final mergeRes = conflictResolver.merge3Way(
@@ -1443,6 +1544,7 @@ class SyncEngine {
               resolvedTitle: mergeRes.mergedPlaintext.title,
               resolvedContent: mergeRes.mergedPlaintext.body,
               resolvedTags: mergeRes.mergedPlaintext.tags,
+
               explanation: mergeRes.explanation,
             );
             await database.saveConflict(
@@ -1469,6 +1571,7 @@ class SyncEngine {
             isTrashed: change.trashed,
             deletedAt: change.deletedAt,
             tags: decrypted.tags,
+            importSources: decrypted.importSources,
             pinnedTags: decrypted.pinnedTags,
             serverRevision: change.revision,
             isDirty: false,
@@ -1489,14 +1592,16 @@ class SyncEngine {
                 localAtt.cloudUrl == null ||
                 localAtt.cloudUrl!.isEmpty) {
               try {
-                final remoteMeta =
-                    await apiClient.getAttachmentMetadata(assetId);
+                final remoteMeta = await apiClient.getAttachmentMetadata(
+                  assetId,
+                );
                 if (remoteMeta != null) {
                   final isLinkPreviewThumb =
                       decrypted.body.contains('<!-- qp-link-preview:') &&
-                          decrypted.body.contains('qp://asset/$assetId');
-                  final effectiveKind =
-                      isLinkPreviewThumb ? 'linkPreview' : remoteMeta.kind;
+                      decrypted.body.contains('qp://asset/$assetId');
+                  final effectiveKind = isLinkPreviewThumb
+                      ? 'linkPreview'
+                      : remoteMeta.kind;
 
                   await database.saveAttachment(
                     id: remoteMeta.id,
@@ -1522,7 +1627,8 @@ class SyncEngine {
                 }
               } catch (attErr) {
                 debugPrint(
-                    'Failed to prefetch metadata for attachment $assetId: $attErr');
+                  'Failed to prefetch metadata for attachment $assetId: $attErr',
+                );
               }
             }
           }
@@ -1541,8 +1647,7 @@ class SyncEngine {
                 localDoc.cloudUrl == null ||
                 localDoc.cloudUrl!.isEmpty) {
               try {
-                final remoteMeta =
-                    await apiClient.getDocumentMetadata(docId);
+                final remoteMeta = await apiClient.getDocumentMetadata(docId);
                 if (remoteMeta != null) {
                   await database.saveDocument(
                     id: remoteMeta.id,
@@ -1569,7 +1674,8 @@ class SyncEngine {
                 }
               } catch (docErr) {
                 debugPrint(
-                    'Failed to prefetch metadata for document $docId: $docErr');
+                  'Failed to prefetch metadata for document $docId: $docErr',
+                );
               }
             }
           }
@@ -1587,35 +1693,39 @@ class SyncEngine {
     final ocrPushPayloads = <OcrPageSyncPayload>[];
 
     for (final p in dirtyDocPages) {
-      ocrPushPayloads.add(OcrPageSyncPayload(
-        resourceType: 'document',
-        resourceId: p.documentId,
-        pageNumber: p.pageNumber,
-        contentCiphertext: p.encryptedPayload,
-        ocrEngine: p.ocrEngine,
-        ocrEngineVersion: p.ocrEngineVersion,
-        language: p.language,
-        processedAt: p.processedAt,
-        updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
-        isDeleted: p.isDeleted,
-        baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
-      ));
+      ocrPushPayloads.add(
+        OcrPageSyncPayload(
+          resourceType: 'document',
+          resourceId: p.documentId,
+          pageNumber: p.pageNumber,
+          contentCiphertext: p.encryptedPayload,
+          ocrEngine: p.ocrEngine,
+          ocrEngineVersion: p.ocrEngineVersion,
+          language: p.language,
+          processedAt: p.processedAt,
+          updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
+          isDeleted: p.isDeleted,
+          baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
+        ),
+      );
     }
 
     for (final p in dirtyAttPages) {
-      ocrPushPayloads.add(OcrPageSyncPayload(
-        resourceType: 'attachment',
-        resourceId: p.attachmentId,
-        pageNumber: p.pageNumber,
-        contentCiphertext: p.encryptedPayload,
-        ocrEngine: p.ocrEngine,
-        ocrEngineVersion: p.ocrEngineVersion,
-        language: p.language,
-        processedAt: p.processedAt,
-        updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
-        isDeleted: p.isDeleted,
-        baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
-      ));
+      ocrPushPayloads.add(
+        OcrPageSyncPayload(
+          resourceType: 'attachment',
+          resourceId: p.attachmentId,
+          pageNumber: p.pageNumber,
+          contentCiphertext: p.encryptedPayload,
+          ocrEngine: p.ocrEngine,
+          ocrEngineVersion: p.ocrEngineVersion,
+          language: p.language,
+          processedAt: p.processedAt,
+          updatedAtMs: (p.updatedAt ?? p.processedAt).millisecondsSinceEpoch,
+          isDeleted: p.isDeleted,
+          baseRevision: p.baseRevision > 0 ? p.baseRevision : null,
+        ),
+      );
     }
 
     if (ocrPushPayloads.isEmpty) return;
@@ -1669,7 +1779,8 @@ class SyncEngine {
   ) async {
     for (final c in conflicts) {
       String remoteText = '';
-      if (!c.serverHead.isDeleted && c.serverHead.contentCiphertext.isNotEmpty) {
+      if (!c.serverHead.isDeleted &&
+          c.serverHead.contentCiphertext.isNotEmpty) {
         try {
           final envelopeBytes = base64Decode(c.serverHead.contentCiphertext);
           final doc = await _ocrCrypto.decryptOcrDocument(
@@ -1687,8 +1798,10 @@ class SyncEngine {
       int localRev = 0;
       final isDoc = c.resourceType == 'document';
       if (isDoc) {
-        final localRow =
-            await database.getDocumentOcrPage(c.resourceId, c.pageNumber);
+        final localRow = await database.getDocumentOcrPage(
+          c.resourceId,
+          c.pageNumber,
+        );
         if (localRow != null) {
           localRev = localRow.revision;
           try {
@@ -1702,8 +1815,10 @@ class SyncEngine {
           } catch (_) {}
         }
       } else {
-        final localRow =
-            await database.getAttachmentOcrPage(c.resourceId, c.pageNumber);
+        final localRow = await database.getAttachmentOcrPage(
+          c.resourceId,
+          c.pageNumber,
+        );
         if (localRow != null) {
           localRev = localRow.revision;
           try {
@@ -1816,7 +1931,8 @@ class SyncEngine {
           resolvedTitle:
               '${isDoc ? "Document" : "Attachment"} OCR Page ${c.pageNumber}',
           resolvedContent: mergeResult.mergedValue,
-          explanation: mergeResult.explanation ??
+          explanation:
+              mergeResult.explanation ??
               'Conflicting edits in OCR text on page ${c.pageNumber}.',
           extraData: {
             'isOcr': true,
@@ -1841,8 +1957,10 @@ class SyncEngine {
         );
 
         if (isDoc) {
-          final localRow =
-              await database.getDocumentOcrPage(c.resourceId, c.pageNumber);
+          final localRow = await database.getDocumentOcrPage(
+            c.resourceId,
+            c.pageNumber,
+          );
           if (localRow != null) {
             await database.saveDocumentOcrPage(
               documentId: c.resourceId,
@@ -1860,8 +1978,10 @@ class SyncEngine {
             );
           }
         } else {
-          final localRow =
-              await database.getAttachmentOcrPage(c.resourceId, c.pageNumber);
+          final localRow = await database.getAttachmentOcrPage(
+            c.resourceId,
+            c.pageNumber,
+          );
           if (localRow != null) {
             await database.saveAttachmentOcrPage(
               attachmentId: c.resourceId,
@@ -1944,8 +2064,9 @@ class SyncEngine {
               masterKeyBytes: masterKey,
               documentId: change.resourceId,
             );
-            newRemoteText =
-                doc.pages.isNotEmpty ? doc.pages.first.plainText : '';
+            newRemoteText = doc.pages.isNotEmpty
+                ? doc.pages.first.plainText
+                : '';
           } catch (_) {}
         }
 
@@ -1993,11 +2114,15 @@ class SyncEngine {
     // 2. Check local row dirty status
     final localDocPage = isDoc
         ? await database.getDocumentOcrPage(
-            change.resourceId, change.pageNumber)
+            change.resourceId,
+            change.pageNumber,
+          )
         : null;
     final localAttPage = !isDoc
         ? await database.getAttachmentOcrPage(
-            change.resourceId, change.pageNumber)
+            change.resourceId,
+            change.pageNumber,
+          )
         : null;
 
     final isLocalDirty = isDoc
@@ -2045,7 +2170,9 @@ class SyncEngine {
         );
         if (!change.isDeleted) {
           await database.updateAttachmentOcrState(
-              change.resourceId, 'available');
+            change.resourceId,
+            'available',
+          );
         }
         ocrSearchService?.invalidateAttachmentCache(change.resourceId);
       }
@@ -2186,7 +2313,8 @@ class SyncEngine {
         resolvedTitle:
             '${isDoc ? "Document" : "Attachment"} OCR Page ${change.pageNumber}',
         resolvedContent: mergeResult.mergedValue,
-        explanation: mergeResult.explanation ??
+        explanation:
+            mergeResult.explanation ??
             'Conflicting edits in OCR text on page ${change.pageNumber}.',
         extraData: {
           'isOcr': true,

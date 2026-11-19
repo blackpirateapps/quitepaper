@@ -26,9 +26,9 @@ class AttachmentService implements AssetResolver {
     CloudinaryClient? cloudinaryClient,
     this.apiClient,
     this.processingService,
-  })  : _crypto = crypto ?? AttachmentCrypto(),
-        _storage = storage ?? AttachmentLocalStorage(),
-        _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
+  }) : _crypto = crypto ?? AttachmentCrypto(),
+       _storage = storage ?? AttachmentLocalStorage(),
+       _cloudinary = cloudinaryClient ?? DefaultCloudinaryClient();
 
   final AppDatabase database;
   final KeyManager keyManager;
@@ -44,7 +44,8 @@ class AttachmentService implements AssetResolver {
   static const int maxFileSizeBytes = CloudStorageConstants.maxUploadSizeBytes;
 
   /// Canonical maximum upload limit for a generic attachment (10 MB).
-  static const int maxGenericFileSizeBytes = CloudStorageConstants.maxUploadSizeBytes;
+  static const int maxGenericFileSizeBytes =
+      CloudStorageConstants.maxUploadSizeBytes;
 
   /// Supported image MIME types.
   static const Set<String> supportedMimeTypes = {
@@ -60,7 +61,8 @@ class AttachmentService implements AssetResolver {
   ///
   /// Persists the encrypted ciphertext locally immediately, marks the attachment as pending sync,
   /// and returns a formatted markdown token `![alt](qp://asset/<UUID>)`.
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importImageFromFile(
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importImageFromFile(
     File file, {
     String? noteId,
     String? preferredAltText,
@@ -82,7 +84,8 @@ class AttachmentService implements AssetResolver {
   }
 
   /// Imports an image from raw plaintext [bytes] into the encrypted Quiet Paper notebook.
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importImageFromBytes(
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importImageFromBytes(
     Uint8List bytes, {
     required String mimeType,
     String fileName = 'image.png',
@@ -94,7 +97,8 @@ class AttachmentService implements AssetResolver {
   }) async {
     if (bytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
-        message: 'Image exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
+        message:
+            'Image exceeds maximum allowed size of 10 MB ($maxFileSizeBytes bytes).',
         maxBytes: maxFileSizeBytes,
         providedBytes: bytes.length,
       );
@@ -165,11 +169,17 @@ class AttachmentService implements AssetResolver {
 
     // 5. Enqueue background OCR recognition asynchronously (non-blocking)
     if (!shouldSkipOcr && !deferOcr) {
-      processImageOcrInBackground(attachmentId: attachmentId, imageBytes: bytes);
+      processImageOcrInBackground(
+        attachmentId: attachmentId,
+        imageBytes: bytes,
+      );
     }
 
     final entity = await database.getAttachment(attachmentId);
-    final cleanAlt = preferredAltText.replaceAll('[', '').replaceAll(']', '').trim();
+    final cleanAlt = preferredAltText
+        .replaceAll('[', '')
+        .replaceAll(']', '')
+        .trim();
     final uri = QuietPaperUri.asset(attachmentId).toUriString();
     final markdownSnippet = '![$cleanAlt]($uri)';
 
@@ -184,42 +194,84 @@ class AttachmentService implements AssetResolver {
   }) {
     final service = processingService;
     if (service == null) return;
-    service.processAttachment(
-      attachmentId: attachmentId,
-      imageBytes: imageBytes,
-    ).catchError((err) {
-      debugPrint('[QuietPaper Image OCR] Async image processing error: $err');
-    });
+    service
+        .processAttachment(attachmentId: attachmentId, imageBytes: imageBytes)
+        .catchError((err) {
+          debugPrint(
+            '[QuietPaper Image OCR] Async image processing error: $err',
+          );
+        });
   }
 
   /// Imports an arbitrary generic file from a local [File] into the encrypted Quiet Paper notebook.
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importGenericFileFromFile(
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importGenericFileFromFile(
     File file, {
     String? noteId,
     String? preferredFileName,
   }) async {
     final bytes = await file.readAsBytes();
-    final rawName = preferredFileName ??
-        (file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'attachment');
+    final rawName =
+        preferredFileName ??
+        (file.uri.pathSegments.isNotEmpty
+            ? file.uri.pathSegments.last
+            : 'attachment');
 
-    return importGenericFileFromBytes(
-      bytes,
-      fileName: rawName,
-      noteId: noteId,
-    );
+    return importGenericFileFromBytes(bytes, fileName: rawName, noteId: noteId);
   }
 
   /// Imports an arbitrary generic file from raw plaintext [bytes] into the encrypted notebook.
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importGenericFileFromBytes(
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importGenericFileFromBytes(
     Uint8List bytes, {
     required String fileName,
     String? mimeType,
     String? noteId,
+  }) => _importGenericFileFromBytes(
+    bytes,
+    fileName: fileName,
+    mimeType: mimeType,
+    noteId: noteId,
+  );
+
+  /// Email originals and decoded MIME leaves have explicit local size budgets.
+  /// Upload account/server limits still apply independently during normal sync.
+  /// The caller journals a fresh ID before preparation for crash recovery.
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importEmailAsset(
+    Uint8List bytes, {
+    required String assetId,
+    required String fileName,
+    required String mimeType,
+    required String noteId,
+    bool original = false,
+    bool inlineImage = false,
+  }) => _importGenericFileFromBytes(
+    bytes,
+    fileName: fileName,
+    mimeType: mimeType,
+    noteId: noteId,
+    preparedId: assetId,
+    maximumBytes: (original ? 50 : 25) * 1024 * 1024,
+    kind: inlineImage ? 'image' : 'file',
+    cachePlaintext: false,
+  );
+
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  _importGenericFileFromBytes(
+    Uint8List bytes, {
+    required String fileName,
+    String? mimeType,
+    String? noteId,
+    String? preparedId,
+    int maximumBytes = maxGenericFileSizeBytes,
+    String kind = 'file',
+    bool cachePlaintext = true,
   }) async {
-    if (bytes.length > maxGenericFileSizeBytes) {
+    if (bytes.length > maximumBytes) {
       throw FileTooLargeException(
-        message: 'File exceeds maximum allowed size of 10 MB ($maxGenericFileSizeBytes bytes).',
-        maxBytes: maxGenericFileSizeBytes,
+        message: 'File exceeds the allowed attachment size.',
+        maxBytes: maximumBytes,
         providedBytes: bytes.length,
       );
     }
@@ -234,11 +286,14 @@ class AttachmentService implements AssetResolver {
       fileName,
       fallback: 'attachment',
     );
-    final effectiveMimeType = (mimeType != null && mimeType.isNotEmpty && mimeType != 'application/octet-stream')
+    final effectiveMimeType =
+        (mimeType != null &&
+            mimeType.isNotEmpty &&
+            mimeType != 'application/octet-stream')
         ? mimeType
         : AttachmentTypeResolver.inferMimeType(sanitizedName);
 
-    final attachmentId = _uuid.v4();
+    final attachmentId = preparedId ?? _uuid.v4();
     final now = DateTime.now();
     final masterKey = keyManager.getMasterKey();
     final sha256Future = AttachmentCrypto.computeSha256Async(bytes);
@@ -266,14 +321,16 @@ class AttachmentService implements AssetResolver {
     );
 
     // 3. Cache decrypted plaintext in memory for instant local access
-    _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    if (cachePlaintext) {
+      _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    }
 
     // 4. Save metadata to Drift database (ocrState remains 'not_requested' for generic files)
     await database.saveAttachment(
       id: attachmentId,
       noteId: noteId,
       fileName: sanitizedName,
-      kind: 'file',
+      kind: kind,
       createdAt: now,
       updatedAt: now,
       mimeType: effectiveMimeType,
@@ -301,7 +358,8 @@ class AttachmentService implements AssetResolver {
   /// Uses a technical neutral filename to prevent leaking the user's title in plaintext cloud metadata,
   /// encrypts the payload with client-side authenticated XChaCha20-Poly1305, and returns the entity
   /// and canonical markdown snippet with the user-facing title.
-  Future<({AttachmentEntity attachment, String markdownSnippet})> importAudioRecording({
+  Future<({AttachmentEntity attachment, String markdownSnippet})>
+  importAudioRecording({
     required File file,
     required String userTitle,
     String? noteId,
@@ -342,7 +400,10 @@ class AttachmentService implements AssetResolver {
   }
 
   /// Updates the note association of an attachment.
-  Future<void> updateAttachmentNoteId(String attachmentId, String? noteId) async {
+  Future<void> updateAttachmentNoteId(
+    String attachmentId,
+    String? noteId,
+  ) async {
     await database.updateAttachmentNoteId(attachmentId, noteId);
   }
 
@@ -378,7 +439,8 @@ class AttachmentService implements AssetResolver {
   ///   in the database and marks notes dirty so reference projection and note syncing will omit the old asset ID.
   /// - On the backend, dropping the reference transitions the old attachment to `status: 'orphaned'`,
   ///   where the cloud Garbage Collector permanently destroys the Cloudinary asset.
-  Future<({AttachmentEntity newAttachment, String markdownSnippet})> replaceImage({
+  Future<({AttachmentEntity newAttachment, String markdownSnippet})>
+  replaceImage({
     required String oldAssetId,
     required Uint8List newBytes,
     required String mimeType,
@@ -402,7 +464,9 @@ class AttachmentService implements AssetResolver {
       mimeType: mimeType,
       fileName: effectiveFileName,
       noteId: effectiveNoteId,
-      preferredAltText: preferredAltText ?? (oldEntity != null ? _defaultAltText(oldEntity.fileName) : 'Image'),
+      preferredAltText:
+          preferredAltText ??
+          (oldEntity != null ? _defaultAltText(oldEntity.fileName) : 'Image'),
     );
     final newAsset = importResult.attachment;
 
@@ -411,7 +475,8 @@ class AttachmentService implements AssetResolver {
     await _storage.deleteEncryptedFile(attachmentId: oldAssetId);
     await database.deleteAttachmentOcrPages(oldAssetId);
 
-    final wasSynced = oldEntity != null &&
+    final wasSynced =
+        oldEntity != null &&
         (oldEntity.uploadState == 'synced' ||
             (oldEntity.cloudUrl != null && oldEntity.cloudUrl!.isNotEmpty) ||
             oldEntity.serverRevision > 0);
@@ -446,7 +511,10 @@ class AttachmentService implements AssetResolver {
       }
     }
 
-    return (newAttachment: newAsset, markdownSnippet: importResult.markdownSnippet);
+    return (
+      newAttachment: newAsset,
+      markdownSnippet: importResult.markdownSnippet,
+    );
   }
 
   // ==========================================
@@ -478,7 +546,6 @@ class AttachmentService implements AssetResolver {
       return ResourceResolution.locked(uri);
     }
 
-
     // 1. Check ephemeral in-memory cache
     final memCached = _storage.getDecryptedCache(assetId, variant: variant);
     if (memCached != null) {
@@ -489,7 +556,9 @@ class AttachmentService implements AssetResolver {
     var entity = await database.getAttachment(assetId);
 
     final client = apiClient;
-    if ((entity == null || entity.cloudUrl == null || entity.cloudUrl!.isEmpty) &&
+    if ((entity == null ||
+            entity.cloudUrl == null ||
+            entity.cloudUrl!.isEmpty) &&
         client != null) {
       try {
         final remotePayload = await client.getAttachmentMetadata(assetId);
@@ -516,7 +585,9 @@ class AttachmentService implements AssetResolver {
           entity = await database.getAttachment(assetId);
         }
       } catch (metaErr) {
-        debugPrint('Failed to query remote metadata for attachment $assetId: $metaErr');
+        debugPrint(
+          'Failed to query remote metadata for attachment $assetId: $metaErr',
+        );
       }
     }
 
@@ -542,7 +613,9 @@ class AttachmentService implements AssetResolver {
     );
 
     // 5. If missing locally on disk but cloudUrl exists, download directly from Cloudinary
-    if (encryptedBytes == null && entity.cloudUrl != null && entity.cloudUrl!.isNotEmpty) {
+    if (encryptedBytes == null &&
+        entity.cloudUrl != null &&
+        entity.cloudUrl!.isNotEmpty) {
       try {
         encryptedBytes = await _cloudinary.downloadEncryptedBytes(
           cloudUrl: entity.cloudUrl!,
@@ -569,7 +642,10 @@ class AttachmentService implements AssetResolver {
     }
 
     if (encryptedBytes == null) {
-      return ResourceResolution.missing(uri, 'Encrypted attachment file missing');
+      return ResourceResolution.missing(
+        uri,
+        'Encrypted attachment file missing',
+      );
     }
 
     // 6. Decrypt ciphertext using Master Key
@@ -609,7 +685,10 @@ class AttachmentService implements AssetResolver {
   }
 
   /// Deletes an attachment record and queues sync tombstone.
-  Future<void> deleteAttachment(String assetId, {bool enqueueSync = true}) async {
+  Future<void> deleteAttachment(
+    String assetId, {
+    bool enqueueSync = true,
+  }) async {
     _storage.invalidateDecryptedCache(assetId);
     await database.deleteAttachment(assetId, enqueueSync: enqueueSync);
     await _storage.deleteEncryptedFile(attachmentId: assetId);
@@ -619,7 +698,13 @@ class AttachmentService implements AssetResolver {
   /// sync tombstone. Used by Storage & Assets when purging orphaned files.
   Future<void> purgeLocalAttachment(String attachmentId) async {
     final entity = await database.getAttachment(attachmentId);
-    if (entity == null) return;
+    if (entity == null) {
+      await _storage.deleteEncryptedFile(attachmentId: attachmentId);
+      if (await _storage.hasEncryptedFile(attachmentId: attachmentId)) {
+        throw StateError('Attachment cleanup is pending file access.');
+      }
+      return;
+    }
     final variants = await database.getVariantsForAttachment(attachmentId);
 
     _storage.invalidateDecryptedCache(attachmentId);
@@ -639,6 +724,12 @@ class AttachmentService implements AssetResolver {
       );
     }
 
+    if (await _storage.hasEncryptedFile(
+      attachmentId: attachmentId,
+      localPath: entity.localPath,
+    )) {
+      throw StateError('Attachment cleanup is pending file access.');
+    }
     await database.deleteAttachmentVariants(attachmentId);
     await database.deleteAttachmentOcrPages(attachmentId);
     await database.removeSyncQueueEntriesForEntity(attachmentId);

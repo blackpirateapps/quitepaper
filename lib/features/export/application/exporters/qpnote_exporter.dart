@@ -53,6 +53,7 @@ class QpNotePackageExporter {
           ? snapshot.deletedAt?.toUtc().toIso8601String()
           : null,
       'tags': snapshot.tags,
+      'importSources': snapshot.importSources.map((s) => s.toJson()).toList(),
       'isPasswordProtected': snapshot.isPasswordProtected,
       if (snapshot.passwordHint != null) 'passwordHint': snapshot.passwordHint,
     };

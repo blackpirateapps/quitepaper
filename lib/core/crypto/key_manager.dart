@@ -18,6 +18,10 @@ abstract class KeyManager {
   /// Initializes KeyManager from secure storage
   Future<void> initialize();
 
+  /// Creates a device-protected key only for a fresh, unlocked local vault.
+  /// Never replaces persisted keys or unlocks an explicitly locked notebook.
+  Future<void> ensureLocalKey();
+
   /// Sets up a brand new Master Key protected by user password and optional recovery key
   Future<WrappedMasterKeyData> setupNewKeys({
     required String password,
@@ -62,20 +66,28 @@ class SecureKeyManager implements KeyManager {
   SecureKeyManager({
     CryptoService? cryptoService,
     FlutterSecureStorage? secureStorage,
-  })  : _crypto = cryptoService ?? DefaultCryptoService(),
-        _storage = secureStorage ??
-            const QuietSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            );
+  }) : _crypto = cryptoService ?? DefaultCryptoService(),
+       _storage =
+           secureStorage ??
+           const QuietSecureStorage(
+             aOptions: AndroidOptions(encryptedSharedPreferences: true),
+           );
 
   final CryptoService _crypto;
   final FlutterSecureStorage _storage;
 
-  static const String _storageKeyWrappedData = 'quietpaper_wrapped_master_key_v1';
+  static const String _storageKeyWrappedData =
+      'quietpaper_wrapped_master_key_v1';
   static const String _storageKeyMasterKey = 'quietpaper_master_key_v1';
 
   Uint8List? _cachedMasterKey;
   WrappedMasterKeyData? _cachedWrappedData;
+  Future<void>? _initialization;
+  Future<void>? _localKeyInitialization;
+  bool _storageHealthy = false;
+  bool _explicitlyLocked = false;
+  int _lockRevision = 0;
+  String? _deviceKeyCommitment;
 
   @override
   bool get isUnlocked => _cachedMasterKey != null;
@@ -96,25 +108,83 @@ class SecureKeyManager implements KeyManager {
 
   @override
   Future<void> initialize() async {
+    final pending = _initialization ??= _loadKeys();
+    await pending;
+    if (!_storageHealthy && identical(_initialization, pending)) {
+      _initialization = null;
+    }
+  }
+
+  Future<void> _loadKeys() async {
+    if (_explicitlyLocked) return;
+    final revision = _lockRevision;
     try {
       final results = await Future.wait([
         _storage.read(key: _storageKeyWrappedData),
         _storage.read(key: _storageKeyMasterKey),
       ]);
+      if (revision != _lockRevision) return;
       final storedJson = results[0];
       final storedMasterKey = results[1];
 
-      if (storedJson != null && storedJson.isNotEmpty) {
+      if (storedJson != null) {
         final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
         _cachedWrappedData = WrappedMasterKeyData.fromJson(decoded);
       }
-      if (storedMasterKey != null && storedMasterKey.isNotEmpty) {
-        _cachedMasterKey = Uint8List.fromList(base64Decode(storedMasterKey));
+      if (storedMasterKey != null) {
+        final bytes = base64Decode(storedMasterKey);
+        if (bytes.length != 32) throw const FormatException('Invalid key');
+        _cachedMasterKey = Uint8List.fromList(bytes);
+        if (_cachedWrappedData == null) {
+          _deviceKeyCommitment = _crypto.computeKeyAuthCommitment(bytes);
+        }
       }
+      _storageHealthy = true;
     } catch (_) {
-      // Storage unavailable or corrupted; clean slate
+      // Fail closed: unavailable/corrupt storage must never cause key replacement.
+      _storageHealthy = false;
       _cachedWrappedData = null;
       _cachedMasterKey = null;
+    }
+  }
+
+  @override
+  Future<void> ensureLocalKey() async {
+    await initialize();
+    if (isUnlocked || hasKeyData || _explicitlyLocked) return;
+    if (!_storageHealthy) throw StateError('Secure storage is unavailable.');
+    final pending = _localKeyInitialization ??= _createLocalKey();
+    try {
+      await pending;
+    } finally {
+      if (identical(_localKeyInitialization, pending)) {
+        _localKeyInitialization = null;
+      }
+    }
+  }
+
+  Future<void> _createLocalKey() async {
+    final revision = _lockRevision;
+    final key = await _crypto.generateMasterKey();
+    try {
+      if (revision != _lockRevision) return;
+      // Persist successfully before any importer can encrypt assets with this key.
+      await _storage.write(key: _storageKeyMasterKey, value: base64Encode(key));
+      if (revision != _lockRevision) return;
+      _cachedMasterKey = Uint8List.fromList(key);
+      _deviceKeyCommitment = _crypto.computeKeyAuthCommitment(key);
+    } finally {
+      key.fillRange(0, key.length, 0);
+    }
+  }
+
+  void _checkDeviceKey(Uint8List key) {
+    if (_deviceKeyCommitment != null &&
+        _crypto.computeKeyAuthCommitment(key) != _deviceKeyCommitment) {
+      key.fillRange(0, key.length, 0);
+      throw StateError(
+        'The cloud vault uses a different key from local assets.',
+      );
     }
   }
 
@@ -179,6 +249,8 @@ class SecureKeyManager implements KeyManager {
       keyAuthCommitment: _crypto.computeKeyAuthCommitment(masterKey),
     );
 
+    _checkDeviceKey(masterKey);
+    _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
       await _storage.write(
@@ -213,6 +285,8 @@ class SecureKeyManager implements KeyManager {
       wrappingKey: passwordKey,
     );
 
+    _checkDeviceKey(masterKey);
+    _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
       await _storage.write(
@@ -249,6 +323,8 @@ class SecureKeyManager implements KeyManager {
       wrappingKey: recKey,
     );
 
+    _checkDeviceKey(masterKey);
+    _explicitlyLocked = false;
     _cachedMasterKey = masterKey;
     try {
       await _storage.write(
@@ -333,6 +409,8 @@ class SecureKeyManager implements KeyManager {
 
   @override
   void lock() {
+    _lockRevision++;
+    _explicitlyLocked = true;
     AttachmentLocalStorage.purgeAllMemoryCache();
     if (_cachedMasterKey != null) {
       // Clear master key bytes in memory
@@ -344,6 +422,10 @@ class SecureKeyManager implements KeyManager {
   @override
   Future<void> clearLocalKeys() async {
     lock();
+    try {
+      await _localKeyInitialization;
+    } catch (_) {}
+    _deviceKeyCommitment = null;
     _cachedWrappedData = null;
     try {
       await _storage.delete(key: _storageKeyWrappedData);
@@ -361,6 +443,7 @@ class SecureKeyManager implements KeyManager {
   @override
   Future<void> storeWrappedKeyData(WrappedMasterKeyData data) async {
     _cachedWrappedData = data;
+    _deviceKeyCommitment = null;
     try {
       await _storage.write(
         key: _storageKeyWrappedData,

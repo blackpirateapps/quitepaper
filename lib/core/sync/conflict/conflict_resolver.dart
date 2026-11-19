@@ -1,3 +1,4 @@
+import '../../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -28,10 +29,10 @@ class NoteMergeResult {
   const NoteMergeResult.clean({
     required this.mergedPlaintext,
     this.isDeleted = false,
-  })  : isClean = true,
-        conflictType = null,
-        conflictRegions = const [],
-        explanation = null;
+  }) : isClean = true,
+       conflictType = null,
+       conflictRegions = const [],
+       explanation = null;
 
   const NoteMergeResult.conflicted({
     required this.mergedPlaintext,
@@ -59,9 +60,9 @@ class ConflictResolver {
     this.keyManager,
     OcrCrypto? ocrCrypto,
     this.ocrSearchService,
-  })  : metadataMergeEngine = metadataMergeEngine ?? const MetadataMergeEngine(),
-        markdownMergeEngine = markdownMergeEngine ?? const MarkdownMergeEngine(),
-        _ocrCrypto = ocrCrypto ?? OcrCrypto();
+  }) : metadataMergeEngine = metadataMergeEngine ?? const MetadataMergeEngine(),
+       markdownMergeEngine = markdownMergeEngine ?? const MarkdownMergeEngine(),
+       _ocrCrypto = ocrCrypto ?? OcrCrypto();
 
   final AppDatabase database;
   final MetadataMergeEngine metadataMergeEngine;
@@ -79,15 +80,19 @@ class ConflictResolver {
     bool remoteIsDeleted = false,
   }) {
     // 1. Check Delete-vs-Edit
-    final localHasEdits = base == null ||
+    final localHasEdits =
+        base == null ||
         base.body != local.body ||
         base.title != local.title ||
-        !_listEquals(base.tags, local.tags);
+        !_listEquals(base.tags, local.tags) ||
+        !listEquals(base.importSources, local.importSources);
 
-    final remoteHasEdits = base == null ||
+    final remoteHasEdits =
+        base == null ||
         base.body != remote.body ||
         base.title != remote.title ||
-        !_listEquals(base.tags, remote.tags);
+        !_listEquals(base.tags, remote.tags) ||
+        !listEquals(base.importSources, remote.importSources);
 
     final deleteResult = metadataMergeEngine.mergeDeleteVsEdit(
       baseDeleted: false,
@@ -102,7 +107,9 @@ class ConflictResolver {
         mergedPlaintext: local,
         conflictType: ConflictType.deleteVsEdit,
         isDeleted: false,
-        explanation: deleteResult.explanation ?? 'One device deleted this note while another device edited it.',
+        explanation:
+            deleteResult.explanation ??
+            'One device deleted this note while another device edited it.',
       );
     }
 
@@ -137,8 +144,9 @@ class ConflictResolver {
 
     // Per-tag pins survive a merge additively: union of both branches, kept
     // only for tags that remain after the tag merge.
-    final mergedTagSet =
-        tagsResult.mergedValue.map((t) => t.toLowerCase()).toSet();
+    final mergedTagSet = tagsResult.mergedValue
+        .map((t) => t.toLowerCase())
+        .toSet();
     final mergedPinnedTags = <String>{
       ...local.pinnedTags,
       ...remote.pinnedTags,
@@ -149,6 +157,10 @@ class ConflictResolver {
       body: contentResult.mergedValue,
       tags: tagsResult.mergedValue,
       pinnedTags: mergedPinnedTags,
+      importSources: NoteImportSource.union([
+        ...local.importSources,
+        ...remote.importSources,
+      ]),
     );
 
     if (contentResult.hasConflicts) {
@@ -222,6 +234,7 @@ class ConflictResolver {
         isTrashed: existing.note.isTrashed,
         deletedAt: existing.note.deletedAt,
         tags: mergedPlaintext.tags,
+        importSources: mergedPlaintext.importSources,
         serverRevision: remoteRevision,
         isDirty: true,
       );
@@ -278,6 +291,7 @@ class ConflictResolver {
         isTrashed: existing.note.isTrashed,
         deletedAt: existing.note.deletedAt,
         tags: existing.tagNames,
+        importSources: conflict.remotePlaintext?.importSources,
         serverRevision: conflict.remoteRevision,
         isDirty: true,
       );
@@ -340,6 +354,7 @@ class ConflictResolver {
           isArchived: existing?.note.isArchived ?? false,
           isTrashed: existing?.note.isTrashed ?? false,
           tags: remote.tags,
+          importSources: remote.importSources,
           serverRevision: conflict.remoteRevision,
           isDirty: false,
           syncedAt: DateTime.now(),
@@ -386,7 +401,9 @@ class ConflictResolver {
           ? '${remote!.title.trim()} (Conflict Copy)'
           : 'Untitled (Conflict Copy)';
       final remoteContent = remote?.body ?? '';
-      final cleanContent = JournalMetadataService.removeJournalFrontmatter(remoteContent);
+      final cleanContent = JournalMetadataService.removeJournalFrontmatter(
+        remoteContent,
+      );
       final remoteTags = remote?.tags ?? [];
 
       await database.saveNote(
@@ -399,6 +416,7 @@ class ConflictResolver {
         isArchived: false,
         isTrashed: false,
         tags: remoteTags,
+        importSources: remote?.importSources,
         journalDate: null,
         serverRevision: 0,
         isDirty: true,
@@ -438,6 +456,7 @@ class ConflictResolver {
     required String resolvedTitle,
     required String resolvedContent,
     required List<String> resolvedTags,
+    List<NoteImportSource>? resolvedImportSources,
   }) async {
     if (conflict.isOcrConflict) {
       await resolveOcrManual(
@@ -483,6 +502,8 @@ class ConflictResolver {
         isArchived: existing?.note.isArchived ?? false,
         isTrashed: existing?.note.isTrashed ?? false,
         tags: resolvedTags,
+        importSources:
+            resolvedImportSources ?? conflict.remotePlaintext?.importSources,
         serverRevision: conflict.remoteRevision,
         isDirty: true,
       );
@@ -522,7 +543,10 @@ class ConflictResolver {
           );
         }
       } else {
-        final local = await database.getAttachmentOcrPage(resourceId, pageNumber);
+        final local = await database.getAttachmentOcrPage(
+          resourceId,
+          pageNumber,
+        );
         if (local != null) {
           await database.saveAttachmentOcrPage(
             attachmentId: resourceId,
@@ -640,13 +664,18 @@ class ConflictResolver {
     final pageNumber = (extra['pageNumber'] as num?)?.toInt() ?? 1;
 
     if (keyManager == null || !keyManager!.isUnlocked) {
-      throw StateError('KeyManager must be unlocked to resolve OCR conflicts manually');
+      throw StateError(
+        'KeyManager must be unlocked to resolve OCR conflicts manually',
+      );
     }
     final masterKey = keyManager!.getMasterKey();
 
     await database.transaction(() async {
       if (resourceType == 'document') {
-        final existing = await database.getDocumentOcrPage(resourceId, pageNumber);
+        final existing = await database.getDocumentOcrPage(
+          resourceId,
+          pageNumber,
+        );
         OcrDocument? existingDoc;
         if (existing != null) {
           try {
@@ -659,7 +688,9 @@ class ConflictResolver {
           } catch (_) {}
         }
 
-        final origPage = existingDoc?.pages.isNotEmpty == true ? existingDoc!.pages.first : null;
+        final origPage = existingDoc?.pages.isNotEmpty == true
+            ? existingDoc!.pages.first
+            : null;
         final updatedPage = OcrPage(
           pageNumber: pageNumber,
           plainText: resolvedContent,
@@ -701,7 +732,10 @@ class ConflictResolver {
         );
         await database.updateDocumentOcrState(resourceId, 'available');
       } else {
-        final existing = await database.getAttachmentOcrPage(resourceId, pageNumber);
+        final existing = await database.getAttachmentOcrPage(
+          resourceId,
+          pageNumber,
+        );
         OcrDocument? existingDoc;
         if (existing != null) {
           try {
@@ -714,7 +748,9 @@ class ConflictResolver {
           } catch (_) {}
         }
 
-        final origPage = existingDoc?.pages.isNotEmpty == true ? existingDoc!.pages.first : null;
+        final origPage = existingDoc?.pages.isNotEmpty == true
+            ? existingDoc!.pages.first
+            : null;
         final updatedPage = OcrPage(
           pageNumber: pageNumber,
           plainText: resolvedContent,

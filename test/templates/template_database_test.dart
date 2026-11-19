@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +22,7 @@ void main() {
   test(
     'fresh schema, CRUD, favorite streams, deletion cleanup, no note/sync rows',
     () async {
-      expect(db.schemaVersion, 21);
+      expect(db.schemaVersion, 22);
       final rows = <List<NoteTemplate>>[];
       final favorites = <Set<String>>[];
       final sub = repo.watchUserTemplates().listen(rows.add);
@@ -132,7 +133,7 @@ void main() {
         'qp-template-migration',
       );
       final file = File('${dir.path}/vault.sqlite');
-      final previous = _Version20Database(NativeDatabase(file));
+      final previous = AppDatabase(NativeDatabase(file));
       await previous.saveNote(
         id: 'ordinary',
         title: 'Original',
@@ -161,12 +162,21 @@ void main() {
       );
       await previous.setSyncMetadata('template-test', 'cursor');
       await previous.close();
+      // Remove both branches' additions to recreate the actual v20 layout.
+      final baseline = sqlite.sqlite3.open(file.path);
+      baseline.execute('DROP TABLE template_favorites');
+      baseline.execute('DROP TABLE note_templates');
+      baseline.execute('DROP TABLE note_import_source_index');
+      baseline.execute('DROP TABLE email_import_preparations');
+      baseline.execute('ALTER TABLE notes DROP COLUMN import_sources');
+      baseline.execute('PRAGMA user_version=20');
+      baseline.close();
       final upgraded = AppDatabase(NativeDatabase(file));
       try {
         final schema = await upgraded
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(schema.data['user_version'], 21);
+        expect(schema.data['user_version'], 22);
         final ordinary = (await upgraded.getNoteWithTags('ordinary'))!;
         expect(ordinary.note.title, 'Original');
         expect(ordinary.note.content, 'Body');
@@ -214,25 +224,5 @@ void main() {
       expect(await repo.getFavoriteTemplateIds(), isEmpty);
       expect(await db.select(db.notesTable).get(), isEmpty);
     },
-  );
-}
-
-/// Creates the actual pre-feature tables using the baseline table definitions;
-/// none of the new tables exist and user_version is genuinely 20 on disk.
-class _Version20Database extends AppDatabase {
-  _Version20Database(super.executor);
-  @override
-  int get schemaVersion => 20;
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) async {
-      for (final entity in allTables) {
-        if (entity.actualTableName != 'note_templates' &&
-            entity.actualTableName != 'template_favorites') {
-          await m.createTable(entity);
-        }
-      }
-    },
-    beforeOpen: super.migration.beforeOpen,
   );
 }

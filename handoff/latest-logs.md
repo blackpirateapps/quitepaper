@@ -7509,6 +7509,376 @@ smart-tables prompt remains outside the commit. Local runtime validation does
 not establish the status of a live Vercel deployment; Vercel must deploy the
 updated package manifest and lockfile to apply the fix.
 
+## 334. Email Import Phase 1 — Repository Audit (November 19, 2026)
+
+Completed source reconnaissance on `feat/email-import` before implementation.
+`docs/email-import/implementation.md` maps parser, vault, Drift schema 20,
+repository/mapper, FTS, backup, encrypted sync/merge, desktop drops, settings,
+Android ContentResolver/plugin and Quick Capture integration boundaries.
+The resolved sharing plugin is 1.9.0; its initial/stream overlap, path conversion,
+missing ClipData/subject handling and current first-item routing need adapters.
+No existing application command palette was found. Existing cloud asset limits
+are smaller than required local email import limits; preserve explicit pending
+sync errors rather than claiming every larger asset can upload.
+
+Validation: `flutter analyze` reports no issues.
+`flutter test --no-pub --concurrency=1 test/quick_capture/quick_capture_coordinator_test.dart test/web_clipper/html_to_markdown_converter_test.dart test/notes/notes_query_database_test.dart`
+passes **20 tests**. An initial command named a nonexistent query-executor test;
+corrected to the actual database-query test file. No full suite ran. No runtime
+code changed. Physical Android and Linux packaging validation remain later work.
+
+## 335. Email Import Phase 2 — Bounded MIME Parser (November 19, 2026)
+
+Implemented pure Dart models, normalized bounded file input, MIME range walking,
+RFC 2047 headers, RFC 2231 filenames, UTF-8/declared charset decoding, strict base64
+and quoted-printable validation, alternative selection, mixed/related/nested
+parts, opaque attached emails, metadata, SHA-256 and canonical fingerprints.
+Parsing runs in a worker isolate. Budgets enforce 50 MiB source/total attachments,
+25 MiB individual attachments, 10 MiB bodies, 200 parts, 20 levels and 64 KiB
+headers. A dedicated DOM converter preserves editable structure, blocks active
+HTML, remote/data/file images and unsafe links, and emits local CID placeholders.
+The original email is preserved byte-for-byte in the ephemeral model.
+
+Added enough_mail 3.0.0 after inspecting its resolved implementation and MPL-2.0
+license. The adapter uses codecs rather than unbounded convenience parsing and
+suppresses upstream content-bearing diagnostics. No existing dependency version
+changed. Added versioned NoteImportSource serialization and deterministic union.
+
+Validation: `flutter analyze`: no issues;
+`flutter test --no-pub test/email_import/email_parser_test.dart`: **18 passed**.
+Fixtures and boundary tests cover parser formats, malicious content, decoding and
+resource errors, input normalization and background parsing. `dart format` and
+`git diff --check` pass. No full suite ran. Persistence and UI follow in phases 3–4.
+
+## 336. Email Import Phase 3 — Storage and Sync (November 19, 2026)
+
+Added optional typed import sources throughout Note, shared entity mapping,
+repository, encrypted NotePlaintext, desktop/CLI sync, conflict merging and
+resolution, backup generation/restoration, duplication and QPNote export metadata.
+Drift **20 → 21** defensively adds notes.import_sources with empty-array default.
+Canonical sources union by stable identity so older editor snapshots cannot erase
+provenance. Local indexed hashes/fingerprints/Message-IDs are derived in the same
+save transaction and cascade on deletion; restores and sync use this same path.
+The backend receives no new plaintext email fields or import endpoints.
+
+EmailImportService checks confirmation options, duplicates, keys and destination,
+journals fresh asset UUIDs before preparation, imports through AttachmentService,
+and commits the note, tags, FTS, source index and journal removal together.
+Original bytes remain exact encrypted generic assets; decoded attachments and CID
+images reuse identical representations and never request OCR. Archive mode saves
+metadata and original only. Appends splice parsed blocks into rich ASTs while
+preserving existing block identities, or concatenate Markdown, rejecting stale,
+missing, protected and trashed destinations. SQLite timestamp precision is
+accounted for in revision checks. Failed/canceled work rolls back database rows
+and removes ciphertext; a durable journal supports restart cleanup even when
+metadata rolled back. Existing generic attachment size policy is unchanged;
+email-specific imports permit 50 MiB originals / 25 MiB parts locally. The existing
+10 MB cloud asset policy can leave larger assets pending; no success is fabricated.
+
+Validation:
+- `dart run build_runner build --delete-conflicting-outputs`: successful generated
+  Drift update; current builder reports that the obsolete flag is ignored.
+- `flutter analyze`: no issues.
+- Selected persistence, migrations, conflict resolver, backup, attachment service,
+  sync engine and notes-query files: **63 passed**.
+- After adding real backup/restore coverage and export/CLI propagation, selected
+  email persistence, QPNote validator/package, export service and CLI runner files:
+  **34 passed**. Email persistence now has 15 tests, including real encryption,
+  restart, schema-20 migration, restored bytes/indexes, stale append rollback,
+  CID assets, exact/related duplicates, lock/cancel and interruption recovery.
+- Initial focused runs caught test API names and timestamp-zone/precision
+  assumptions; fixed them and reran successfully. No failures were suppressed.
+- `git diff --check`: clean. No full suite, backend tests or device replay ran;
+  backend source and its API contract are unchanged.
+
+## 337. Email Import Phase 4 — Preview Workflow (November 19, 2026)
+
+Implemented EmailImportScreen and an injectable EmailImportGateway over the
+parser, duplicate index, repository, destination search and persistence service.
+The route provides editable title and tags, optional shared sender/recipients/date,
+metadata/body/attachment review, all three import modes, explicit append target,
+current-note prioritization, duplicate/open-existing/copy choices, keyboard Escape,
+Back, disabled repeat Save, progress, cancellation, per-item errors and batch
+summary/navigation results. Shared content cannot select archive mode. Source
+changes after batch review are rejected before saving. Failed items remain
+selected for review/retry. No note is created until confirmation.
+
+Batch discovery is sequential and bounded to 100 inputs. Only the selected email
+retains raw/decoded preview bytes; other entries retain small summaries and source
+fingerprints, and are parsed again at save with source identity checks. Sensitive
+preview invalidation is tied to existing secure attachment-cache clearing, used
+by lock/logout. It clears plaintext, controllers and pending shared content and
+prevents late parser/search callbacks from restoring it. A final cancel/lock check
+after repository save keeps the current database transaction reversible.
+
+Validation: `flutter analyze`: no issues. Selected preview and persistence files:
+**24 passed** (9 widgets and 15 storage tests); the 9-widget file passes again
+after the source-change/late-lock guards. Widget tests cover title/tag edits,
+metadata, successful return, duplicates, append target, disabled Save/progress,
+visible storage errors, Escape, mixed invalid batches, lock clearing and dark
+390px layout. Initial widgets caught missing keyboard focus and narrow dropdown
+overflow, both fixed. `dart format` and `git diff --check` pass. No full suite ran.
+Platform entry points are connected in the next two phases.
+
+## 338. Email Import Phase 5 — Linux Integration (November 19, 2026)
+
+Connected application-wide desktop drops, existing note-list/editor drop paths,
+settings import actions, filtered multi-picker and explicit all-files fallback,
+Ctrl+Shift+I and searchable Ctrl/Cmd+Shift+P commands. Linux desktop metadata
+registers message/rfc822 and message/global; initial .eml launch arguments open
+preview. Mixed drops feed every input into review, listing rejected/unsupported
+items rather than silently dropping them. URI-list normalization preserves portal
+paths and ignores ordinary text. Nested drop handlers await one shared bounded
+classification; non-email files still reach their original handlers.
+
+EmailEditorBridge flushes existing user edits before preview, prioritizes the
+current destination, and adopts committed appends without a stale autosave.
+Markdown keeps its text selection; rich AST keeps existing blocks/selection;
+Super Editor appends only the new section after the frame, preserving its current
+nodes, caret and history. Imported notes disable automatic remote link preview
+baking/promotion so opening the result does not fetch email-linked resources.
+The app retains existing normal link behavior for other notes.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected desktop email, dual-mode editor and Super Editor files: **60 passed**.
+- `test/email_import/email_editor_bridge_test.dart`: **3 passed**, exercising live
+  appends in each mode, source retention and no later stale autosave. This test
+  caught a build-phase toolbar notification; deferred append fixes it.
+- `flutter build linux --debug`: succeeded, producing the standard native bundle.
+- `bash -n` passes DEB/AppImage/Flatpak scripts. `git diff --check`: clean.
+- Full suite was not run. Package installation/runtime tests were not performed:
+  dpkg-deb, rpmbuild, appimagetool and flatpak-builder are unavailable. Flatpak
+  runtime exists, but no newly built bundle is available for sandbox replay.
+  Existing filesystem grants are unchanged; inaccessible dropped paths surface
+  an import error and the picker remains the portal access fallback.
+- desktop_drop 0.8.4 exposes only coordinates during hover, not filenames/types.
+  Therefore no email-specific hover overlay is fabricated for unknown content;
+  the classified drop opens the receiving/parsing preview. Existing generic
+  editor drop feedback is retained. Physical file-manager drag replay is pending.
+
+## 339. Email Import Phase 6 — Android Share Integration (November 19, 2026)
+
+Added IncomingShareReceiver as the bounded native normalization boundary for the
+existing ShareIntentHandler. SEND, SEND_MULTIPLE and VIEW read EXTRA_STREAM,
+ClipData, text/HTML and subjects; ContentResolver supplies MIME/display metadata
+without path guessing. Each stream is staged on a serial worker into an
+application-private UUID directory with owner-only access, technical filenames,
+50 MiB/file and 100-file/request limits. Errors expose only sanitized item numbers.
+The private copies are deleted when Dart acknowledges completion/cancellation;
+interrupted copies are purged on the next activity initialization. Temporary URI
+grants are never persisted. No storage permissions were added.
+
+The inspected receive_sharing_intent 1.9.0 plugin otherwise creates a second,
+unbounded plaintext copy. MainActivity therefore supplies normalized launch
+intents to that plugin on Android while delivering the original intent through
+the native normalizer to the **same existing Dart ShareIntentHandler**. Widget
+launch handling remains on the existing Quick Capture channel. Native request IDs
+and a bounded serial coordinator deduplicate initial/event delivery, preserve
+intentional new shares, wait for active drafts/previews, acknowledge failures and
+invalidate queued/active plaintext on secure cache clear. No restart creates a
+note without review. Generic binary SEND is registered; binary VIEW is not broadly
+registered. Message MIME VIEW/SEND and existing PDF/text/Markdown filters remain.
+
+Shared text still enters Quick Capture. An explicit Save as Email action opens
+the common preview with editable optional metadata and Shared content labeling;
+HTML is sanitized locally. Bare URLs keep clipping/capture behavior. Successful
+email confirmation removes the capture draft and opens the saved note; cancel
+leaves the draft unchanged. Generic file imports retain supplied display names
+instead of the technical staged path. Shared errors no longer expose raw paths.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected incoming coordinator, shared-text, preview, all Quick Capture tests and
+  browser-screen file: **47 passed**. Coverage includes initial/stream identity,
+  serial ordering, intentional re-shares, failure acknowledgment, secure clear,
+  queue bounds, explicit text-to-email preview/cancel, URL preservation and
+  existing captures/browser actions. A first command named a nonexistent clipper
+  screen test; corrected to web_clip_browser_screen_test.dart and reran.
+- `flutter build apk --debug --flavor github --no-pub`: **passed**, producing
+  `build/app/outputs/flutter-apk/app-github-debug.apk`; DEX inspection confirms the
+  native receiver and queue bound are present.
+- The Android build emits pre-existing plugin KGP migration and NDK-version
+  warnings (repository pins 27; installed plugins request 28). No Flutter/package
+  upgrade or unrelated build-policy change was made. Compilation succeeds.
+- `adb devices` (SDK platform-tools) reports no connected devices. Actual provider
+  grants, chooser registration, cold/warm Activity lifecycle, ClipData and OEM
+  share behavior require device instrumentation/manual replay; automated Dart
+  boundaries and native compilation are not a claim of hardware verification.
+- `git diff --check`: clean. No full Flutter suite ran.
+
+## 340. Email Import Phase 7 — Regression and Security Review (November 19, 2026)
+
+Expanded deterministic parser/security and integration coverage and ran the
+focused affected-subsystem gate in `tool/verify_email_import.sh`. No full Flutter
+or backend suite was invoked. The final implementation review corrected:
+
+- CRLF multiline plaintext and quoted-printable soft lines; plain headings/rules
+  stay literal while lists/quotes remain readable. Charset expansion is counted
+  against the decoded UTF-8 body budget without allocating another oversized
+  buffer. Encoded-header failures reject safely without upstream diagnostics.
+- Pre-DOM token, element-length and nesting checks, with a linear lexical scan
+  that avoids repeated body scans on unterminated tags. Nested layout tables
+  retain paragraphs/code once. Unsafe/incomplete web links remain inert.
+- Strict calendar/clock/timezone validation instead of the library's date rollover
+  or unknown-zone fallback. Original header strings remain preserved.
+- Generic-file detection requires a continuous initial RFC header block; quoted
+  From/Subject lines inside ordinary Markdown no longer intercept its import.
+- Canonical fingerprints preserve meaningful body/subject case and paragraph
+  structure. Shared-content defaults use the same identity during preview/save.
+  Newly discovered duplicates refresh review warnings rather than trapping Retry.
+- Active native request IDs remain protected when completed-ID history evicts old
+  entries. Malformed Android extras fail with sanitized receiving errors.
+- Imported assets avoid preloading plaintext caches. Deduplication hashing and
+  rich-append conversion run in workers; worker closures do not capture Drift.
+- Failed ciphertext deletion retains the preparation journal for later cleanup.
+  A regression exercises failed deletion and subsequent successful recovery.
+- The preview and launcher share one mutable request owner: lock clearing releases
+  shared text, source paths and filename-bearing errors. Partial commits retain
+  only note IDs for post-cancel reconciliation, list refresh and normal sync.
+  Hidden editors therefore cannot overwrite a successfully appended earlier item.
+- Batch progress uses the original selected count; skipped/invalid counts and
+  filename-bearing item errors are clear. Destination failures clear stale picks.
+- QPNote export now uses the complete note mapper. Newer local backup content can
+  retain restored sources without timestamp/body changes; older client envelopes
+  cannot erase provenance and schedule an encrypted repair push. Delete-vs-edit
+  checks account for source changes. Vault erase also clears preparation IDs.
+
+Automated evidence:
+
+- `flutter analyze`: no issues on the final code review checks.
+- `bash tool/verify_email_import.sh`: **301 passed** in the selected Flutter batch,
+  then **1 passed** in the specifically selected real QPNote export test (**302**
+  total). This includes email, capture, clipper, backup, database/migrations,
+  queries, sync/conflicts/fresh-device retention, attachments, editor conversion,
+  export and FTS. The script deliberately lists only relevant paths.
+- Subsequent review fixes: **49 passed** in parser/preview/desktop/live-editor
+  files; **26 passed** in email persistence plus attachment service; **17 passed**
+  in final preview/desktop/shared-text files. These runs overlap the broad gate
+  and must not be added as a count of unique tests. New email files collectively
+  contain 76 tests after the final cleanup regression.
+- Real two-device encrypted sync verifies canonical source retention, fresh-device
+  duplicate lookup and FTS search without server-visible subjects/senders.
+- A complete Visual → Markdown → Super → save → reopen widget cycle preserves
+  metadata, paragraphs/lists/tables/quotes/links, asset references and provenance.
+- The restore fixture releases its source executor before creating the independent
+  destination, eliminating the existing multiple-database diagnostic. An earlier
+  broad export-file run printed the existing PDF Courier fallback notice; the final
+  gate scopes this field-mapping change to the relevant QPNote export test.
+- `flutter build linux --debug --no-pub` and
+  `flutter build apk --debug --flavor github --no-pub`: passed. Android retains the
+  pre-existing KGP/NDK advisories from log 339; no device was connected.
+- Backend Node 22.23.1: `npm run build` passed;
+  `npm test -- tests/crypto-blind.test.ts tests/sync.test.ts tests/conflict.test.ts tests/attachments.test.ts`:
+  **18 passed in four files**. Backend production code/API schema is unchanged.
+- `git diff --check`: clean. Final documentation-phase checks follow separately.
+
+Performance observations (synthetic fixtures, Linux x64, Dart 3.13.2 JIT; parser
+only, one run per case, no mobile/release claim): 10,127-byte plaintext **109ms**;
+1,058,920-byte HTML **566ms**; 10,000,381-byte multipart **419ms**;
+41,943,563-byte multipart **1,529ms**; 50 × small messages **128ms** total.
+Main-isolate 10ms timers continued in every case (149 ticks during the largest).
+Whole-process peak RSS reached **580.4 MiB**, including JIT, source construction,
+isolate copying and prior cases; this is not a per-import retained-heap figure.
+`tool/email_import_benchmark.dart` and `docs/email-import/benchmark-linux-jit.json`
+provide reproducible inputs/raw observations. Encryption/storage timing, mobile
+memory and installed-package performance remain unmeasured.
+
+Platform limits remain explicit: physical Android chooser/provider/lifecycle and
+Linux file-manager/Flatpak replay are pending, packaging builders are unavailable,
+and existing cloud size policies can leave larger locally preserved assets
+pending. The preview warns about the 10 MB asset upload policy. No unrestricted
+filesystem permissions or external email parsing/network conversion were added.
+
+## 341. Email Import Phase 8 — Final Handoff (November 19, 2026)
+
+Published `handoff/email-import.md` as the canonical subsystem guide and
+`docs/email-import/engineering-report.md` as the requested functionality,
+architecture, major-file, schema/sync, testing, security and remaining-risk report.
+Updated the root/index and storage, editor, platform, search and document guides.
+The implementation record and synthetic benchmark preserve phase evidence.
+
+Final checks completed before the instruction to stop local builds:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub --concurrency=1 test/email_import`: **76 passed**.
+- `flutter build linux --debug --no-pub`: passed.
+- `flutter build apk --debug --flavor github --no-pub`: passed; inherited NDK/KGP
+  advisories remain as recorded in log 339.
+- `dart build cli -t bin/qp.dart -o build/cli`: passed, producing the native qp CLI.
+- Prior phase 7 evidence: 302 focused Flutter checks, targeted follow-ups and
+  18 selected backend contract tests passed; those overlapping counts are not
+  presented as a unique aggregate. No full Flutter or backend suite ran.
+
+After the user's instruction, checked that no build process remained active and
+finished documentation only. No further builds were started. Final documentation
+uses the existing completed checks and passes `git diff --check`.
+
+All eight phases have separate commits/pushes on `feat/email-import`. Physical
+Android chooser/provider/lifecycle and installed Linux packaging/sandbox replay
+remain unverified. The existing cloud size policy can leave larger locally
+preserved assets pending, and text-only shares cannot supply missing source data.
+The report makes these limits explicit rather than claiming production hardware
+verification. No deployment, release, branch merge or unrelated upgrade occurred.
+
+## 342. Offline Email Import — Initialize Device Vault Before Preview (November 19, 2026)
+
+An Android user without Cloud Sync could not preview an email: the screen checked
+`isUnlocked` before initialization, then invalidated the source and displayed
+“Preview cleared.” Accountless installations had never generated the encryption
+key required by the attachment vault. This was an application prerequisite bug,
+not evidence of an Android provider refusing the email.
+
+Changes:
+
+- `EmailImportGateway.initialize` awaits key initialization before preview gates.
+  For a signed-out notebook without wrapped keys, bounded attachment/document
+  existence queries prevent generating a replacement for an existing encrypted
+  library. A fresh local notebook initializes its key without an account/network
+  request and updates the shared unlock provider before ordinary recovery.
+- `KeyManager.ensureLocalKey` creates one 256-bit master key through the existing
+  secure-storage abstraction, persisting it before exposing it to encryption.
+  Concurrent creation is shared and existing device/cloud keys are reused.
+  Unavailable or malformed storage fails closed; transient reads and failed writes
+  can retry. Initialization is idempotent after successful loading.
+- Explicit locks and lifecycle revisions prevent delayed startup/creation from
+  unlocking a notebook. Key clearing waits for pending local persistence before
+  deleting stored material. A new cloud vault wraps the existing local key;
+  password/recovery adoption of a different cloud key is rejected before it can
+  strand encrypted local assets. Existing auth failure handling still locks the
+  local session; restarting restores its persisted device key.
+- Preview waits for preparation, preserves incoming sources on storage errors,
+  offers Retry, and ignores late results/errors after actual secure invalidation.
+  Real lock/logout continues clearing shared bodies, paths and review state.
+- Added local-key lifecycle/security tests, real accountless import/encrypted
+  original/restart coverage, missing-key and signed-in-vault guards, and UI tests
+  for initialization, retry and a lock while initialization is suspended. Updated
+  the OCR search fake for the new KeyManager interface without changing behavior.
+- Updated root/domain handoffs and the engineering report. Device-only keys remain
+  in this installation's secure storage. Existing backup payloads preserve asset
+  ciphertext but do not export the master key; a backup envelope password does
+  not make a device-only asset key portable. Cross-vault migration and device-only
+  key recovery on another installation are outside this correction.
+
+Validation (no full suite and **no app builds**):
+
+- `flutter analyze`: **no issues** on the final source; an initial missing method
+  in the explicitly implemented OCR fake was corrected before the clean run.
+- `flutter test --no-pub --concurrency=1 test/crypto test/email_import test/attachments/attachment_service_test.dart test/sync/sync_screens_test.dart test/sync/sync_engine_test.dart test/sync/fresh_device_sync_content_retention_test.dart`:
+  **140 passed**, including accountless encrypted persistence and real sync flows.
+- `flutter test --no-pub --concurrency=1 test/crypto/local_key_test.dart test/search/ocr_global_search_test.dart`:
+  **20 passed**, including two additional startup-lock/key-clear race regressions.
+  The existing unauthenticated metadata lookups print their handled diagnostics;
+  all assertions pass. This run overlaps the preceding gate.
+- Final `flutter test --no-pub --concurrency=1 test/email_import/email_import_screen_test.dart`:
+  **12 passed**, including the deterministic suspended-initialization lock case.
+- Changed implementation/new test files are formatted; `git diff --check`: clean.
+  The existing OCR search fixture receives only the required interface method.
+
+Physical Android replay remains pending. No Flutter/Android/Linux/CLI build,
+release, deployment, full test suite, backend change or schema migration was run
+or introduced for this correction. Commit/push target remains `feat/email-import`.
+
 
 ## 334. Phase 1 Local Note Templates (November 18, 2026)
 

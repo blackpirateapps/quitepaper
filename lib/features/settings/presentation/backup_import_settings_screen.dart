@@ -1,3 +1,4 @@
+import '../../email_import/presentation/email_import_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -58,6 +59,11 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                 // Section: Import
                 // ==========================================
                 buildSectionHeader(context, 'Import'),
+                SettingsGroup(children:[
+                  SettingsRow(icon:Icons.mail_outline,title:'Import Email',onTap:()=>EmailImportLauncher.pick(context)),
+                  SettingsRow(icon:Icons.attach_file,title:'Import Email from all files',onTap:()=>EmailImportLauncher.pick(context,allFiles:true)),
+                ]),
+                const SizedBox(height:16),
                 SettingsGroup(
                   children: [
                     SettingsInfoTile(

@@ -268,6 +268,15 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 - RichDocument Visual Editor AST: [Latest Logs, Section 136 & 140](latest-logs.md#136-production-grade-richdocument-visual-editor-architecture)
 - iA Writer Quattro Typography Integration: [Historical Logs v1.5, Section 32](archive/logs-v1.5.md#32-ia-writer-quattro-typography-integration--cdn-font-delivery)
 
+### Confirmed email appends
+
+`EmailEditorBridge` flushes existing edits before preview and adopts committed
+appends, canceling older debounce saves. Existing rich blocks and selection remain
+intact. Super Editor recognizes the appended Email Details section and appends
+only its parsed nodes after the current frame, retaining the original document,
+selection and history. Imported notes disable automatic remote-link preview
+baking/promotion; normal unrelated notes retain their existing behavior.
+
 
 ## Template snapshots and canonical display projection
 

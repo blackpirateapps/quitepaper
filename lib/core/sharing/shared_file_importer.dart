@@ -1,3 +1,6 @@
+import '../../features/email_import/application/email_input.dart';
+import '../../features/email_import/application/email_import_gateway.dart';
+import '../../features/email_import/presentation/email_import_launcher.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -42,35 +45,61 @@ class SharedFileImporter {
   static Future<void> importFile({
     required String path,
     String? mimeType,
+    String? displayName,
     required GlobalKey<NavigatorState> navigatorKey,
   }) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
+    final input = EmailInput(path: path, name: displayName, mimeType: mimeType);
+    if (await input.isEmailCandidate()) {
+      if (context.mounted) {
+        await EmailImportLauncher.open(
+          context,
+          EmailImportRequest(inputs: [input]),
+        );
+      }
+      return;
+    }
     final file = File(path);
     if (!file.existsSync()) return;
 
-    final kind = _classify(path, mimeType);
-    if (kind == _IncomingKind.unsupported) return;
+    final kind = _classify(displayName ?? path, mimeType);
+    if (kind == _IncomingKind.unsupported) {
+      _showSnack(
+        navigatorKey,
+        'This file is not a supported email. Export Outlook messages or mailbox archives as individual .eml files.',
+      );
+      return;
+    }
 
+    if (!context.mounted) return;
     final container = ProviderScope.containerOf(context, listen: false);
 
     try {
       switch (kind) {
         case _IncomingKind.pdf:
-          await _importPdf(navigatorKey, container, file);
+          await _importPdf(navigatorKey, container, file, displayName);
           break;
         case _IncomingKind.markdown:
-          await _importMarkdownNote(navigatorKey, container, file);
+          await _importMarkdownNote(navigatorKey, container, file, displayName);
           break;
         case _IncomingKind.text:
-          await _importTextWithPrompt(navigatorKey, container, file);
+          await _importTextWithPrompt(
+            navigatorKey,
+            container,
+            file,
+            displayName,
+          );
           break;
         case _IncomingKind.unsupported:
           break;
       }
     } catch (e) {
-      _showSnack(navigatorKey, 'Could not import file: $e');
+      _showSnack(
+        navigatorKey,
+        'Could not import file. Check access, available storage and notebook unlock status.',
+      );
     }
   }
 
@@ -97,10 +126,13 @@ class SharedFileImporter {
   static Future<void> _importPdf(
     GlobalKey<NavigatorState> navigatorKey,
     ProviderContainer container,
-    File file,
-  ) async {
+    File file, [
+    String? displayName,
+  ]) async {
     final docService = container.read(documentServiceProvider);
-    final rawTitle = p.basenameWithoutExtension(file.path).trim();
+    final rawTitle = p
+        .basenameWithoutExtension(displayName ?? file.path)
+        .trim();
     final title = rawTitle.isNotEmpty ? rawTitle : 'Imported PDF';
     final noteId = _uuid.v4();
     final now = DateTime.now();
@@ -124,10 +156,8 @@ class SharedFileImporter {
 
     navigatorKey.currentState?.push(
       MaterialPageRoute(
-        builder: (_) => DocumentViewerScreen(
-          documentId: res.document.id,
-          title: title,
-        ),
+        builder: (_) =>
+            DocumentViewerScreen(documentId: res.document.id, title: title),
       ),
     );
   }
@@ -137,10 +167,11 @@ class SharedFileImporter {
   static Future<void> _importMarkdownNote(
     GlobalKey<NavigatorState> navigatorKey,
     ProviderContainer container,
-    File file,
-  ) async {
+    File file, [
+    String? displayName,
+  ]) async {
     final content = await file.readAsString();
-    final filename = p.basenameWithoutExtension(file.path);
+    final filename = p.basenameWithoutExtension(displayName ?? file.path);
     final parsed = MarkdownFrontmatterParser.parse(content);
     final title = (parsed.title != null && parsed.title!.isNotEmpty)
         ? parsed.title!
@@ -164,31 +195,35 @@ class SharedFileImporter {
   static Future<void> _importTextWithPrompt(
     GlobalKey<NavigatorState> navigatorKey,
     ProviderContainer container,
-    File file,
-  ) async {
+    File file, [
+    String? displayName,
+  ]) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
     final choice = await showDialog<_TextImportChoice>(
       context: context,
-      builder: (_) => _TextImportChoiceDialog(fileName: p.basename(file.path)),
+      builder: (_) => _TextImportChoiceDialog(
+        fileName: p.basename(displayName ?? file.path),
+      ),
     );
     if (choice == null) return; // Dismissed without choosing.
 
     if (choice == _TextImportChoice.note) {
-      await _importTextAsNote(navigatorKey, container, file);
+      await _importTextAsNote(navigatorKey, container, file, displayName);
     } else {
-      await _importTextAsAttachment(navigatorKey, container, file);
+      await _importTextAsAttachment(navigatorKey, container, file, displayName);
     }
   }
 
   static Future<void> _importTextAsNote(
     GlobalKey<NavigatorState> navigatorKey,
     ProviderContainer container,
-    File file,
-  ) async {
+    File file, [
+    String? displayName,
+  ]) async {
     final content = await file.readAsString();
-    final title = p.basenameWithoutExtension(file.path);
+    final title = p.basenameWithoutExtension(displayName ?? file.path);
     final now = DateTime.now();
     final note = Note(
       id: _uuid.v4(),
@@ -204,17 +239,18 @@ class SharedFileImporter {
   static Future<void> _importTextAsAttachment(
     GlobalKey<NavigatorState> navigatorKey,
     ProviderContainer container,
-    File file,
-  ) async {
+    File file, [
+    String? displayName,
+  ]) async {
     final attachmentService = container.read(attachmentServiceProvider);
-    final filename = p.basenameWithoutExtension(file.path);
+    final filename = p.basenameWithoutExtension(displayName ?? file.path);
     final noteId = _uuid.v4();
     final now = DateTime.now();
 
     final res = await attachmentService.importGenericFileFromFile(
       file,
       noteId: noteId,
-      preferredFileName: p.basename(file.path),
+      preferredFileName: p.basename(displayName ?? file.path),
     );
 
     final note = Note(
@@ -242,7 +278,8 @@ class SharedFileImporter {
   }) {
     navigatorKey.currentState?.push(
       MaterialPageRoute(
-        builder: (_) => EditorScreen(note: note, initialPreviewMode: previewMode),
+        builder: (_) =>
+            EditorScreen(note: note, initialPreviewMode: previewMode),
       ),
     );
   }
@@ -291,4 +328,3 @@ class _TextImportChoiceDialog extends StatelessWidget {
     );
   }
 }
-

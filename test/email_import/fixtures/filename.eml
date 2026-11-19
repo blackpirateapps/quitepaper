@@ -1,0 +1,9 @@
+From: Alice <alice@example.test>
+To: Bob <bob@example.test>
+Subject: Example
+Date: Wed, 18 Nov 2026 10:30:00 +0530
+Message-ID: <Example@Example.Test>
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename*0*=utf-8''%E2%82%AC; filename*1*=invoice.pdf
+
+bytes

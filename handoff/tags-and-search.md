@@ -123,3 +123,12 @@ not reintroduce synchronous collection-wide parsing.
 - Tag Sync FK Failure Resolution (`upsertSyncedTag`): [Latest Logs, Section 210](latest-logs.md#210-tag-sync-fix-sqlite-foreign-key-constraint-failure-on-duplicate-tag-merge-upsertsyncedtag-october-2026)
 - Pull-Down to Search Unveil: [Latest Logs, Section 203](latest-logs.md#203-in-place-pull-down-to-search-unveil--zero-lag-transition-october-2026)
 - Universal Fuzzy Search Engine: [Historical Logs v1.5, Section 63](archive/logs-v1.5.md#63-universal-fuzzy-search--multi-token-relevance-ranking-engine)
+
+## Imported email notes
+
+Email imports use ordinary notes and deterministic existing tag management,
+suggesting `email` without requiring it. Visible metadata, converted body and
+attachment labels enter the existing FTS/fuzzy-search paths; no separate email
+index or ranking policy was added. The source-hash/Message-ID index serves only
+duplicate detection. Fresh-device encrypted sync tests verify ordinary search
+and tag behavior. See [email import](email-import.md).
