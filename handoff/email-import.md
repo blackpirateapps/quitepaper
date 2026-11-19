@@ -46,11 +46,13 @@ Imported notes disable automatic remote-link preview fetching when opened.
 
 ## Storage, provenance and synchronization
 
-Drift schema 21 adds `notes.import_sources` with an empty-array default, a derived
+Drift schema 22 adds `notes.import_sources` with an empty-array default, a derived
 `note_import_source_index`, and `email_import_preparations`. `NoteImportSource`
 version 1 preserves hashes, canonical fingerprint, identifiers/thread references,
 original metadata, UTC import timestamp and asset IDs. The canonical collection
 travels inside encrypted NotePlaintext and through backups and QPNote exports.
+The v22 migration reconciles either earlier v21 layout (templates or email import),
+preserving existing template snapshots, favorites, notes and provenance.
 
 `saveNote` maintains the derived duplicate index transactionally. Source identities
 union during save/merge; older client envelopes cannot erase locally retained

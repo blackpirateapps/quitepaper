@@ -32,6 +32,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
     this.onFilterPressed,
     this.onSearchPressed,
     this.onCreateNotePressed,
+    this.onCreateFromTemplatePressed,
     this.advancedFilterCount = 0,
   });
 
@@ -46,6 +47,7 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
   final VoidCallback? onFilterPressed;
   final VoidCallback? onSearchPressed;
   final VoidCallback? onCreateNotePressed;
+  final VoidCallback? onCreateFromTemplatePressed;
   final int advancedFilterCount;
 
   @override
@@ -378,6 +380,10 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                   side: BorderSide(color: colors.divider, width: 0.8),
                 ),
                 onSelected: (val) {
+                  if (val == 'template') {
+                    onCreateFromTemplatePressed?.call();
+                    return;
+                  }
                   if (tag == null) return;
                   switch (val) {
                     case 'nested':
@@ -415,6 +421,28 @@ class TagContextHeader extends ConsumerWidget implements PreferredSizeWidget {
                   }
                 },
                 itemBuilder: (context) => [
+                  if (onCreateFromTemplatePressed != null)
+                    PopupMenuItem(
+                      value: 'template',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.description_outlined,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              'New from Template',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (onSortPressed != null)
                     PopupMenuItem(
                       value: 'sort',

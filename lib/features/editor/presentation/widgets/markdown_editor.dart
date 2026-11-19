@@ -86,10 +86,10 @@ class MarkdownEditor extends StatefulWidget {
   final String? noteId;
 
   @override
-  State<MarkdownEditor> createState() => _MarkdownEditorState();
+  State<MarkdownEditor> createState() => MarkdownEditorState();
 }
 
-class _MarkdownEditorState extends State<MarkdownEditor> {
+class MarkdownEditorState extends State<MarkdownEditor> {
   static const _tableParser = MarkdownTableParser();
 
   MarkdownTable? _activeTable;
@@ -150,6 +150,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (_isSyncing) return;
     _autosaveDebouncer.run(_flushRichContent);
   }
+
+  /// Publish pending visual edits through the same canonical autosave path.
+  void flushPendingChanges() => _flushRichContent();
 
   void _flushRichContent() {
     _autosaveDebouncer.cancel();

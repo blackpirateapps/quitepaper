@@ -1,3 +1,5 @@
+import 'package:quitepaper/features/templates/data/template_repository.dart';
+import '../templates/template_domain_test.dart' show fixture;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -608,6 +610,8 @@ void main() {
       connection.execute('DROP TABLE note_import_source_index');
       connection.execute('DROP TABLE email_import_preparations');
       connection.execute('ALTER TABLE notes DROP COLUMN import_sources');
+      connection.execute('DROP TABLE template_favorites');
+      connection.execute('DROP TABLE note_templates');
       connection.execute('PRAGMA user_version=20');
       connection.close();
       final upgraded = AppDatabase(NativeDatabase(file));
@@ -624,6 +628,106 @@ void main() {
       await upgraded.close();
     },
   );
+  for (final layout in ['templates', 'email']) {
+    test('schema 21 $layout layout upgrades to 22 without data loss', () async {
+      final file = File('${dir.path}/v21-$layout.sqlite');
+      final previous = AppDatabase(NativeDatabase(file));
+      final source = NoteImportSource(
+        fingerprint: 'existing-email',
+        importedAt: DateTime.utc(2026),
+        subject: 'Subject',
+        sender: 'Sender',
+      );
+      await DriftNotesRepository(previous).saveNote(
+        Note(
+          id: 'existing',
+          title: 'Keep title',
+          content: 'Keep body',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          tags: ['keep'],
+          importSources: layout == 'email' ? [source] : [],
+        ),
+      );
+      if (layout == 'templates') {
+        final templates = TemplateRepository(previous);
+        await templates.insertUserTemplate(fixture());
+        await templates.setFavorite(fixture().id, true);
+      }
+      await previous.close();
+      final connection = sqlite.sqlite3.open(file.path);
+      if (layout == 'templates') {
+        connection.execute('DROP TABLE note_import_source_index');
+        connection.execute('DROP TABLE email_import_preparations');
+        connection.execute('ALTER TABLE notes DROP COLUMN import_sources');
+      } else {
+        connection.execute('DROP TABLE template_favorites');
+        connection.execute('DROP TABLE note_templates');
+      }
+      connection.execute('PRAGMA user_version=21');
+      connection.close();
+      final upgraded = AppDatabase(NativeDatabase(file));
+      try {
+        final repository = DriftNotesRepository(upgraded);
+        final existing = (await repository.getNoteById('existing'))!;
+        expect(existing.title, 'Keep title');
+        expect(existing.content, 'Keep body');
+        expect(existing.tags, ['keep']);
+        expect(existing.importSources, layout == 'email' ? [source] : isEmpty);
+        expect(
+          (await upgraded.customSelect('PRAGMA user_version').getSingle())
+              .data['user_version'],
+          22,
+        );
+        final templates = TemplateRepository(upgraded);
+        if (layout == 'templates') {
+          expect(
+            (await templates.getUserTemplate(fixture().id))!.content,
+            fixture().content,
+          );
+          expect(await templates.getFavoriteTemplateIds(), {fixture().id});
+        } else {
+          expect(
+            await upgraded.findEmailDuplicates(fingerprint: source.fingerprint),
+            hasLength(1),
+          );
+          await templates.insertUserTemplate(fixture());
+          await templates.setFavorite(fixture().id, true);
+        }
+        final upgradedVault = AttachmentService(
+          database: upgraded,
+          keyManager: keys,
+          storage: storage,
+        );
+        final imported =
+            await EmailImportService(
+              database: upgraded,
+              repository: repository,
+              attachments: upgradedVault,
+            ).save(
+              email: email('plain'),
+              mode: EmailImportMode.editable,
+              title: 'New email',
+            );
+        expect(
+          (await repository.getNoteById(imported.id))!.importSources,
+          isNotEmpty,
+        );
+        expect(
+          await upgraded.findEmailDuplicates(
+            fingerprint: email('plain').fingerprint,
+          ),
+          hasLength(1),
+        );
+        expect(
+          (await templates.getUserTemplates()).single.content,
+          fixture().content,
+        );
+      } finally {
+        await upgraded.close();
+      }
+    });
+  }
   test(
     'real backup restore reconstructs sources, original bytes and duplicate index',
     () async {
@@ -641,7 +745,12 @@ void main() {
         sharedPreferences: prefs,
         storage: storage,
       );
-      final payload = await backup.generateBackupPayload();
+      final templates = TemplateRepository(db);
+      await templates.insertUserTemplate(fixture());
+      await templates.setFavorite(fixture().id, true);
+      final payload = BackupPayload.fromJson(
+        (await backup.generateBackupPayload()).toJson(),
+      );
       final restoredDb = AppDatabase.memory();
       final restoredStorage = AttachmentLocalStorage(
         customBaseDirectory: Directory('${dir.path}/restored'),
@@ -653,6 +762,15 @@ void main() {
         storage: restoredStorage,
       );
       await restore.restoreBackup(payload);
+      expect(
+        (await TemplateRepository(
+          restoredDb,
+        ).getUserTemplates()).single.content,
+        fixture().content,
+      );
+      expect(await TemplateRepository(restoredDb).getFavoriteTemplateIds(), {
+        fixture().id,
+      });
       final restored = (await DriftNotesRepository(
         restoredDb,
       ).getNoteById(note.id))!;

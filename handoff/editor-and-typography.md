@@ -276,3 +276,15 @@ intact. Super Editor recognizes the appended Email Details section and appends
 only its parsed nodes after the current frame, retaining the original document,
 selection and history. Imported notes disable automatic remote-link preview
 baking/promotion; normal unrelated notes retain their existing behavior.
+
+
+## Template snapshots and canonical display projection
+
+Save as Template flushes `MarkdownEditorState.flushPendingChanges` and awaits
+`EditorNotifier.flushForTemplate` before reading the persisted note. Overlapping
+autosaves are serialized; edits made during a save remain dirty and reschedule.
+Source snapshots preserve Markdown/RichDocument bytes and exclude specially
+protected, journal, trash and read-only content. Opening a canonical rich note in
+Markdown Source or Super Editor uses a display projection without rewriting the
+stored JSON. Session history reads the canonical notifier content after flushing
+pending visual edits. See [templates.md](templates.md) for the complete contract.

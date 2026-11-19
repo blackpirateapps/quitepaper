@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/core/attachments/attachment_storage.dart';
@@ -10,6 +11,17 @@ import 'package:quitepaper/core/database/app_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final previousDatabaseWarningSetting =
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+  setUpAll(() {
+    // Restore intentionally uses two independent in-memory databases, never a
+    // shared executor. A second connection is part of the backup contract test.
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  });
+  tearDownAll(() {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+        previousDatabaseWarningSetting;
+  });
 
   group('Attachment Backup & Restore Tests', () {
     late AppDatabase db;

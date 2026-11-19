@@ -11,6 +11,8 @@ import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/notes/presentation/widgets/note_list_tile.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/settings/presentation/backup_import_settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/settings_screen.dart';
 import 'package:quitepaper/features/sidebar/presentation/sidebar_view.dart';
 import 'package:quitepaper/features/tags/domain/phosphor_icons.dart';
 import 'package:quitepaper/features/onboarding/application/onboarding_provider.dart';
@@ -640,14 +642,31 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    // Tap Backup and import row in General settings
+    // General settings can extend below the phone viewport as rows are added.
+    await tester.scrollUntilVisible(
+      find.text('Backup and import'),
+      200.0,
+      scrollable: find
+          .descendant(
+            of: find.byType(SettingsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Backup and import'));
     await tester.pumpAndSettle();
+    expect(find.byType(BackupImportSettingsScreen), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Import Markdown Folder'),
       200.0,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find
+          .descendant(
+            of: find.byType(BackupImportSettingsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
 
     expect(find.text('IMPORT'), findsOneWidget);

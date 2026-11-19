@@ -262,6 +262,8 @@ void main() {
           ProviderScope(
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
+              databaseProvider.overrideWithValue(db),
+              notesRepositoryProvider.overrideWithValue(repository),
               allTagsProvider.overrideWith((ref) => Stream.value(manyTags)),
             ],
             child: MaterialApp(
@@ -308,7 +310,11 @@ void main() {
           ProviderScope(
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
-              allTagsProvider.overrideWith((ref) => Stream.value(implicitChildTag)),
+              databaseProvider.overrideWithValue(db),
+              notesRepositoryProvider.overrideWithValue(repository),
+              allTagsProvider.overrideWith(
+                (ref) => Stream.value(implicitChildTag),
+              ),
             ],
             child: MaterialApp(
               theme: ThemeData(extensions: const [AppColors.light]),
@@ -375,6 +381,8 @@ void main() {
           ProviderScope(
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
+              databaseProvider.overrideWithValue(db),
+              notesRepositoryProvider.overrideWithValue(repository),
               allTagsProvider.overrideWith((ref) => Stream.value(tags)),
             ],
             child: MaterialApp(
@@ -470,6 +478,8 @@ void main() {
         ProviderScope(
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
+            databaseProvider.overrideWithValue(db),
+            notesRepositoryProvider.overrideWithValue(repository),
             allTagsProvider.overrideWith((ref) => Stream.value(tags)),
           ],
           child: MaterialApp(
@@ -503,9 +513,7 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
 
         await tester.pumpWidget(
-          createTestApp(
-            home: const Scaffold(body: TagBrowserView()),
-          ),
+          createTestApp(home: const Scaffold(body: TagBrowserView())),
         );
         await tester.pumpAndSettle();
 

@@ -14,6 +14,10 @@ import '../database/app_database.dart';
 import '../documents/document_storage.dart';
 import '../journal/application/journal_metadata_service.dart';
 import 'backup_models.dart';
+import '../../features/templates/data/template_repository.dart';
+import '../../features/templates/data/built_in_templates.dart';
+import '../../features/templates/application/template_content.dart';
+import '../../features/templates/domain/note_template.dart';
 
 class BackupService {
   BackupService({
@@ -313,6 +317,8 @@ class BackupService {
       attachments: backupAttachments,
       documents: backupDocuments,
       placeAliases: backupPlaceAliases,
+      templates: await TemplateRepository(database).getUserTemplates(),
+      templateFavorites: (await TemplateRepository(database).getFavoriteTemplateIds()).toList(),
     );
   }
 
@@ -566,7 +572,44 @@ class BackupService {
     var totalSkipped = 0;
     var totalConflicts = 0;
 
+    // Validate all incoming template data before any destructive operation.
+    // Direct callers receive the same validation as deserialized backup files.
+    final templateIds = <String>{};
+    for (final template in payload.templates) {
+      if (!Uuid.isValidUUID(fromString: template.id) || !templateIds.add(template.id)) {
+        throw const TemplateException('Invalid or duplicate backup template identity.');
+      }
+      await validateTemplateContentAsync(template);
+    }
     await database.transaction(() async {
+      final templates = TemplateRepository(database);
+      if (strategy == RestoreStrategy.replace) {
+        await database.delete(database.templateFavoritesTable).go();
+        await database.delete(database.noteTemplatesTable).go();
+      }
+      for (final template in payload.templates) {
+        final existing = await templates.getUserTemplate(template.id);
+        if (existing == null) {
+          await templates.insertUserTemplate(template);
+        } else if (template.updatedAt.isAfter(existing.updatedAt)) {
+          // Keep stable identity, even for the note-level keepBoth strategy.
+          await (database.delete(database.noteTemplatesTable)..where((t) => t.id.equals(template.id))).go();
+          await templates.insertUserTemplate(template);
+        }
+      }
+      final validIds = {
+        ...builtInTemplates.map((t) => t.id),
+        ...(await templates.getUserTemplates()).map((t) => t.id),
+      };
+      for (final id in payload.templateFavorites) {
+        if (validIds.contains(id)) await templates.setFavorite(id, true);
+      }
+      // Retain unknown built-in favorites already on disk across app upgrades.
+      for (final id in await templates.getFavoriteTemplateIds()) {
+        if (!id.startsWith('builtin.') && !validIds.contains(id)) {
+          await templates.setFavorite(id, false);
+        }
+      }
       // If strategy is replace, wipe current tables
       if (strategy == RestoreStrategy.replace) {
         await database.delete(database.noteTagsTable).go();

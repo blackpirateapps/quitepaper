@@ -37,8 +37,10 @@ The active-editor bridge prevents stale autosaves after confirmed/partial append
 
 ## D. Database and sync
 
-Schema 20 → 21 adds canonical optional import sources, a derived indexed lookup
+Schema 20/21 → 22 adds canonical optional import sources, a derived indexed lookup
 and a durable preparation journal. Existing notes default to an empty collection.
+The integration migration accepts both earlier schema-21 feature layouts and
+preserves template snapshots/favorites as well as existing email provenance.
 Source identities union across edits/merges; backups/restores, duplication, CLI
 uploads and QPNote export retain them. An older envelope cannot erase locally
 retained provenance. No backend endpoints or server-visible email fields changed.

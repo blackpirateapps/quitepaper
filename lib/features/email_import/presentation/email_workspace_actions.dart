@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/widgets/quiet_spotlight_dialog.dart';
+import '../../notes/presentation/widgets/notes_command_palette.dart';
 import '../application/email_import_gateway.dart';
 import '../application/email_input.dart';
 import 'email_import_launcher.dart';
@@ -78,12 +78,18 @@ class EmailWorkspaceActions extends StatelessWidget {
   Future<void> _palette() async {
     final context = _context;
     if (context == null || EmailImportLauncher.isActive) return;
-    final command = await showQuietSpotlight<String>(
-      context: context,
-      builder: (ctx) => const _ImportCommands(),
+    final command = await showNotesCommandPalette(
+      context,
+      commands: const [
+        NotesCommand.importEmail,
+        NotesCommand.importEmailAllFiles,
+      ],
     );
     if (context.mounted && command != null) {
-      await EmailImportLauncher.pick(context, allFiles: command == 'all');
+      await EmailImportLauncher.pick(
+        context,
+        allFiles: command == NotesCommand.importEmailAllFiles,
+      );
     }
   }
 
@@ -114,49 +120,6 @@ class EmailWorkspaceActions extends StatelessWidget {
         }
       },
       child: child,
-    ),
-  );
-}
-
-class _ImportCommands extends StatefulWidget {
-  const _ImportCommands();
-  @override
-  State<_ImportCommands> createState() => _ImportCommandsState();
-}
-
-class _ImportCommandsState extends State<_ImportCommands> {
-  String _query = '';
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Commands',
-            hintText: 'Search commands',
-          ),
-          onChanged: (value) => setState(() => _query = value.toLowerCase()),
-          onSubmitted: (_) => Navigator.of(context).pop('eml'),
-        ),
-        if ('import email eml'.contains(_query))
-          ListTile(
-            leading: const Icon(Icons.mail_outline),
-            title: const Text('Import Email'),
-            subtitle: const Text('Choose .eml files • Ctrl+Shift+I'),
-            onTap: () => Navigator.of(context).pop('eml'),
-          ),
-        if ('import email all files generic'.contains(_query))
-          ListTile(
-            title: const Text('Import Email from all files'),
-            subtitle: const Text(
-              'For messages with a generic type or missing extension',
-            ),
-            onTap: () => Navigator.of(context).pop('all'),
-          ),
-      ],
     ),
   );
 }

@@ -131,10 +131,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Import Email'), findsOneWidget);
       expect(find.text('Import Email from all files'), findsOneWidget);
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Commands'),
-        'generic',
-      );
+      await tester.enterText(find.byType(TextField).last, 'generic');
       await tester.pumpAndSettle();
       expect(find.text('Import Email'), findsNothing);
       expect(find.text('Import Email from all files'), findsOneWidget);

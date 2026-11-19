@@ -34,6 +34,8 @@ import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_fab.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
+import '../../templates/presentation/template_picker.dart';
+import 'widgets/notes_command_palette.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
@@ -865,6 +867,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final title = _getDestinationTitle(destination);
 
     final phoneKeyboardBindings = {
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
           _createAndOpenNote(context),
@@ -946,6 +950,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       bindings: phoneKeyboardBindings,
       child: Focus(
         focusNode: _multiSelectFocusNode,
+        autofocus: true,
         child: PopScope(
           canPop:
               !_isMultiSelecting &&
@@ -1051,6 +1056,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     NotesFilterSheet.show(context),
                                 onSearchPressed: () =>
                                     _openSearchScreen(context),
+                                onCreateFromTemplatePressed: _newFromTemplate,
                                 onCreateNotePressed: () =>
                                     _createAndOpenNote(context),
                                 advancedFilterCount:
@@ -1110,7 +1116,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   ),
                                 ),
                                 onSelected: (val) {
-                                  if (val == 'select') {
+                                  if (val == 'templates') {
+                                    _newFromTemplate();
+                                  } else if (val == 'commands') {
+                                    _showCommands();
+                                  } else if (val == 'select') {
                                     _enterMultiSelect();
                                   } else if (val == 'sort') {
                                     NotesSortSheet.show(context);
@@ -1129,6 +1139,50 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   }
                                 },
                                 itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'templates',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.files,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'New from Template',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'commands',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.command,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'Command Palette',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   PopupMenuItem(
                                     value: 'select',
                                     child: Row(
@@ -1910,6 +1964,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
     final tabletKeyboardBindings = {
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true):
           _createAndOpenNoteTablet,
@@ -2025,6 +2081,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       bindings: tabletKeyboardBindings,
       child: Focus(
         focusNode: _multiSelectFocusNode,
+        autofocus: true,
         child: PopScope(
           canPop:
               !_isMultiSelecting &&
@@ -2300,6 +2357,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                         _openSearchScreen(
                                                           context,
                                                         ),
+                                                    onCreateFromTemplatePressed: _newFromTemplate,
                                                     onCreateNotePressed: () =>
                                                         _createAndOpenNoteTablet(),
                                                     advancedFilterCount: query
@@ -2404,8 +2462,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             ),
                                                           ),
                                                           onSelected: (val) {
-                                                            if (val ==
-                                                                'select') {
+                                                            if (val == 'templates') {
+                                                              _newFromTemplate();
+                                                            } else if (val == 'commands') {
+                                                              _showCommands();
+                                                            } else if (val == 'select') {
                                                               _enterMultiSelect();
                                                             } else if (val ==
                                                                 'sort') {
@@ -2449,6 +2510,67 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             }
                                                           },
                                                           itemBuilder: (context) => [
+                                                            PopupMenuItem(
+                                                              value:
+                                                                  'templates',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .files,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'New from Template',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            PopupMenuItem(
+                                                              value: 'commands',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .command,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'Command Palette',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
                                                             PopupMenuItem(
                                                               value: 'select',
                                                               child: Row(
@@ -3268,6 +3390,53 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _newFromTemplate() async {
+    final workspace = ref.read(workspaceContextProvider);
+    final note = await showTemplatePicker(
+      context,
+      activeTag: workspace.isTag ? workspace.tagName : null,
+    );
+    if (!mounted || note == null) return;
+    if (MediaQuery.sizeOf(context).width >= 900) {
+      // A new ordinary note belongs in an active workspace, even when opened
+      // from Archive/Trash. Keep the tag context when one was supplied.
+      if (!workspace.isTag) {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.allNotes;
+      }
+      setState(() {
+        _selectedNoteIdForTablet = note.id;
+        _shouldAutoFocusTablet = true;
+      });
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditorScreen(note: note, autoFocusBody: true),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showCommands() async {
+    final action = await showNotesCommandPalette(context);
+    if (!mounted) return;
+    if (action == NotesCommand.importEmail ||
+        action == NotesCommand.importEmailAllFiles) {
+      await EmailImportLauncher.pick(
+        context,
+        allFiles: action == NotesCommand.importEmailAllFiles,
+      );
+    } else if (action == NotesCommand.newFromTemplate) {
+      await _newFromTemplate();
+    } else if (action == NotesCommand.newNote) {
+      if (MediaQuery.sizeOf(context).width >= 900) {
+        _createAndOpenNoteTablet();
+      } else {
+        _createAndOpenNote(context);
+      }
     }
   }
 

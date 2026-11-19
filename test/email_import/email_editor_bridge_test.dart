@@ -19,6 +19,7 @@ import 'package:quitepaper/features/editor/domain/rich_document.dart';
 import 'package:quitepaper/features/editor/domain/editor_editing_style.dart';
 import 'package:quitepaper/features/editor/presentation/editor_screen.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/quiet_super_editor.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/rich_text_editor.dart';
 import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
@@ -32,6 +33,57 @@ class _NoSync implements SyncEngine {
 }
 
 void main() {
+  testWidgets('email preview flushes Visual edits before its debounce fires', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final db = AppDatabase.memory();
+    final repo = DriftNotesRepository(db);
+    final note = Note(
+      id: 'pending-visual',
+      title: 'Draft',
+      content: 'Original body',
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+    );
+    await repo.saveNote(note);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          notesRepositoryProvider.overrideWithValue(repo),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          editorEditingStyleProvider.overrideWith(
+            (ref) =>
+                EditingStyleNotifier(prefs)..state = EditorEditingStyle.wysiwyg,
+          ),
+        ],
+        child: MaterialApp(home: EditorScreen(note: note)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final field = find
+        .descendant(
+          of: find.byType(RichTextEditor),
+          matching: find.byType(EditableText),
+        )
+        .first;
+    await tester.enterText(field, 'Latest Visual edit before email preview');
+    final current = (await EmailEditorBridge.active!.prepare())!;
+    expect(
+      current.plainText,
+      contains('Latest Visual edit before email preview'),
+    );
+    expect(
+      (await repo.getNoteById(note.id))!.plainText,
+      contains('Latest Visual edit before email preview'),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+    await db.close();
+    expect(tester.takeException(), isNull);
+  });
   for (final style in EditorEditingStyle.values) {
     testWidgets('confirmed append updates live $style without stale autosave', (
       tester,

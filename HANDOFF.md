@@ -822,3 +822,217 @@ storage failures. Existing encrypted libraries and different cloud vault keys ar
 protected from accidental key replacement. See [log 342](handoff/latest-logs.md)
 and [offline encryption setup](handoff/email-import.md#offline-encryption-setup).
 No app builds were run for this fix; validation uses analysis and focused tests.
+
+
+## Phase 1 Local Note Templates — November 18, 2026
+
+Implemented independent full-note templates, eight bundled structures, adaptive
+search/preview/picker UI, persistent favorites, user rename/delete, editor saving,
+Settings and notes/tag-menu entry points, and a desktop command palette. Drift
+schema **21** stores snapshots/favorites separately from ordinary notes; template
+records never enter cloud synchronization. New notes use existing repository,
+indexing and encrypted-sync behavior with fresh metadata and active-tag context.
+
+Snapshots safely flush the current editor, preserve canonical document bytes and
+exclude specially protected, journal, trash, read-only and binary/media content.
+Source/Super Editor display projections keep rich JSON unchanged until a real
+edit. Optional backup v1 sections preserve encrypted backup compatibility,
+legacy restore and transactional rollback. Vault erasure removes both tables.
+
+Validation: `flutter analyze` reports no issues and `git diff --check` passes.
+**349 selected tests passed**, followed by a clean final **91-test**
+focused run (77 templates + 14 tag hierarchy checks). A new excerpt test in that
+rerun brings distinct selected coverage to **350 tests**. The full suite was
+not run, as explicitly requested. Physical-device validation is not claimed.
+See [subsystem guide](handoff/templates.md), [engineering report](handoff/templates-report.md)
+and engineering log 334 for architecture, exact commands and verification limits.
+
+
+## Phase 1 Templates — Independent Audit
+
+The [independent template audit](audits/templates-2026-11-18.md) of commit
+`bbe720c` recommends **BLOCK RELEASE**. Eight confirmed findings include two P0
+regressions: password protection can fail to persist during an active save, and
+editor exit can discard the latest edits. Encoded private attachment links also
+bypass template validation (P1). The report includes exact source locations,
+reproductions, a requirements matrix and an ordered remediation plan.
+
+Static analysis and 355 selected repository tests passed; 14 additional audit
+probes produced five passes and nine failed correctness assertions. The full
+suite was not run. No fixes were applied during the audit. These findings
+supersede the implementation report's safety claims until remediation is verified.
+
+### QPT-001 template audit fix — November 19, 2026
+
+Editor writes now capture immutable content, password and hint inputs and drain
+serialized save revisions, including security-only changes made during a write.
+Protection changes await persistence and reject failed writes; locking retains
+credentials until the newest encrypted write completes. Missing replacement
+hints clear the previous hint. Persisted protected sources remain ineligible for
+templates at the service boundary.
+
+Validation: `flutter analyze` clean; 16 relevant save-race/service tests pass,
+including real SQLite protection, removal, password change, lock and failure
+cases. The shared drain also supplies the persistence foundation for QPT-002.
+No full suite ran.
+
+### QPT-002 template audit fix — November 19, 2026
+
+Back, system Back and the split-pane Close action now await canonical editor
+flushing and exit cleanup before leaving. Failed persistence retains the route
+and dirty buffer for retry. Lifecycle saves publish pending Visual edits first.
+Riverpod keeps the notifier alive during active persistence; exit waits for older
+writes before empty-draft deletion. Templates and security transitions share the
+same general pending-change flush contract.
+
+Validation: `flutter analyze` clean; 47 relevant editor/save-race/integration
+tests pass. New real-route tests cover delayed older writes, newer edits, Back,
+provider disposal and a failed-save retry. No full suite ran.
+
+### QPT-003 template audit fix — November 19, 2026
+
+Attachment validation checks decoded canonical resource fields throughout rich
+ASTs and parses nested table Markdown. Markdown destinations are inspected after
+Markdown rendering and HTML parsing, covering entities, reference links and raw
+HTML attributes. URI normalization detects encoded private schemes/paths while
+ordinary HTTP and note links remain supported. Validation still runs on both
+snapshot saving and instantiation, including imported template rows.
+
+Validation: `flutter analyze` clean; 44 relevant content/domain/service tests
+pass. Regressions include Unicode-escaped JSON, entity/percent-encoded Markdown,
+headings/lists/quotes/tables and real SQLite save/use refusal. No full suite ran.
+
+### QPT-004 template audit fix — November 19, 2026
+
+Removed whole-document resource-string matching. Validation now distinguishes
+rendered resource elements and actual preview metadata comments from code and
+escaped text. Literal rich code/plain-text spans are also preserved. Private
+live links, media and thumbnail-bearing previews remain refused.
+
+Validation: `flutter analyze` clean; 56 relevant content/domain/service tests
+pass, including fenced/indented/inline code, escaped markup, literal preview
+comments, live-resource counterparts and a verbatim SQLite snapshot/use round
+trip. No full suite ran.
+
+### QPT-005 template audit fix — November 19, 2026
+
+Picker and save/rename modals disable sheet dragging and barrier dismissal;
+explicit Close/Cancel, Escape and Back remain available when idle. Pending
+operations retain their existing Back/keyboard/button guards until persistence
+results are delivered. The shared desktop dialog Escape fallback uses maybePop
+so nested PopScope guards cannot be bypassed when field focus changes.
+
+Validation: `flutter analyze` clean; 38 relevant template/editorial/adaptive-modal
+widget tests pass. Both Android-style sheets and Linux-style dialogs survive
+drag, barrier, Escape and system Back during gated use/save operations, then
+return one committed result. No full suite ran.
+
+### QPT-006 template audit fix — November 19, 2026
+
+Frontmatter source offsets now count original newline widths, preserving CRLF
+when replacing title values or inserting a title. Title value ranges exclude
+unquoted inline YAML comments, retaining comment spacing and quoted hash marks.
+Template title normalization retains its final consistency check.
+
+Validation: `flutter analyze` clean; 50 relevant template service/frontmatter
+unit/preservation tests pass. Eighteen real SQLite save/use combinations compare
+all unrelated bytes for LF/CRLF, three title positions, quoted values and inline
+comments. Source/template bytes remain unchanged. No full suite ran.
+
+### QPT-007 template audit fix — November 19, 2026
+
+Committed note creation returns independently of refresh/sync notifications.
+Synchronous and asynchronous notification failures are reported without note
+content and retried once without repeating persistence. Production refresh is
+awaited in that ancillary task and sync scheduling runs even if refresh fails.
+The browser retains a committed Note across synchronous/asynchronous opening
+failures; Open Created Note retries delivery of the same identity. A completed
+management action resets state for a subsequent explicit creation.
+
+Validation: `flutter analyze` clean; 58 relevant service/widget/navigation tests
+pass. Injected notification failures, a pending callback and failed opening
+retries all preserve one committed note. No full suite ran.
+
+### QPT-008 template audit fix — November 19, 2026
+
+The browser scrolls header, search, errors and lazy catalog rows in one sliver
+viewport. Preview fills the remaining scrolling area; Use Template and Manage
+Templates stay in the reachable action footer. Fixed header/search heights no
+longer compete with the keyboard-reduced list height.
+
+Validation: `flutter analyze` clean; 34 relevant picker/navigation tests pass.
+Eight constrained cases cover the original 320×568/300-inset reproduction,
+landscape, a small desktop window, doubled text size and both themes. They
+exercise scrolling to search/rows, keyboard-safe actions and actual creation.
+No full suite ran. All eight findings have dedicated fixes; the original audit
+now links to [remediation details](handoff/audits/templates-2026-11-18-fixes.md).
+
+### Template audit — shared editor follow-up and final verification
+
+Protection enable/change/remove/lock failures now show a recoverable error,
+retain the dirty editor and avoid success messages. Security actions publish
+pending Visual edits first. Exit takes its final canonical flush after session
+history finishes, preserving edits made during that asynchronous history write.
+New tests exercise those paths, encrypted exit and actual inactive/paused
+lifecycle flushing with Flutter's valid transition sequence.
+
+All **eight confirmed template findings are fixed**, each in its own commit,
+with this shared editor follow-up. Final `flutter analyze` is clean and **241
+selected tests pass** across templates, editor save/security/frontmatter/history,
+modal widgets and password encryption. `git diff --check` passes. The full suite
+was not run. Exact commands, commit mapping and native-device/performance limits
+are in [fix verification](handoff/audits/templates-2026-11-18-fixes.md).
+
+### Settings import navigation regression test — November 19, 2026
+
+The phone settings test now scrolls to Backup and import before tapping it.
+The Templates row had moved that destination below the 360×800 viewport,
+causing a missed tap and a subsequent missing import-section lookup. Both scroll
+operations are scoped to their respective settings screens, and the test checks
+that BackupImportSettingsScreen opens before asserting the import controls.
+
+Validation: `flutter analyze` is clean; all **37 tests** pass in
+`test/widget_test.dart` and `test/settings/settings_screen_test.dart`, including
+the originally failing case. `git diff --check` passes. No full suite ran.
+
+### Templates UI and Android command palette — November 19, 2026
+
+Templates now appears first under General, after the cloud/account/security
+section. Both notes overflow layouts show Phosphor icons beside New from
+Template and Command Palette, with labels that wrap within the menu width.
+The management page uses one title, the app's paper palette, a compact filled
+search field with clear action, understated section labels, readable built-in
+descriptions, fine dividers and Phosphor controls. Its content width matches
+Settings; the picker shares the same catalog styling.
+
+The command palette offers New Note and New from Template through the existing
+creation handlers. Android now has an opaque themed surface, close control,
+keyboard inset handling and scrolling in short viewports. Search reports empty
+results and Enter/Go activates the first matching action. See engineering log
+335 in `handoff/latest-logs.md` for verification and scope.
+
+Validation: `flutter analyze` clean; **55 focused tests pass** across template
+widgets/navigation and settings. `git diff --check` passes. No full suite ran.
+
+## PR #14 integration review — November 19, 2026
+
+Reconciled email import with the templates feature merged in PR #15. The combined
+Drift schema is **22**: its defensive migration accepts both schema-21 layouts,
+adds email provenance/index/journal and missing template tables, and preserves
+existing notes, template snapshots and favorites. Backup payloads and vault erasure
+retain both features. Added regressions for both v21 upgrade paths and a combined
+email/template backup JSON round trip.
+
+The notes command palette now exposes both template and email actions, including
+the generic-file fallback; the global email shortcut reuses the same searchable,
+keyboard-aware palette. Email preview flushes pending Visual edits through the
+editor's persistence barrier before taking its destination snapshot. Historical
+phase logs retain their original schema numbers; current email guides use v22.
+
+Validation: final `flutter analyze` reports no issues. The focused integration gate
+passes **418 tests** across email import, local keys, database migration, templates,
+backup, sync/conflicts, Quick Capture, attachments, exports, editor and settings.
+A final **29-test** email persistence/editor run also passes, including pending
+Visual edits, both v21 migrations and combined backup recovery; these runs overlap.
+The full test suite and app builds were not run for this review. Physical-device
+validation remains subject to the limits recorded in the email guide.
