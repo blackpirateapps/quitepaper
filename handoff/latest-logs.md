@@ -7820,3 +7820,61 @@ remain unverified. The existing cloud size policy can leave larger locally
 preserved assets pending, and text-only shares cannot supply missing source data.
 The report makes these limits explicit rather than claiming production hardware
 verification. No deployment, release, branch merge or unrelated upgrade occurred.
+
+## 342. Offline Email Import — Initialize Device Vault Before Preview (November 19, 2026)
+
+An Android user without Cloud Sync could not preview an email: the screen checked
+`isUnlocked` before initialization, then invalidated the source and displayed
+“Preview cleared.” Accountless installations had never generated the encryption
+key required by the attachment vault. This was an application prerequisite bug,
+not evidence of an Android provider refusing the email.
+
+Changes:
+
+- `EmailImportGateway.initialize` awaits key initialization before preview gates.
+  For a signed-out notebook without wrapped keys, bounded attachment/document
+  existence queries prevent generating a replacement for an existing encrypted
+  library. A fresh local notebook initializes its key without an account/network
+  request and updates the shared unlock provider before ordinary recovery.
+- `KeyManager.ensureLocalKey` creates one 256-bit master key through the existing
+  secure-storage abstraction, persisting it before exposing it to encryption.
+  Concurrent creation is shared and existing device/cloud keys are reused.
+  Unavailable or malformed storage fails closed; transient reads and failed writes
+  can retry. Initialization is idempotent after successful loading.
+- Explicit locks and lifecycle revisions prevent delayed startup/creation from
+  unlocking a notebook. Key clearing waits for pending local persistence before
+  deleting stored material. A new cloud vault wraps the existing local key;
+  password/recovery adoption of a different cloud key is rejected before it can
+  strand encrypted local assets. Existing auth failure handling still locks the
+  local session; restarting restores its persisted device key.
+- Preview waits for preparation, preserves incoming sources on storage errors,
+  offers Retry, and ignores late results/errors after actual secure invalidation.
+  Real lock/logout continues clearing shared bodies, paths and review state.
+- Added local-key lifecycle/security tests, real accountless import/encrypted
+  original/restart coverage, missing-key and signed-in-vault guards, and UI tests
+  for initialization, retry and a lock while initialization is suspended. Updated
+  the OCR search fake for the new KeyManager interface without changing behavior.
+- Updated root/domain handoffs and the engineering report. Device-only keys remain
+  in this installation's secure storage. Existing backup payloads preserve asset
+  ciphertext but do not export the master key; a backup envelope password does
+  not make a device-only asset key portable. Cross-vault migration and device-only
+  key recovery on another installation are outside this correction.
+
+Validation (no full suite and **no app builds**):
+
+- `flutter analyze`: **no issues** on the final source; an initial missing method
+  in the explicitly implemented OCR fake was corrected before the clean run.
+- `flutter test --no-pub --concurrency=1 test/crypto test/email_import test/attachments/attachment_service_test.dart test/sync/sync_screens_test.dart test/sync/sync_engine_test.dart test/sync/fresh_device_sync_content_retention_test.dart`:
+  **140 passed**, including accountless encrypted persistence and real sync flows.
+- `flutter test --no-pub --concurrency=1 test/crypto/local_key_test.dart test/search/ocr_global_search_test.dart`:
+  **20 passed**, including two additional startup-lock/key-clear race regressions.
+  The existing unauthenticated metadata lookups print their handled diagnostics;
+  all assertions pass. This run overlaps the preceding gate.
+- Final `flutter test --no-pub --concurrency=1 test/email_import/email_import_screen_test.dart`:
+  **12 passed**, including the deterministic suspended-initialization lock case.
+- Changed implementation/new test files are formatted; `git diff --check`: clean.
+  The existing OCR search fixture receives only the required interface method.
+
+Physical Android replay remains pending. No Flutter/Android/Linux/CLI build,
+release, deployment, full test suite, backend change or schema migration was run
+or introduced for this correction. Commit/push target remains `feat/email-import`.

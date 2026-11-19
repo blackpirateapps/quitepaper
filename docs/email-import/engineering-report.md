@@ -107,3 +107,23 @@ The canonical [handoff guide](../../handoff/email-import.md), root HANDOFF, inde
 storage/editor/platform/search/document guides and numbered engineering logs
 explain entry points, source/schema contracts, cleanup, privacy and validation
 limits. The [implementation record](implementation.md) preserves phase history.
+
+## Offline import correction — November 19, 2026
+
+An Android report exposed a missing accountless encryption prerequisite: preview
+checked `isUnlocked` before initialization and discarded the source because an
+installation that never used Cloud Sync had no key. The gateway now initializes
+one securely persisted local master key for a fresh signed-out notebook, and the
+preview waits for that step. Storage failures preserve the source and offer Retry;
+real lock/logout invalidation still discards sensitive content and pending work.
+Keys survive restart, remain subject to existing asset encryption, and are reused
+when setting up a new cloud vault. Existing encrypted libraries with missing keys
+and adoption of differently keyed cloud vaults fail closed.
+
+The correction passed a 140-test focused crypto/email/attachment/sync run, followed
+by 20 local-key/OCR-search tests including two additional lock/clear race cases.
+These runs overlap and are not a unique aggregate. Analysis and whitespace checks
+pass. No app build or full test suite was run for the correction; physical Android
+verification remains pending. See log 342 for exact commands and the
+[offline key guide](../../handoff/email-import.md#offline-encryption-setup) for the
+existing backup/master-key portability limitation.

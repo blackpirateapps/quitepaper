@@ -27,6 +27,17 @@ Quiet Paper is built around a zero-knowledge, end-to-end encrypted architecture.
 
 ---
 
+### Device-only email vault keys
+
+Email import can initialize a fresh signed-out vault with `ensureLocalKey()`.
+The master key is durably stored through the existing secure-storage abstraction
+before any encryption and is reused across previews/restarts. This path never
+rotates existing keys, bypasses an explicit lock, or initializes over an encrypted
+library whose key is missing. New cloud setup wraps the same key; an existing
+cloud vault with another key cannot overwrite it. Device-only key portability is
+not part of the backup payload. See [email import](email-import.md#offline-encryption-setup)
+and engineering log 342 for lifecycle guards, failure behavior and recovery limits.
+
 ## 2. Local Database & Persistence
 
 The local persistence layer is powered by **SQLite** using **Drift** in offline-first mode.

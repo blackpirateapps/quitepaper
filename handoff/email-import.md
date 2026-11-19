@@ -65,6 +65,36 @@ ciphertext; unsuccessful deletion retains the journal for later recovery before
 the next import preview. Never run recovery concurrently with another import.
 Email assets do not preload the plaintext cache or start OCR.
 
+## Offline encryption setup
+
+Email import works without Cloud Sync or an account. Before testing the unlock
+state, the gateway awaits key initialization. For a signed-out notebook with no
+wrapped key and no existing encrypted attachment/document rows, it calls
+`KeyManager.ensureLocalKey()`. This creates one random 256-bit key and persists it
+through the existing platform secure storage before exposing it to encryption.
+Concurrent requests share creation; subsequent previews and restarts reuse the
+same key. No cloud request or account setup is required.
+
+Existing wrapped/locked vaults are not replaced or unlocked automatically. Storage
+read/write failures fail closed; preparation errors retain the selected source and
+offer Retry. A real lock/logout still clears all pending source data. Generation
+checks prevent delayed initialization from restoring a cleared preview. Key loading
+is idempotent, and locking during startup or key creation prevents a late unlock.
+Clearing keys waits for pending local persistence before deleting stored material.
+
+Creating a new cloud vault wraps the same local key. Password/recovery unlock of a
+different existing cloud vault is rejected before replacing a device-only key, to
+avoid stranding encrypted local assets. Combining differently keyed vaults requires
+an explicit migration and is not implemented. Existing auth error handling locks
+the local session on unsuccessful sign-in; restarting restores its device key.
+
+Device-only keys remain in this installation's secure storage. Existing backups
+preserve encrypted asset bytes, but do not export the vault master key; moving
+those assets to another installation requires the same key. A backup password
+protects the backup envelope and does not replace the asset key. Cross-device
+recovery of a device-only key is not supplied by this fix. Do not clear app storage
+or uninstall as a workaround for an import failure.
+
 ## Android lifecycle and temporary files
 
 `IncomingShareReceiver.kt` streams ContentResolver data on a serial worker while
@@ -97,4 +127,4 @@ No new storage permissions or broad binary Open With filter were added.
 
 See [the engineering report](../docs/email-import/engineering-report.md),
 [implementation record](../docs/email-import/implementation.md), engineering logs
-334–341 and [focused validation script](../tool/verify_email_import.sh).
+334–342 and [focused validation script](../tool/verify_email_import.sh).

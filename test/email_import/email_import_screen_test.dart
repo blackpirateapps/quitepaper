@@ -17,6 +17,10 @@ class FakeEmailGateway implements EmailImportGateway {
   bool fail = false;
   int saves = 0;
   Completer<void>? barrier;
+  Completer<void>? initializationBarrier;
+  bool unlockOnInitialize = false;
+  bool initializationStarted = false;
+  bool failInitialization = false;
   List<({String noteId, bool exact})> matches = [];
   EmailImportMode? mode;
   List<String>? tags;
@@ -39,7 +43,13 @@ class FakeEmailGateway implements EmailImportGateway {
   @override
   bool get isUnlocked => unlocked;
   @override
-  Future<void> initialize() async {}
+  Future<void> initialize() async {
+    initializationStarted = true;
+    await initializationBarrier?.future;
+    if (failInitialization) throw StateError('Storage unavailable');
+    if (unlockOnInitialize) unlocked = true;
+  }
+
   @override
   Future<EmailMessage> parse(EmailInput input) async {
     if (input.path == 'invalid') {
@@ -98,6 +108,7 @@ void main() {
   Future<void> mount(
     WidgetTester tester, {
     bool dark = false,
+    bool settle = true,
     EmailImportRequest? request,
   }) async {
     await tester.pumpWidget(
@@ -127,7 +138,11 @@ void main() {
       ),
     );
     await tester.tap(find.text('Launch'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
   }
 
   Future<void> reveal(WidgetTester tester, Finder finder) async {
@@ -268,6 +283,45 @@ void main() {
     expect(find.text('Thank you for your order.'), findsNothing);
     expect(find.textContaining('Preview cleared.'), findsOneWidget);
     expect(gateway.saves, 0);
+  });
+  testWidgets('offline preview initializes its key before checking the lock', (
+    tester,
+  ) async {
+    gateway.unlocked = false;
+    gateway.unlockOnInitialize = true;
+    final request = EmailImportRequest(sharedContent: gateway.email);
+    await mount(tester, request: request);
+    expect(find.text('Thank you for your order.'), findsOneWidget);
+    expect(request.sharedContent, isNotNull);
+    expect(find.textContaining('Preview cleared.'), findsNothing);
+  });
+  testWidgets('storage setup failure retains selection and supports retry', (
+    tester,
+  ) async {
+    gateway.failInitialization = true;
+    final request = EmailImportRequest(sharedContent: gateway.email);
+    await mount(tester, request: request);
+    expect(request.sharedContent, isNotNull);
+    expect(find.text('Retry'), findsOneWidget);
+    gateway.failInitialization = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thank you for your order.'), findsOneWidget);
+  });
+  testWidgets('lock during initialization prevents late preview restoration', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    gateway.initializationBarrier = pending;
+    final request = EmailImportRequest(sharedContent: gateway.email);
+    await mount(tester, request: request, settle: false);
+    expect(gateway.initializationStarted, isTrue);
+    SensitivePreviewRegistry.invalidate();
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(request.sharedContent, isNull);
+    expect(find.text('Thank you for your order.'), findsNothing);
+    expect(find.textContaining('Preview cleared.'), findsOneWidget);
   });
   testWidgets('locked vault displays no incoming content', (tester) async {
     gateway.unlocked = false;

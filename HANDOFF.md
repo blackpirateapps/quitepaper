@@ -812,3 +812,13 @@ No full Flutter suite ran. Final Linux/Android/CLI compilation completed before
 the instruction to stop local builds; no further builds were run afterward.
 Physical Android and installed Linux package validation remain outstanding, and
 existing cloud size policies still apply. See log 341.
+
+### Offline email import initialization fix
+
+Email preview now initializes a device-protected encryption key for fresh notebooks
+used without Cloud Sync, then checks unlock state. It reuses persisted keys after
+restart, preserves real lock/logout clearing, and retains selections for retryable
+storage failures. Existing encrypted libraries and different cloud vault keys are
+protected from accidental key replacement. See [log 342](handoff/latest-logs.md)
+and [offline encryption setup](handoff/email-import.md#offline-encryption-setup).
+No app builds were run for this fix; validation uses analysis and focused tests.

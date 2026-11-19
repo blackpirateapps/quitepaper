@@ -105,12 +105,17 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
 
   Future<void> _initialize() async {
     final generation = ++_generation;
-    if (!gateway.isUnlocked) {
-      _invalidate();
-      return;
-    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await gateway.initialize();
+      if (!mounted || generation != _generation) return;
+      if (!gateway.isUnlocked) {
+        _invalidate();
+        return;
+      }
       final count = widget.request.sharedContent == null
           ? widget.request.inputs.length
           : 1;
@@ -175,14 +180,14 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
       });
       await _searchDestinations('');
     } on EmailImportException catch (e) {
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
           _loading = false;
           _error = e.message;
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
           _loading = false;
           _error =
@@ -504,6 +509,13 @@ class _EmailImportScreenState extends ConsumerState<EmailImportScreen> {
                                         ).colorScheme.error,
                                       ),
                                     ),
+                                  ),
+                                if (_error != null &&
+                                    _items.isEmpty &&
+                                    _errors.isEmpty)
+                                  TextButton(
+                                    onPressed: _initialize,
+                                    child: const Text('Retry'),
                                   ),
                                 if (_errors.isNotEmpty) ...[
                                   const Text('Unsupported or failed items'),

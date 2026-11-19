@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/attachments/attachment_service.dart';
 import 'package:quitepaper/core/attachments/attachment_storage.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
+import 'package:quitepaper/core/crypto/key_manager.dart';
+import 'package:quitepaper/features/email_import/application/email_import_gateway.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/core/backup/backup_models.dart';
 import 'package:quitepaper/core/sync/conflict/conflict_resolver.dart';
@@ -77,6 +79,134 @@ void main() {
     AttachmentLocalStorage.purgeAllMemoryCache();
     await dir.delete(recursive: true);
   });
+
+  test(
+    'accountless import encrypts assets and reopens them after restart',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final localKeys = SecureKeyManager(
+        secureStorage: const FlutterSecureStorage(),
+      );
+      final localVault = AttachmentService(
+        database: db,
+        keyManager: localKeys,
+        storage: storage,
+      );
+      final localService = EmailImportService(
+        database: db,
+        repository: repo,
+        attachments: localVault,
+      );
+      var notified = false;
+      final gateway = EmailImportGateway(
+        localService,
+        canCreateLocalKey: () => true,
+        onUnlocked: () => notified = true,
+      );
+      expect(gateway.isUnlocked, isFalse);
+      await gateway.initialize();
+      expect(notified, isTrue);
+      final message = email('mixed');
+      final note = await localService.save(
+        email: message,
+        mode: EmailImportMode.editable,
+        title: message.subject,
+      );
+      final assets = await localVault.getAttachmentsForNote(note.id);
+      final original = assets.singleWhere(
+        (a) => a.mimeType == 'message/rfc822',
+      );
+      final ciphertext = await storage.readEncryptedBytes(
+        attachmentId: original.id,
+      );
+      expect(ciphertext, isNot(orderedEquals(message.rawBytes!)));
+      final masterKey = Uint8List.fromList(localKeys.getMasterKey());
+      localKeys.lock();
+      final restarted = SecureKeyManager(
+        secureStorage: const FlutterSecureStorage(),
+      );
+      await restarted.initialize();
+      expect(restarted.getMasterKey(), orderedEquals(masterKey));
+      final reopenedVault = AttachmentService(
+        database: db,
+        keyManager: restarted,
+        storage: storage,
+      );
+      expect(
+        (await reopenedVault.resolveAsset(original.id)).data,
+        orderedEquals(message.rawBytes!),
+      );
+      expect((await repo.getNoteById(note.id))!.importSources, isNotEmpty);
+    },
+  );
+
+  test(
+    'missing keys for an encrypted library cannot trigger key replacement',
+    () async {
+      await service.save(
+        email: email('mixed'),
+        mode: EmailImportMode.editable,
+        title: 'Existing encrypted email',
+      );
+      FlutterSecureStorage.setMockInitialValues({});
+      final missingKeys = SecureKeyManager(
+        secureStorage: const FlutterSecureStorage(),
+      );
+      final gateway = EmailImportGateway(
+        EmailImportService(
+          database: db,
+          repository: repo,
+          attachments: AttachmentService(
+            database: db,
+            keyManager: missingKeys,
+            storage: storage,
+          ),
+        ),
+        canCreateLocalKey: () => true,
+      );
+      await expectLater(
+        gateway.initialize(),
+        throwsA(isA<EmailImportException>()),
+      );
+      expect(missingKeys.isUnlocked, isFalse);
+      expect(
+        await const FlutterSecureStorage().read(
+          key: 'quietpaper_master_key_v1',
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'signed-in vault must unlock its keys rather than create offline ones',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final missingKeys = SecureKeyManager(
+        secureStorage: const FlutterSecureStorage(),
+      );
+      final gateway = EmailImportGateway(
+        EmailImportService(
+          database: db,
+          repository: repo,
+          attachments: AttachmentService(
+            database: db,
+            keyManager: missingKeys,
+            storage: storage,
+          ),
+        ),
+        canCreateLocalKey: () => false,
+      );
+      await gateway.initialize();
+      expect(gateway.isUnlocked, isFalse);
+      expect(
+        await const FlutterSecureStorage().read(
+          key: 'quietpaper_master_key_v1',
+        ),
+        isNull,
+      );
+    },
+  );
 
   test(
     'creates searchable note, encrypted original/attachment, tags and indexed provenance',
