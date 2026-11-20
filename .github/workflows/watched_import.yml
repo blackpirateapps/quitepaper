@@ -1,0 +1,42 @@
+name: Linux Rust watched import
+on:
+  push:
+    branches: [main, 'feat/linux-rust-watched-folder-import*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - uses: ./.github/actions/setup-watched-rust
+        with:
+          codegen: 'true'
+      - run: flutter pub get
+      - name: Generated bridge and Drift coherence
+        run: |
+          scripts/check_rust_bridge.sh
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib/core/database/app_database.g.dart
+      - name: Rust and focused Flutter gates
+        run: scripts/test_watched_import_linux.sh
+      - name: Install pinned security tools
+        run: |
+          cargo install cargo-audit --version 0.23.0 --locked --jobs 2
+          cargo install cargo-deny --version 0.22.0 --locked --jobs 2
+      - name: Rust advisories and licensing
+        run: |
+          cargo audit
+          cargo deny check advisories licenses sources bans
+      - name: Native bridge load without a GUI or real vault
+        run: |
+          cargo build --locked
+          dart run tool/smoke_watched_import.dart "$PWD/target/debug/libquietpaper_watched_import.so"

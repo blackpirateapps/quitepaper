@@ -21,6 +21,8 @@ class MockAttachmentService implements AttachmentService {
     String kind = 'image',
     bool skipOcr = false,
     bool deferOcr = false,
+    String? preparedId,
+    bool cachePlaintext = true,
   }) async {
     _counter++;
     final assetId = '11111111-2222-3333-4444-55555555555$_counter';

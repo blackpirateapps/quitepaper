@@ -94,6 +94,8 @@ class AttachmentService implements AssetResolver {
     String kind = 'image',
     bool skipOcr = false,
     bool deferOcr = false,
+    String? preparedId,
+    bool cachePlaintext = true,
   }) async {
     if (bytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
@@ -110,7 +112,7 @@ class AttachmentService implements AssetResolver {
       );
     }
 
-    final attachmentId = _uuid.v4();
+    final attachmentId = preparedId ?? _uuid.v4();
     final now = DateTime.now();
     final masterKey = keyManager.getMasterKey();
     // Hashing and encryption both scan the full payload. Start them together
@@ -144,7 +146,9 @@ class AttachmentService implements AssetResolver {
     );
 
     // 3. Cache decrypted plaintext in memory for instant local rendering
-    _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    if (cachePlaintext) {
+      _storage.putDecryptedCache(attachmentId, bytes, variant: 'original');
+    }
 
     // 4. Save metadata to Drift database
     await database.saveAttachment(

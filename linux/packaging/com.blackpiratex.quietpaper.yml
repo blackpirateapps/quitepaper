@@ -22,6 +22,8 @@ modules:
       - install -d /app/bin /app/share/applications /app/share/metainfo /app/share/icons/hicolor/256x256/apps /app/share/icons/hicolor/512x512/apps
       - cp -a bundle/* /app/bin/
       - chmod +x /app/bin/quitepaper
+      - test -f /app/bin/lib/libquietpaper_watched_import.so
+      - chmod 0755 /app/bin/lib/libquietpaper_watched_import.so
       - install -Dm644 com.blackpiratex.quietpaper.desktop /app/share/applications/com.blackpiratex.quietpaper.desktop
       - install -Dm644 com.blackpiratex.quietpaper.metainfo.xml /app/share/metainfo/com.blackpiratex.quietpaper.metainfo.xml
       - install -Dm644 icon_256.png /app/share/icons/hicolor/256x256/apps/com.blackpiratex.quietpaper.png

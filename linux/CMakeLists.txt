@@ -101,9 +101,16 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
-  install(FILES "${bundled_library}"
-    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
+  if("${bundled_library}" MATCHES "libquietpaper_watched_import[.]so$")
+    install(FILES "${bundled_library}"
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+      COMPONENT Runtime)
+  else()
+    install(FILES "${bundled_library}"
+      DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+      COMPONENT Runtime)
+  endif()
 endforeach(bundled_library)
 
 # Copy the native assets provided by the build.dart from all packages.

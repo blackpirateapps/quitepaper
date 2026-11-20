@@ -1,3 +1,4 @@
+import 'watched_import_schema.dart';
 import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 
@@ -97,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   Future<void> _createEmailImportTables() async {
     await customStatement(
@@ -201,6 +202,7 @@ class AppDatabase extends _$AppDatabase {
     onCreate: (m) async {
       await m.createAll();
       await _createEmailImportTables();
+      for (final sql in watchedImportSchema) { await customStatement(sql); }
       await _createFts5TablesAndTriggers();
     },
     onUpgrade: (m, from, to) async {
@@ -398,6 +400,9 @@ class AppDatabase extends _$AppDatabase {
           await _createTableSafely(m, noteTemplatesTable);
           await _createTableSafely(m, templateFavoritesTable);
         });
+      }
+      if (from < 23) {
+        for (final sql in watchedImportSchema) { await customStatement(sql); }
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
@@ -2046,6 +2051,7 @@ class AppDatabase extends _$AppDatabase {
   /// Used exclusively by "Sign Out & Erase Local Data".
   Future<void> eraseAllLocalVaultData() async {
     await transaction(() async {
+      for (final table in watchedImportTables) { await customStatement('DELETE FROM $table'); }
       await delete(noteLinksTable).go();
       await delete(syncConflictsTable).go();
       await delete(documentOcrPagesTable).go();

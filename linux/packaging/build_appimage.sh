@@ -7,6 +7,9 @@ BUNDLE_DIR="${PROJECT_ROOT}/build/linux/x64/release/bundle"
 APPDIR="${PROJECT_ROOT}/build/linux/AppDir"
 OUTPUT_DIR="${PROJECT_ROOT}/build/linux/dist"
 
+# Refuse incomplete bundles before packaging. No host-installed library fallback.
+"${PROJECT_ROOT}/scripts/smoke_linux_rust_bundle.sh" "${BUNDLE_DIR}"
+
 VERSION="${1:-}"
 if [ -z "${VERSION}" ]; then
   VERSION=$(grep '^version:' "${PROJECT_ROOT}/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)

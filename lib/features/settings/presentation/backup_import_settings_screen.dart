@@ -1,3 +1,5 @@
+import '../../watched_import/application/watched_import_provider.dart';
+import '../../watched_import/presentation/watched_folders_screen.dart';
 import '../../email_import/presentation/email_import_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -58,12 +60,42 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                 // ==========================================
                 // Section: Import
                 // ==========================================
+                if (supportsWatchedImport) ...[
+                  buildSectionHeader(context, 'Import & Capture'),
+                  SettingsGroup(
+                    children: [
+                      SettingsRow(
+                        icon: Icons.folder_open,
+                        title: 'Watched Folders',
+                        subtitle:
+                            'Automatically import files while Quiet Paper is running',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WatchedFoldersScreen(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 buildSectionHeader(context, 'Import'),
-                SettingsGroup(children:[
-                  SettingsRow(icon:Icons.mail_outline,title:'Import Email',onTap:()=>EmailImportLauncher.pick(context)),
-                  SettingsRow(icon:Icons.attach_file,title:'Import Email from all files',onTap:()=>EmailImportLauncher.pick(context,allFiles:true)),
-                ]),
-                const SizedBox(height:16),
+                SettingsGroup(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.mail_outline,
+                      title: 'Import Email',
+                      onTap: () => EmailImportLauncher.pick(context),
+                    ),
+                    SettingsRow(
+                      icon: Icons.attach_file,
+                      title: 'Import Email from all files',
+                      onTap: () =>
+                          EmailImportLauncher.pick(context, allFiles: true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 SettingsGroup(
                   children: [
                     SettingsInfoTile(
@@ -79,8 +111,8 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                       title: 'Choose folder to import',
                       onTap: () async {
                         try {
-                          final folderPath =
-                              await FilePicker.platform.getDirectoryPath();
+                          final folderPath = await FilePicker.platform
+                              .getDirectoryPath();
                           if (folderPath != null && context.mounted) {
                             Navigator.of(context).push(
                               MaterialPageRoute(
@@ -108,8 +140,7 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                       title: 'Select markdown files',
                       onTap: () async {
                         try {
-                          final result =
-                              await FilePicker.platform.pickFiles(
+                          final result = await FilePicker.platform.pickFiles(
                             allowMultiple: true,
                             type: FileType.custom,
                             allowedExtensions: ['md', 'markdown'],
@@ -119,12 +150,12 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                               context.mounted) {
                             final items =
                                 await MarkdownImportScanner.processPickedFiles(
-                                    result.files);
+                                  result.files,
+                                );
                             if (context.mounted) {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      MarkdownImportScreen(
+                                  builder: (context) => MarkdownImportScreen(
                                     initialFolderPath: 'Selected Files',
                                     initialItems: items,
                                   ),
@@ -188,25 +219,22 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                     SettingsRow(
                       icon: Icons.schedule_rounded,
                       title: 'Daily Auto-Backup',
-                      subtitle:
-                          'Automatically saves snapshots on app launch',
+                      subtitle: 'Automatically saves snapshots on app launch',
                       trailing: CupertinoSwitch(
                         value: autoBackupConfig.enabled,
                         activeTrackColor: colors.accent,
                         onChanged: (val) async {
                           if (val && autoBackupConfig.folderPath == null) {
-                            final folder =
-                                await FilePicker.platform.getDirectoryPath(
-                              dialogTitle: 'Select Auto-Backup Folder',
-                            );
+                            final folder = await FilePicker.platform
+                                .getDirectoryPath(
+                                  dialogTitle: 'Select Auto-Backup Folder',
+                                );
                             if (folder != null) {
                               await ref
-                                  .read(
-                                      autoBackupConfigProvider.notifier)
+                                  .read(autoBackupConfigProvider.notifier)
                                   .setFolderPath(folder);
                               await ref
-                                  .read(
-                                      autoBackupConfigProvider.notifier)
+                                  .read(autoBackupConfigProvider.notifier)
                                   .setEnabled(true);
                             }
                           } else {
@@ -222,17 +250,16 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                       SettingsRow(
                         icon: Icons.folder_outlined,
                         title: 'Backup Folder',
-                        subtitle: autoBackupConfig.folderPath ??
-                            'No folder selected',
+                        subtitle:
+                            autoBackupConfig.folderPath ?? 'No folder selected',
                         onTap: () async {
-                          final folder =
-                              await FilePicker.platform.getDirectoryPath(
-                            dialogTitle: 'Change Auto-Backup Folder',
-                          );
+                          final folder = await FilePicker.platform
+                              .getDirectoryPath(
+                                dialogTitle: 'Change Auto-Backup Folder',
+                              );
                           if (folder != null) {
                             await ref
-                                .read(
-                                    autoBackupConfigProvider.notifier)
+                                .read(autoBackupConfigProvider.notifier)
                                 .setFolderPath(folder);
                           }
                         },
@@ -263,8 +290,7 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                             onChanged: (val) {
                               if (val != null) {
                                 ref
-                                    .read(
-                                        autoBackupConfigProvider.notifier)
+                                    .read(autoBackupConfigProvider.notifier)
                                     .setRetentionCount(val);
                               }
                             },
@@ -280,8 +306,7 @@ class BackupImportSettingsScreen extends ConsumerWidget {
                         trailingRowText: autoBackupConfig.hasPassword
                             ? 'Encrypted'
                             : 'Plaintext',
-                        onTap: () =>
-                            AutoBackupPasswordDialog.show(context),
+                        onTap: () => AutoBackupPasswordDialog.show(context),
                       ),
                     ],
                   ],

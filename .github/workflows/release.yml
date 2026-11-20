@@ -181,6 +181,9 @@ jobs:
           flutter-version: '3.47.2'
           cache: true
 
+      - name: Set up pinned Rust for Linux Cargokit
+        uses: ./.github/actions/setup-watched-rust
+
       - name: Install Flutter dependencies
         run: flutter pub get
 
@@ -192,6 +195,9 @@ jobs:
           flutter build linux --release \
             --build-name="${{ needs.prepare.outputs.version }}" \
             --build-number="${{ needs.prepare.outputs.build_number }}"
+
+      - name: Verify bundled Rust library and FRB ABI
+        run: scripts/smoke_linux_rust_bundle.sh "$PWD/build/linux/x64/release/bundle"
 
       - name: Build Quiet Paper CLI Binary (qp)
         run: |
@@ -307,6 +313,7 @@ jobs:
           retention-days: 7
 
   publish-release:
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
     name: Create GitHub Release and Upload Assets
     needs: [prepare, build-android, build-linux, build-flatpak]
     runs-on: ubuntu-latest

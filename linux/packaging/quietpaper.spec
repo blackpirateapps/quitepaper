@@ -62,6 +62,10 @@ fi
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
 
 # Install CLI binary if present (or build on demand from bin/qp.dart)
+# The native watcher must be present in every relocatable package.
+test -f %{buildroot}/opt/quitepaper/lib/libquietpaper_watched_import.so
+chmod 0755 %{buildroot}/opt/quitepaper/lib/libquietpaper_watched_import.so
+
 # Note: qp is installed to /opt/quitepaper/bin/qp because Dart native code assets resolve
 # dynamic libraries (e.g. libsqlite3.so) relative to the binary path ('../lib/libsqlite3.so').
 if [ -f "%{_sourcedir}/build/cli/bundle/bin/qp" ]; then

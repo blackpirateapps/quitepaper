@@ -7988,3 +7988,45 @@ keyboard Go action and New from Template through touch selection. Light/dark
 widget-rendered catalog layouts and the Android keyboard palette were visually
 inspected using temporary snapshots. `git diff --check` passes. No full suite
 or physical Android device test ran.
+
+## 343. Linux Rust watched-folder import (November 20, 2026)
+
+Started at `826cc7e45ae34480047526c39f642fb627efcf0e` on
+`feat/linux-rust-watched-folder-import`. The requested prompt was untracked in the
+main checkout; its exact contents are now included in this feature branch.
+
+The first Rust workspace pins Rust 1.97.1 and FRB crate/Dart/generator 2.12.0.
+Linux-only Cargokit builds and bundles the cdylib automatically. Its vendored
+build tool has a small documented patch to honor the exact toolchain instead of
+moving `stable`; debug/release/profile use `--locked`. Other platform plugin
+scaffolds were excluded. Generated bridge files are checked in and have a stale
+binding check; Flutter stays pinned to 3.47.2.
+
+Rust owns recursive inotify/poll fallback, bounded discovery, stability, safe
+component-relative no-follow opens, SHA256, in-memory immutable snapshots,
+reconciliation and cancellation. Dart retains canonical conversion/encryption
+and the authoritative Drift transaction. Schema 23 adds installation-local
+folders/jobs/receipts/baselines/history/stage journals. Receipt uniqueness and
+note/tag/search/dirty-sync state commit together; receipts deliberately have no
+note-delete cascade. Removing a watched folder retains receipts. Full vault
+erasure removes them. No source writes, native secrets or network calls exist.
+
+The headless adapter reuses EmailParser/EmailImportService and existing Markdown,
+PDF, image and note services. Only optional planned-ID, cache and transactional
+commit hooks were added to canonical services. Device-only key preparation uses
+the existing email gateway. Local ordinary notes are plaintext SQLite; this work
+does not introduce or claim database-at-rest encryption.
+
+Linux settings show mandatory initial inventory decisions, fixed recursive/dedup/
+keep-original defaults, pause/resume/rescan/removal and bounded history with
+explicit retry/copy actions. GTK's native chooser enables document-portal access;
+portal roots select polling and report degraded health without adding home access.
+
+Validation in progress: Rust fmt/clippy/check and native tests pass; a subprocess
+restart test exercises lost native ACK/redelivery and polling. New real SQLite
+and controller regressions cover receipt retention, rollback, migration, EML parity,
+review arrivals, lock and account isolation. Flutter analysis has reported no
+issues; the broader focused run is still being completed. Ordinary Linux debug
+compilation and a real generated-FRB bundle load/snapshot smoke pass. See the
+[implementation report](../docs/linux-rust-watched-import.md) for exact final
+commands, package evidence and explicit acceptance gaps. No full suite ran.

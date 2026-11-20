@@ -10,6 +10,8 @@
 analyzer:
   exclude:
     - build/**
+    # Vendored Cargokit is an independently resolved upstream build tool.
+    - rust_builder/cargokit/**
     - android/**
     - ios/**
     - web/**

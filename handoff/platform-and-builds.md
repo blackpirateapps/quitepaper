@@ -182,3 +182,18 @@ The consolidated [email guide](email-import.md) and
 Linux/Android/CLI evidence from outstanding device and installed-package checks.
 Local compilation completed before the user's instruction to stop builds; no
 subsequent build was run for the final documentation commit.
+
+## Linux Rust watched-folder engine
+
+Ordinary Linux Flutter builds automatically run the Linux-only Cargokit plugin
+and install `lib/libquietpaper_watched_import.so` alongside existing libraries.
+Rust 1.97.1 and FRB 2.12.0 are pinned independently of the unchanged Flutter 3.47.2
+baseline. Other platform build jobs do not acquire a Rust dependency. Checked-in
+glue is regenerated with the pinned code generator, never edited by hand.
+
+The watched-import workflow runs native lint/tests, focused Flutter gates,
+binding/Drift coherence, security/license checks and an actual FRB load smoke.
+Linux build and release workflows load the produced bundle before packaging.
+DEB/RPM/AppImage/Flatpak carry the relocatable bundle library; source/package
+checks refuse a missing native engine. Release publishing is limited to main or
+version tags. See [build commands and acceptance status](../docs/linux-rust-watched-import.md).
