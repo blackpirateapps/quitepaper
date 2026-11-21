@@ -162,3 +162,33 @@ An empty selection imports nothing. Duplicate receipts remain shared by notebook
 scope across folders; removals cancel only the chosen folder's jobs and baseline,
 preserving notes, source files, receipts and history. Folder settings stay local
 and remain excluded from sync and backups.
+
+## Android watched folders (schema 25)
+
+`AndroidWatchedEngine` implements the shared watcher interface without loading the
+Linux library. `WatchedFolderBridge` uses ACTION_OPEN_DOCUMENT_TREE, persists only
+read grants, and performs provider queries/hash/snapshot reads on bounded worker
+threads. Document IDs remain opaque, tree membership is scoped per session, and
+source bytes are bounded RAM snapshots rather than copied temporary files. SAF
+permissions are required even if unrelated legacy storage permissions already exist.
+
+Scanning runs while foregrounded, reconciles every 30 seconds and catches up on
+startup/resume/manual rescan. There is no background service or WorkManager task.
+Three stable metadata observations over at least three seconds precede hashing;
+verified snapshots reopen/recheck the source and include content hashes in their
+revision, including when provider size/mtime is missing. The existing parser,
+encryption, note/index/receipt transaction, retry and duplicate semantics remain
+canonical. Directory pages/queues/depth/entry count and Markdown lookups are bounded;
+provider loading, partial/virtual documents and incomplete scans cannot authorize
+Only New. Unsupported temporary/binary files do not block other eligible files.
+
+Schema 25 adds installation-local `display_name` for provider labels and preserves
+schema-24 folder settings. Source root/path fields store tree URIs and opaque IDs
+on Android; open/reveal routes through the Android bridge, never D-Bus or guessed
+filesystem paths. Permission failures are recoverable UI errors. Startup futures
+coalesce per folder; lifecycle rescan includes every enabled folder and suspension
+invalidates late commits. Custom app backups/sync still exclude watcher tables;
+this does not alter Android OS backup policy or restore OS URI grants.
+
+See [the Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md)
+for reproduced bugs, focused checks and the explicit unverified device/picker gate.

@@ -66,8 +66,9 @@ class WatchedImportRepositoryAdapter {
 
   Future<String> enroll(
     RootInfo root,
-    String scope,
-  ) => database.transaction(() async {
+    String scope, {
+    String? displayName,
+  }) => database.transaction(() async {
     final id = uuid.v4();
     if ((await rows(
       'SELECT 1 FROM watched_folders WHERE vault_scope=? AND (canonical_root=? OR root_identity=?)',
@@ -77,9 +78,18 @@ class WatchedImportRepositoryAdapter {
     }
     await write(
       '''INSERT INTO watched_folders
-      (id,canonical_root,root_identity,vault_scope,decision_generation,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?)''',
-      [id, root.canonicalPath, root.identity, scope, uuid.v4(), now, now],
+      (id,canonical_root,root_identity,vault_scope,decision_generation,created_at,updated_at,display_name)
+      VALUES (?,?,?,?,?,?,?,?)''',
+      [
+        id,
+        root.canonicalPath,
+        root.identity,
+        scope,
+        uuid.v4(),
+        now,
+        now,
+        displayName ?? '',
+      ],
     );
     return id;
   });

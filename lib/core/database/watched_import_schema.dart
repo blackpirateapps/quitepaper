@@ -3,6 +3,7 @@
 const watchedImportSchema = <String>[
   '''CREATE TABLE IF NOT EXISTS watched_folders (
     id TEXT PRIMARY KEY, canonical_root TEXT NOT NULL, root_identity TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
     vault_scope TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
     file_types TEXT NOT NULL DEFAULT '["email","pdf","markdown","text","png","jpeg","webp"]',
     include_subfolders INTEGER NOT NULL DEFAULT 1 CHECK(include_subfolders=1),

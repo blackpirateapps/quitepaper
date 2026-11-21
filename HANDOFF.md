@@ -8,6 +8,18 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest feature: Android watched folders and audit (November 21, 2026)
+
+Watched Folders now supports Android through persisted, read-only SAF folder
+selections, independent folder switches/type filters, foreground reconciliation
+and resume catch-up. It reuses the canonical importers and receipts; Android has
+no new Rust build requirement or background service. Schema 25 stores human folder
+labels. The audit fixed resume coverage, startup races, cancellation/inventory,
+retry and source-action issues. See [the audit and verification limits](docs/audits/android-watched-folders-2026-11-21.md)
+and engineering log 347. Android app/test APKs compile and focused automated checks
+pass; physical/system-picker runtime acceptance is still unverified after the host
+emulator crashed during boot.
+
 ## Latest feature: multiple watched folders (November 21, 2026)
 
 Linux watched imports now support multiple folders with independent enable

@@ -4,6 +4,11 @@ import 'package:path/path.dart' as p;
 import '../native/api/engine.dart' as native;
 import '../native/frb_generated.dart';
 
+/// Optional human-readable name supplied by document providers.
+abstract interface class WatchedRootNames {
+  String? rootName(String root);
+}
+
 abstract class WatchedEngine {
   Future<void> load();
   Future<native.RootInfo> inspect(String path, List<String> forbidden);

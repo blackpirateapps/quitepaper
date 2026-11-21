@@ -206,3 +206,35 @@ state. AppImage tool **1.9.1** and runtime **20251108** have independent SHA256 
 `verify_flatpak_bundle.sh` isolates its installation, home and app data. Neither
 requires or opens a real notebook. See the report for exact verified formats and
 interactive permission/device limitations.
+
+
+## Android watched-folder SAF bridge (November 21, 2026)
+
+Watched Folders is exposed in both settings entry points on Android and Linux.
+Android selects `AndroidWatchedEngine`, uses the system tree picker and persisted
+read grants, and scans only in the foreground (30-second reconciliation plus
+startup/resume/manual catch-up). No Linux Rust `.so`, new storage declaration,
+background service, foreground notification or scheduling permission is required.
+Use a selectable subfolder, such as `Downloads/Quiet Paper`; Android 11+ restricts
+Downloads/root and Android/data/obb selection. Original files remain untouched.
+
+`MainActivity` attaches `WatchedFolderBridge`, routes its picker result and cancels
+provider reads on stop/destroy. Provider I/O runs off the UI thread. Kotlin's
+portable `WatchedDocumentReaderTest` is a focused JVM test; `WatchedFolderSafTest`
+is the separate real-provider/picker instrumented test. Test-only AndroidX runner
+1.7.0 and JUnit extension 1.3.0 dependencies do not ship in the normal APK.
+
+```sh
+flutter build apk --debug --flavor github --no-pub
+cd android
+./gradlew :app:testGithubDebugUnitTest   --tests 'com.blackpiratex.quietpaper.watched.WatchedDocumentReaderTest'   --max-workers=2
+# On a working disposable emulator/device only:
+./gradlew :app:connectedGithubDebugAndroidTest   -Pandroid.testInstrumentationRunnerArguments.class=com.blackpiratex.quietpaper.watched.WatchedFolderSafTest   --max-workers=2
+```
+
+If this checkout has not generated a Gradle wrapper yet, the Flutter build prepares
+it; an installed Gradle 9.1.0 runtime can also run these tasks with `-p android`.
+The app and instrumented APKs build, and the focused JVM tests pass locally.
+The local emulator repeatedly exited 139 before stable boot, so system-picker and
+physical-device/provider acceptance remain unverified. Full details and findings:
+[Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md).

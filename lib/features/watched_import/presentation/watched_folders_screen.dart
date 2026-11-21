@@ -3,8 +3,9 @@ import 'package:drift/drift.dart' show QueryRow;
 import '../domain/watched_file_type.dart';
 import 'package:file_selector_linux/file_selector_linux.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import '../application/android_folder_access.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../editor/presentation/editor_screen.dart';
 import '../../notes/application/notes_provider.dart';
@@ -13,11 +14,47 @@ import '../application/watched_import_controller.dart';
 
 class WatchedFoldersScreen extends ConsumerWidget {
   const WatchedFoldersScreen({super.key});
-  Future<void> _choose(WatchedImportController controller) async {
-    final path = await FileSelectorLinux().getDirectoryPath(
-      confirmButtonText: 'Watch folder',
-    );
-    if (path != null) await controller.enroll(path);
+  Future<void> _choose(
+    BuildContext context,
+    WatchedImportController controller,
+  ) async {
+    try {
+      final path = defaultTargetPlatform == TargetPlatform.android
+          ? await const MethodChannelAndroidFolderAccess().chooseFolder()
+          : await FileSelectorLinux().getDirectoryPath(
+              confirmButtonText: 'Watch folder',
+            );
+      if (path != null) await controller.enroll(path);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Folder access could not be retained. Choose the folder again.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openSource(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open the source. Restore folder access and try again.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -40,8 +77,10 @@ class WatchedFoldersScreen extends ConsumerWidget {
                 style: TextStyle(fontSize: 24),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'On Linux, Quiet Paper can import files from your watched folders while the app is running. Files saved while it is closed are found next time. Originals stay exactly as they are.',
+              Text(
+                defaultTargetPlatform == TargetPlatform.android
+                    ? 'Quiet Paper checks your selected folders about every 30 seconds while the app is open. It catches up when you return. Originals stay exactly as they are. Android may restrict some folders; choose a subfolder such as Downloads/Quiet Paper.'
+                    : 'On Linux, Quiet Paper can import files from your watched folders while the app is running. Files saved while it is closed are found next time. Originals stay exactly as they are.',
               ),
               const SizedBox(height: 16),
               const Text(
@@ -60,7 +99,9 @@ class WatchedFoldersScreen extends ConsumerWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  onPressed: controller.busy ? null : () => _choose(controller),
+                  onPressed: controller.busy
+                      ? null
+                      : () => _choose(context, controller),
                   icon: const Icon(Icons.create_new_folder_outlined),
                   label: Text(
                     controller.folders.isEmpty ? 'Choose folder' : 'Add folder',
@@ -141,7 +182,12 @@ class WatchedFoldersScreen extends ConsumerWidget {
                           'SELECT * FROM watched_import_jobs WHERE id=?',
                           [id],
                         )).single;
-                        await revealWatchedSource(job);
+                        if (context.mounted) {
+                          await _openSource(
+                            context,
+                            () => revealWatchedSource(job),
+                          );
+                        }
                       }
                     },
                     itemBuilder: (context) => [
@@ -178,8 +224,10 @@ class WatchedFoldersScreen extends ConsumerWidget {
                 'From Proton Mail Free: open a message in your browser, choose Export, and save the .eml file into a watched folder with Email selected. Quiet Paper uses the same email importer as Import Email.',
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Folder access is local to this Linux installation. In Flatpak, the native folder chooser grants access through the desktop portal. If access is revoked or the folder changes identity, select it again.',
+              Text(
+                defaultTargetPlatform == TargetPlatform.android
+                    ? 'Android grants read access only to folders you select. Access is retained after restart. If access is revoked or a folder is moved, remove the watch and select it again. No background service or automatic OCR runs.'
+                    : 'Folder access is local to this Linux installation. In Flatpak, the native folder chooser grants access through the desktop portal. If access is revoked or the folder changes identity, select it again.',
               ),
             ],
           ),
@@ -195,6 +243,12 @@ class WatchedFoldersScreen extends ConsumerWidget {
   ) {
     final id = folder.read<String>('id');
     final root = folder.read<String>('canonical_root');
+    final name = folder.read<String>('display_name');
+    final label = name.isNotEmpty
+        ? name
+        : root.startsWith('content:')
+        ? 'Selected folder'
+        : root;
     final enabled = folder.read<int>('enabled') == 1;
     final pending = folder.read<String>('review_state') == 'pending';
     final complete = folder.read<int>('inventory_complete') == 1;
@@ -217,7 +271,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SelectableText(
-                        root,
+                        label,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 4),
@@ -226,7 +280,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
                   ),
                 ),
                 Semantics(
-                  label: 'Watch $root',
+                  label: 'Watch $label',
                   child: Switch.adaptive(
                     key: ValueKey('enable-$id'),
                     value: enabled,
@@ -327,7 +381,8 @@ class WatchedFoldersScreen extends ConsumerWidget {
                   child: const Text('Rescan now'),
                 ),
                 TextButton(
-                  onPressed: () => launchUrl(Uri.directory(root)),
+                  onPressed: () =>
+                      _openSource(context, () => openWatchedFolder(root)),
                   child: const Text('Open folder'),
                 ),
                 TextButton(
@@ -374,6 +429,14 @@ class WatchedFoldersScreen extends ConsumerWidget {
   }
 
   static String _error(String code) => switch (code) {
+    'permission_needed' || 'invalid_tree' =>
+      'Folder access is unavailable. Remove this watch and choose the folder again to grant access.',
+    'provider_loading' =>
+      'This folder provider is still loading. Keep the folder available and rescan when loading finishes.',
+    'provider_document_incomplete' =>
+      'A provider file is incomplete or virtual. Make it available as a regular local file and rescan before choosing.',
+    'scan_limit' || 'scan_limit_or_cycle' =>
+      'This folder exceeds the safe scan limits or contains a directory cycle. Choose smaller subfolders.',
     'folder_already_watched' =>
       'This folder is already being watched. Use its switch to enable it.',
     'html_complexity' =>

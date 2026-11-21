@@ -11,10 +11,15 @@ import '../../notes/application/notes_query_provider.dart';
 import '../data/watched_import_repository.dart';
 import 'canonical_import_adapter.dart';
 import 'native_watched_engine.dart';
+import 'android_watched_engine.dart';
 import 'watched_import_controller.dart';
 
 bool get supportsWatchedImport =>
-    !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+    !kIsWeb &&
+    const {
+      TargetPlatform.linux,
+      TargetPlatform.android,
+    }.contains(defaultTargetPlatform);
 
 final watchedImportControllerProvider =
     ChangeNotifierProvider<WatchedImportController>((ref) {
@@ -22,7 +27,9 @@ final watchedImportControllerProvider =
       final keys = ref.watch(keyManagerProvider);
       final controller = WatchedImportController(
         store: store,
-        engine: NativeWatchedEngine(),
+        engine: defaultTargetPlatform == TargetPlatform.android
+            ? AndroidWatchedEngine()
+            : NativeWatchedEngine(),
         prepareVault: () => ref.read(emailImportGatewayProvider).initialize(),
         importer: CanonicalImportAdapter(
           store: store,

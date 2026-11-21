@@ -98,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   Future<void> _createEmailImportTables() async {
     await customStatement(
@@ -422,6 +422,16 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE UNIQUE INDEX IF NOT EXISTS watched_folder_root ON watched_folders (vault_scope,canonical_root)',
         );
+      }
+      if (from < 25) {
+        final columns = await customSelect(
+          'PRAGMA table_info(watched_folders)',
+        ).get();
+        if (!columns.any((row) => row.read<String>('name') == 'display_name')) {
+          await customStatement(
+            "ALTER TABLE watched_folders ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
+          );
+        }
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);

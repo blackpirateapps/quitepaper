@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../../../core/security/sensitive_preview_registry.dart';
 import '../../email_import/domain/email_message.dart';
 import '../data/watched_import_repository.dart';
@@ -44,6 +45,7 @@ class WatchedImportController extends ChangeNotifier {
   int get bytes =>
       configuration == null ? 0 : bytesFor(configuration!.read<String>('id'));
   final _handles = <String, int>{};
+  final _starting = <String, Future<void>>{};
   final _health = <String, String>{};
   final _errors = <String, String?>{};
   final _counts = <String, int>{};
@@ -54,6 +56,7 @@ class WatchedImportController extends ChangeNotifier {
   Timer? _timer;
   bool _disposed = false;
   bool _closed = false;
+  bool _foreground = true;
   Future<void>? _pollTask;
   bool _polling = false;
   int _epoch = 0;
@@ -84,7 +87,9 @@ class WatchedImportController extends ChangeNotifier {
     history = const [];
     health = 'Needs unlock';
     for (final entry in _handles.entries) {
-      _health[entry.key] = 'Needs unlock';
+      _health[entry.key] = folderFor(entry.key)?.read<int>('enabled') == 0
+          ? 'Paused'
+          : 'Needs unlock';
       unawaited(engine.ready(entry.value, false).catchError((Object _) {}));
     }
     _notify();
@@ -121,8 +126,12 @@ class WatchedImportController extends ChangeNotifier {
         await _start(prior);
       }
       await refresh();
-    } catch (_) {
-      error = 'native_unavailable_or_incompatible';
+    } catch (e) {
+      error = e is PlatformException
+          ? e.code
+          : engine is NativeWatchedEngine
+          ? 'native_unavailable_or_incompatible'
+          : 'folder_access_or_native_unavailable';
       health = 'Unavailable';
       _notify();
     }
@@ -175,7 +184,13 @@ class WatchedImportController extends ChangeNotifier {
       await initialize();
       await engine.load();
       final root = await engine.inspect(path, await forbiddenPaths());
-      final id = await store.enroll(root, await scope());
+      final id = await store.enroll(
+        root,
+        await scope(),
+        displayName: engine is WatchedRootNames
+            ? (engine as WatchedRootNames).rootName(root.canonicalPath)
+            : null,
+      );
       await prepareVault?.call();
       // Recovery must never run alongside a canonical import.
       if (_handles.isEmpty) {
@@ -187,6 +202,8 @@ class WatchedImportController extends ChangeNotifier {
     } catch (e) {
       error = e is StateError && e.message == 'folder_already_watched'
           ? 'folder_already_watched'
+          : e is PlatformException
+          ? e.code
           : 'folder_access_or_native_unavailable';
     } finally {
       busy = false;
@@ -194,8 +211,16 @@ class WatchedImportController extends ChangeNotifier {
     }
   }
 
-  Future<void> _start(QueryRow f) async {
+  Future<void> _start(QueryRow f) {
+    final id = f.read<String>('id');
+    return _starting[id] ??= _startFolder(f).whenComplete(() {
+      _starting.remove(id);
+    });
+  }
+
+  Future<void> _startFolder(QueryRow f) async {
     if (_disposed || _closed) return;
+    final epoch = _epochs[f.read<String>('id')] ?? 0;
     final id = f.read<String>('id');
     if (_handles.containsKey(id)) return;
     if (f.read<String>('vault_scope') != await scope()) {
@@ -215,7 +240,7 @@ class WatchedImportController extends ChangeNotifier {
         f.read<String>('review_state') == 'pending' &&
             f.read<int>('inventory_complete') == 0,
       );
-      if (_disposed || _closed) {
+      if (_disposed || _closed || epoch != (_epochs[id] ?? 0)) {
         await engine.stop(handle);
         return;
       }
@@ -227,13 +252,19 @@ class WatchedImportController extends ChangeNotifier {
           unawaited(_pollTask);
         }
       });
-    } catch (_) {
-      _status(id, 'Unavailable', 'folder_access_or_native_unavailable');
+    } catch (e) {
+      _status(
+        id,
+        'Unavailable',
+        e is PlatformException ? e.code : 'folder_access_or_native_unavailable',
+      );
     }
   }
 
   Future<void> _poll() async {
-    if (_disposed || _closed || _polling || _handles.isEmpty) return;
+    if (_disposed || _closed || !_foreground || _polling || _handles.isEmpty) {
+      return;
+    }
     _polling = true;
     try {
       for (final entry in _handles.entries.toList()) {
@@ -308,6 +339,7 @@ class WatchedImportController extends ChangeNotifier {
     bool current() =>
         !_disposed &&
         !_closed &&
+        _foreground &&
         epoch == _epoch &&
         handle == _handles[c.folderId] &&
         folderEpoch == (_epochs[c.folderId] ?? 0) &&
@@ -381,7 +413,11 @@ class WatchedImportController extends ChangeNotifier {
       }
       await refresh();
     } catch (e) {
-      final code = e is EmailImportException ? e.code : 'import_failed';
+      final code = e is EmailImportException
+          ? e.code
+          : e is PlatformException
+          ? e.code
+          : 'import_failed';
       if (job != null) {
         final attempts = job.read<int>('attempt_count');
         final retry =
@@ -390,6 +426,7 @@ class WatchedImportController extends ChangeNotifier {
               'locked',
               'source_changed',
               'import_failed',
+              'provider_io',
             }.contains(code) &&
             attempts < 5;
         final status = code == 'message_id_changed'
@@ -499,13 +536,41 @@ class WatchedImportController extends ChangeNotifier {
   Future<void> rescan([String? folderId]) async {
     final id = folderId ?? configuration?.read<String>('id');
     if (id == null) return;
-    final f = await store.folder(id);
-    if (f == null || f.read<int>('enabled') == 0) return;
-    if (_handles[id] == null) {
-      await _start(f);
+    try {
+      final f = await store.folder(id);
+      if (f == null || f.read<int>('enabled') == 0) return;
+      if (_handles[id] == null) {
+        await _start(f);
+      } else {
+        await engine.reconcile(_handles[id]!);
+        _status(id, 'Scanning');
+      }
+    } catch (_) {
+      _status(id, 'Needs attention', 'watch_operation_failed');
+    }
+  }
+
+  /// Mobile suspends provider work and late commits when it leaves the foreground.
+  Future<void> setForeground(bool value) async {
+    if (_foreground == value || _closed || _disposed) return;
+    _foreground = value;
+    if (!value) {
+      _epoch++;
+      for (final entry in _handles.entries.toList()) {
+        try {
+          await engine.ready(entry.value, false);
+        } catch (_) {
+          // A folder may have been removed while the lifecycle event was pending.
+        }
+      }
     } else {
-      await engine.reconcile(_handles[id]!);
-      _status(id, 'Scanning');
+      await rescanAll();
+    }
+  }
+
+  Future<void> rescanAll() async {
+    for (final f in folders.toList()) {
+      await rescan(f.read<String>('id'));
     }
   }
 
@@ -586,6 +651,7 @@ class WatchedImportController extends ChangeNotifier {
   Future<void> close() async {
     _closed = true;
     _epoch++;
+    await Future.wait(_starting.values.toList());
     await _stop();
     await _pollTask;
     await _active;

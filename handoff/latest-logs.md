@@ -8181,3 +8181,45 @@ including simultaneous handles and source/snapshot/pause/shutdown isolation.
 shared-library FRB contract-2 snapshot/ACK smoke pass. The full Flutter suite was
 not run. Existing installed-app/Flatpak portal acceptance limits remain; this change
 does not claim an installed GUI replay or publish a new package.
+
+## 347. Android watched folders and adversarial audit (November 21, 2026)
+
+The prior multi-folder feature was Linux-only. Android now exposes both settings
+entry points and uses a separate SAF-backed `AndroidWatchedEngine`, preserving the
+shared per-folder settings, review/baseline, canonical import, receipts and history.
+`WatchedFolderBridge` uses the Android tree picker and persisted read grants,
+opaque document IDs and bounded provider I/O on worker threads; it never guesses
+paths or loads the Linux Rust library. It adds no manifest permission or background
+service. Android scans while foregrounded, every 30 seconds and on startup/resume/
+manual rescan, with three stable observations over three seconds before hashing.
+Snapshots re-open/hash/check metadata; content hashes distinguish revisions even
+when provider size/mtime is missing. Schema 25 persists provider folder labels and
+retains previous settings. Markdown-related reads remain rooted in the selected
+tree; existing canonical format limits, staging recovery and duplicate receipts
+remain authoritative. Custom backups/sync exclude these watcher tables.
+
+`MainActivity` attaches the bridge, routes selection results, and cancels provider
+reads on stop/destroy. Dart lifecycle suspension invalidates late imports and
+resumes all enabled folders. Per-folder startup futures prevent duplicate handles
+when enrollment races resume. Native read/lookup queues, pages, entry counts,
+stability work, traversal depth and fallback image lookups are bounded. Source
+open/reveal uses Android intents and surfaces revoked-grant errors in the UI.
+
+[The requested Markdown audit](../docs/audits/android-watched-folders-2026-11-21.md)
+records eight findings and their evidence/fixes, including first-folder-only
+resume, duplicate starts, a cleanup future cycle, unenforced retry delay,
+cancelled partial inventory accepted as complete, unsupported downloads blocking
+valid inventory, discarded permission codes and uncaught source-action errors.
+Tests exercise source changes, missing/lying metadata, binary signatures, virtual/
+partial providers, cycles/pagination, bounded streams, cancellation, foreground
+commit rejection, restarts, migrations, folder isolation and Android UI routing.
+
+The audit's final validation section records exact commands: `flutter analyze`
+passes with no issues, 114 focused Flutter tests pass (including crash recovery),
+12 focused Kotlin reader tests pass, and the real Linux two-root canonical-import
+integration passes. Android app and instrumented test APKs build. The real SAF/picker instrumented class is compiled
+but **not runtime-verified**: an isolated API-35 emulator repeatedly crashed with
+SIGSEGV/exit 139 under KVM and software boot before reaching a stable picker.
+Physical devices, external/cloud providers, restart/revocation UI replay and
+battery/large-file memory behavior remain explicit acceptance limits. No full
+Flutter suite ran; no production install, release package or publication occurred.

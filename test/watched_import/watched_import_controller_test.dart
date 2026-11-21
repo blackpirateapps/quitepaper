@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:quitepaper/features/watched_import/domain/watched_file_type.dart';
-import 'package:drift/drift.dart' show Uint8List;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:quitepaper/features/watched_import/application/android_folder_access.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/app/theme/app_theme.dart';
@@ -27,6 +30,9 @@ class FakeEngine implements WatchedEngine {
   final stopped = <int>{};
   final reconciled = <int>[];
   var nextHandle = 1;
+  final startCalls = <String, int>{};
+  final unavailablePaths = <String>{};
+  Future<void> Function()? beforeStart;
   final snapshots = <String, Uint8List>{};
   final ack = <Outcome>[];
   bool failAck = false;
@@ -43,6 +49,11 @@ class FakeEngine implements WatchedEngine {
     String identity,
     bool inventory,
   ) async {
+    startCalls[id] = (startCalls[id] ?? 0) + 1;
+    await beforeStart?.call();
+    if (unavailablePaths.contains(path)) {
+      throw PlatformException(code: 'permission_needed');
+    }
     final handle = nextHandle++;
     handles[id] = handle;
     return handle;
@@ -532,6 +543,172 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  test(
+    'revoked root at restart keeps its permission error and does not block other folders',
+    () async {
+      await controller.enroll('/approved/second');
+      final first = controller.folders.first.read<String>('id');
+      final second = controller.folders.last.read<String>('id');
+      final previous = controller;
+      await previous.close();
+      previous.dispose();
+      engine = FakeEngine();
+      engine.unavailablePaths.add('/approved/root');
+      controller = WatchedImportController(
+        store: store,
+        engine: engine,
+        importer: previous.importer,
+        scope: previous.scope,
+        isUnlocked: previous.isUnlocked,
+        forbiddenPaths: previous.forbiddenPaths,
+        onImported: previous.onImported,
+      );
+      await controller.initialize();
+      expect(controller.errorFor(first), 'permission_needed');
+      expect(engine.handles.keys, [second]);
+      engine.unavailablePaths.clear();
+      await controller.rescan(first);
+      expect(engine.handles.keys.toSet(), {first, second});
+    },
+  );
+
+  test(
+    'enrollment racing foreground rescan starts only one engine per folder',
+    () async {
+      final gate = Completer<void>();
+      engine.beforeStart = () => gate.future;
+      final enroll = controller.enroll('/approved/racing');
+      await until(
+        () => controller.folders.length == 2 && engine.startCalls.length == 2,
+      );
+      final id = controller.folders.last.read<String>('id');
+      final resumeScan = controller.rescan(id);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      gate.complete();
+      await enroll;
+      await resumeScan;
+      expect(engine.startCalls[id], 1);
+    },
+  );
+
+  test(
+    'foreground suspension stops imports; resume reconciles every enabled folder',
+    () async {
+      await accept();
+      final first = controller.configuration!.read<String>('id');
+      await controller.enroll('/approved/second');
+      final second = controller.folders.last.read<String>('id');
+      await store.inventoryDone(second, null);
+      await controller.decide(true, second);
+      engine.reconciled.clear();
+      await controller.setForeground(false);
+      final data = Uint8List.fromList(utf8.encode('arrived in background'));
+      engine.push(make(data, initial: false, folderId: second), data);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      expect(engine.ack, isEmpty);
+      await controller.setForeground(true);
+      expect(engine.reconciled.toSet(), {
+        engine.handles[first],
+        engine.handles[second],
+      });
+      await until(() => engine.ack.isNotEmpty);
+      expect(await store.rows('SELECT * FROM notes'), hasLength(1));
+      await controller.pause(first);
+      engine.reconciled.clear();
+      await controller.setForeground(false);
+      await controller.setForeground(true);
+      expect(engine.reconciled, [engine.handles[second]]);
+      expect((await store.folder(first))!.read<int>('enabled'), 0);
+    },
+  );
+
+  test(
+    'backgrounding during snapshot rolls back the late note and receipt',
+    () async {
+      await accept();
+      Future<void>? suspended;
+      engine.beforeSnapshot = () {
+        suspended = controller.setForeground(false);
+      };
+      final data = Uint8List.fromList(
+        utf8.encode('must not commit after background'),
+      );
+      engine.push(make(data, initial: false), data);
+      await until(() => engine.ack.isNotEmpty);
+      await suspended;
+      expect(await store.rows('SELECT * FROM notes'), isEmpty);
+      expect(
+        await store.rows('SELECT * FROM watched_import_receipts'),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets('Android offers SAF selection and human folder labels', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+    });
+    expect(supportsWatchedImport, isTrue);
+    await tester.runAsync(() async {
+      await store.write(
+        "UPDATE watched_folders SET canonical_root=?,display_name=?",
+        ['content://provider/tree/opaque', 'Email Inbox'],
+      );
+      await controller.refresh();
+    });
+    var choices = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(MethodChannelAndroidFolderAccess.channel, (
+          call,
+        ) async {
+          if (call.method == 'chooseFolder') choices++;
+          if (call.method == 'open') {
+            throw PlatformException(code: 'permission_needed');
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            MethodChannelAndroidFolderAccess.channel,
+            null,
+          );
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          watchedImportControllerProvider.overrideWith((ref) => controller),
+        ],
+        child: const MaterialApp(home: WatchedFoldersScreen()),
+      ),
+    );
+    expect(find.text('Email Inbox'), findsOneWidget);
+    expect(find.text('content://provider/tree/opaque'), findsNothing);
+    expect(
+      find.textContaining('It catches up when you return'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Add folder'));
+    await tester.pump();
+    expect(choices, 1);
+    expect(controller.folders, hasLength(1));
+    await tester.scrollUntilVisible(
+      find.text('Open folder'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+    await tester.tap(find.text('Open folder'));
+    await tester.pump();
+    expect(find.textContaining('Could not open the source'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   for (final dark in [false, true]) {
     testWidgets('review and history fit narrow keyboard viewport, dark=$dark', (

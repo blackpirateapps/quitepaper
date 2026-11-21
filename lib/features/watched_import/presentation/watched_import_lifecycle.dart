@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui' show AppExitResponse;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../application/watched_import_provider.dart';
@@ -25,8 +26,19 @@ class _WatchedImportLifecycleState
         }
       });
       _lifecycle = AppLifecycleListener(
+        onStateChange: (state) {
+          if (defaultTargetPlatform == TargetPlatform.android) {
+            unawaited(
+              ref
+                  .read(watchedImportControllerProvider)
+                  .setForeground(state == AppLifecycleState.resumed),
+            );
+          }
+        },
         onResume: () {
-          unawaited(ref.read(watchedImportControllerProvider).rescan());
+          if (defaultTargetPlatform != TargetPlatform.android) {
+            unawaited(ref.read(watchedImportControllerProvider).rescanAll());
+          }
         },
         onExitRequested: () async {
           await ref.read(watchedImportControllerProvider).close();

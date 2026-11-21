@@ -211,9 +211,43 @@ void main() {
   );
 
   test(
+    'schema 24 upgrade retains types and enable state while adding provider labels',
+    () async {
+      final id = (await store.folder())!.read<String>('id');
+      await store.setFileTypes(id, {WatchedFileType.email});
+      await store.write('UPDATE watched_folders SET enabled=0 WHERE id=?', [
+        id,
+      ]);
+      await store.write('ALTER TABLE watched_folders DROP COLUMN display_name');
+      await store.write('PRAGMA user_version=24');
+      await db.close();
+      db = AppDatabase(NativeDatabase(File('${dir.path}/db.sqlite')));
+      store = WatchedImportRepositoryAdapter(db);
+      final f = (await store.folder(id))!;
+      expect(f.read<int>('enabled'), 0);
+      expect(WatchedFileType.decode(f.read<String>('file_types')), {
+        WatchedFileType.email,
+      });
+      expect(f.read<String>('display_name'), '');
+      final android = await store.enroll(
+        const RootInfo(
+          canonicalPath: 'content://provider/tree/opaque',
+          identity: 'saf:opaque',
+        ),
+        'vault-a',
+        displayName: 'Email Inbox',
+      );
+      expect(
+        (await store.folder(android))!.read<String>('display_name'),
+        'Email Inbox',
+      );
+    },
+  );
+
+  test(
     'fresh schema, mandatory complete enrollment and durable baseline after rename',
     () async {
-      expect(db.schemaVersion, 24);
+      expect(db.schemaVersion, 25);
       final f = (await store.folder())!;
       await expectLater(
         store.decide(f.read<String>('id'), false),
