@@ -7,6 +7,9 @@ BUNDLE_DIR="${PROJECT_ROOT}/build/linux/x64/release/bundle"
 APPDIR="${PROJECT_ROOT}/build/linux/AppDir"
 OUTPUT_DIR="${PROJECT_ROOT}/build/linux/dist"
 
+# Refuse incomplete bundles before packaging. No host-installed library fallback.
+"${PROJECT_ROOT}/scripts/smoke_linux_rust_bundle.sh" "${BUNDLE_DIR}"
+
 VERSION="${1:-}"
 if [ -z "${VERSION}" ]; then
   VERSION=$(grep '^version:' "${PROJECT_ROOT}/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
@@ -19,7 +22,7 @@ if [ ! -d "${BUNDLE_DIR}" ]; then
 fi
 
 echo "==> Preparing AppDir at ${APPDIR}..."
-rm -rf "${APPDIR}" "${OUTPUT_DIR}"
+rm -rf "${APPDIR}"
 mkdir -p "${APPDIR}/usr/bin"
 mkdir -p "${APPDIR}/usr/lib"
 mkdir -p "${APPDIR}/usr/share/applications"
@@ -69,17 +72,26 @@ if ! command -v appimagetool &> /dev/null; then
   TOOL_PATH="${PROJECT_ROOT}/build/linux/appimagetool"
   if [ ! -f "${TOOL_PATH}" ]; then
     echo "==> Downloading appimagetool..."
-    curl -sLo "${TOOL_PATH}" "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+    curl -sLo "${TOOL_PATH}" "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
     chmod +x "${TOOL_PATH}"
   fi
+  # Official 1.9.1 release, pinned by immutable content digest.
+  printf '%s  %s\n' 'ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0' "${TOOL_PATH}" | sha256sum --check
   APPIMAGETOOL="${TOOL_PATH}"
 else
   APPIMAGETOOL="appimagetool"
 fi
 
+# Pin the embedded runtime too; appimagetool otherwise fetches moving continuous.
+RUNTIME_PATH="${PROJECT_ROOT}/build/linux/appimage-runtime-20251108-x86_64"
+if [ ! -f "${RUNTIME_PATH}" ]; then
+  curl --fail --location --retry 3 "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64" -o "${RUNTIME_PATH}"
+fi
+printf '%s  %s\n' '2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d' "${RUNTIME_PATH}" | sha256sum --check
+
 echo "==> Building AppImage..."
 export APPIMAGE_EXTRACT_AND_RUN=1
-ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run -n "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-${VERSION}-x86_64.AppImage"
+ARCH=x86_64 "${APPIMAGETOOL}" --appimage-extract-and-run --runtime-file "${RUNTIME_PATH}" --mksquashfs-opt -processors --mksquashfs-opt "${QP_PACKAGING_JOBS:-2}" -n "${APPDIR}" "${OUTPUT_DIR}/Quiet_Paper-${VERSION}-x86_64.AppImage"
 ln -sf "Quiet_Paper-${VERSION}-x86_64.AppImage" "${OUTPUT_DIR}/Quiet_Paper-x86_64.AppImage"
 ln -sf "Quiet_Paper-${VERSION}-x86_64.AppImage" "${OUTPUT_DIR}/quiet-paper-${VERSION}-x86_64.AppImage"
 echo "==> AppImage created at ${OUTPUT_DIR}/Quiet_Paper-${VERSION}-x86_64.AppImage"

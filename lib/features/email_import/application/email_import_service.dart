@@ -50,6 +50,8 @@ class EmailImportService {
     Note? destination,
     bool allowDuplicate = false,
     bool Function()? isCancelled,
+    String? plannedNoteId,
+    Future<void> Function(Note note)? commitInTransaction,
   }) async {
     if (_saving) {
       throw const EmailImportException(
@@ -93,7 +95,7 @@ class EmailImportService {
       }
       final noteId = mode == EmailImportMode.append
           ? destination!.id
-          : _uuid.v4();
+          : (plannedNoteId ?? _uuid.v4());
       final originalId = email.rawBytes == null ? null : _uuid.v4();
       if (originalId != null) ids.add(originalId);
       // Stable representation + decoded hash reuses duplicate MIME leaves.
@@ -266,6 +268,8 @@ class EmailImportService {
               importSources: [provenance],
             );
         await repository.saveNote(note, preserveEmptyTags: true);
+        checkCancelled();
+        await commitInTransaction?.call(note);
         checkCancelled();
         for (final id in ids) {
           await database.customStatement(

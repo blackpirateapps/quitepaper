@@ -7988,3 +7988,105 @@ keyboard Go action and New from Template through touch selection. Light/dark
 widget-rendered catalog layouts and the Android keyboard palette were visually
 inspected using temporary snapshots. `git diff --check` passes. No full suite
 or physical Android device test ran.
+
+## 343. Linux Rust watched-folder import (November 20, 2026)
+
+Started at `826cc7e45ae34480047526c39f642fb627efcf0e` on
+`feat/linux-rust-watched-folder-import`. The requested prompt was untracked in the
+main checkout; its exact contents are now included in this feature branch.
+
+The first Rust workspace pins Rust 1.97.1 and FRB crate/Dart/generator 2.12.0.
+Linux-only Cargokit builds and bundles the cdylib automatically. Its vendored
+build tool has a small documented patch to honor the exact toolchain instead of
+moving `stable`; debug/release/profile use `--locked`. Other platform plugin
+scaffolds were excluded. Generated bridge files are checked in and have a stale
+binding check; Flutter stays pinned to 3.47.2.
+
+Rust owns recursive inotify/poll fallback, bounded discovery, stability, safe
+component-relative no-follow opens, SHA256, in-memory immutable snapshots,
+reconciliation and cancellation. Dart retains canonical conversion/encryption
+and the authoritative Drift transaction. Schema 23 adds installation-local
+folders/jobs/receipts/baselines/history/stage journals. Receipt uniqueness and
+note/tag/search/dirty-sync state commit together; receipts deliberately have no
+note-delete cascade. Removing a watched folder retains receipts. Full vault
+erasure removes them. No source writes, native secrets or network calls exist.
+
+The headless adapter reuses EmailParser/EmailImportService and existing Markdown,
+PDF, image and note services. Only optional planned-ID, cache and transactional
+commit hooks were added to canonical services. Device-only key preparation uses
+the existing email gateway. Local ordinary notes are plaintext SQLite; this work
+does not introduce or claim database-at-rest encryption.
+
+Linux settings show mandatory initial inventory decisions, fixed recursive/dedup/
+keep-original defaults, pause/resume/rescan/removal and bounded history with
+explicit retry/copy actions. GTK's native chooser enables document-portal access;
+portal roots select polling and report degraded health without adding home access.
+
+Validation in progress: Rust fmt/clippy/check and native tests pass; a subprocess
+restart test exercises lost native ACK/redelivery and polling. New real SQLite
+and controller regressions cover receipt retention, rollback, migration, EML parity,
+review arrivals, lock and account isolation. Flutter analysis has reported no
+issues; the broader focused run is still being completed. Ordinary Linux debug
+compilation and a real generated-FRB bundle load/snapshot smoke pass. See the
+[implementation report](../docs/linux-rust-watched-import.md) for exact final
+commands, package evidence and explicit acceptance gaps. No full suite ran.
+
+## 344. Watched import hardening and release verification (November 21, 2026)
+
+Followed the first implementation commit `232e586` with fault, security and
+packaging verification. The [report](../docs/linux-rust-watched-import.md) and
+[measured evidence](../docs/linux-rust-watched-import-evidence.json) distinguish
+implemented behavior from unverified release acceptance.
+
+- A real 1,000-file native stress run exposed self-generated inotify open events
+  restarting the quiet timer. Filtering read-access hints corrects the slowdown;
+  write-close/modify/rename/overflow hints remain. A permanent native regression
+  and the bounded benchmark cover the correction.
+- Native reads now use component-relative `openat2` with BENEATH, NO_SYMLINKS,
+  NO_MAGICLINKS and NO_XDEV, retaining no-follow/nonblocking behavior, raw Linux
+  filename bytes and final descriptor/path/hash checks. Empty/disguised binary
+  files are rejected. Kernel 5.6+ and allowed openat2 are required, with no unsafe
+  fallback. Parent traversal, symlinks and special files are refused.
+- Markdown local image extraction and note creation share the existing parser and
+  importer through optional callbacks. Rust owns related-file reads; encrypted
+  stage journals, bounded references/combined bytes, safe canonical links and
+  no-OCR behavior preserve the transaction. Missing/unsafe images refuse the note
+  and clean earlier ciphertext. Manual import behavior remains unchanged.
+- Recorded native retry delays populate durable `next_retry`; attempts/generations
+  survive retries. Security invalidation clears history immediately. Initial
+  review preserves post-inventory arrivals; interrupted incomplete baselines hold
+  for explicit reselection. Source provenance survives folder removal and safely
+  percent-encodes non-UTF-8 bytes for file-manager reveal.
+- Three real Flutter subprocess crash tests terminate during staging, inside the
+  note/receipt transaction, and after commit before ACK. Recovery/replay preserves
+  exactly one note/receipt, cleans orphan stages and leaves original bytes intact.
+- Backup v1 tests confirm notes restore without local root paths or autoactivation.
+  Schema 22 and early schema-23 migration cases preserve unrelated data. Ordinary
+  local note text remains plaintext SQLite; no database-at-rest encryption is claimed.
+- Linux packaging now verifies extracted native libraries and CLI payloads.
+  AppImage tool/runtime downloads are separately checksum pinned. Flatpak uses
+  GNOME 50, preserves Dart CLI snapshots without stripping, and carries the CLI
+  beside the GUI libraries. CI gains package and disposable Flatpak smoke gates.
+  Android/iOS/Windows/macOS acquire no new Rust build prerequisite.
+
+Final analysis is clean. The expanded focused Flutter gate passes **235 tests**;
+subsequent **22-test** watcher and **6-test** widget runs overlap it. The real
+Rust→canonical EML→SQLite integration case passes. Rust fmt/clippy/check and **8
+unit + 3 integration entries** pass (one entry is the subprocess helper). RustSec
+reports zero vulnerabilities and cargo-deny passes advisories/licenses/sources/bans,
+with documented transitive duplicate-version warnings. Drift/codegen and script/
+YAML checks pass. No full Flutter suite ran.
+
+The native benchmark handles 1,000 stable hash/snapshot/ACK candidates in roughly
+107.5 seconds, with one event per batch, approximately 15 MiB of sampled process
+RSS growth and descriptors returning to baseline across five restarts. The
+10,001-file discovery-only measurement is 5.29 ms. These are synthetic native
+measurements, not MIME/encryption throughput or GUI frame-time guarantees.
+
+Fresh DEB/RPM/AppImage/tarball extraction, native ELF/FRB load, asset manifest and
+CLI checks pass. The GNOME 50 Flatpak installs into a disposable user environment
+and runs its native engine/source smoke and packaged CLI inside the runtime sandbox.
+Flatpak packaging restores executable bits lost by CI artifact transport. Package
+hashes and remaining installed-platform limits are recorded in the report.
+Production release acceptance remains **INCOMPLETE** until the explicit manual
+portal/desktop/device and real Proton-fixture gates there are completed.

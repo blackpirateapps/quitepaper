@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-21",
+  "branch": "feat/linux-rust-watched-folder-import",
+  "starting_head": "826cc7e45ae34480047526c39f642fb627efcf0e",
+  "versions": {
+    "flutter": "3.47.2",
+    "dart": "3.13.2",
+    "rust": "1.97.1",
+    "flutter_rust_bridge": "2.12.0"
+  },
+  "flutter": {
+    "focused_tests": 235,
+    "watcher_followup_overlapping": 22,
+    "widget_followup_overlapping": 6,
+    "real_native_canonical_test": 1,
+    "full_suite_run": false
+  },
+  "rust": {
+    "unit_tests": 8,
+    "integration_entries": 3,
+    "subprocess_helper_entries": 1,
+    "fmt": "pass",
+    "clippy": "pass",
+    "check": "pass"
+  },
+  "rustsec_database": "f291af9b1cc0d21dfcea1709d6b037963cef262b",
+  "rustsec_vulnerabilities": 0,
+  "native_benchmark": {
+    "measurement": "actual native engine and FRB; synthetic files; no canonical note conversion",
+    "files": 1000,
+    "create_1000_event_burst_ms": 193,
+    "stabilize_hash_snapshot_ack_ms": 107469,
+    "max_event_batch": 1,
+    "baseline_rss_kib": 229780,
+    "peak_sampled_rss_kib": 245444,
+    "fds_before": 10,
+    "fds_after": 10,
+    "fds_after_each_restart": [
+      10,
+      10,
+      10,
+      10,
+      10
+    ],
+    "five_restart_to_first_candidate_ms": [
+      4270,
+      4274,
+      4275,
+      4272,
+      4267
+    ]
+  },
+  "discovery_benchmark": {
+    "files": 10001,
+    "elapsed_ms": 5.289104,
+    "fd_delta_upper_bound": 4,
+    "scope": "lazy native discovery, not full import"
+  },
+  "release_acceptance": "incomplete: interactive portal and physical desktop/device QA remain unverified",
+  "artifacts": {
+    "deb": {
+      "filename": "quiet-paper-1.6.4-amd64.deb",
+      "size_bytes": 23320040,
+      "sha256": "eda014a0cf0e88e3265d8d42b4387bed3a16fb9ac1bd5a9a7f414018a710c27f",
+      "checks": "pass: isolated extraction/install, native FRB stable-file snapshot and ACK, packaged CLI"
+    },
+    "rpm": {
+      "filename": "quitepaper-1.6.4-1.fc44.x86_64.rpm",
+      "size_bytes": 31097424,
+      "sha256": "4db2268c41c2eeccdf42518a0ea9f8db742e9a7b96be1d1e6ab37d48a7b962ee",
+      "checks": "pass: isolated extraction/install, native FRB stable-file snapshot and ACK, packaged CLI"
+    },
+    "appimage": {
+      "filename": "Quiet_Paper-1.6.4-x86_64.AppImage",
+      "size_bytes": 29678072,
+      "sha256": "f70b17348cbead616f1dda71afd4b39c6d83421507050ab3740a87cc2593c460",
+      "checks": "pass: isolated extraction/install, native FRB stable-file snapshot and ACK, packaged CLI"
+    },
+    "flatpak": {
+      "filename": "quiet-paper-1.6.4-x86_64.flatpak",
+      "size_bytes": 23041976,
+      "sha256": "cd503630f5ec1b142c36c4802ed0cf72b1e7f6e7befdf4548b5cc4e9062ac962",
+      "checks": "pass: isolated extraction/install, native FRB stable-file snapshot and ACK, packaged CLI"
+    },
+    "tarball": {
+      "filename": "quiet-paper-linux-x64.tar.gz",
+      "size_bytes": 31510779,
+      "sha256": "dee1d4f95dbc93acba99eb9d051ae7e4551bd88076e829cc40780443888ea624",
+      "checks": "pass: isolated extraction/install, native FRB stable-file snapshot and ACK, packaged CLI"
+    }
+  },
+  "native_bundle_sha256": "ac025937475b9557ce4633dc3e6bc4b38984d137a9dd478f6526716b4315066c",
+  "verification_logs": "build/watched-verification/ (local, ignored; raw synthetic-fixture output)",
+  "not_verified": [
+    "real anonymized Proton browser export",
+    "interactive persistent portal grants, restart and revocation",
+    "physical Wayland/X11 keyboard and file manager",
+    "Android/iOS/Windows/macOS compilation",
+    "privileged mounts and actual inotify exhaustion",
+    "full 10000-file canonical-import throughput and GUI frame time"
+  ]
+}

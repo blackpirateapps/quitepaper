@@ -130,3 +130,13 @@ No new storage permissions or broad binary Open With filter were added.
 See [the engineering report](../docs/email-import/engineering-report.md),
 [implementation record](../docs/email-import/implementation.md), engineering logs
 334–342 and [focused validation script](../tool/verify_email_import.sh).
+
+## Linux watched-folder entry point (schema 23)
+
+Watched EML reuses EmailParser and EmailImportService headlessly. Optional planned
+note IDs and a transaction hook add a local watched-import receipt to the same
+canonical save; manual preview, duplicate review, attachments, metadata, editor
+append and Android sharing retain their existing behavior. Watcher callbacks never
+navigate or fetch remote email content. Device-only key setup uses the existing
+gateway. See [the watched-import report](../docs/linux-rust-watched-import.md) for
+source verification, crash recovery and outstanding release acceptance limits.

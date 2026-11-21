@@ -1069,3 +1069,23 @@ A final overlapping **24-test** migration/local-key run passes, including offlin
 email preservation, cloud-key note encryption, password/recovery unlock, partial
 file and secure-record persistence, restart/retry, and lock/erase races.
 `git diff --check` passes. No full suite, app build, or physical-device login ran.
+
+## Linux Rust watched-folder import — November 20, 2026
+
+Implementation is on `feat/linux-rust-watched-folder-import`, starting at
+`826cc7e`. Linux now has a Rust/FRB 2.12.0 engine and Cargokit integration,
+installation-local Drift schema **23**, atomic canonical note/receipt commits,
+encrypted stage recovery and a Linux settings/history screen. Existing MIME
+parsing, sanitization, encrypted originals and attachment handling are reused.
+Ordinary local note text remains plaintext SQLite, as before this feature.
+
+The native and Flutter gates, actual bundle load evidence, packaging status,
+security review and remaining acceptance checks are tracked in
+[the implementation report](docs/linux-rust-watched-import.md) and
+[measured evidence](docs/linux-rust-watched-import-evidence.json). The expanded
+focused gate passes **235 Flutter tests**; final overlapping watcher/UI and the
+real native import integration gates pass. Rust fmt/clippy/check and native tests
+pass, and the Rust dependency audit is clean. Implementation is complete;
+**production release acceptance remains INCOMPLETE** for the explicit manual
+portal/desktop/device and real Proton-fixture checks in that report. No full
+Flutter suite has been run or authorized on this laptop. See engineering log 344.

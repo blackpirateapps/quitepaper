@@ -91,3 +91,16 @@ flutter test      # Run full test suite (70 tests)
 - [Cloud Sync Protocol](docs/sync-protocol.md)
 - [Security Review & Threat Model](docs/security-review.md)
 - [Engineering Handoff Document](HANDOFF.md)
+
+### Linux watched folders
+
+In **Settings → Import & Capture → Watched Folders**, select one existing folder
+and choose whether to import its existing files or only new arrivals. Subfolders
+and duplicate prevention are enabled, and originals are always kept. The GUI must
+be running; it catches up after the next start or resume. Email, PDF, Markdown,
+text, PNG, JPEG and WebP use the existing import and encrypted-asset services.
+
+For Proton Mail Free, export a selected message as `.eml` in the browser and save
+it into the watched folder. No mail-account connection or automatic OCR is needed.
+See [the developer report](docs/linux-rust-watched-import.md) for toolchain setup,
+privacy boundaries, tests and outstanding release acceptance checks.
