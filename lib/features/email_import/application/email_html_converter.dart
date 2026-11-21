@@ -59,9 +59,27 @@ class EmailHtmlConverter {
     final tagPattern = RegExp(
       r'^<\s*(/\s*)?([a-zA-Z][a-zA-Z0-9:-]*)(?=[\s/>])',
     );
+    final commentEnd = RegExp(r'--!?>');
     while (cursor < source.length) {
       final start = source.indexOf('<', cursor);
       if (start < 0) break;
+      // Outlook conditional comments often contain an entire fallback layout.
+      // The DOM parser discards that markup; counting it as live elements can
+      // reject ordinary email. Match HTML's normal and abrupt comment endings
+      // so malformed comments cannot hide live nesting from this preflight.
+      if (source.startsWith('<!--', start)) {
+        final contentStart = start + 4;
+        if (source.startsWith('>', contentStart)) {
+          cursor = contentStart + 1;
+        } else if (source.startsWith('->', contentStart)) {
+          cursor = contentStart + 2;
+        } else {
+          final end = commentEnd.allMatches(source, contentStart).firstOrNull;
+          if (end == null) break;
+          cursor = end.end;
+        }
+        continue;
+      }
       final end = source.indexOf('>', start + 1);
       if (end < 0) break;
       if (end - start > 65536) {

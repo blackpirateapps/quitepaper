@@ -8090,3 +8090,38 @@ Flatpak packaging restores executable bits lost by CI artifact transport. Packag
 hashes and remaining installed-platform limits are recorded in the report.
 Production release acceptance remains **INCOMPLETE** until the explicit manual
 portal/desktop/device and real Proton-fixture gates there are completed.
+
+## 345. Email HTML conditional-comment false rejection (November 21, 2026)
+
+A laptop watched import reported `html_complexity` for a normal HTML-only order
+message. Read-only structural inspection found the pre-DOM heuristic counted
+Outlook conditional-comment fallback tables as real nesting (116 levels), although
+the actual DOM had 818 nodes and depth 74, below the existing limit of 80. The
+canonical converter now skips comment bodies before counting live nesting. It
+recognizes normal `-->`, `--!>` and abrupt empty-comment endings so malformed
+comments cannot bypass live nesting checks. The global token, element-size and
+post-parse node/depth limits are retained. Both manual and watched imports use
+this same converter; there is no second parser or HTML fallback/truncation.
+
+Synthetic regressions cover balanced Outlook fallback wrappers, unterminated
+comments, malformed endings and real excessive nesting. The watcher screen now
+explains `html_complexity` as a content safety limit and points to history Retry,
+rather than blaming permissions/storage/unlock. A widget regression verifies it.
+Read-only parsing of the actual local source succeeds, produces a nonempty body,
+verifies its original raw hash and leaves its source bytes unchanged. No note was
+saved during diagnosis. No private message was added to fixtures; verification
+logs record pass/fail and structural counts, not message contents.
+
+Validation: `flutter analyze` passes with no issues.
+`flutter test --no-pub --concurrency=1 test/email_import
+test/watched_import/watched_import_controller_test.dart
+test/watched_import/watched_import_storage_test.dart` passes **110 tests**.
+The full Flutter suite remains prohibited and was not run.
+
+Ordinary `flutter build linux --release --no-pub` passes with two Ninja jobs.
+A fresh local RPM at `build/linux/dist/quiet-paper-html-fix.rpm` passes isolated
+extraction, ELF/native FRB source/snapshot/ACK, asset-manifest and packaged CLI
+smoke checks. SHA256: `f1a252dd333b647731c49e57cd03e5870ac080ec6424dbd6b8fa73a599597b35`.
+The running `/opt` application was not replaced: system installation requires the
+user's administrator password. Restart after installing, then choose Retry from
+the failed history row; Rescan alone preserves terminal failed jobs by design.

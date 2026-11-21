@@ -299,6 +299,8 @@ class WatchedFoldersScreen extends ConsumerWidget {
   }
 
   static String _error(String code) => switch (code) {
+    'html_complexity' =>
+      'This email’s HTML exceeds the safe import limits. Its original file is unchanged. After updating Quiet Paper, use Retry in its import history menu. Code: html_complexity.',
     'message_id_changed' =>
       'A changed version of an imported email needs review. Use Import again anyway to create another note.',
     'review_interrupted' =>

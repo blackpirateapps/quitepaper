@@ -318,4 +318,24 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('HTML complexity gives a content error and retry guidance', (
+    tester,
+  ) async {
+    controller.error = 'html_complexity';
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          watchedImportControllerProvider.overrideWith((ref) => controller),
+        ],
+        child: const MaterialApp(home: WatchedFoldersScreen()),
+      ),
+    );
+    expect(
+      find.textContaining('HTML exceeds the safe import limits'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('use Retry'), findsOneWidget);
+    expect(find.textContaining('Check folder permissions'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

@@ -283,6 +283,43 @@ void main() {
       ),
     );
   });
+  test('Outlook fallback comments do not inflate live HTML nesting', () {
+    // Balanced fallback wrappers surround live content but are only comments
+    // to the HTML parser. Together they used to exceed the depth budget.
+    final source =
+        '${'<!--[if mso]><table><tr><td><![endif]--><div>' * 30}'
+        '<p>Order details</p>'
+        '${'</div><!--[if mso]></td></tr></table><![endif]-->' * 30}';
+    final raw = Uint8List.fromList(
+      utf8.encode(
+        'From: orders@example.test\r\nSubject: Order\r\n'
+        'Content-Type: text/html; charset=utf-8\r\n\r\n$source',
+      ),
+    );
+    final message = parser.parseSync(raw);
+    expect(message.markdown, 'Order details');
+    expect(message.rawBytes, orderedEquals(raw));
+  });
+  test('comment contents are discarded without relaxing live HTML budgets', () {
+    final converter = EmailHtmlConverter();
+    expect(
+      converter.convert('<!--${'<div>' * 100}--><p>Visible</p>'),
+      'Visible',
+    );
+    expect(converter.convert('<p>Visible</p><!--${'<div>' * 100}'), 'Visible');
+    for (final prefix in ['', '<!-->', '<!--->', '<!--ignored--!>']) {
+      expect(
+        () => converter.convert('$prefix${'<div>' * 81}Deep'),
+        throwsA(
+          isA<EmailImportException>().having(
+            (e) => e.code,
+            'code',
+            'html_complexity',
+          ),
+        ),
+      );
+    }
+  });
   test(
     'plaintext headings and rules remain literal; quotes and lists remain readable',
     () {

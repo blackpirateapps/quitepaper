@@ -30,6 +30,8 @@ mixed/alternative/related/nested messages, encoded headers/filenames, binary par
 attached emails and CID images. Attached messages remain assets, not extra notes.
 `email_html_converter.dart` checks complexity before DOM allocation and converts
 safe structure to Markdown without rendering HTML or loading remote resources.
+Outlook conditional-comment fallback markup is excluded from live nesting counts;
+malformed comment endings still expose subsequent live elements to the limit.
 
 `email_import_gateway.dart` supplies injectable application boundaries.
 `email_import_service.dart` handles encrypted preparation, canonical note creation,

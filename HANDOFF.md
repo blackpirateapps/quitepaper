@@ -8,6 +8,16 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest fix: email HTML conditional comments (November 21, 2026)
+
+Fixed `html_complexity` rejection of ordinary order emails whose Outlook-only
+fallback markup inside comments inflated the pre-DOM nesting count. The converter
+now skips comments consistently with HTML parsing, including malformed comment
+endings; token/live nesting/DOM budgets remain enforced. Watched imports explain
+this content error and Retry instead of suggesting folder permission changes.
+The affected local message parses successfully with unchanged source bytes; no
+private message or content was added to fixtures/logs. See engineering log 345.
+
 ## 1. Documentation Index & Modular Guides
 
 All documentation is partitioned for fast, targeted access by engineers and AI agents:
