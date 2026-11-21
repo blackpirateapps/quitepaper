@@ -210,10 +210,14 @@ fn run(
                     break;
                 };
                 if let Some(limit) = rules::limit(&path) {
-                    match safe_open(&s.root,&s.identity,&path).and_then(|f|f.metadata().map_err(|_|crate::diagnostics::EngineError::Io)){
-                        Ok(m) if m.len()<=limit=>pending.push_back((path,Stability::new(Identity::of(&m),Instant::now()))),
-                        Ok(_)=>{},
-                        Err(_)=>scan_error=true,
+                    match safe_open(&s.root, &s.identity, &path).and_then(|f| {
+                        f.metadata()
+                            .map_err(|_| crate::diagnostics::EngineError::Io)
+                    }) {
+                        Ok(m) if m.len() <= limit => pending
+                            .push_back((path, Stability::new(Identity::of(&m), Instant::now()))),
+                        Ok(_) => {}
+                        Err(_) => scan_error = true,
                     }
                 }
             }

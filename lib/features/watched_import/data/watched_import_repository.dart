@@ -77,11 +77,18 @@ class WatchedImportRepositoryAdapter {
     await write('DELETE FROM watched_import_baseline');
     await write('DELETE FROM watched_folders');
   });
-  Future<void> inventoryDone(String id, String? error) => write(
-    '''UPDATE watched_folders
+  Future<void> inventoryDone(String id, String? error) async {
+    final f = await folder();
+    if (f?.readNullable<String>('inventory_error') == 'review_interrupted') {
+      return;
+    }
+    await write(
+      '''UPDATE watched_folders
     SET inventory_complete=?,inventory_error=?,last_reconcile=?,updated_at=? WHERE id=?''',
-    [error == null ? 1 : 0, error, now, now, id],
-  );
+      [error == null ? 1 : 0, error, now, now, id],
+    );
+  }
+
   Future<void> decide(
     String id,
     bool existing,
@@ -142,13 +149,14 @@ class WatchedImportRepositoryAdapter {
   }) => database.transaction(() async {
     await write(
       '''INSERT OR IGNORE INTO watched_import_jobs
-      (id,folder_id,vault_scope,source_path,display_name,revision,size,sha256,format,status,
-      planned_note_id,generation,override_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,'ready',?,?,?,?,?)''',
+      (id,folder_id,vault_scope,source_path,source_root,display_name,revision,size,sha256,format,status,
+      planned_note_id,generation,override_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'ready',?,?,?,?,?)''',
       [
         c.jobId,
         c.folderId,
         scope,
         c.relativePath,
+        (await folder())?.read<String>('canonical_root') ?? '',
         c.displayName,
         c.revision,
         c.size,
@@ -232,6 +240,11 @@ class WatchedImportRepositoryAdapter {
     if (watchedTerminalStatuses.contains(previous)) {
       throw StateError('terminal_job_transition');
     }
+    if (status == 'importing') {
+      await write('UPDATE watched_import_jobs SET next_retry=NULL WHERE id=?', [
+        jobId,
+      ]);
+    }
     await write(
       'UPDATE watched_import_jobs SET status=?,last_error=?,updated_at=?,attempt_count=attempt_count+? WHERE id=?',
       [status, code, now, status == 'importing' ? 1 : 0, jobId],
@@ -269,8 +282,8 @@ class WatchedImportRepositoryAdapter {
     }
     await write(
       '''INSERT INTO watched_import_receipts
-      (vault_scope,sha256,size,override_id,note_id,folder_id,display_name,committed_at,message_id)
-      VALUES (?,?,?,?,?,?,?,?,?)''',
+      (vault_scope,sha256,size,override_id,note_id,folder_id,source_root,source_path,display_name,committed_at,message_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
       [
         job.read<String>('vault_scope'),
         c.sha256,
@@ -278,6 +291,8 @@ class WatchedImportRepositoryAdapter {
         job.read<String>('override_id'),
         id,
         c.folderId,
+        job.read<String>('source_root'),
+        c.relativePath,
         c.displayName,
         now,
         messageId,
@@ -290,7 +305,7 @@ class WatchedImportRepositoryAdapter {
   }
 
   Future<void> retry(String jobId) => write(
-    "UPDATE watched_import_jobs SET status='ready',last_error=NULL,attempt_count=0,generation=generation+1,updated_at=? WHERE id=? AND status IN ('failed','needs_attention','retry_scheduled','waiting_for_unlock','missing_source')",
+    "UPDATE watched_import_jobs SET status='ready',last_error=NULL,attempt_count=0,next_retry=NULL,generation=generation+1,updated_at=? WHERE id=? AND status IN ('failed','needs_attention','retry_scheduled','waiting_for_unlock','missing_source')",
     [now, jobId],
   );
   Future<List<QueryRow>> history(String scope) => rows(

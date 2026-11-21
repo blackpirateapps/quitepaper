@@ -8,6 +8,7 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
 import '../domain/markdown_import_item.dart';
+import '../domain/import_image_reference.dart';
 
 final markdownImportServiceProvider = Provider<MarkdownImportService>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
@@ -19,10 +20,7 @@ final markdownImportServiceProvider = Provider<MarkdownImportService>((ref) {
 });
 
 class MarkdownImportService {
-  MarkdownImportService(
-    this._repository, {
-    this.attachmentService,
-  });
+  MarkdownImportService(this._repository, {this.attachmentService});
 
   final NotesRepository _repository;
   final AttachmentService? attachmentService;
@@ -30,7 +28,11 @@ class MarkdownImportService {
   /// Imports all selected [items] into the local database repository,
   /// encrypting attached images and rewriting markdown image links to canonical `qp://asset/<UUID>` URIs.
   /// Returns the number of successfully imported notes.
-  Future<int> importNotes(List<MarkdownImportItem> items) async {
+  Future<int> importNotes(
+    List<MarkdownImportItem> items, {
+    Future<String?> Function(ImportImageReference reference, String noteId)?
+    prepareImage,
+  }) async {
     final selectedItems = items.where((i) => i.isSelected).toList();
     if (selectedItems.isEmpty) {
       return 0;
@@ -45,21 +47,25 @@ class MarkdownImportService {
     for (final item in selectedItems) {
       var noteContent = item.content;
 
-      if (service != null && item.imageReferences.isNotEmpty) {
+      if ((service != null || prepareImage != null) &&
+          item.imageReferences.isNotEmpty) {
         for (final ref in item.imageReferences) {
-          if (!ref.isFound) continue;
+          if (!ref.isFound && prepareImage == null) continue;
 
           try {
             String? snippet;
 
-            if (ref.resolvedFilePath != null && ref.resolvedFilePath!.isNotEmpty) {
+            if (prepareImage != null) {
+              snippet = await prepareImage(ref, item.id);
+            } else if (ref.resolvedFilePath != null &&
+                ref.resolvedFilePath!.isNotEmpty) {
               final path = ref.resolvedFilePath!;
               if (importedSnippetsByPath.containsKey(path)) {
                 snippet = importedSnippetsByPath[path];
               } else {
                 final file = File(path);
                 if (await file.exists()) {
-                  final result = await service.importImageFromFile(
+                  final result = await service!.importImageFromFile(
                     file,
                     noteId: item.id,
                     preferredAltText: ref.altText,
@@ -70,7 +76,7 @@ class MarkdownImportService {
               }
             } else if (ref.pickedBytes != null && ref.pickedBytes!.isNotEmpty) {
               final mimeType = _inferMimeType(ref.displayName);
-              final result = await service.importImageFromBytes(
+              final result = await service!.importImageFromBytes(
                 ref.pickedBytes!,
                 mimeType: mimeType,
                 noteId: item.id,
@@ -83,13 +89,18 @@ class MarkdownImportService {
               noteContent = noteContent.replaceAll(ref.originalSyntax, snippet);
             }
           } catch (e) {
-            debugPrint('Failed to import attachment ${ref.rawTarget} for note ${item.id}: $e');
+            if (prepareImage != null) rethrow;
+            debugPrint(
+              'Failed to import attachment ${ref.rawTarget} for note ${item.id}: $e',
+            );
             // Gracefully continue with original markdown link if encryption/import fails
           }
         }
       }
 
-      final journalMeta = JournalMetadataService.extractJournalMetadata(noteContent);
+      final journalMeta = JournalMetadataService.extractJournalMetadata(
+        noteContent,
+      );
       String? journalDateToAssign;
 
       if (journalMeta.isJournal && journalMeta.journalDate != null) {
@@ -100,7 +111,9 @@ class MarkdownImportService {
           importedJournalDates.add(dateStr);
         } else {
           // Collision: strip duplicate journal metadata so note imports cleanly as a normal note
-          noteContent = JournalMetadataService.removeJournalFrontmatter(noteContent);
+          noteContent = JournalMetadataService.removeJournalFrontmatter(
+            noteContent,
+          );
         }
       }
 

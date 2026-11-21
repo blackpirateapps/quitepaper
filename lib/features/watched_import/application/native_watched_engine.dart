@@ -11,7 +11,8 @@ abstract class WatchedEngine {
   Future<void> ready(int handle, bool ready);
   Future<List<native.EngineEvent>> events(int handle);
   Future<Uint8List> snapshot(int handle, String job);
-  Future<void> acknowledge(int handle, String job, native.Outcome outcome);
+  Future<Uint8List> relatedImage(int handle, String job, String target);
+  Future<int> acknowledge(int handle, String job, native.Outcome outcome);
   Future<void> pause(int handle);
   Future<void> resume(int handle);
   Future<void> reconcile(int handle);
@@ -63,7 +64,14 @@ class NativeWatchedEngine implements WatchedEngine {
   Future<Uint8List> snapshot(int handle, String job) =>
       native.readCandidateSnapshot(handle: handle, jobId: job);
   @override
-  Future<void> acknowledge(int handle, String job, native.Outcome outcome) =>
+  Future<Uint8List> relatedImage(int handle, String job, String target) =>
+      native.readRelatedImageSnapshot(
+        handle: handle,
+        jobId: job,
+        target: target,
+      );
+  @override
+  Future<int> acknowledge(int handle, String job, native.Outcome outcome) =>
       native.submitImportOutcome(handle: handle, jobId: job, outcome: outcome);
   @override
   Future<void> pause(int handle) => native.pauseWatch(handle: handle);

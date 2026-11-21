@@ -19,7 +19,7 @@ pub fn read_verified(
 ) -> Result<(Identity, String, Vec<u8>)> {
     let mut file = safe_open(root, root_id, relative)?;
     let before = Identity::of(&file.metadata().map_err(|_| EngineError::Io)?);
-    if before.size > limit {
+    if before.size > limit || (before.size == 0 && !crate::rules::valid_header(relative, &[])) {
         return Err(EngineError::Unsupported);
     }
     let mut hasher = Sha256::new();

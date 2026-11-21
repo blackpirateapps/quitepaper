@@ -69,3 +69,6 @@ backend/Shadhinata.zip
 # Rust build products
 /target/
 /rust_builder/cargokit/build_tool/.dart_tool/
+
+# Generated prebuilt Flatpak input; uploaded by CI, never source.
+/linux/packaging/flatpak-staging/

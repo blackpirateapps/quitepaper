@@ -156,8 +156,9 @@ pub fn submit_import_outcome(
     handle: u32,
     job_id: String,
     outcome: Outcome,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<u32, String> {
     let s = shared(handle)?;
+    let mut retry_after_ms = 0;
     let mut current = s.current.lock().map_err(|_| "engine_lock")?;
     if current.as_ref().is_some_and(|c| c.job_id == job_id) {
         *current = None;
@@ -165,9 +166,10 @@ pub fn submit_import_outcome(
             if matches!(outcome, Outcome::Retry) {
                 let attempt = retry.as_ref().map_or(1, |(_, n)| n + 1).min(6);
                 let jitter = job_id.bytes().map(u64::from).sum::<u64>() % 500;
+                retry_after_ms = ((1u64 << attempt) * 1000 + jitter) as u32;
                 *retry = Some((
                     std::time::Instant::now()
-                        + std::time::Duration::from_millis((1u64 << attempt) * 1000 + jitter),
+                        + std::time::Duration::from_millis(u64::from(retry_after_ms)),
                     attempt,
                 ));
             } else {
@@ -178,7 +180,7 @@ pub fn submit_import_outcome(
             s.dirty.store(true, Ordering::Release);
         }
     }
-    Ok(())
+    Ok(retry_after_ms)
 }
 
 /// Reopen through no-follow directory descriptors, compare BOTH metadata and
@@ -232,4 +234,93 @@ pub fn shutdown_watch(handle: u32) -> std::result::Result<(), String> {
 #[flutter_rust_bridge::frb(sync)]
 pub fn contract_version() -> u32 {
     1
+}
+
+/// Resolves a canonical Markdown importer's local image reference entirely in
+/// native code, retaining source bytes in RAM and preserving root containment.
+pub fn read_related_image_snapshot(
+    handle: u32,
+    job_id: String,
+    target: String,
+) -> std::result::Result<Vec<u8>, String> {
+    let s = shared(handle)?;
+    if !s.ready.load(Ordering::Acquire) || s.paused.load(Ordering::Acquire) {
+        return Err("waiting_for_unlock".into());
+    }
+    let candidate = s
+        .current
+        .lock()
+        .map_err(|_| "engine_lock")?
+        .clone()
+        .filter(|c| c.job_id == job_id)
+        .ok_or("stale_generation")?;
+    let source = PathBuf::from(std::ffi::OsString::from_vec(candidate.relative_path));
+    let target = PathBuf::from(target);
+    if target.is_absolute() || target.as_os_str().as_encoded_bytes().contains(&b':') {
+        return Err("unsafe_image_path".into());
+    }
+    let name = target.file_name().ok_or("unsafe_image_path")?;
+    let parent = source.parent().ok_or("unsafe_image_path")?;
+    let mut paths = vec![parent.join(&target), target.clone()];
+    for folder in [
+        "attachments",
+        "_resources",
+        "assets",
+        "images",
+        "media",
+        "files",
+        "img",
+        "photos",
+    ] {
+        paths.extend([
+            parent.join(folder).join(&target),
+            parent.join(folder).join(name),
+            PathBuf::from(folder).join(&target),
+            PathBuf::from(folder).join(name),
+        ]);
+    }
+    for path in paths {
+        let mut normalized = PathBuf::new();
+        let mut safe = true;
+        for part in path.components() {
+            match part {
+                std::path::Component::Normal(c) => normalized.push(c),
+                std::path::Component::CurDir => {}
+                std::path::Component::ParentDir => {
+                    if !normalized.pop() {
+                        safe = false;
+                        break;
+                    }
+                }
+                _ => {
+                    safe = false;
+                    break;
+                }
+            }
+        }
+        if !safe {
+            continue;
+        }
+        if !["png", "jpg", "jpeg", "webp"].contains(
+            &normalized
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+        ) {
+            return Err("unsupported_image".into());
+        }
+        if let Some(limit) = rules::limit(&normalized) {
+            if let Ok((_, _, bytes)) =
+                read_verified(&s.root, &s.identity, &normalized, limit, &s.cancel, true)
+            {
+                if !s.ready.load(Ordering::Acquire) || s.cancel.load(Ordering::Acquire) {
+                    return Err("waiting_for_unlock".into());
+                }
+                return Ok(bytes);
+            }
+        }
+    }
+    Err("missing_or_unsafe_image".into())
 }

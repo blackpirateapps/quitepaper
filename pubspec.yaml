@@ -89,6 +89,7 @@ dependencies:
   quietpaper_watched_import:
     path: rust_builder
   file_selector_linux: 0.9.4+1
+  dbus: 0.7.15
 
 dev_dependencies:
   webview_flutter_platform_interface: ^2.15.1

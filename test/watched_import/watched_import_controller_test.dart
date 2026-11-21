@@ -53,12 +53,16 @@ class FakeEngine implements WatchedEngine {
   }
 
   @override
-  Future<void> acknowledge(int handle, String job, Outcome outcome) async {
+  Future<Uint8List> relatedImage(int handle, String job, String target) async =>
+      throw StateError('no_fixture');
+  @override
+  Future<int> acknowledge(int handle, String job, Outcome outcome) async {
     ack.add(outcome);
     if (failAck) {
       failAck = false;
       throw StateError('lost_ack');
     }
+    return outcome == Outcome.retry ? 2000 : 0;
   }
 
   @override
@@ -250,6 +254,12 @@ void main() {
           'SELECT * FROM watched_import_jobs',
         )).single.read<String>('status'),
         'waiting_for_unlock',
+      );
+      expect(
+        (await store.rows(
+          'SELECT next_retry FROM watched_import_jobs',
+        )).single.read<int>('next_retry'),
+        greaterThan(store.now),
       );
     },
   );

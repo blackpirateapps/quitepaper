@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1347648057;
+  int get rustContentHash => 125233266;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -100,6 +100,12 @@ abstract class RustLibApi extends BaseApi {
     required String jobId,
   });
 
+  Future<Uint8List> crateApiEngineReadRelatedImageSnapshot({
+    required int handle,
+    required String jobId,
+    required String target,
+  });
+
   Future<void> crateApiEngineReconcileNow({required int handle});
 
   Future<void> crateApiEngineResumeWatch({required int handle});
@@ -111,7 +117,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiEngineShutdownWatch({required int handle});
 
-  Future<void> crateApiEngineSubmitImportOutcome({
+  Future<int> crateApiEngineSubmitImportOutcome({
     required int handle,
     required String jobId,
     required Outcome outcome,
@@ -327,6 +333,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<Uint8List> crateApiEngineReadRelatedImageSnapshot({
+    required int handle,
+    required String jobId,
+    required String target,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(handle, serializer);
+          sse_encode_String(jobId, serializer);
+          sse_encode_String(target, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiEngineReadRelatedImageSnapshotConstMeta,
+        argValues: [handle, jobId, target],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiEngineReadRelatedImageSnapshotConstMeta =>
+      const TaskConstMeta(
+        debugName: "read_related_image_snapshot",
+        argNames: ["handle", "jobId", "target"],
+      );
+
+  @override
   Future<void> crateApiEngineReconcileNow({required int handle}) {
     return handler.executeNormal(
       NormalTask(
@@ -336,7 +379,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -364,7 +407,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -396,7 +439,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -427,7 +470,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -446,7 +489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "shutdown_watch", argNames: ["handle"]);
 
   @override
-  Future<void> crateApiEngineSubmitImportOutcome({
+  Future<int> crateApiEngineSubmitImportOutcome({
     required int handle,
     required String jobId,
     required Outcome outcome,
@@ -461,12 +504,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_u_32,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiEngineSubmitImportOutcomeConstMeta,

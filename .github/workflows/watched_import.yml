@@ -40,3 +40,5 @@ jobs:
         run: |
           cargo build --locked
           dart run tool/smoke_watched_import.dart "$PWD/target/debug/libquietpaper_watched_import.so"
+      - name: Native bounded burst and restart benchmark
+        run: dart run tool/benchmark_watched_import.dart "$PWD/target/debug/libquietpaper_watched_import.so"

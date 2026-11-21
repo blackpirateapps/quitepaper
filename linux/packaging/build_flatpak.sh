@@ -29,6 +29,12 @@ mkdir -p "${STAGING_DIR}/bundle"
 
 # Copy release bundle and metadata assets
 cp -a "${BUNDLE_DIR}"/* "${STAGING_DIR}/bundle/"
+# Preserve CLI layout so Dart native code assets resolve next to the GUI libs.
+if [ -x "${PROJECT_ROOT}/build/cli/bundle/bin/qp" ]; then
+  mkdir -p "${STAGING_DIR}/bundle/bin"
+  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${STAGING_DIR}/bundle/bin/qp"
+  cp -a "${PROJECT_ROOT}/build/cli/bundle/lib/." "${STAGING_DIR}/bundle/lib/"
+fi
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.desktop" "${STAGING_DIR}/"
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.metainfo.xml" "${STAGING_DIR}/"
 cp "${PROJECT_ROOT}/linux/assets/icon.png" "${STAGING_DIR}/icon_256.png"
@@ -45,7 +51,7 @@ REPO_DIR="${PROJECT_ROOT}/build/linux/flatpak-repo"
 BUILD_DIR="${PROJECT_ROOT}/build/linux/flatpak-build"
 rm -rf "${BUILD_DIR}"
 
-flatpak-builder --force-clean --repo="${REPO_DIR}" "${BUILD_DIR}" "${PACKAGING_DIR}/com.blackpiratex.quietpaper.yml"
+flatpak-builder --disable-rofiles-fuse --force-clean --repo="${REPO_DIR}" "${BUILD_DIR}" "${PACKAGING_DIR}/com.blackpiratex.quietpaper.yml"
 flatpak build-bundle "${REPO_DIR}" "${OUTPUT_DIR}/quiet-paper-${VERSION}-x86_64.flatpak" com.blackpiratex.quietpaper
 
 echo "==> Flatpak bundle created at ${OUTPUT_DIR}/quiet-paper-${VERSION}-x86_64.flatpak"

@@ -1,4 +1,15 @@
+use notify::event::{AccessKind, AccessMode};
 use notify::{Config, PollWatcher, RecommendedWatcher, RecursiveMode, Watcher};
+
+pub(crate) fn relevant(event: &notify::Event) -> bool {
+    event.need_rescan()
+        || match event.kind {
+            notify::EventKind::Access(AccessKind::Close(AccessMode::Write)) => true,
+            notify::EventKind::Access(_) => false,
+            _ => true,
+        }
+}
+
 use std::{
     path::Path,
     sync::{
@@ -24,6 +35,9 @@ impl Observation {
             let health = unhealthy.clone();
             if let Ok(mut watcher) =
                 notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+                    if result.as_ref().is_ok_and(|event| !relevant(event)) {
+                        return;
+                    }
                     flag.store(true, Ordering::Relaxed);
                     if result.as_ref().map_or(true, |event| event.need_rescan()) {
                         health.store(true, Ordering::Relaxed);

@@ -1,3 +1,5 @@
+import '../../watched_import/application/watched_import_provider.dart';
+import '../../watched_import/presentation/watched_folders_screen.dart';
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -220,8 +222,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         description: _formatSyncStatus(syncState),
                         descriptionColor:
                             syncState.status == SyncStatus.syncError
-                                ? colors.error
-                                : colors.textSecondary,
+                            ? colors.error
+                            : colors.textSecondary,
                       ),
 
                       // Row 2: Sync Now
@@ -248,13 +250,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         onTap: syncState.status == SyncStatus.syncing
                             ? null
                             : () async {
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
+                                final messenger = ScaffoldMessenger.of(context);
                                 messenger.hideCurrentSnackBar();
                                 messenger.showSnackBar(
                                   SnackBar(
                                     content: const Text(
-                                        'Syncing notes & images...'),
+                                      'Syncing notes & images...',
+                                    ),
                                     duration: const Duration(seconds: 1),
                                     backgroundColor: colors.elevated,
                                   ),
@@ -263,8 +265,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                 await ref.read(syncEngineProvider).syncNow();
 
                                 if (!context.mounted) return;
-                                final resultState =
-                                    ref.read(syncStateProvider);
+                                final resultState = ref.read(syncStateProvider);
 
                                 messenger.hideCurrentSnackBar();
 
@@ -274,15 +275,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.error_outline,
-                                              color: Colors.white, size: 20),
+                                          const Icon(
+                                            Icons.error_outline,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               resultState.errorMessage ??
                                                   'Sync error occurred. Check Cloudinary credentials in Vercel.',
                                               style: const TextStyle(
-                                                  color: Colors.white),
+                                                color: Colors.white,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -296,20 +301,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                   messenger.showSnackBar(
                                     SnackBar(
                                       content: const Text(
-                                          'Offline • Changes preserved on device'),
+                                        'Offline • Changes preserved on device',
+                                      ),
                                       duration: const Duration(seconds: 3),
                                       backgroundColor: colors.elevated,
                                     ),
                                   );
                                 } else if (resultState.status ==
-                                    SyncStatus.conflict ||
+                                        SyncStatus.conflict ||
                                     resultState.conflictsCount > 0) {
                                   messenger.showSnackBar(
                                     SnackBar(
                                       content: Text(
                                         'Sync complete with ${resultState.conflictsCount} conflict(s) requiring review.',
                                         style: const TextStyle(
-                                            color: Colors.white),
+                                          color: Colors.white,
+                                        ),
                                       ),
                                       backgroundColor: Colors.orange.shade800,
                                       duration: const Duration(seconds: 4),
@@ -340,15 +347,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                       content: Row(
                                         children: [
                                           const Icon(
-                                              Icons.check_circle_outline,
-                                              color: Colors.white,
-                                              size: 20),
+                                            Icons.check_circle_outline,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               successText,
                                               style: const TextStyle(
-                                                  color: Colors.white),
+                                                color: Colors.white,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -444,13 +453,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const AppearanceSettingsScreen(),
+                            builder: (_) => const AppearanceSettingsScreen(),
                           ),
                         );
                       },
                     ),
                     _buildDivider(colors),
+                    if (supportsWatchedImport) ...[
+                      _SettingsRow(
+                        icon: Icons.folder_open_outlined,
+                        title: 'Import & Capture',
+                        subtitle: 'Watched Folders',
+                        trailing: Icon(
+                          CupertinoIcons.chevron_forward,
+                          size: 14,
+                          color: colors.textTertiary,
+                        ),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WatchedFoldersScreen(),
+                          ),
+                        ),
+                      ),
+                      _buildDivider(colors),
+                    ],
                     _SettingsRow(
                       icon: Icons.settings_backup_restore_rounded,
                       title: 'Backup and import',
@@ -468,8 +494,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const BackupImportSettingsScreen(),
+                            builder: (_) => const BackupImportSettingsScreen(),
                           ),
                         );
                       },
@@ -571,8 +596,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                               color: colors.textTertiary,
                             )
                           : (_isCheckingForUpdates
-                              ? const CupertinoActivityIndicator(radius: 8)
-                              : null),
+                                ? const CupertinoActivityIndicator(radius: 8)
+                                : null),
                       onTap: flavor.isPlayStore
                           ? () {
                               LinkLauncherHelper.handleLinkTap(

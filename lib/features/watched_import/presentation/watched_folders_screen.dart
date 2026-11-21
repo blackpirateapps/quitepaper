@@ -1,3 +1,4 @@
+import 'reveal_watched_source.dart';
 import 'package:file_selector_linux/file_selector_linux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -158,6 +159,10 @@ class WatchedFoldersScreen extends ConsumerWidget {
                 'Import history',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
+              if (controller.history.isNotEmpty)
+                Text(
+                  'Recent: ${controller.history.where((row) => row.read<String>('type') == 'imported').length} imported · ${controller.history.where((row) => row.read<String>('type') == 'duplicate_skipped').length} duplicates · ${controller.history.where((row) => const {'failed', 'needs_attention', 'retry_scheduled'}.contains(row.read<String>('type'))).length} need attention',
+                ),
               if (controller.history.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -214,13 +219,16 @@ class WatchedFoldersScreen extends ConsumerWidget {
                           );
                         }
                       } else {
-                        await launchUrl(
-                          Uri.directory(folder!.read<String>('canonical_root')),
-                        );
+                        final job = (await controller.store.rows(
+                          'SELECT * FROM watched_import_jobs WHERE id=?',
+                          [id],
+                        )).single;
+                        await revealWatchedSource(job);
                       }
                     },
                     itemBuilder: (context) => [
-                      if (event.readNullable<String>('note_id') != null)
+                      if (event.readNullable<String>('note_id') != null &&
+                          controller.isUnlocked())
                         const PopupMenuItem(
                           value: 'open',
                           child: Text('Open imported note'),
@@ -236,7 +244,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
                         ),
                         const PopupMenuItem(
                           value: 'reveal',
-                          child: Text('Open source folder'),
+                          child: Text('Reveal source file'),
                         ),
                       ],
                     ],
@@ -249,7 +257,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Folder access is local to this Linux installation. In Flatpak, choose a folder under Documents or Downloads. If access is denied or the folder changes identity, select it again. Other locations require a persistent sandbox grant.',
+                'Folder access is local to this Linux installation. In Flatpak, the native folder chooser grants access through the desktop portal. If access is revoked or the folder changes identity, select it again.',
               ),
             ],
           ),
@@ -293,6 +301,8 @@ class WatchedFoldersScreen extends ConsumerWidget {
   static String _error(String code) => switch (code) {
     'message_id_changed' =>
       'A changed version of an imported email needs review. Use Import again anyway to create another note.',
+    'review_interrupted' =>
+      'The initial review was interrupted before its baseline was complete. Cancel and select the folder again to start a new review.',
     'inventory_incomplete' =>
       'Some existing files could not be checked. Restore access and rescan before choosing.',
     'account_changed_select_folder_again' =>

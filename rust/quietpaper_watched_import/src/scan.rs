@@ -1,5 +1,5 @@
 use crate::diagnostics::{EngineError, Result};
-use rustix::fs::{open, openat, Mode, OFlags};
+use rustix::fs::{open, openat2, Mode, OFlags, ResolveFlags};
 use std::{
     fs::{File, Metadata, ReadDir},
     os::{fd::AsRawFd, unix::fs::MetadataExt},
@@ -79,8 +79,17 @@ fn open_relative(
             flags |= OFlags::DIRECTORY;
         }
         let next = File::from(
-            openat(&current, part.as_os_str(), flags, Mode::empty())
-                .map_err(|_| EngineError::UnsafePath)?,
+            openat2(
+                &current,
+                part.as_os_str(),
+                flags,
+                Mode::empty(),
+                ResolveFlags::BENEATH
+                    | ResolveFlags::NO_SYMLINKS
+                    | ResolveFlags::NO_MAGICLINKS
+                    | ResolveFlags::NO_XDEV,
+            )
+            .map_err(|_| EngineError::UnsafePath)?,
         );
         let m = next.metadata().map_err(|_| EngineError::Io)?;
         if m.dev() != root_identity.0 || (last && !directory && !m.is_file()) {

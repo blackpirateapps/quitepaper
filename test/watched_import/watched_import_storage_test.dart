@@ -1,3 +1,8 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/core/backup/backup_service.dart';
+import 'package:quitepaper/core/crypto/crypto_service.dart';
+import 'package:quitepaper/features/watched_import/presentation/reveal_watched_source.dart';
+import 'package:quitepaper/features/import/application/markdown_image_parser.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
@@ -324,6 +329,209 @@ void main() {
       for (final table in watchedImportTables) {
         expect(await store.rows('SELECT * FROM $table'), isEmpty);
       }
+    },
+  );
+  test(
+    'PNG, JPEG and WebP are encrypted with canonical links and no OCR',
+    () async {
+      for (final format in ['png', 'jpg', 'jpeg', 'webp']) {
+        final bytes = File(
+          'test/watched_import/fixtures/pixel.${format == 'jpeg' ? 'jpg' : format}',
+        ).readAsBytesSync();
+        final c = candidate(bytes, name: 'pixel.$format');
+        final job = await store.reserve(c, 'image-$format');
+        final note = await adapter.import(c, job, bytes, isCurrent: () => true);
+        expect(note.content, contains('qp://asset/'));
+        final asset = (await attachments.getAttachmentsForNote(note.id)).single;
+        expect(asset.ocrState, 'not_requested');
+        expect(asset.isDirty, isTrue);
+        expect(
+          (await attachments.resolveAsset(asset.id)).data,
+          orderedEquals(bytes),
+        );
+        expect(
+          await File(asset.localPath!).readAsBytes(),
+          isNot(orderedEquals(bytes)),
+        );
+      }
+    },
+  );
+  test(
+    'Markdown local images reuse parser/rewrite and staged assets atomically',
+    () async {
+      final bytes = Uint8List.fromList(
+        utf8.encode(
+          '---\ntitle: Image note\n---\n![Alt](images/pixel.png)\n\n![[images/pixel.png|Alt]]\n',
+        ),
+      );
+      final c = candidate(bytes, name: 'note.md');
+      final job = await store.reserve(c, 'vault-a');
+      final png = File(
+        'test/watched_import/fixtures/pixel.png',
+      ).readAsBytesSync();
+      var reads = 0;
+      final note = await adapter.import(
+        c,
+        job,
+        bytes,
+        isCurrent: () => true,
+        readRelatedImage: (target) async {
+          expect(target, 'images/pixel.png');
+          reads++;
+          return png;
+        },
+      );
+      expect(reads, 1);
+      expect(note.content, contains('qp://asset/'));
+      expect(note.content, contains('title: Image note'));
+      expect(note.content, contains('![Alt]'));
+      expect((await attachments.getAttachmentsForNote(note.id)).length, 1);
+      expect(await store.rows('SELECT * FROM watched_import_stages'), isEmpty);
+    },
+  );
+  test(
+    'missing Markdown image refuses receipt and purges earlier stages',
+    () async {
+      final bytes = Uint8List.fromList(
+        utf8.encode('![One](first.png)\n![Missing](missing.png)'),
+      );
+      final c = candidate(bytes, name: 'note.md');
+      final job = await store.reserve(c, 'vault-a');
+      final png = File(
+        'test/watched_import/fixtures/pixel.png',
+      ).readAsBytesSync();
+      await expectLater(
+        adapter.import(
+          c,
+          job,
+          bytes,
+          isCurrent: () => true,
+          readRelatedImage: (target) async {
+            if (target == 'first.png') return png;
+            throw StateError('missing');
+          },
+        ),
+        throwsA(isA<EmailImportException>()),
+      );
+      expect(await store.rows('SELECT * FROM notes'), isEmpty);
+      expect(await store.receipt('vault-a', c), isNull);
+      expect(await store.rows('SELECT * FROM attachments'), isEmpty);
+      expect(await store.rows('SELECT * FROM watched_import_stages'), isEmpty);
+    },
+  );
+  test(
+    'backup v1 restores notes without watcher paths, scope or activation',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final bytes = Uint8List.fromList(utf8.encode('backup content'));
+      final c = candidate(bytes, name: 'backup.txt');
+      final job = await store.reserve(c, 'vault-a');
+      final note = await adapter.import(c, job, bytes, isCurrent: () => true);
+      final backup = BackupService(
+        database: db,
+        cryptoService: DefaultCryptoService(),
+        sharedPreferences: prefs,
+      );
+      final payload = await backup.generateBackupPayload();
+      final serialized = jsonEncode(payload.toJson());
+      expect(serialized, contains('backup content'));
+      expect(serialized, isNot(contains('/approved/root')));
+      expect(serialized, isNot(contains('watched_import')));
+      final restored = AppDatabase.memory();
+      try {
+        await BackupService(
+          database: restored,
+          cryptoService: DefaultCryptoService(),
+          sharedPreferences: prefs,
+        ).restoreBackup(payload);
+        final local = WatchedImportRepositoryAdapter(restored);
+        expect(await local.folder(), isNull);
+        expect(
+          await local.rows('SELECT * FROM watched_import_receipts'),
+          isEmpty,
+        );
+        expect(
+          (await DriftNotesRepository(restored).getNoteById(note.id))!.content,
+          note.content,
+        );
+      } finally {
+        await restored.close();
+      }
+    },
+  );
+  test(
+    'early schema-23 layouts retain state while source provenance columns appear',
+    () async {
+      await store.write(
+        'ALTER TABLE watched_import_jobs DROP COLUMN source_root',
+      );
+      await store.write(
+        'ALTER TABLE watched_import_receipts DROP COLUMN source_root',
+      );
+      await store.write(
+        'ALTER TABLE watched_import_receipts DROP COLUMN source_path',
+      );
+      await db.close();
+      db = AppDatabase(NativeDatabase(File('${dir.path}/db.sqlite')));
+      store = WatchedImportRepositoryAdapter(db);
+      expect(
+        (await store.folder())!.read<String>('canonical_root'),
+        '/approved/root',
+      );
+      final bytes = Uint8List.fromList(utf8.encode('source provenance'));
+      final c = candidate(bytes, name: 'source.txt');
+      final job = await store.reserve(c, 'vault-a');
+      expect(job.read<String>('source_root'), '/approved/root');
+    },
+  );
+  test(
+    'pure image extraction is bounded and source URI preserves non-UTF8 bytes',
+    () {
+      final refs = MarkdownImageParser.extractAndResolveImages(
+        markdownContent: List.filled(10000, '![x](image.png)').join('\n'),
+        filePath: '',
+        rootFolderPath: '',
+        resolvePaths: false,
+        maximumReferences: 101,
+      );
+      // Unique syntax coalesces. Varying syntax demonstrates the allocation cap.
+      expect(refs.length, 1);
+      final bounded = MarkdownImageParser.extractAndResolveImages(
+        markdownContent: List.generate(
+          10000,
+          (i) => '![$i](image-$i.png)',
+        ).join('\n'),
+        filePath: '',
+        rootFolderPath: '',
+        resolvePaths: false,
+        maximumReferences: 101,
+      );
+      expect(bounded.length, 101);
+      expect(
+        watchedSourceUri(
+          '/approved/folder',
+          Uint8List.fromList([0xff, 32, 97, 46, 116, 120, 116]),
+        ),
+        'file:///approved/folder/%FF%20a.txt',
+      );
+    },
+  );
+  test(
+    'job transitions reject impossible terminal changes and retries advance generation',
+    () async {
+      final c = candidate(Uint8List.fromList([1]), name: 'x.txt');
+      final job = await store.reserve(c, 'vault-a');
+      final id = job.read<String>('id');
+      await expectLater(store.transition(id, 'imported'), throwsStateError);
+      await store.transition(id, 'failed');
+      await expectLater(store.transition(id, 'importing'), throwsStateError);
+      await store.retry(id);
+      final retried = (await store.rows(
+        'SELECT * FROM watched_import_jobs WHERE id=?',
+        [id],
+      )).single;
+      expect(retried.read<int>('generation'), job.read<int>('generation') + 1);
     },
   );
   test(

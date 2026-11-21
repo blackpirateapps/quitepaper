@@ -202,7 +202,9 @@ class AppDatabase extends _$AppDatabase {
     onCreate: (m) async {
       await m.createAll();
       await _createEmailImportTables();
-      for (final sql in watchedImportSchema) { await customStatement(sql); }
+      for (final sql in watchedImportSchema) {
+        await customStatement(sql);
+      }
       await _createFts5TablesAndTriggers();
     },
     onUpgrade: (m, from, to) async {
@@ -402,13 +404,31 @@ class AppDatabase extends _$AppDatabase {
         });
       }
       if (from < 23) {
-        for (final sql in watchedImportSchema) { await customStatement(sql); }
+        for (final sql in watchedImportSchema) {
+          await customStatement(sql);
+        }
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
       }
     },
     beforeOpen: (details) async {
+      // Defensive evolution of the unreleased schema-23 watcher tables.
+      for (final table in ['watched_import_jobs', 'watched_import_receipts']) {
+        final columns = await customSelect('PRAGMA table_info($table)').get();
+        final names = columns.map((r) => r.read<String>('name')).toSet();
+        if (!names.contains('source_root')) {
+          await customStatement(
+            "ALTER TABLE $table ADD COLUMN source_root TEXT NOT NULL DEFAULT ''",
+          );
+        }
+        if (table == 'watched_import_receipts' &&
+            !names.contains('source_path')) {
+          await customStatement(
+            "ALTER TABLE $table ADD COLUMN source_path BLOB NOT NULL DEFAULT X''",
+          );
+        }
+      }
       await customStatement('PRAGMA foreign_keys = ON;');
       try {
         await customStatement('PRAGMA journal_mode = WAL;');
@@ -2051,7 +2071,9 @@ class AppDatabase extends _$AppDatabase {
   /// Used exclusively by "Sign Out & Erase Local Data".
   Future<void> eraseAllLocalVaultData() async {
     await transaction(() async {
-      for (final table in watchedImportTables) { await customStatement('DELETE FROM $table'); }
+      for (final table in watchedImportTables) {
+        await customStatement('DELETE FROM $table');
+      }
       await delete(noteLinksTable).go();
       await delete(syncConflictsTable).go();
       await delete(documentOcrPagesTable).go();

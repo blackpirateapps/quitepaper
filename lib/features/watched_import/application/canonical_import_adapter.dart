@@ -12,6 +12,8 @@ import '../../email_import/application/email_parser.dart';
 import '../../email_import/domain/email_message.dart';
 import '../../import/application/markdown_frontmatter_parser.dart';
 import '../../import/application/markdown_import_service.dart';
+import '../../import/application/markdown_image_parser.dart';
+import '../../import/domain/import_image_reference.dart';
 import '../../import/domain/markdown_import_item.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
@@ -60,6 +62,7 @@ class CanonicalImportAdapter {
     QueryRow job,
     Uint8List bytes, {
     required bool Function() isCurrent,
+    Future<Uint8List> Function(String target)? readRelatedImage,
   }) async {
     final securityRevision = SensitivePreviewRegistry.revision.value;
     void check() {
@@ -120,16 +123,35 @@ class CanonicalImportAdapter {
     final format = c.format;
     final binary = const {'pdf', 'png', 'jpg', 'jpeg', 'webp'}.contains(format);
     final stageId = binary ? WatchedImportRepositoryAdapter.uuid.v4() : null;
-    if (stageId != null) {
-      await store.write(
-        'INSERT INTO watched_import_stages(asset_id,kind,job_id) VALUES(?,?,?)',
-        [
-          stageId,
-          format == 'pdf' ? 'document' : 'attachment',
-          job.read<String>('id'),
-        ],
+    final markdownContent = const {'md', 'markdown'}.contains(format)
+        ? await _text(bytes)
+        : null;
+    final references = markdownContent == null
+        ? <ImportImageReference>[]
+        : await _imageReferences(markdownContent);
+    if (references.length > 100) {
+      throw const EmailImportException(
+        'too_many_images',
+        'At most 100 local images can be imported from one Markdown file.',
       );
     }
+    final imageIds = <String, String>{
+      for (final ref in references)
+        MarkdownImageParser.cleanTarget(ref.rawTarget):
+            WatchedImportRepositoryAdapter.uuid.v4(),
+    };
+    final stages = <String, String>{
+      ?stageId: format == 'pdf' ? 'document' : 'attachment',
+      for (final id in imageIds.values) id: 'attachment',
+    };
+    await store.database.transaction(() async {
+      for (final entry in stages.entries) {
+        await store.write(
+          'INSERT INTO watched_import_stages(asset_id,kind,job_id) VALUES(?,?,?)',
+          [entry.key, entry.value, job.read<String>('id')],
+        );
+      }
+    });
     try {
       return await store.database.transaction(() async {
         check();
@@ -174,7 +196,7 @@ class CanonicalImportAdapter {
           );
           content = result.markdownSnippet;
         } else if (const {'md', 'markdown', 'txt'}.contains(format)) {
-          content = await _text(bytes);
+          content = markdownContent ?? await _text(bytes);
           if (content.contains('\u0000')) {
             throw const EmailImportException(
               'invalid_text',
@@ -198,10 +220,60 @@ class CanonicalImportAdapter {
               createdAt: parsed.createdAt ?? now,
               updatedAt: parsed.updatedAt ?? now,
               fileSizeBytes: bytes.length,
+              imageReferences: references,
             );
-            // No filesystem scanner runs on the UI isolate. Local image references
-            // remain verbatim; arbitrary sibling paths are never opened by Dart.
-            await MarkdownImportService(notes).importNotes([item]);
+            var totalImageBytes = 0;
+            final imageSnippets = <String, String>{};
+            await MarkdownImportService(notes).importNotes(
+              [item],
+              prepareImage: (ref, noteId) async {
+                check();
+                final target = MarkdownImageParser.cleanTarget(ref.rawTarget);
+                if (imageSnippets.containsKey(target)) {
+                  return imageSnippets[target];
+                }
+                if (readRelatedImage == null) {
+                  throw const EmailImportException(
+                    'missing_image_reader',
+                    'Local image access is unavailable.',
+                  );
+                }
+                Uint8List image;
+                try {
+                  image = await readRelatedImage(target);
+                } catch (_) {
+                  throw const EmailImportException(
+                    'missing_image',
+                    'A referenced image is missing or outside the approved folder.',
+                  );
+                }
+                totalImageBytes += image.length;
+                if (totalImageBytes > 50 * 1024 * 1024) {
+                  throw const EmailImportException(
+                    'image_budget',
+                    'Referenced images exceed the import budget.',
+                  );
+                }
+                final extension = p.extension(target).toLowerCase();
+                final mime = switch (extension) {
+                  '.png' => 'image/png',
+                  '.webp' => 'image/webp',
+                  _ => 'image/jpeg',
+                };
+                final result = await attachments.importImageFromBytes(
+                  image,
+                  mimeType: mime,
+                  fileName: p.basename(target),
+                  noteId: noteId,
+                  preferredAltText: ref.altText,
+                  skipOcr: true,
+                  preparedId: imageIds[target],
+                  cachePlaintext: false,
+                );
+                check();
+                return imageSnippets[target] = result.markdownSnippet;
+              },
+            );
             check();
             await store.commitReceipt(job, c);
             check();
@@ -232,19 +304,19 @@ class CanonicalImportAdapter {
     } catch (_) {
       // The journal survives rollback. Recovery also handles process death during
       // ciphertext creation, including before the asset metadata row exists.
-      if (stageId != null) {
+      for (final stage in stages.entries) {
         try {
-          if (format == 'pdf') {
-            await documents.purgeLocalDocument(stageId);
+          if (stage.value == 'document') {
+            await documents.purgeLocalDocument(stage.key);
           } else {
-            await attachments.purgeLocalAttachment(stageId);
+            await attachments.purgeLocalAttachment(stage.key);
           }
           await store.write(
             'DELETE FROM watched_import_stages WHERE asset_id=?',
-            [stageId],
+            [stage.key],
           );
         } catch (_) {
-          /* Retain durable cleanup journal for next startup. */
+          /* The durable journal retries failed ciphertext cleanup. */
         }
       }
       rethrow;
@@ -258,3 +330,14 @@ Future<int> _pdfPages(Uint8List bytes) => Isolate.run(
 Future<String> _text(Uint8List bytes) => Isolate.run(() => utf8.decode(bytes));
 Future<ParsedMarkdown> _frontmatter(String content) =>
     Isolate.run(() => MarkdownFrontmatterParser.parse(content));
+
+Future<List<ImportImageReference>> _imageReferences(String content) =>
+    Isolate.run(
+      () => MarkdownImageParser.extractAndResolveImages(
+        markdownContent: content,
+        filePath: '',
+        rootFolderPath: '',
+        resolvePaths: false,
+        maximumReferences: 101,
+      ),
+    );

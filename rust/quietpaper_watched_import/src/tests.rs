@@ -162,3 +162,66 @@ fn diagnostics_do_not_contain_private_context() {
     ));
     assert!(!rules::permitted_root(Path::new("/proc/self"), &[]));
 }
+
+#[test]
+fn read_access_hints_do_not_restart_stability_but_writes_do() {
+    use notify::{
+        event::{AccessKind, AccessMode, ModifyKind},
+        Event, EventKind,
+    };
+    assert!(!watch::relevant(&Event::new(EventKind::Access(
+        AccessKind::Open(AccessMode::Read)
+    ))));
+    assert!(!watch::relevant(&Event::new(EventKind::Access(
+        AccessKind::Open(AccessMode::Any)
+    ))));
+    assert!(!watch::relevant(&Event::new(EventKind::Access(
+        AccessKind::Close(AccessMode::Read)
+    ))));
+    assert!(watch::relevant(&Event::new(EventKind::Access(
+        AccessKind::Close(AccessMode::Write)
+    ))));
+    assert!(watch::relevant(&Event::new(EventKind::Modify(
+        ModifyKind::Any
+    ))));
+}
+
+#[test]
+fn empty_or_disguised_binary_sources_are_not_candidates() {
+    let root = tempfile::tempdir().unwrap();
+    let metadata = fs::metadata(root.path()).unwrap();
+    let id = (metadata.dev(), metadata.ino());
+    let cancel = AtomicBool::new(false);
+    for name in [
+        "empty.png",
+        "empty.jpg",
+        "empty.jpeg",
+        "empty.webp",
+        "empty.pdf",
+    ] {
+        fs::write(root.path().join(name), []).unwrap();
+        assert!(hashing::read_verified(
+            root.path(),
+            &id,
+            Path::new(name),
+            10_000_000,
+            &cancel,
+            false
+        )
+        .is_err());
+    }
+    fs::write(
+        root.path().join("disguised.png"),
+        b"#!/bin/sh\necho not an image",
+    )
+    .unwrap();
+    assert!(hashing::read_verified(
+        root.path(),
+        &id,
+        Path::new("disguised.png"),
+        10_000_000,
+        &cancel,
+        false
+    )
+    .is_err());
+}

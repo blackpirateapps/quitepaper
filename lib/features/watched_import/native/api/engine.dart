@@ -53,7 +53,7 @@ Future<void> reconcileNow({required int handle}) =>
 Future<List<EngineEvent>> drainEvents({required int handle}) =>
     RustLib.instance.api.crateApiEngineDrainEvents(handle: handle);
 
-Future<void> submitImportOutcome({
+Future<int> submitImportOutcome({
   required int handle,
   required String jobId,
   required Outcome outcome,
@@ -78,6 +78,18 @@ Future<void> shutdownWatch({required int handle}) =>
     RustLib.instance.api.crateApiEngineShutdownWatch(handle: handle);
 
 int contractVersion() => RustLib.instance.api.crateApiEngineContractVersion();
+
+/// Resolves a canonical Markdown importer's local image reference entirely in
+/// native code, retaining source bytes in RAM and preserving root containment.
+Future<Uint8List> readRelatedImageSnapshot({
+  required int handle,
+  required String jobId,
+  required String target,
+}) => RustLib.instance.api.crateApiEngineReadRelatedImageSnapshot(
+  handle: handle,
+  jobId: jobId,
+  target: target,
+);
 
 class Candidate {
   final String jobId;

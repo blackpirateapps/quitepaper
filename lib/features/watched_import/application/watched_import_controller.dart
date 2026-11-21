@@ -53,6 +53,7 @@ class WatchedImportController extends ChangeNotifier {
 
   void _securityChanged() {
     _epoch++;
+    history = const [];
     health = 'Needs unlock';
     final handle = _handle;
     if (handle != null) {
@@ -72,6 +73,21 @@ class WatchedImportController extends ChangeNotifier {
       if (configuration == null) {
         _notify();
         return;
+      }
+      final prior = configuration!;
+      if (prior.read<String>('review_state') == 'pending' &&
+          prior.read<int>('inventory_complete') == 0) {
+        final seen = await store.rows(
+          'SELECT 1 FROM watched_import_baseline WHERE folder_id=? LIMIT 1',
+          [prior.read<String>('id')],
+        );
+        if (seen.isNotEmpty) {
+          await store.write(
+            "UPDATE watched_folders SET inventory_error='review_interrupted' WHERE id=?",
+            [prior.read<String>('id')],
+          );
+          error = 'review_interrupted';
+        }
       }
       await prepareVault?.call();
       await importer.recover();
@@ -199,6 +215,12 @@ class WatchedImportController extends ChangeNotifier {
             health = _degraded ? 'Degraded' : 'Watching';
           }
           await refresh();
+          if (configuration?.readNullable<String>('inventory_error') ==
+              'review_interrupted') {
+            health = 'Needs attention';
+            error = 'review_interrupted';
+            _notify();
+          }
         } else if (event.kind == EventKind.watchDegraded) {
           _degraded = true;
           health = 'Degraded';
@@ -288,7 +310,14 @@ class WatchedImportController extends ChangeNotifier {
       }
       await store.transition(jobId, 'importing', event: false);
       final snapshotBytes = await engine.snapshot(handle, c.jobId);
-      await importer.import(c, job, snapshotBytes, isCurrent: current);
+      await importer.import(
+        c,
+        job,
+        snapshotBytes,
+        isCurrent: current,
+        readRelatedImage: (target) =>
+            engine.relatedImage(handle, c.jobId, target),
+      );
       try {
         await onImported();
       } catch (_) {
@@ -323,7 +352,13 @@ class WatchedImportController extends ChangeNotifier {
       await refresh();
     } finally {
       if (!_disposed && handle == _handle) {
-        await engine.acknowledge(handle, c.jobId, outcome);
+        final delay = await engine.acknowledge(handle, c.jobId, outcome);
+        if (job != null && delay > 0) {
+          await store.write(
+            "UPDATE watched_import_jobs SET next_retry=? WHERE id=? AND status IN ('retry_scheduled','waiting_for_unlock')",
+            [store.now + delay, job.read<String>('id')],
+          );
+        }
       }
     }
   }
@@ -398,13 +433,14 @@ class WatchedImportController extends ChangeNotifier {
     )).single;
     await store.write(
       '''INSERT INTO watched_import_jobs
-      (id,folder_id,vault_scope,source_path,display_name,revision,size,sha256,format,status,
-      planned_note_id,generation,override_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,'ready',?,?,?,?,?)''',
+      (id,folder_id,vault_scope,source_path,source_root,display_name,revision,size,sha256,format,status,
+      planned_note_id,generation,override_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'ready',?,?,?,?,?)''',
       [
         WatchedImportRepositoryAdapter.uuid.v4(),
         row.read<String>('folder_id'),
         row.read<String>('vault_scope'),
         row.read<Uint8List>('source_path'),
+        row.read<String>('source_root'),
         row.read<String>('display_name'),
         row.read<String>('revision'),
         row.read<int>('size'),

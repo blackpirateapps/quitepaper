@@ -197,3 +197,12 @@ Linux build and release workflows load the produced bundle before packaging.
 DEB/RPM/AppImage/Flatpak carry the relocatable bundle library; source/package
 checks refuse a missing native engine. Release publishing is limited to main or
 version tags. See [build commands and acceptance status](../docs/linux-rust-watched-import.md).
+
+The watched-import packaging follow-up uses GNOME **50** for Flatpak (replacing
+end-of-life 47), preserves the standalone CLI's appended Dart snapshot by disabling
+stripping, and verifies the actual installed native engine in disposable account
+state. AppImage tool **1.9.1** and runtime **20251108** have independent SHA256 pins.
+`verify_linux_package.sh` checks extracted tarball/DEB/RPM/AppImage bundles;
+`verify_flatpak_bundle.sh` isolates its installation, home and app data. Neither
+requires or opens a real notebook. See the report for exact verified formats and
+interactive permission/device limitations.

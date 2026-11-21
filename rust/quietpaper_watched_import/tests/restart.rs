@@ -128,6 +128,17 @@ fn lock_bursts_nested_rename_and_snapshot_mutation() {
     assert!(c.initial_inventory);
     fs::write(root.path().join("nested/a.eml"), b"different version").unwrap();
     assert!(read_candidate_snapshot(h, c.job_id.clone()).is_err());
+    assert!(read_related_image_snapshot(h, c.job_id.clone(), "/etc/passwd".into()).is_err());
+    assert!(read_related_image_snapshot(h, c.job_id.clone(), "../../escape.png".into()).is_err());
+    fs::write(
+        root.path().join("pixel.png"),
+        include_bytes!("../../../test/watched_import/fixtures/pixel.png"),
+    )
+    .unwrap();
+    assert_eq!(
+        read_related_image_snapshot(h, c.job_id.clone(), "../pixel.png".into()).unwrap(),
+        include_bytes!("../../../test/watched_import/fixtures/pixel.png")
+    );
     submit_import_outcome(h, c.job_id, Outcome::Retry).unwrap();
     shutdown_watch(h).unwrap();
     assert!(drain_events(h).is_err());

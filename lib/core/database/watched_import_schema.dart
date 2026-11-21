@@ -14,7 +14,7 @@ const watchedImportSchema = <String>[
   'CREATE UNIQUE INDEX IF NOT EXISTS watched_single_root ON watched_folders ((1))',
   '''CREATE TABLE IF NOT EXISTS watched_import_jobs (
     id TEXT PRIMARY KEY, folder_id TEXT NOT NULL, vault_scope TEXT NOT NULL,
-    source_path BLOB NOT NULL, display_name TEXT NOT NULL, revision TEXT NOT NULL,
+    source_path BLOB NOT NULL, source_root TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL, revision TEXT NOT NULL,
     size INTEGER NOT NULL, sha256 TEXT NOT NULL, format TEXT NOT NULL,
     status TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0,
     next_retry INTEGER, planned_note_id TEXT NOT NULL, generation INTEGER NOT NULL,
@@ -25,7 +25,7 @@ const watchedImportSchema = <String>[
   '''CREATE TABLE IF NOT EXISTS watched_import_receipts (
     vault_scope TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL,
     override_id TEXT NOT NULL DEFAULT '', note_id TEXT NOT NULL,
-    folder_id TEXT NOT NULL, display_name TEXT NOT NULL, committed_at INTEGER NOT NULL,
+    folder_id TEXT NOT NULL, source_root TEXT NOT NULL DEFAULT '', source_path BLOB NOT NULL DEFAULT X'', display_name TEXT NOT NULL, committed_at INTEGER NOT NULL,
     format_version INTEGER NOT NULL DEFAULT 1, message_id TEXT,
     PRIMARY KEY(vault_scope,sha256,size,override_id))''',
   'CREATE INDEX IF NOT EXISTS watched_message_ids ON watched_import_receipts(vault_scope,message_id)',

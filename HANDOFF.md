@@ -1081,6 +1081,11 @@ Ordinary local note text remains plaintext SQLite, as before this feature.
 
 The native and Flutter gates, actual bundle load evidence, packaging status,
 security review and remaining acceptance checks are tracked in
-[the implementation report](docs/linux-rust-watched-import.md). This work is
-**in progress; production readiness is not yet verified**. No full Flutter suite
-has been run or authorized on this laptop.
+[the implementation report](docs/linux-rust-watched-import.md) and
+[measured evidence](docs/linux-rust-watched-import-evidence.json). The expanded
+focused gate passes **235 Flutter tests**; final overlapping watcher/UI and the
+real native import integration gates pass. Rust fmt/clippy/check and native tests
+pass, and the Rust dependency audit is clean. Implementation is complete;
+**production release acceptance remains INCOMPLETE** for the explicit manual
+portal/desktop/device and real Proton-fixture checks in that report. No full
+Flutter suite has been run or authorized on this laptop. See engineering log 344.
