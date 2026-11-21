@@ -1,6 +1,6 @@
 app-id: com.blackpiratex.quietpaper
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '50'
 sdk: org.gnome.Sdk
 command: quitepaper
 
@@ -18,10 +18,19 @@ finish-args:
 modules:
   - name: quietpaper
     buildsystem: simple
+    build-options:
+      strip: false
+      no-debuginfo: true
     build-commands:
       - install -d /app/bin /app/share/applications /app/share/metainfo /app/share/icons/hicolor/256x256/apps /app/share/icons/hicolor/512x512/apps
       - cp -a bundle/* /app/bin/
       - chmod +x /app/bin/quitepaper
+      # Artifact upload/download normalizes executable bits. Restore only binaries.
+      - chmod 0755 /app/bin/bin/qp
+      - test -x /app/bin/bin/qp
+      - ln -sf bin/qp /app/bin/qp
+      - test -f /app/bin/lib/libquietpaper_watched_import.so
+      - chmod 0755 /app/bin/lib/libquietpaper_watched_import.so
       - install -Dm644 com.blackpiratex.quietpaper.desktop /app/share/applications/com.blackpiratex.quietpaper.desktop
       - install -Dm644 com.blackpiratex.quietpaper.metainfo.xml /app/share/metainfo/com.blackpiratex.quietpaper.metainfo.xml
       - install -Dm644 icon_256.png /app/share/icons/hicolor/256x256/apps/com.blackpiratex.quietpaper.png

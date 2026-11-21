@@ -7988,3 +7988,238 @@ keyboard Go action and New from Template through touch selection. Light/dark
 widget-rendered catalog layouts and the Android keyboard palette were visually
 inspected using temporary snapshots. `git diff --check` passes. No full suite
 or physical Android device test ran.
+
+## 343. Linux Rust watched-folder import (November 20, 2026)
+
+Started at `826cc7e45ae34480047526c39f642fb627efcf0e` on
+`feat/linux-rust-watched-folder-import`. The requested prompt was untracked in the
+main checkout; its exact contents are now included in this feature branch.
+
+The first Rust workspace pins Rust 1.97.1 and FRB crate/Dart/generator 2.12.0.
+Linux-only Cargokit builds and bundles the cdylib automatically. Its vendored
+build tool has a small documented patch to honor the exact toolchain instead of
+moving `stable`; debug/release/profile use `--locked`. Other platform plugin
+scaffolds were excluded. Generated bridge files are checked in and have a stale
+binding check; Flutter stays pinned to 3.47.2.
+
+Rust owns recursive inotify/poll fallback, bounded discovery, stability, safe
+component-relative no-follow opens, SHA256, in-memory immutable snapshots,
+reconciliation and cancellation. Dart retains canonical conversion/encryption
+and the authoritative Drift transaction. Schema 23 adds installation-local
+folders/jobs/receipts/baselines/history/stage journals. Receipt uniqueness and
+note/tag/search/dirty-sync state commit together; receipts deliberately have no
+note-delete cascade. Removing a watched folder retains receipts. Full vault
+erasure removes them. No source writes, native secrets or network calls exist.
+
+The headless adapter reuses EmailParser/EmailImportService and existing Markdown,
+PDF, image and note services. Only optional planned-ID, cache and transactional
+commit hooks were added to canonical services. Device-only key preparation uses
+the existing email gateway. Local ordinary notes are plaintext SQLite; this work
+does not introduce or claim database-at-rest encryption.
+
+Linux settings show mandatory initial inventory decisions, fixed recursive/dedup/
+keep-original defaults, pause/resume/rescan/removal and bounded history with
+explicit retry/copy actions. GTK's native chooser enables document-portal access;
+portal roots select polling and report degraded health without adding home access.
+
+Validation in progress: Rust fmt/clippy/check and native tests pass; a subprocess
+restart test exercises lost native ACK/redelivery and polling. New real SQLite
+and controller regressions cover receipt retention, rollback, migration, EML parity,
+review arrivals, lock and account isolation. Flutter analysis has reported no
+issues; the broader focused run is still being completed. Ordinary Linux debug
+compilation and a real generated-FRB bundle load/snapshot smoke pass. See the
+[implementation report](../docs/linux-rust-watched-import.md) for exact final
+commands, package evidence and explicit acceptance gaps. No full suite ran.
+
+## 344. Watched import hardening and release verification (November 21, 2026)
+
+Followed the first implementation commit `232e586` with fault, security and
+packaging verification. The [report](../docs/linux-rust-watched-import.md) and
+[measured evidence](../docs/linux-rust-watched-import-evidence.json) distinguish
+implemented behavior from unverified release acceptance.
+
+- A real 1,000-file native stress run exposed self-generated inotify open events
+  restarting the quiet timer. Filtering read-access hints corrects the slowdown;
+  write-close/modify/rename/overflow hints remain. A permanent native regression
+  and the bounded benchmark cover the correction.
+- Native reads now use component-relative `openat2` with BENEATH, NO_SYMLINKS,
+  NO_MAGICLINKS and NO_XDEV, retaining no-follow/nonblocking behavior, raw Linux
+  filename bytes and final descriptor/path/hash checks. Empty/disguised binary
+  files are rejected. Kernel 5.6+ and allowed openat2 are required, with no unsafe
+  fallback. Parent traversal, symlinks and special files are refused.
+- Markdown local image extraction and note creation share the existing parser and
+  importer through optional callbacks. Rust owns related-file reads; encrypted
+  stage journals, bounded references/combined bytes, safe canonical links and
+  no-OCR behavior preserve the transaction. Missing/unsafe images refuse the note
+  and clean earlier ciphertext. Manual import behavior remains unchanged.
+- Recorded native retry delays populate durable `next_retry`; attempts/generations
+  survive retries. Security invalidation clears history immediately. Initial
+  review preserves post-inventory arrivals; interrupted incomplete baselines hold
+  for explicit reselection. Source provenance survives folder removal and safely
+  percent-encodes non-UTF-8 bytes for file-manager reveal.
+- Three real Flutter subprocess crash tests terminate during staging, inside the
+  note/receipt transaction, and after commit before ACK. Recovery/replay preserves
+  exactly one note/receipt, cleans orphan stages and leaves original bytes intact.
+- Backup v1 tests confirm notes restore without local root paths or autoactivation.
+  Schema 22 and early schema-23 migration cases preserve unrelated data. Ordinary
+  local note text remains plaintext SQLite; no database-at-rest encryption is claimed.
+- Linux packaging now verifies extracted native libraries and CLI payloads.
+  AppImage tool/runtime downloads are separately checksum pinned. Flatpak uses
+  GNOME 50, preserves Dart CLI snapshots without stripping, and carries the CLI
+  beside the GUI libraries. CI gains package and disposable Flatpak smoke gates.
+  Android/iOS/Windows/macOS acquire no new Rust build prerequisite.
+
+Final analysis is clean. The expanded focused Flutter gate passes **235 tests**;
+subsequent **22-test** watcher and **6-test** widget runs overlap it. The real
+Rust→canonical EML→SQLite integration case passes. Rust fmt/clippy/check and **8
+unit + 3 integration entries** pass (one entry is the subprocess helper). RustSec
+reports zero vulnerabilities and cargo-deny passes advisories/licenses/sources/bans,
+with documented transitive duplicate-version warnings. Drift/codegen and script/
+YAML checks pass. No full Flutter suite ran.
+
+The native benchmark handles 1,000 stable hash/snapshot/ACK candidates in roughly
+107.5 seconds, with one event per batch, approximately 15 MiB of sampled process
+RSS growth and descriptors returning to baseline across five restarts. The
+10,001-file discovery-only measurement is 5.29 ms. These are synthetic native
+measurements, not MIME/encryption throughput or GUI frame-time guarantees.
+
+Fresh DEB/RPM/AppImage/tarball extraction, native ELF/FRB load, asset manifest and
+CLI checks pass. The GNOME 50 Flatpak installs into a disposable user environment
+and runs its native engine/source smoke and packaged CLI inside the runtime sandbox.
+Flatpak packaging restores executable bits lost by CI artifact transport. Package
+hashes and remaining installed-platform limits are recorded in the report.
+Production release acceptance remains **INCOMPLETE** until the explicit manual
+portal/desktop/device and real Proton-fixture gates there are completed.
+
+## 345. Email HTML conditional-comment false rejection (November 21, 2026)
+
+A laptop watched import reported `html_complexity` for a normal HTML-only order
+message. Read-only structural inspection found the pre-DOM heuristic counted
+Outlook conditional-comment fallback tables as real nesting (116 levels), although
+the actual DOM had 818 nodes and depth 74, below the existing limit of 80. The
+canonical converter now skips comment bodies before counting live nesting. It
+recognizes normal `-->`, `--!>` and abrupt empty-comment endings so malformed
+comments cannot bypass live nesting checks. The global token, element-size and
+post-parse node/depth limits are retained. Both manual and watched imports use
+this same converter; there is no second parser or HTML fallback/truncation.
+
+Synthetic regressions cover balanced Outlook fallback wrappers, unterminated
+comments, malformed endings and real excessive nesting. The watcher screen now
+explains `html_complexity` as a content safety limit and points to history Retry,
+rather than blaming permissions/storage/unlock. A widget regression verifies it.
+Read-only parsing of the actual local source succeeds, produces a nonempty body,
+verifies its original raw hash and leaves its source bytes unchanged. No note was
+saved during diagnosis. No private message was added to fixtures; verification
+logs record pass/fail and structural counts, not message contents.
+
+Validation: `flutter analyze` passes with no issues.
+`flutter test --no-pub --concurrency=1 test/email_import
+test/watched_import/watched_import_controller_test.dart
+test/watched_import/watched_import_storage_test.dart` passes **110 tests**.
+The full Flutter suite remains prohibited and was not run.
+
+Ordinary `flutter build linux --release --no-pub` passes with two Ninja jobs.
+A fresh local RPM at `build/linux/dist/quiet-paper-html-fix.rpm` passes isolated
+extraction, ELF/native FRB source/snapshot/ACK, asset-manifest and packaged CLI
+smoke checks. SHA256: `f1a252dd333b647731c49e57cd03e5870ac080ec6424dbd6b8fa73a599597b35`.
+The running `/opt` application was not replaced: system installation requires the
+user's administrator password. Restart after installing, then choose Retry from
+the failed history row; Rescan alone preserves terminal failed jobs by design.
+
+## 346. Multiple watched folders and per-folder file types (November 21, 2026)
+
+The previous SQLite singleton index, Dart controller and Rust process slot limited
+watched imports to one root. The Watched Folders screen now provides an Add Folder
+button and independent cards with enable switches, file-type chips, initial
+review, health/error state, rescan, open and remove controls. Email, PDF, Markdown,
+text, PNG, JPEG and WebP can be selected independently; Markdown/JPEG include their
+extension aliases. All groups default on, and an empty selection imports nothing.
+Settings, enabled state and initial-review decisions survive restart. Removal
+preserves notes, original sources, duplicate receipts and bounded history.
+
+Architecture and files:
+
+- `lib/core/database/{app_database,watched_import_schema}.dart`: schema 24 adds
+  JSON `file_types`, removes `watched_single_root`, and uniquely indexes notebook
+  scope plus canonical root. The schema-23 migration retains the existing folder,
+  review/policy and enabled state, defaulting its file types to all groups.
+- `features/watched_import/data/watched_import_repository.dart` scopes lookup,
+  enrollment, provenance, baseline/review and removal to folder IDs. Same-scope
+  canonical-path/identity aliases are rejected. History includes the source folder
+  ID so Retry/Import Again actions target the correct watcher.
+- `domain/watched_file_type.dart` defines persisted groups and extension aliases.
+  `application/watched_import_controller.dart` owns independent handles/status and
+  per-folder generations, with one polling loop serializing canonical imports.
+  Disable/filter/remove invalidates only that folder's late commit; lock/account
+  changes invalidate all. Stage recovery precedes engine startup and never runs
+  alongside another watched import. Close waits for the polling task; the final
+  removed handle also cancels the timer.
+- `rust/quietpaper_watched_import/src/api/engine.rs` replaces the process singleton
+  with a handle-indexed engine map. Snapshot, pause/resume and shutdown resolve
+  only that handle. Per-worker bounded channels, source validation and cancellation
+  remain intact. Native behavioral contract is now 2; the Dart loader and bundle
+  smoke reject older libraries. FRB 2.12.0 bindings were regenerated and checked.
+- `presentation/watched_folders_screen.dart` exposes per-folder settings on narrow
+  and wide screens. Changes during pending review update eligibility counts without
+  requesting a disruptive native reconciliation. Baselines include all supported
+  types, so Only New does not import old content when a type is later enabled.
+  After acceptance, filters apply before snapshots/import and edits trigger rescan.
+  Markdown-linked images remain part of the note regardless of standalone filters.
+
+Verification: `flutter analyze` passes with no issues. The explicit focused run
+`flutter test --no-pub --concurrency=1 test/watched_import
+ test/templates/template_database_test.dart test/database/database_migration_test.dart
+ test/email_import/email_persistence_test.dart` passes 70 tests. The final controller
+run passes 13 tests, adding restart coverage and rechecking folder-specific toggles,
+filters, Only New, removal, duplicate receipts, cancellation and narrow light/dark
+UI layouts. The real Rust→Dart→canonical-import integration test passes with two
+roots, cross-folder EML dedup, independent disable/removal, and importing text after
+changing its filter. Rust's focused `restart` integration target passes 4 entries,
+including simultaneous handles and source/snapshot/pause/shutdown isolation.
+`cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
+`cargo build --workspace --locked`, the FRB regeneration diff check, and the actual
+shared-library FRB contract-2 snapshot/ACK smoke pass. The full Flutter suite was
+not run. Existing installed-app/Flatpak portal acceptance limits remain; this change
+does not claim an installed GUI replay or publish a new package.
+
+## 347. Android watched folders and adversarial audit (November 21, 2026)
+
+The prior multi-folder feature was Linux-only. Android now exposes both settings
+entry points and uses a separate SAF-backed `AndroidWatchedEngine`, preserving the
+shared per-folder settings, review/baseline, canonical import, receipts and history.
+`WatchedFolderBridge` uses the Android tree picker and persisted read grants,
+opaque document IDs and bounded provider I/O on worker threads; it never guesses
+paths or loads the Linux Rust library. It adds no manifest permission or background
+service. Android scans while foregrounded, every 30 seconds and on startup/resume/
+manual rescan, with three stable observations over three seconds before hashing.
+Snapshots re-open/hash/check metadata; content hashes distinguish revisions even
+when provider size/mtime is missing. Schema 25 persists provider folder labels and
+retains previous settings. Markdown-related reads remain rooted in the selected
+tree; existing canonical format limits, staging recovery and duplicate receipts
+remain authoritative. Custom backups/sync exclude these watcher tables.
+
+`MainActivity` attaches the bridge, routes selection results, and cancels provider
+reads on stop/destroy. Dart lifecycle suspension invalidates late imports and
+resumes all enabled folders. Per-folder startup futures prevent duplicate handles
+when enrollment races resume. Native read/lookup queues, pages, entry counts,
+stability work, traversal depth and fallback image lookups are bounded. Source
+open/reveal uses Android intents and surfaces revoked-grant errors in the UI.
+
+[The requested Markdown audit](../docs/audits/android-watched-folders-2026-11-21.md)
+records eight findings and their evidence/fixes, including first-folder-only
+resume, duplicate starts, a cleanup future cycle, unenforced retry delay,
+cancelled partial inventory accepted as complete, unsupported downloads blocking
+valid inventory, discarded permission codes and uncaught source-action errors.
+Tests exercise source changes, missing/lying metadata, binary signatures, virtual/
+partial providers, cycles/pagination, bounded streams, cancellation, foreground
+commit rejection, restarts, migrations, folder isolation and Android UI routing.
+
+The audit's final validation section records exact commands: `flutter analyze`
+passes with no issues, 114 focused Flutter tests pass (including crash recovery),
+12 focused Kotlin reader tests pass, and the real Linux two-root canonical-import
+integration passes. Android app and instrumented test APKs build. The real SAF/picker instrumented class is compiled
+but **not runtime-verified**: an isolated API-35 emulator repeatedly crashed with
+SIGSEGV/exit 139 under KVM and software boot before reaching a stable picker.
+Physical devices, external/cloud providers, restart/revocation UI replay and
+battery/large-file memory behavior remain explicit acceptance limits. No full
+Flutter suite ran; no production install, release package or publication occurred.

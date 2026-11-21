@@ -149,3 +149,19 @@ ordinary notes use normal repository indexing and client-encrypted sync.
 encrypted payload; restore writes participate in the existing transaction and
 legacy backups remain supported. Explicit unencrypted backups retain that choice.
 Full local erasure removes both tables' data. See [templates.md](templates.md).
+
+## Linux watched import (schema 23)
+
+The installation-local `watched_*` tables track enrollment, jobs, exact-byte
+receipts, initial baselines, bounded history and encrypted staging cleanup. They
+are excluded from cloud note envelopes and `.qpbackup` payload v1. Restoring a
+backup therefore never activates a source path on another machine; watcher setup
+and dedup receipts must be re-established there. Existing receipts on the same
+installation survive ordinary note deletion and folder removal, and only full
+vault erasure removes them. See [the implementation report](../docs/linux-rust-watched-import.md).
+
+Canonical note/tag/search/dirty-sync updates and the unique automatic receipt
+commit in one Drift transaction. Ciphertext files use write-ahead stage journals
+and compensation; filesystem/SQLite atomicity is not claimed. Ordinary local note
+text remains unencrypted SQLite. Rust has no key, token, vault-encryption or
+network responsibilities.

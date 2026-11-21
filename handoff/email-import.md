@@ -30,6 +30,8 @@ mixed/alternative/related/nested messages, encoded headers/filenames, binary par
 attached emails and CID images. Attached messages remain assets, not extra notes.
 `email_html_converter.dart` checks complexity before DOM allocation and converts
 safe structure to Markdown without rendering HTML or loading remote resources.
+Outlook conditional-comment fallback markup is excluded from live nesting counts;
+malformed comment endings still expose subsequent live elements to the limit.
 
 `email_import_gateway.dart` supplies injectable application boundaries.
 `email_import_service.dart` handles encrypted preparation, canonical note creation,
@@ -130,3 +132,63 @@ No new storage permissions or broad binary Open With filter were added.
 See [the engineering report](../docs/email-import/engineering-report.md),
 [implementation record](../docs/email-import/implementation.md), engineering logs
 334–342 and [focused validation script](../tool/verify_email_import.sh).
+
+## Linux watched-folder entry point (schema 24)
+
+Watched EML reuses EmailParser and EmailImportService headlessly. Optional planned
+note IDs and a transaction hook add a local watched-import receipt to the same
+canonical save; manual preview, duplicate review, attachments, metadata, editor
+append and Android sharing retain their existing behavior. Watcher callbacks never
+navigate or fetch remote email content. Device-only key setup uses the existing
+gateway. See [the watched-import report](../docs/linux-rust-watched-import.md) for
+source verification, crash recovery and outstanding release acceptance limits.
+
+Multiple folders have independent enable switches, initial review and type filters
+(Email, PDF, Markdown, text, PNG, JPEG, WebP). Schema 24 replaces the singleton-root
+index with a per-notebook canonical-root index and adds JSON `file_types`, defaulting
+to all supported types for existing folders. Rust contract 2 holds engines by
+handle; one Dart polling loop serializes canonical imports across roots. Pausing,
+filter changes and removal invalidate only that folder's in-flight commit. Account
+and security changes invalidate all folders. Recovery runs before the first engine,
+never alongside another watched import.
+
+Initial inventory records every supported type, including unselected types, and
+review counts reflect the selected groups. Filters are enforced before snapshots
+and canonical imports after acceptance. Changing filters during pending review
+does not interrupt its inventory; after acceptance it triggers reconciliation.
+Only New preserves its original content baseline across type changes. Linked
+Markdown images remain part of that note regardless of standalone image filters.
+An empty selection imports nothing. Duplicate receipts remain shared by notebook
+scope across folders; removals cancel only the chosen folder's jobs and baseline,
+preserving notes, source files, receipts and history. Folder settings stay local
+and remain excluded from sync and backups.
+
+## Android watched folders (schema 25)
+
+`AndroidWatchedEngine` implements the shared watcher interface without loading the
+Linux library. `WatchedFolderBridge` uses ACTION_OPEN_DOCUMENT_TREE, persists only
+read grants, and performs provider queries/hash/snapshot reads on bounded worker
+threads. Document IDs remain opaque, tree membership is scoped per session, and
+source bytes are bounded RAM snapshots rather than copied temporary files. SAF
+permissions are required even if unrelated legacy storage permissions already exist.
+
+Scanning runs while foregrounded, reconciles every 30 seconds and catches up on
+startup/resume/manual rescan. There is no background service or WorkManager task.
+Three stable metadata observations over at least three seconds precede hashing;
+verified snapshots reopen/recheck the source and include content hashes in their
+revision, including when provider size/mtime is missing. The existing parser,
+encryption, note/index/receipt transaction, retry and duplicate semantics remain
+canonical. Directory pages/queues/depth/entry count and Markdown lookups are bounded;
+provider loading, partial/virtual documents and incomplete scans cannot authorize
+Only New. Unsupported temporary/binary files do not block other eligible files.
+
+Schema 25 adds installation-local `display_name` for provider labels and preserves
+schema-24 folder settings. Source root/path fields store tree URIs and opaque IDs
+on Android; open/reveal routes through the Android bridge, never D-Bus or guessed
+filesystem paths. Permission failures are recoverable UI errors. Startup futures
+coalesce per folder; lifecycle rescan includes every enabled folder and suspension
+invalidates late commits. Custom app backups/sync still exclude watcher tables;
+this does not alter Android OS backup policy or restore OS URI grants.
+
+See [the Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md)
+for reproduced bugs, focused checks and the explicit unverified device/picker gate.

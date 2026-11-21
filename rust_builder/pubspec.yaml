@@ -1,0 +1,15 @@
+name: quietpaper_watched_import
+description: Linux-only Cargokit build integration for Quiet Paper.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.3.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      linux:
+        ffiPlugin: true

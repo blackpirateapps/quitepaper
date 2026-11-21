@@ -182,3 +182,59 @@ The consolidated [email guide](email-import.md) and
 Linux/Android/CLI evidence from outstanding device and installed-package checks.
 Local compilation completed before the user's instruction to stop builds; no
 subsequent build was run for the final documentation commit.
+
+## Linux Rust watched-folder engine
+
+Ordinary Linux Flutter builds automatically run the Linux-only Cargokit plugin
+and install `lib/libquietpaper_watched_import.so` alongside existing libraries.
+Rust 1.97.1 and FRB 2.12.0 are pinned independently of the unchanged Flutter 3.47.2
+baseline. Other platform build jobs do not acquire a Rust dependency. Checked-in
+glue is regenerated with the pinned code generator, never edited by hand.
+
+The watched-import workflow runs native lint/tests, focused Flutter gates,
+binding/Drift coherence, security/license checks and an actual FRB load smoke.
+Linux build and release workflows load the produced bundle before packaging.
+DEB/RPM/AppImage/Flatpak carry the relocatable bundle library; source/package
+checks refuse a missing native engine. Release publishing is limited to main or
+version tags. See [build commands and acceptance status](../docs/linux-rust-watched-import.md).
+
+The watched-import packaging follow-up uses GNOME **50** for Flatpak (replacing
+end-of-life 47), preserves the standalone CLI's appended Dart snapshot by disabling
+stripping, and verifies the actual installed native engine in disposable account
+state. AppImage tool **1.9.1** and runtime **20251108** have independent SHA256 pins.
+`verify_linux_package.sh` checks extracted tarball/DEB/RPM/AppImage bundles;
+`verify_flatpak_bundle.sh` isolates its installation, home and app data. Neither
+requires or opens a real notebook. See the report for exact verified formats and
+interactive permission/device limitations.
+
+
+## Android watched-folder SAF bridge (November 21, 2026)
+
+Watched Folders is exposed in both settings entry points on Android and Linux.
+Android selects `AndroidWatchedEngine`, uses the system tree picker and persisted
+read grants, and scans only in the foreground (30-second reconciliation plus
+startup/resume/manual catch-up). No Linux Rust `.so`, new storage declaration,
+background service, foreground notification or scheduling permission is required.
+Use a selectable subfolder, such as `Downloads/Quiet Paper`; Android 11+ restricts
+Downloads/root and Android/data/obb selection. Original files remain untouched.
+
+`MainActivity` attaches `WatchedFolderBridge`, routes its picker result and cancels
+provider reads on stop/destroy. Provider I/O runs off the UI thread. Kotlin's
+portable `WatchedDocumentReaderTest` is a focused JVM test; `WatchedFolderSafTest`
+is the separate real-provider/picker instrumented test. Test-only AndroidX runner
+1.7.0 and JUnit extension 1.3.0 dependencies do not ship in the normal APK.
+
+```sh
+flutter build apk --debug --flavor github --no-pub
+cd android
+./gradlew :app:testGithubDebugUnitTest   --tests 'com.blackpiratex.quietpaper.watched.WatchedDocumentReaderTest'   --max-workers=2
+# On a working disposable emulator/device only:
+./gradlew :app:connectedGithubDebugAndroidTest   -Pandroid.testInstrumentationRunnerArguments.class=com.blackpiratex.quietpaper.watched.WatchedFolderSafTest   --max-workers=2
+```
+
+If this checkout has not generated a Gradle wrapper yet, the Flutter build prepares
+it; an installed Gradle 9.1.0 runtime can also run these tasks with `-p android`.
+The app and instrumented APKs build, and the focused JVM tests pass locally.
+The local emulator repeatedly exited 139 before stable boot, so system-picker and
+physical-device/provider acceptance remain unverified. Full details and findings:
+[Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md).

@@ -56,6 +56,8 @@ class FakeAttachmentService implements AttachmentService {
     String kind = 'image',
     bool skipOcr = false,
     bool deferOcr = false,
+    String? preparedId,
+    bool cachePlaintext = true,
   }) async {
     _importCounter++;
     final assetId = '00000000-0000-0000-0000-00000000000$_importCounter';

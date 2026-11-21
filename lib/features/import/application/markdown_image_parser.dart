@@ -64,6 +64,8 @@ abstract final class MarkdownImageParser {
     required String filePath,
     required String rootFolderPath,
     Map<String, String>? vaultImagesMap,
+    bool resolvePaths = true,
+    int? maximumReferences,
   }) {
     if (markdownContent.trim().isEmpty) {
       return const [];
@@ -91,8 +93,12 @@ abstract final class MarkdownImageParser {
           markdownFilePath: filePath,
           rootFolderPath: rootFolderPath,
           vaultImagesMap: vaultImagesMap,
+          skipResolution: !resolvePaths,
         ),
       );
+      if (maximumReferences != null && references.length >= maximumReferences) {
+        return references;
+      }
     }
 
     // 2. Standard markdown images: ![alt](target)
@@ -112,8 +118,12 @@ abstract final class MarkdownImageParser {
           markdownFilePath: filePath,
           rootFolderPath: rootFolderPath,
           vaultImagesMap: vaultImagesMap,
+          skipResolution: !resolvePaths,
         ),
       );
+      if (maximumReferences != null && references.length >= maximumReferences) {
+        return references;
+      }
     }
 
     // 3. Obsidian wikilink embeds: ![[image.png|alt]]
@@ -137,8 +147,12 @@ abstract final class MarkdownImageParser {
           markdownFilePath: filePath,
           rootFolderPath: rootFolderPath,
           vaultImagesMap: vaultImagesMap,
+          skipResolution: !resolvePaths,
         ),
       );
+      if (maximumReferences != null && references.length >= maximumReferences) {
+        return references;
+      }
     }
 
     // 4. HTML <img> tags
@@ -150,7 +164,10 @@ abstract final class MarkdownImageParser {
       if (_shouldSkipTarget(target)) continue;
 
       // Extract alt if present in HTML tag
-      final altMatch = RegExp(r'''alt=["']([^"']*)["']''', caseSensitive: false).firstMatch(syntax);
+      final altMatch = RegExp(
+        r'''alt=["']([^"']*)["']''',
+        caseSensitive: false,
+      ).firstMatch(syntax);
       final alt = altMatch?.group(1)?.trim() ?? '';
 
       references.add(
@@ -161,8 +178,12 @@ abstract final class MarkdownImageParser {
           markdownFilePath: filePath,
           rootFolderPath: rootFolderPath,
           vaultImagesMap: vaultImagesMap,
+          skipResolution: !resolvePaths,
         ),
       );
+      if (maximumReferences != null && references.length >= maximumReferences) {
+        return references;
+      }
     }
 
     return references;
@@ -209,7 +230,15 @@ abstract final class MarkdownImageParser {
     required String markdownFilePath,
     required String rootFolderPath,
     Map<String, String>? vaultImagesMap,
+    bool skipResolution = false,
   }) {
+    if (skipResolution) {
+      return ImportImageReference(
+        originalSyntax: originalSyntax,
+        rawTarget: rawTarget,
+        altText: altText,
+      );
+    }
     final cleaned = cleanTarget(rawTarget);
     final mdDir = p.dirname(markdownFilePath);
     final baseName = p.basename(cleaned);

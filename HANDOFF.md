@@ -8,6 +8,38 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest feature: Android watched folders and audit (November 21, 2026)
+
+Watched Folders now supports Android through persisted, read-only SAF folder
+selections, independent folder switches/type filters, foreground reconciliation
+and resume catch-up. It reuses the canonical importers and receipts; Android has
+no new Rust build requirement or background service. Schema 25 stores human folder
+labels. The audit fixed resume coverage, startup races, cancellation/inventory,
+retry and source-action issues. See [the audit and verification limits](docs/audits/android-watched-folders-2026-11-21.md)
+and engineering log 347. Android app/test APKs compile and focused automated checks
+pass; physical/system-picker runtime acceptance is still unverified after the host
+emulator crashed during boot.
+
+## Latest feature: multiple watched folders (November 21, 2026)
+
+Linux watched imports now support multiple folders with independent enable
+switches, file-type filters, initial review, status, rescan and removal. Schema 24
+preserves the existing folder and selects all supported types on upgrade. Rust
+contract 2 supports independent watcher handles; Dart still serializes canonical
+imports and shares duplicate receipts across folders. Notes, receipts and original
+files survive removing a watch. See engineering log 346 and the updated
+[watched-import guide](docs/linux-rust-watched-import.md).
+
+## Latest fix: email HTML conditional comments (November 21, 2026)
+
+Fixed `html_complexity` rejection of ordinary order emails whose Outlook-only
+fallback markup inside comments inflated the pre-DOM nesting count. The converter
+now skips comments consistently with HTML parsing, including malformed comment
+endings; token/live nesting/DOM budgets remain enforced. Watched imports explain
+this content error and Retry instead of suggesting folder permission changes.
+The affected local message parses successfully with unchanged source bytes; no
+private message or content was added to fixtures/logs. See engineering log 345.
+
 ## 1. Documentation Index & Modular Guides
 
 All documentation is partitioned for fast, targeted access by engineers and AI agents:
@@ -1069,3 +1101,23 @@ A final overlapping **24-test** migration/local-key run passes, including offlin
 email preservation, cloud-key note encryption, password/recovery unlock, partial
 file and secure-record persistence, restart/retry, and lock/erase races.
 `git diff --check` passes. No full suite, app build, or physical-device login ran.
+
+## Linux Rust watched-folder import — November 20, 2026
+
+Implementation is on `feat/linux-rust-watched-folder-import`, starting at
+`826cc7e`. Linux now has a Rust/FRB 2.12.0 engine and Cargokit integration,
+installation-local Drift schema **23**, atomic canonical note/receipt commits,
+encrypted stage recovery and a Linux settings/history screen. Existing MIME
+parsing, sanitization, encrypted originals and attachment handling are reused.
+Ordinary local note text remains plaintext SQLite, as before this feature.
+
+The native and Flutter gates, actual bundle load evidence, packaging status,
+security review and remaining acceptance checks are tracked in
+[the implementation report](docs/linux-rust-watched-import.md) and
+[measured evidence](docs/linux-rust-watched-import-evidence.json). The expanded
+focused gate passes **235 Flutter tests**; final overlapping watcher/UI and the
+real native import integration gates pass. Rust fmt/clippy/check and native tests
+pass, and the Rust dependency audit is clean. Implementation is complete;
+**production release acceptance remains INCOMPLETE** for the explicit manual
+portal/desktop/device and real Proton-fixture checks in that report. No full
+Flutter suite has been run or authorized on this laptop. See engineering log 344.

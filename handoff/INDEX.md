@@ -62,3 +62,6 @@ When implementing new features or fixing bugs in this repository:
    - Verify changes: `flutter analyze` and `flutter test`.
    - Update documentation as described above.
    - Commit and push to git.
+
+Linux watched-folder implementation/build/security and acceptance evidence:
+[docs/linux-rust-watched-import.md](../docs/linux-rust-watched-import.md) (schema 23).
