@@ -16,7 +16,7 @@ Future<void> main(List<String> args) async {
   await RustLib.init(
     externalLibrary: ExternalLibrary.open(File(args.single).absolute.path),
   );
-  if (contractVersion() != 1) throw StateError('native_contract_incompatible');
+  if (contractVersion() != 2) throw StateError('native_contract_incompatible');
   final dir = await Directory.systemTemp.createTemp('qp-native-smoke-');
   int? handle;
   try {
@@ -58,7 +58,7 @@ Future<void> main(List<String> args) async {
       throw StateError('source_mutated');
     }
     stdout.writeln(
-      'PASS: FRB ABI 1, recursive engine, verified snapshot, ACK, untouched source',
+      'PASS: FRB contract 2, recursive engine, verified snapshot, ACK, untouched source',
     );
   } finally {
     if (handle != null) await shutdownWatch(handle: handle);

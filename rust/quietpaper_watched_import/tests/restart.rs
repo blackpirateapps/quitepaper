@@ -143,3 +143,45 @@ fn lock_bursts_nested_rename_and_snapshot_mutation() {
     shutdown_watch(h).unwrap();
     assert!(drain_events(h).is_err());
 }
+
+#[test]
+fn multiple_folders_have_independent_snapshots_pause_and_shutdown() {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    fs::write(first.path().join("one.txt"), b"first folder").unwrap();
+    fs::write(second.path().join("two.txt"), b"second folder").unwrap();
+    let start = |id: &str, root: &std::path::Path| {
+        let info = inspect_root(root.to_str().unwrap().into(), vec![]).unwrap();
+        initialize_watched_import_engine(id.into(), info.canonical_path, info.identity, false, true)
+            .unwrap()
+    };
+    let a = start("first", first.path());
+    let b = start("second", second.path());
+    assert_ne!(a, b);
+    set_vault_ready(a, true).unwrap();
+    set_vault_ready(b, true).unwrap();
+    let ca = candidate(a);
+    let cb = candidate(b);
+    assert_eq!(ca.folder_id, "first");
+    assert_eq!(cb.folder_id, "second");
+    assert!(read_candidate_snapshot(b, ca.job_id.clone()).is_err());
+    pause_watch(a).unwrap();
+    assert!(read_candidate_snapshot(a, ca.job_id.clone()).is_err());
+    assert_eq!(
+        read_candidate_snapshot(b, cb.job_id.clone()).unwrap(),
+        b"second folder"
+    );
+    resume_watch(a).unwrap();
+    assert_eq!(
+        read_candidate_snapshot(a, ca.job_id.clone()).unwrap(),
+        b"first folder"
+    );
+    shutdown_watch(a).unwrap();
+    assert!(drain_events(a).is_err());
+    assert_eq!(
+        read_candidate_snapshot(b, cb.job_id.clone()).unwrap(),
+        b"second folder"
+    );
+    submit_import_outcome(b, cb.job_id, Outcome::Complete).unwrap();
+    shutdown_watch(b).unwrap();
+}

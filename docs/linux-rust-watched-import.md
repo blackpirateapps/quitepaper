@@ -13,12 +13,13 @@ Implementation began November 20, 2026; final verification completed November 21
 Open **Settings → Import & Capture → Watched Folders** on Linux. The same screen
 is available under Backup & Import. Choose an existing folder and review its
 initial inventory. Choose **Import existing files**, **Only import new files**,
-or **Cancel**. No import starts before that decision is durable.
+or remove the folder to cancel. No import starts before that decision is durable.
 
-Subfolders, duplicate prevention and keeping originals are fixed ON. There is one
-root per installation. Quiet Paper watches while its GUI is running; startup and
-resume reconcile files saved while it was closed. Pause, Resume, Rescan, Open
-folder, Change folder and Remove are explicit controls. History shows results,
+Subfolders, duplicate prevention and keeping originals are fixed ON. Add as many
+folders as needed with **Add folder**. Each card has an immediate enable switch,
+file-type chips, initial review, scan status, Rescan, Open folder and Remove.
+Quiet Paper watches while its GUI is running; startup and resume reconcile files
+saved while it was closed. History shows results,
 retryable failures and review cases. Opening a note and revealing a source require
 an explicit action. Import again anyway records an explicit copy override.
 
@@ -35,11 +36,25 @@ signatures are checked; empty binary files, temporary/hidden files, archives,
 executables, symlinks and special files are not automatic text imports. Unsupported
 image formats inside Markdown require attention rather than silently losing images.
 
+Each folder selects Email, PDF, Markdown, text, PNG, JPEG and WebP independently.
+Markdown includes both extensions; JPEG includes `.jpg` and `.jpeg`. All types are
+selected by default, including on upgrade. An empty selection imports nothing.
+Changes to an accepted folder trigger a rescan. Initial review tracks all supported
+types and displays selected-type counts without interrupting its baseline scan.
+Only New retains the original baseline when types change; Import Existing can
+import newly enabled types on the next scan. Markdown-linked images are imported
+with the note even if standalone image types are unselected. Notes and original
+files are kept when types are deselected or a folder is disabled/removed. Exact
+root/identity aliases in the same notebook are rejected; overlapping roots share
+content receipts and do not create automatic duplicate notes.
+
 ## Architecture and importer reuse
 
 At starting HEAD there was no Rust workspace, and Drift was schema 22. Flutter
-remains **3.47.2**, Dart **3.13.2**. This feature introduces schema **23** and
-Rust **1.97.1**, with matching FRB generator/Dart/crate **2.12.0**.
+remains **3.47.2**, Dart **3.13.2**. The initial feature introduced schema **23** and
+Rust **1.97.1**, with matching FRB generator/Dart/crate **2.12.0**. Multiple-folder
+support upgrades Drift to **24** and the native behavioral contract to **2**;
+rebuild the Linux bundle so the Dart code and native library match.
 
 - `rust/quietpaper_watched_import/src/api/engine.rs`: versioned typed DTOs and
   bounded pull-event interface, snapshots, outcomes and lifecycle.
@@ -53,9 +68,12 @@ Rust **1.97.1**, with matching FRB generator/Dart/crate **2.12.0**.
 - `application/native_watched_engine.dart`, controller/provider and presentation:
   bridge wiring, lifecycle, scope/lock guards and targeted Riverpod/UI updates.
 
-Rust owns one cancellable scheduler thread and a notify observer. Its pending
-queue is capped at 256, event channel at 256, drains at 32 events, and canonical
-imports at one. Dart polls at 150 ms without callbacks into disposed widgets.
+Rust owns one cancellable scheduler thread and a notify observer per active
+folder, addressed by independent handles. Each pending queue is capped at 256,
+event channel at 256 and drains at 32 events. One Dart loop polls active folders
+at 150 ms and serializes canonical imports across all roots without callbacks
+into disposed widgets. Disabled folders remain disabled after restart; an
+unavailable root does not prevent starting or polling the others.
 Hashing streams through a 64 KiB buffer. Source bytes travel only through explicit
 bounded snapshot requests; progress events contain metadata, never email content.
 
@@ -99,8 +117,10 @@ links and ordinary note indexing/sync behavior are retained.
 
 `watched_folders`, `watched_import_jobs`, `watched_import_receipts`,
 `watched_import_baseline`, `watched_import_events` and `watched_import_stages` are
-installation-local tables. Existing schema-22 databases upgrade, and defensive
-column checks accept the earlier unreleased schema-23 layout. Generated Drift
+installation-local tables. Existing schema-22/23 databases upgrade to schema 24;
+`file_types` defaults to all groups, the singleton-root index is dropped, and a
+unique `(vault_scope,canonical_root)` index takes its place. Defensive column
+checks accept the earlier unreleased schema-23 provenance layout. Generated Drift
 output remains coherent; the custom table convention matches existing email
 preparation and provenance-index tables.
 
@@ -122,7 +142,7 @@ cleanup retains its journal. SQLite/filesystem atomicity is not claimed.
 | Before or during encrypted staging | No note/receipt; journal removes partial ciphertext, then retry uses durable job identity. |
 | Inside the note/receipt transaction | SQLite rolls back all note/index/receipt changes; journals compensate file writes. |
 | After commit, before native ACK | Receipt prevents another automatic note; committed assets remain. |
-| During initial review | Reopen pending review. An incomplete interrupted baseline requires Cancel/reselection; never guess old/new membership. |
+| During initial review | Reopen pending review. An incomplete interrupted baseline requires removal/reselection; never guess old/new membership. |
 | While locked or changing account | Generation/scope checks reject late commits and clear history caches; native work waits. |
 | Root disappears or changes identity | Preserve configuration/history; recover the same identity or require explicit reselection. |
 
@@ -151,8 +171,11 @@ decoded-message logs, Rust database, keys, tokens or network calls. It does not
 claim to encrypt the ordinary local notes database or implement ad hoc crypto.
 
 The Linux runner already uses GApplication single-instance behavior. Within the
-GUI process, native initialization rejects duplicate engines, controller startup
-is idempotent, and shutdown joins the owned worker. Isolated test sessions must
+GUI process, controller startup is idempotent for each folder, and shutdown joins
+only the worker addressed by that handle. Per-folder generations reject late
+commits after disable, filter edits or removal; security/account changes invalidate
+all folders. Adding or removing a watch does not run stage recovery alongside an
+active import. Final controller close also waits for its polling task. Isolated test sessions must
 also use an isolated notebook, as the acceptance tools do.
 
 ## Job states and troubleshooting
@@ -171,7 +194,7 @@ Rust/FRB versions and run the bundle smoke command below. Missing or incompatibl
 native code leaves other app features usable. `root_identity_or_access` requires
 restoring the same directory identity or explicitly selecting a replacement.
 `review_interrupted` / `inventory_incomplete` means Only New cannot safely infer
-membership: cancel and reselect once the directory is stable/readable. Polling
+membership: remove and reselect once the directory is stable/readable. Polling
 fallback remains functional and is displayed as Degraded. Linux kernels before
 5.6 or sandboxes denying `openat2` cannot use the safe source reader.
 

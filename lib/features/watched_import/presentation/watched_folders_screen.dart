@@ -1,4 +1,6 @@
 import 'reveal_watched_source.dart';
+import 'package:drift/drift.dart' show QueryRow;
+import '../domain/watched_file_type.dart';
 import 'package:file_selector_linux/file_selector_linux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,10 +23,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(watchedImportControllerProvider);
-    final folder = controller.configuration;
     final colors = context.appColors;
-    final pending = folder?.read<String>('review_state') == 'pending';
-    final complete = folder?.read<int>('inventory_complete') == 1;
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(title: const Text('Watched Folders')),
@@ -42,7 +41,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'On Linux, Quiet Paper can import files from one folder while the app is running. Files saved while it is closed are found next time. Originals stay exactly as they are.',
+                'On Linux, Quiet Paper can import files from your watched folders while the app is running. Files saved while it is closed are found next time. Originals stay exactly as they are.',
               ),
               const SizedBox(height: 16),
               const Text(
@@ -58,100 +57,19 @@ class WatchedFoldersScreen extends ConsumerWidget {
                   _error(controller.error!),
                   style: TextStyle(color: colors.accent),
                 ),
-              if (folder == null)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: controller.busy
-                        ? null
-                        : () => _choose(controller),
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Choose folder'),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: controller.busy ? null : () => _choose(controller),
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: Text(
+                    controller.folders.isEmpty ? 'Choose folder' : 'Add folder',
                   ),
-                )
-              else ...[
-                SelectableText(folder.read<String>('canonical_root')),
-                const SizedBox(height: 8),
-                Text(
-                  controller.health,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-                if (folder.readNullable<int>('last_reconcile')
-                    case final int last)
-                  Text(
-                    'Last scan: ${DateTime.fromMillisecondsSinceEpoch(last).toLocal()}',
-                  ),
-                const SizedBox(height: 16),
-                if (pending) ...[
-                  Text(
-                    complete
-                        ? 'Review existing files'
-                        : 'Scanning existing files…',
-                  ),
-                  Text(
-                    '${controller.scanned} eligible files · ${(controller.bytes / 1024 / 1024).toStringAsFixed(1)} MB',
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Choose what to do with the files already here. Nothing imports until you decide.',
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton(
-                        onPressed: complete && !controller.busy
-                            ? () => controller.decide(true)
-                            : null,
-                        child: const Text('Import existing files'),
-                      ),
-                      OutlinedButton(
-                        onPressed: complete && !controller.busy
-                            ? () => controller.decide(false)
-                            : null,
-                        child: const Text('Only import new files'),
-                      ),
-                      TextButton(
-                        onPressed: controller.busy ? null : controller.remove,
-                        child: const Text('Cancel'),
-                      ),
-                    ],
-                  ),
-                ] else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton(
-                        onPressed: folder.read<int>('enabled') == 1
-                            ? controller.pause
-                            : controller.resume,
-                        child: Text(
-                          folder.read<int>('enabled') == 1 ? 'Pause' : 'Resume',
-                        ),
-                      ),
-                      OutlinedButton(
-                        onPressed: controller.rescan,
-                        child: const Text('Rescan now'),
-                      ),
-                      TextButton(
-                        onPressed: () => launchUrl(
-                          Uri.directory(folder.read<String>('canonical_root')),
-                        ),
-                        child: const Text('Open folder'),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            _confirmRemove(context, controller, change: true),
-                        child: const Text('Change folder'),
-                      ),
-                      TextButton(
-                        onPressed: () => _confirmRemove(context, controller),
-                        child: const Text('Remove watched folder'),
-                      ),
-                    ],
-                  ),
-              ],
+              ),
+              const SizedBox(height: 16),
+              for (final folder in controller.folders)
+                _folderCard(context, controller, folder),
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 8),
@@ -233,7 +151,11 @@ class WatchedFoldersScreen extends ConsumerWidget {
                           value: 'open',
                           child: Text('Open imported note'),
                         ),
-                      if (folder != null) ...[
+                      if (controller.folders.any(
+                        (folder) =>
+                            folder.read<String>('id') ==
+                            event.readNullable<String>('folder_id'),
+                      )) ...[
                         const PopupMenuItem(
                           value: 'retry',
                           child: Text('Retry'),
@@ -253,7 +175,7 @@ class WatchedFoldersScreen extends ConsumerWidget {
               const Divider(),
               const SizedBox(height: 12),
               const Text(
-                'From Proton Mail Free: open a message in your browser, choose Export, and save the .eml file into this folder. Quiet Paper uses the same email importer as Import Email.',
+                'From Proton Mail Free: open a message in your browser, choose Export, and save the .eml file into a watched folder with Email selected. Quiet Paper uses the same email importer as Import Email.',
               ),
               const SizedBox(height: 12),
               const Text(
@@ -266,17 +188,171 @@ class WatchedFoldersScreen extends ConsumerWidget {
     );
   }
 
+  Widget _folderCard(
+    BuildContext context,
+    WatchedImportController controller,
+    QueryRow folder,
+  ) {
+    final id = folder.read<String>('id');
+    final root = folder.read<String>('canonical_root');
+    final enabled = folder.read<int>('enabled') == 1;
+    final pending = folder.read<String>('review_state') == 'pending';
+    final complete = folder.read<int>('inventory_complete') == 1;
+    final changing = controller.changing(id);
+    final selected = WatchedFileType.decode(folder.read<String>('file_types'));
+    final error = controller.errorFor(id);
+    return Card(
+      key: ValueKey('watched-folder-$id'),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SelectableText(
+                        root,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(controller.healthFor(id)),
+                    ],
+                  ),
+                ),
+                Semantics(
+                  label: 'Watch $root',
+                  child: Switch.adaptive(
+                    key: ValueKey('enable-$id'),
+                    value: enabled,
+                    onChanged: changing
+                        ? null
+                        : (value) => value
+                              ? controller.resume(id)
+                              : controller.pause(id),
+                  ),
+                ),
+              ],
+            ),
+            if (folder.readNullable<int>('last_reconcile') case final int last)
+              Text(
+                'Last scan: ${DateTime.fromMillisecondsSinceEpoch(last).toLocal()}',
+              ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error(error),
+                  style: TextStyle(color: context.appColors.accent),
+                ),
+              ),
+            const SizedBox(height: 16),
+            const Text(
+              'File types to import',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final type in WatchedFileType.values)
+                  FilterChip(
+                    key: ValueKey('type-$id-${type.name}'),
+                    label: Text(type.label),
+                    selected: selected.contains(type),
+                    onSelected: changing
+                        ? null
+                        : (value) {
+                            final next = {...selected};
+                            value ? next.add(type) : next.remove(type);
+                            controller.setFileTypes(id, next);
+                          },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              selected.isEmpty
+                  ? 'Select a file type to import files from this folder.'
+                  : 'Type changes apply on the next scan. Only new files keeps the original baseline. Images linked in Markdown are included with the note.',
+            ),
+            if (pending) ...[
+              const SizedBox(height: 16),
+              Text(
+                complete ? 'Review existing files' : 'Scanning existing files…',
+              ),
+              Text(
+                '${controller.countFor(id)} eligible files · ${(controller.bytesFor(id) / 1024 / 1024).toStringAsFixed(1)} MB',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Choose what to do with the files already here. Nothing imports until you decide.',
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton(
+                    onPressed:
+                        complete && enabled && !changing && !controller.busy
+                        ? () => controller.decide(true, id)
+                        : null,
+                    child: const Text('Import existing files'),
+                  ),
+                  OutlinedButton(
+                    onPressed:
+                        complete && enabled && !changing && !controller.busy
+                        ? () => controller.decide(false, id)
+                        : null,
+                    child: const Text('Only import new files'),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: enabled && !changing
+                      ? () => controller.rescan(id)
+                      : null,
+                  child: const Text('Rescan now'),
+                ),
+                TextButton(
+                  onPressed: () => launchUrl(Uri.directory(root)),
+                  child: const Text('Open folder'),
+                ),
+                TextButton(
+                  onPressed: changing
+                      ? null
+                      : () => _confirmRemove(context, controller, id),
+                  child: const Text('Remove folder'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmRemove(
     BuildContext context,
-    WatchedImportController controller, {
-    bool change = false,
-  }) async {
+    WatchedImportController controller,
+    String id,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          change ? 'Change watched folder?' : 'Remove watched folder?',
-        ),
+        title: const Text('Remove watched folder?'),
         content: const Text(
           'Imported notes, duplicate receipts and original files are kept.',
         ),
@@ -287,18 +363,19 @@ class WatchedFoldersScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(change ? 'Change' : 'Remove'),
+            child: const Text('Remove'),
           ),
         ],
       ),
     );
     if (confirmed == true) {
-      await controller.remove();
-      if (change) await _choose(controller);
+      await controller.remove(id);
     }
   }
 
   static String _error(String code) => switch (code) {
+    'folder_already_watched' =>
+      'This folder is already being watched. Use its switch to enable it.',
     'html_complexity' =>
       'This email’s HTML exceeds the safe import limits. Its original file is unchanged. After updating Quiet Paper, use Retry in its import history menu. Code: html_complexity.',
     'message_id_changed' =>

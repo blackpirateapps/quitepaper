@@ -18,7 +18,7 @@ Future<RootInfo> inspectRoot({
   forbiddenPaths: forbiddenPaths,
 );
 
-/// Exactly one engine per GUI process. Replacement requires explicit shutdown.
+/// Independent folder engines addressed by handle; shutdown affects only that folder.
 Future<int> initializeWatchedImportEngine({
   required String folderId,
   required String rootPath,

@@ -4,6 +4,7 @@ import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/features/watched_import/presentation/reveal_watched_source.dart';
 import 'package:quitepaper/features/import/application/markdown_image_parser.dart';
 import 'dart:convert';
+import 'package:quitepaper/features/watched_import/domain/watched_file_type.dart';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Uint8List, driftRuntimeOptions;
@@ -103,9 +104,116 @@ void main() {
       File('test/email_import/fixtures/mixed.eml').readAsBytesSync();
 
   test(
+    'multiple folders persist types and toggles, removal isolates jobs and baseline',
+    () async {
+      final first = (await store.folder())!.read<String>('id');
+      final second = await store.enroll(
+        const RootInfo(canonicalPath: '/approved/second', identity: '3:4'),
+        'vault-a',
+      );
+      await store.setFileTypes(second, {
+        WatchedFileType.email,
+        WatchedFileType.jpeg,
+      });
+      await store.write('UPDATE watched_folders SET enabled=0 WHERE id=?', [
+        first,
+      ]);
+      final content = Uint8List.fromList(utf8.encode('retained second job'));
+      final c = candidate(content, folder: second, name: 'retained.txt');
+      final job = await store.reserve(c, 'vault-a');
+      await store.baseline(c, (await store.folder(second))!);
+      await db.close();
+      db = AppDatabase(NativeDatabase(File('${dir.path}/db.sqlite')));
+      store = WatchedImportRepositoryAdapter(db);
+      expect(await store.folders(), hasLength(2));
+      expect((await store.folder(first))!.read<int>('enabled'), 0);
+      final types = (await store.folder(second))!.read<String>('file_types');
+      expect(WatchedFileType.allows(types, 'eml'), isTrue);
+      expect(WatchedFileType.allows(types, 'jpg'), isTrue);
+      expect(WatchedFileType.allows(types, 'JPEG'), isTrue);
+      expect(WatchedFileType.allows(types, 'txt'), isFalse);
+      expect(job.read<String>('source_root'), '/approved/second');
+      await store.removeFolder(first);
+      expect(await store.folder(first), isNull);
+      expect(await store.folder(second), isNotNull);
+      expect(await store.isBaseline(c), isTrue);
+      expect(
+        (await store.rows('SELECT status FROM watched_import_jobs WHERE id=?', [
+          job.read<String>('id'),
+        ])).single.read<String>('status'),
+        'ready',
+      );
+      await store.inventoryDone(second, null);
+      await store.decide(second, false);
+      expect(
+        (await store.folder(second))!.read<String>('existing_policy'),
+        'only_new',
+      );
+    },
+  );
+
+  test(
+    'duplicate enrollment rejects canonical paths and identity aliases',
+    () async {
+      await expectLater(
+        store.enroll(
+          const RootInfo(
+            canonicalPath: '/approved/root',
+            identity: 'different',
+          ),
+          'vault-a',
+        ),
+        throwsStateError,
+      );
+      await expectLater(
+        store.enroll(
+          const RootInfo(canonicalPath: '/approved/alias', identity: '1:2'),
+          'vault-a',
+        ),
+        throwsStateError,
+      );
+      expect(await store.folders(), hasLength(1));
+    },
+  );
+
+  test(
+    'schema 23 upgrade preserves folder review and unlocks multiple roots',
+    () async {
+      final first = (await store.folder())!.read<String>('id');
+      await store.inventoryDone(first, null);
+      await store.decide(first, false);
+      await store.write('UPDATE watched_folders SET enabled=0 WHERE id=?', [
+        first,
+      ]);
+      await store.write('ALTER TABLE watched_folders DROP COLUMN file_types');
+      await store.write('DROP INDEX watched_folder_root');
+      await store.write(
+        'CREATE UNIQUE INDEX watched_single_root ON watched_folders ((1))',
+      );
+      await store.write('PRAGMA user_version=23');
+      await db.close();
+      db = AppDatabase(NativeDatabase(File('${dir.path}/db.sqlite')));
+      store = WatchedImportRepositoryAdapter(db);
+      final retained = (await store.folder(first))!;
+      expect(retained.read<String>('review_state'), 'accepted');
+      expect(retained.read<String>('existing_policy'), 'only_new');
+      expect(retained.read<int>('enabled'), 0);
+      expect(
+        WatchedFileType.decode(retained.read<String>('file_types')),
+        WatchedFileType.values.toSet(),
+      );
+      await store.enroll(
+        const RootInfo(canonicalPath: '/approved/second', identity: '3:4'),
+        'vault-a',
+      );
+      expect(await store.folders(), hasLength(2));
+    },
+  );
+
+  test(
     'fresh schema, mandatory complete enrollment and durable baseline after rename',
     () async {
-      expect(db.schemaVersion, 23);
+      expect(db.schemaVersion, 24);
       final f = (await store.folder())!;
       await expectLater(
         store.decide(f.read<String>('id'), false),
@@ -480,7 +588,11 @@ void main() {
         '/approved/root',
       );
       final bytes = Uint8List.fromList(utf8.encode('source provenance'));
-      final c = candidate(bytes, name: 'source.txt');
+      final c = candidate(
+        bytes,
+        name: 'source.txt',
+        folder: (await store.folder())!.read<String>('id'),
+      );
       final job = await store.reserve(c, 'vault-a');
       expect(job.read<String>('source_root'), '/approved/root');
     },

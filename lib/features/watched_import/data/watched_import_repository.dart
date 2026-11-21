@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/database/app_database.dart';
 import '../native/api/engine.dart';
+import '../domain/watched_file_type.dart';
 
 const watchedTerminalStatuses = {
   'imported',
@@ -41,8 +42,19 @@ class WatchedImportRepositoryAdapter {
   Future<void> write(String sql, [List<Object?> args = const []]) =>
       database.customStatement(sql, args);
 
-  Future<QueryRow?> folder() async =>
-      (await rows('SELECT * FROM watched_folders LIMIT 1')).firstOrNull;
+  Future<List<QueryRow>> folders() =>
+      rows('SELECT * FROM watched_folders ORDER BY created_at,rowid');
+  Future<QueryRow?> folder([String? id]) async => (await rows(
+    id == null
+        ? 'SELECT * FROM watched_folders ORDER BY created_at,rowid LIMIT 1'
+        : 'SELECT * FROM watched_folders WHERE id=?',
+    id == null ? [] : [id],
+  )).firstOrNull;
+
+  Future<void> setFileTypes(String id, Set<WatchedFileType> types) => write(
+    'UPDATE watched_folders SET file_types=?,updated_at=? WHERE id=?',
+    [WatchedFileType.encode(types), now, id],
+  );
   Future<String> deviceScope() async {
     var value = await database.getSyncMetadata('watched_installation_scope');
     if (value == null) {
@@ -52,33 +64,39 @@ class WatchedImportRepositoryAdapter {
     return value;
   }
 
-  Future<void> enroll(RootInfo root, String scope) =>
-      database.transaction(() async {
-        await write(
-          '''INSERT INTO watched_folders
+  Future<String> enroll(
+    RootInfo root,
+    String scope,
+  ) => database.transaction(() async {
+    final id = uuid.v4();
+    if ((await rows(
+      'SELECT 1 FROM watched_folders WHERE vault_scope=? AND (canonical_root=? OR root_identity=?)',
+      [scope, root.canonicalPath, root.identity],
+    )).isNotEmpty) {
+      throw StateError('folder_already_watched');
+    }
+    await write(
+      '''INSERT INTO watched_folders
       (id,canonical_root,root_identity,vault_scope,decision_generation,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?)''',
-          [
-            uuid.v4(),
-            root.canonicalPath,
-            root.identity,
-            scope,
-            uuid.v4(),
-            now,
-            now,
-          ],
-        );
-      });
-  Future<void> removeFolder() => database.transaction(() async {
-    await write(
-      "UPDATE watched_import_jobs SET status='cancelled',updated_at=? WHERE status NOT IN ('imported','duplicate_skipped','baseline_skipped')",
-      [now],
+      [id, root.canonicalPath, root.identity, scope, uuid.v4(), now, now],
     );
-    await write('DELETE FROM watched_import_baseline');
-    await write('DELETE FROM watched_folders');
+    return id;
+  });
+  Future<void> removeFolder([
+    String? folderId,
+  ]) => database.transaction(() async {
+    final id = folderId ?? (await folder())?.read<String>('id');
+    if (id == null) return;
+    await write(
+      "UPDATE watched_import_jobs SET status='cancelled',updated_at=? WHERE folder_id=? AND status NOT IN ('imported','duplicate_skipped','baseline_skipped')",
+      [now, id],
+    );
+    await write('DELETE FROM watched_import_baseline WHERE folder_id=?', [id]);
+    await write('DELETE FROM watched_folders WHERE id=?', [id]);
   });
   Future<void> inventoryDone(String id, String? error) async {
-    final f = await folder();
+    final f = await folder(id);
     if (f?.readNullable<String>('inventory_error') == 'review_interrupted') {
       return;
     }
@@ -93,7 +111,7 @@ class WatchedImportRepositoryAdapter {
     String id,
     bool existing,
   ) => database.transaction(() async {
-    final f = await folder();
+    final f = await folder(id);
     if (f == null ||
         f.read<String>('id') != id ||
         f.read<int>('inventory_complete') != 1) {
@@ -156,7 +174,7 @@ class WatchedImportRepositoryAdapter {
         c.folderId,
         scope,
         c.relativePath,
-        (await folder())?.read<String>('canonical_root') ?? '',
+        (await folder(c.folderId))?.read<String>('canonical_root') ?? '',
         c.displayName,
         c.revision,
         c.size,
@@ -309,7 +327,7 @@ class WatchedImportRepositoryAdapter {
     [now, jobId],
   );
   Future<List<QueryRow>> history(String scope) => rows(
-    'SELECT * FROM watched_import_events WHERE vault_scope=? ORDER BY id DESC LIMIT 100',
+    'SELECT e.*,j.folder_id FROM watched_import_events e LEFT JOIN watched_import_jobs j ON j.id=e.job_id WHERE e.vault_scope=? ORDER BY e.id DESC LIMIT 100',
     [scope],
   );
 }

@@ -30,7 +30,6 @@ pub struct Shared {
     pub retry: Mutex<Option<(Instant, u32)>>,
 }
 pub struct Engine {
-    pub handle: u32,
     pub shared: Arc<Shared>,
     pub events: Receiver<EngineEvent>,
     thread: JoinHandle<()>,
@@ -58,7 +57,6 @@ impl Engine {
         let s = shared.clone();
         let thread = thread::spawn(move || run(s, handle, folder, initial, poll, tx));
         Self {
-            handle,
             shared,
             events,
             thread,

@@ -8,6 +8,16 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest feature: multiple watched folders (November 21, 2026)
+
+Linux watched imports now support multiple folders with independent enable
+switches, file-type filters, initial review, status, rescan and removal. Schema 24
+preserves the existing folder and selects all supported types on upgrade. Rust
+contract 2 supports independent watcher handles; Dart still serializes canonical
+imports and shares duplicate receipts across folders. Notes, receipts and original
+files survive removing a watch. See engineering log 346 and the updated
+[watched-import guide](docs/linux-rust-watched-import.md).
+
 ## Latest fix: email HTML conditional comments (November 21, 2026)
 
 Fixed `html_complexity` rejection of ordinary order emails whose Outlook-only

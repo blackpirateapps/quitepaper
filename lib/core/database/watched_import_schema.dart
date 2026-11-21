@@ -4,6 +4,7 @@ const watchedImportSchema = <String>[
   '''CREATE TABLE IF NOT EXISTS watched_folders (
     id TEXT PRIMARY KEY, canonical_root TEXT NOT NULL, root_identity TEXT NOT NULL,
     vault_scope TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+    file_types TEXT NOT NULL DEFAULT '["email","pdf","markdown","text","png","jpeg","webp"]',
     include_subfolders INTEGER NOT NULL DEFAULT 1 CHECK(include_subfolders=1),
     skip_duplicates INTEGER NOT NULL DEFAULT 1 CHECK(skip_duplicates=1),
     existing_policy TEXT NOT NULL DEFAULT 'ask', review_state TEXT NOT NULL DEFAULT 'pending',
@@ -11,7 +12,7 @@ const watchedImportSchema = <String>[
     decision_generation TEXT NOT NULL, decision_time INTEGER,
     health TEXT NOT NULL DEFAULT 'Scanning', last_reconcile INTEGER,
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)''',
-  'CREATE UNIQUE INDEX IF NOT EXISTS watched_single_root ON watched_folders ((1))',
+  'CREATE UNIQUE INDEX IF NOT EXISTS watched_folder_root ON watched_folders (vault_scope,canonical_root)',
   '''CREATE TABLE IF NOT EXISTS watched_import_jobs (
     id TEXT PRIMARY KEY, folder_id TEXT NOT NULL, vault_scope TEXT NOT NULL,
     source_path BLOB NOT NULL, source_root TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL, revision TEXT NOT NULL,

@@ -33,7 +33,7 @@ class NativeWatchedEngine implements WatchedEngine {
           ),
         ),
       ));
-      if (native.contractVersion() != 1) {
+      if (native.contractVersion() != 2) {
         throw StateError('native_contract_incompatible');
       }
     } catch (_) {

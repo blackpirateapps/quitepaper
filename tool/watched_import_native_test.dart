@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:quitepaper/features/watched_import/domain/watched_file_type.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/attachments/attachment_service.dart';
@@ -30,7 +31,7 @@ Future<void> until(Future<bool> Function() condition) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
-    'real Rust observation to canonical EML, receipt, copy dedup and deleted note',
+    'real Rust multiple folders, filters, toggles, canonical import and shared dedup',
     () async {
       final library = Platform.environment['QP_WATCHED_NATIVE_LIBRARY'];
       if (library == null) {
@@ -134,6 +135,60 @@ void main() {
           (await store.rows('SELECT * FROM watched_import_receipts')).length,
           1,
         );
+        final firstId = controller.configuration!.read<String>('id');
+        final secondSource = Directory('${root.path}/second');
+        await secondSource.create();
+        await input.copy('${secondSource.path}/same.eml');
+        await File(
+          '${secondSource.path}/filtered.txt',
+        ).writeAsString('Initially excluded text');
+        await controller.enroll(secondSource.path);
+        expect(controller.error, isNull);
+        final secondId = controller.folders.last.read<String>('id');
+        await controller.setFileTypes(secondId, {WatchedFileType.email});
+        await until(
+          () async =>
+              (await store.folder(secondId))!.read<int>('inventory_complete') ==
+              1,
+        );
+        expect(controller.countFor(secondId), 1);
+        await controller.pause(firstId);
+        await controller.decide(true, secondId);
+        await until(
+          () async => (await store.rows(
+            "SELECT 1 FROM watched_import_jobs WHERE folder_id=? AND status='duplicate_skipped'",
+            [secondId],
+          )).isNotEmpty,
+        );
+        expect(await store.rows('SELECT * FROM notes'), isEmpty);
+        await controller.setFileTypes(secondId, {WatchedFileType.text});
+        await until(
+          () async =>
+              (await store.rows(
+                'SELECT * FROM watched_import_receipts',
+              )).length ==
+              2,
+        );
+        expect(
+          (await store.rows(
+            'SELECT content FROM notes',
+          )).single.read<String>('content'),
+          'Initially excluded text',
+        );
+        expect((await store.folder(firstId))!.read<int>('enabled'), 0);
+        await controller.remove(firstId);
+        await File(
+          '${secondSource.path}/later.txt',
+        ).writeAsString('Second folder remains active');
+        await until(
+          () async =>
+              (await store.rows(
+                'SELECT * FROM watched_import_receipts',
+              )).length ==
+              3,
+        );
+        expect(await store.rows('SELECT * FROM notes'), hasLength(2));
+        expect(controller.folders.single.read<String>('id'), secondId);
         expect(await input.readAsBytes(), orderedEquals(bytes));
       } finally {
         await controller.close();

@@ -8125,3 +8125,59 @@ smoke checks. SHA256: `f1a252dd333b647731c49e57cd03e5870ac080ec6424dbd6b8fa73a59
 The running `/opt` application was not replaced: system installation requires the
 user's administrator password. Restart after installing, then choose Retry from
 the failed history row; Rescan alone preserves terminal failed jobs by design.
+
+## 346. Multiple watched folders and per-folder file types (November 21, 2026)
+
+The previous SQLite singleton index, Dart controller and Rust process slot limited
+watched imports to one root. The Watched Folders screen now provides an Add Folder
+button and independent cards with enable switches, file-type chips, initial
+review, health/error state, rescan, open and remove controls. Email, PDF, Markdown,
+text, PNG, JPEG and WebP can be selected independently; Markdown/JPEG include their
+extension aliases. All groups default on, and an empty selection imports nothing.
+Settings, enabled state and initial-review decisions survive restart. Removal
+preserves notes, original sources, duplicate receipts and bounded history.
+
+Architecture and files:
+
+- `lib/core/database/{app_database,watched_import_schema}.dart`: schema 24 adds
+  JSON `file_types`, removes `watched_single_root`, and uniquely indexes notebook
+  scope plus canonical root. The schema-23 migration retains the existing folder,
+  review/policy and enabled state, defaulting its file types to all groups.
+- `features/watched_import/data/watched_import_repository.dart` scopes lookup,
+  enrollment, provenance, baseline/review and removal to folder IDs. Same-scope
+  canonical-path/identity aliases are rejected. History includes the source folder
+  ID so Retry/Import Again actions target the correct watcher.
+- `domain/watched_file_type.dart` defines persisted groups and extension aliases.
+  `application/watched_import_controller.dart` owns independent handles/status and
+  per-folder generations, with one polling loop serializing canonical imports.
+  Disable/filter/remove invalidates only that folder's late commit; lock/account
+  changes invalidate all. Stage recovery precedes engine startup and never runs
+  alongside another watched import. Close waits for the polling task; the final
+  removed handle also cancels the timer.
+- `rust/quietpaper_watched_import/src/api/engine.rs` replaces the process singleton
+  with a handle-indexed engine map. Snapshot, pause/resume and shutdown resolve
+  only that handle. Per-worker bounded channels, source validation and cancellation
+  remain intact. Native behavioral contract is now 2; the Dart loader and bundle
+  smoke reject older libraries. FRB 2.12.0 bindings were regenerated and checked.
+- `presentation/watched_folders_screen.dart` exposes per-folder settings on narrow
+  and wide screens. Changes during pending review update eligibility counts without
+  requesting a disruptive native reconciliation. Baselines include all supported
+  types, so Only New does not import old content when a type is later enabled.
+  After acceptance, filters apply before snapshots/import and edits trigger rescan.
+  Markdown-linked images remain part of the note regardless of standalone filters.
+
+Verification: `flutter analyze` passes with no issues. The explicit focused run
+`flutter test --no-pub --concurrency=1 test/watched_import
+ test/templates/template_database_test.dart test/database/database_migration_test.dart
+ test/email_import/email_persistence_test.dart` passes 70 tests. The final controller
+run passes 13 tests, adding restart coverage and rechecking folder-specific toggles,
+filters, Only New, removal, duplicate receipts, cancellation and narrow light/dark
+UI layouts. The real Rust→Dart→canonical-import integration test passes with two
+roots, cross-folder EML dedup, independent disable/removal, and importing text after
+changing its filter. Rust's focused `restart` integration target passes 4 entries,
+including simultaneous handles and source/snapshot/pause/shutdown isolation.
+`cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
+`cargo build --workspace --locked`, the FRB regeneration diff check, and the actual
+shared-library FRB contract-2 snapshot/ACK smoke pass. The full Flutter suite was
+not run. Existing installed-app/Flatpak portal acceptance limits remain; this change
+does not claim an installed GUI replay or publish a new package.

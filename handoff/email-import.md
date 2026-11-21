@@ -133,7 +133,7 @@ See [the engineering report](../docs/email-import/engineering-report.md),
 [implementation record](../docs/email-import/implementation.md), engineering logs
 334–342 and [focused validation script](../tool/verify_email_import.sh).
 
-## Linux watched-folder entry point (schema 23)
+## Linux watched-folder entry point (schema 24)
 
 Watched EML reuses EmailParser and EmailImportService headlessly. Optional planned
 note IDs and a transaction hook add a local watched-import receipt to the same
@@ -142,3 +142,23 @@ append and Android sharing retain their existing behavior. Watcher callbacks nev
 navigate or fetch remote email content. Device-only key setup uses the existing
 gateway. See [the watched-import report](../docs/linux-rust-watched-import.md) for
 source verification, crash recovery and outstanding release acceptance limits.
+
+Multiple folders have independent enable switches, initial review and type filters
+(Email, PDF, Markdown, text, PNG, JPEG, WebP). Schema 24 replaces the singleton-root
+index with a per-notebook canonical-root index and adds JSON `file_types`, defaulting
+to all supported types for existing folders. Rust contract 2 holds engines by
+handle; one Dart polling loop serializes canonical imports across roots. Pausing,
+filter changes and removal invalidate only that folder's in-flight commit. Account
+and security changes invalidate all folders. Recovery runs before the first engine,
+never alongside another watched import.
+
+Initial inventory records every supported type, including unselected types, and
+review counts reflect the selected groups. Filters are enforced before snapshots
+and canonical imports after acceptance. Changing filters during pending review
+does not interrupt its inventory; after acceptance it triggers reconciliation.
+Only New preserves its original content baseline across type changes. Linked
+Markdown images remain part of that note regardless of standalone image filters.
+An empty selection imports nothing. Duplicate receipts remain shared by notebook
+scope across folders; removals cancel only the chosen folder's jobs and baseline,
+preserving notes, source files, receipts and history. Folder settings stay local
+and remain excluded from sync and backups.

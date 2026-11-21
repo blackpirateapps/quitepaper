@@ -6,15 +6,16 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     os::unix::{ffi::OsStringExt, fs::MetadataExt},
     path::PathBuf,
     sync::{atomic::Ordering, Arc, Mutex, OnceLock},
 };
 
-static ENGINE: OnceLock<Mutex<Option<Engine>>> = OnceLock::new();
+static ENGINES: OnceLock<Mutex<HashMap<u32, Engine>>> = OnceLock::new();
 static HANDLE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-fn slot() -> &'static Mutex<Option<Engine>> {
-    ENGINE.get_or_init(|| Mutex::new(None))
+fn slot() -> &'static Mutex<HashMap<u32, Engine>> {
+    ENGINES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,7 +84,7 @@ pub fn inspect_root(
     })
 }
 
-/// Exactly one engine per GUI process. Replacement requires explicit shutdown.
+/// Independent folder engines addressed by handle; shutdown affects only that folder.
 pub fn initialize_watched_import_engine(
     folder_id: String,
     root_path: String,
@@ -92,9 +93,6 @@ pub fn initialize_watched_import_engine(
     force_poll: bool,
 ) -> std::result::Result<u32, String> {
     let mut guard = slot().lock().map_err(|_| "engine_lock")?;
-    if guard.is_some() {
-        return Err("engine_already_running".into());
-    }
     let path = PathBuf::from(root_path);
     let m = path.symlink_metadata().map_err(|_| "root_unavailable")?;
     if !m.is_dir()
@@ -105,21 +103,23 @@ pub fn initialize_watched_import_engine(
     }
     let handle = HANDLE.fetch_add(1, Ordering::Relaxed);
     let poll = force_poll || rules::portal_root(&path);
-    *guard = Some(Engine::start(
+    guard.insert(
         handle,
-        folder_id,
-        path,
-        (m.dev(), m.ino()),
-        initial_inventory,
-        poll,
-    ));
+        Engine::start(
+            handle,
+            folder_id,
+            path,
+            (m.dev(), m.ino()),
+            initial_inventory,
+            poll,
+        ),
+    );
     Ok(handle)
 }
 fn shared(handle: u32) -> std::result::Result<Arc<Shared>, String> {
     let guard = slot().lock().map_err(|_| "engine_lock")?;
     guard
-        .as_ref()
-        .filter(|e| e.handle == handle)
+        .get(&handle)
         .map(|e| e.shared.clone())
         .ok_or("engine_stopped".into())
 }
@@ -146,10 +146,7 @@ pub fn reconcile_now(handle: u32) -> std::result::Result<(), String> {
 /// into disposed Dart isolates. File bytes never appear in diagnostic events.
 pub fn drain_events(handle: u32) -> std::result::Result<Vec<EngineEvent>, String> {
     let guard = slot().lock().map_err(|_| "engine_lock")?;
-    let engine = guard
-        .as_ref()
-        .filter(|e| e.handle == handle)
-        .ok_or("engine_stopped")?;
+    let engine = guard.get(&handle).ok_or("engine_stopped")?;
     Ok(engine.events.try_iter().take(32).collect())
 }
 pub fn submit_import_outcome(
@@ -220,11 +217,7 @@ pub fn read_candidate_snapshot(
 pub fn shutdown_watch(handle: u32) -> std::result::Result<(), String> {
     let engine = {
         let mut guard = slot().lock().map_err(|_| "engine_lock")?;
-        if guard.as_ref().is_some_and(|e| e.handle == handle) {
-            guard.take()
-        } else {
-            None
-        }
+        guard.remove(&handle)
     };
     if let Some(engine) = engine {
         engine.stop();
@@ -233,7 +226,7 @@ pub fn shutdown_watch(handle: u32) -> std::result::Result<(), String> {
 }
 #[flutter_rust_bridge::frb(sync)]
 pub fn contract_version() -> u32 {
-    1
+    2
 }
 
 /// Resolves a canonical Markdown importer's local image reference entirely in

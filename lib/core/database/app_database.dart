@@ -98,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   Future<void> _createEmailImportTables() async {
     await customStatement(
@@ -407,6 +407,21 @@ class AppDatabase extends _$AppDatabase {
         for (final sql in watchedImportSchema) {
           await customStatement(sql);
         }
+      }
+      if (from < 24) {
+        final columns = await customSelect(
+          'PRAGMA table_info(watched_folders)',
+        ).get();
+        if (!columns.any((row) => row.read<String>('name') == 'file_types')) {
+          await customStatement(
+            """ALTER TABLE watched_folders ADD COLUMN file_types TEXT NOT NULL
+            DEFAULT '["email","pdf","markdown","text","png","jpeg","webp"]'""",
+          );
+        }
+        await customStatement('DROP INDEX IF EXISTS watched_single_root');
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS watched_folder_root ON watched_folders (vault_scope,canonical_root)',
+        );
       }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
