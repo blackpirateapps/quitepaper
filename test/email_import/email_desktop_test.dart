@@ -1,3 +1,5 @@
+import 'package:quitepaper/features/notes/application/workspace_commands.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/notes_command_palette.dart';
 import 'package:quitepaper/core/security/sensitive_preview_registry.dart';
 import 'package:quitepaper/features/email_import/presentation/email_import_launcher.dart';
 import 'dart:io';
@@ -110,31 +112,49 @@ void main() {
     },
   );
   testWidgets(
-    'desktop command palette is searchable and exposes file fallback',
+    'Ctrl+P opens the shared palette and exposes searchable email file fallback',
     (tester) async {
       final nav = GlobalKey<NavigatorState>();
+      final commands = WorkspaceCommands();
+      var launches = 0;
+      NotesCommand? selected;
+      // The global wrapper delegates to the registered workspace launcher. The
+      // real NotesScreen catalogue/navigation is covered by its integration tests.
+      commands.open = () async {
+        launches++;
+        selected = await showNotesCommandPalette(
+          nav.currentState!.overlay!.context,
+        );
+      };
       await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: nav,
-          theme: AppTheme.light(),
-          builder: (context, child) =>
-              EmailWorkspaceActions(navigatorKey: nav, child: child!),
-          home: const Scaffold(body: TextField(autofocus: true)),
+        ProviderScope(
+          overrides: [workspaceCommandsProvider.overrideWithValue(commands)],
+          child: MaterialApp(
+            navigatorKey: nav,
+            theme: AppTheme.light().copyWith(platform: TargetPlatform.linux),
+            builder: (context, child) =>
+                EmailWorkspaceActions(navigatorKey: nav, child: child!),
+            home: const Scaffold(body: TextField(autofocus: true)),
+          ),
         ),
       );
       await tester.pumpAndSettle();
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
+      expect(launches, 1);
+      expect(find.text('New Note'), findsOneWidget);
       expect(find.text('Import Email'), findsOneWidget);
       expect(find.text('Import Email from all files'), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, 'generic');
       await tester.pumpAndSettle();
       expect(find.text('Import Email'), findsNothing);
       expect(find.text('Import Email from all files'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(selected, NotesCommand.importEmailAllFiles);
+      expect(launches, 1);
     },
   );
   testWidgets(

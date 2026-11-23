@@ -8361,3 +8361,52 @@ notebook lookup outside active filters, nested-tag navigation, sort/filter state
 arrows/physical Enter, late async results, mobile keyboard layout, normal editor
 save/failure handling and retained template/email behavior. No full Flutter suite,
 app build, installed-package replay or physical-device acceptance was run.
+
+
+## 350. Command-palette CI regression fixes (November 23, 2026)
+
+Commit `82efe3d` failed [Test & Analyze](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509532),
+[Build Linux App](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509456)
+and [Linux Rust watched import](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509348).
+The two broad Flutter gates each reported 3,176 passed and the same four failed
+cases; the watched-import focused gate reported 272 passed and the same email
+shortcut failure. Android APK compilation passed. Local reproduction of just
+`email_desktop_test.dart` and `editor_overflow_menu_test.dart` reproduced all
+four failures (13 passed, four failed).
+
+The editor's new `ModalRoute.of(context)` dependency rebuilds it when a menu
+route appears above it. Its existing `Navigator.canPop()` check then counted the
+popup, giving the root editor an erroneous toolbar Back button as well as the
+submenu's Back button. `EditorScreen` now derives toolbar Back availability from
+its own `ModalRoute.canPop`. The original Insert/Share/Privacy submenu tests
+pass without weakening or broadening their one-Back-button assertions. Pushed
+editors retain their Back button and normal save-and-exit handler.
+
+The desktop email test still sent Ctrl+Shift+P and assumed a standalone,
+email-only global palette without a ProviderScope. It now provides the shared
+`WorkspaceCommands` coordinator and invokes Ctrl+P from a focused text field.
+The test checks one launcher invocation, retained note/email actions, filtering
+for the generic-file fallback and physical Enter returning that command. The
+real notes-owned catalogue and route navigation remain covered separately by
+the command-palette integration tests.
+
+Local validation: `flutter analyze` reports no issues and `git diff --check`
+passes. Both failing Flutter files now pass all **17 tests** with:
+
+```sh
+flutter test --no-pub test/email_import/email_desktop_test.dart \
+  test/editor/editor_overflow_menu_test.dart
+```
+
+The additional relevant gate passes **34 tests** (51 focused tests total),
+covering desktop/phone palette navigation, settings links, note/tag jumps, editor
+save/exit failures and keyboard/async behavior:
+
+```sh
+flutter test --no-pub test/templates/template_navigation_test.dart \
+  test/templates/template_editor_integration_test.dart \
+  test/widgets/notes_command_palette_test.dart
+```
+
+No full Flutter suite was run locally. Workflow definitions, generated bindings,
+Rust code, database schema and sync behavior are unchanged by this fix.

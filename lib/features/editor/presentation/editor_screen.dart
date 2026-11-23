@@ -1787,8 +1787,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final route = ModalRoute.of(context);
     if (widget.onClose == null) {
-      _commandRoute = ModalRoute.of(context);
+      _commandRoute = route;
       if (_commandRoute != null) {
         _workspaceCommands.routeExits[_commandRoute!] = _requestExit;
       }
@@ -1820,7 +1821,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       typography: typography,
     );
 
-    final canPop = Navigator.of(context).canPop();
+    // A popup above the editor must not make the editor itself gain a Back
+    // button when route-dependent command registration triggers a rebuild.
+    final canPop = route?.canPop ?? false;
     final isTablet = MediaQuery.of(context).size.width >= 768;
     final isDesktop = PlatformLayoutHelper.isDesktopEditor(context);
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);

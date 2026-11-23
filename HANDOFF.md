@@ -8,6 +8,17 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest fix: command-palette CI regressions (November 23, 2026)
+
+The command-palette commit failed three workflows on four shared test cases.
+Opening an editor menu caused a route-dependent rebuild that used the entire
+navigator's stack to decide whether the editor needed Back; it now checks the
+editor's own route, preventing a spurious toolbar Back above a root editor.
+The desktop email shortcut test now supplies the shared command coordinator,
+uses Ctrl+P, and verifies file-fallback selection with Enter. Existing submenu
+assertions remain intact. See engineering log 350 in
+[the active logs](handoff/latest-logs.md) for the failing runs and validation.
+
 ## Latest feature: Linux command palette and Ctrl+P (November 23, 2026)
 
 The notes workspace and global shortcut now share the full command palette on
