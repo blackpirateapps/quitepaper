@@ -1,3 +1,6 @@
+import '../../email_import/application/email_editor_bridge.dart';
+import '../application/workspace_commands.dart';
+import 'workspace_command_palette.dart';
 import '../../email_import/presentation/email_workspace_actions.dart';
 import '../../email_import/presentation/email_import_launcher.dart';
 import '../../email_import/application/email_import_gateway.dart';
@@ -78,6 +81,7 @@ class NotesScreen extends ConsumerStatefulWidget {
 }
 
 class _NotesScreenState extends ConsumerState<NotesScreen> {
+  late final WorkspaceCommands _workspaceCommands;
   String? _selectedNoteIdForTablet;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
@@ -109,6 +113,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   @override
   void initState() {
     super.initState();
+    _workspaceCommands = ref.read(workspaceCommandsProvider);
+    _workspaceCommands.open = _showCommands;
     if (widget.showOnboardingTour) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _startOnboardingTour(),
@@ -162,6 +168,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   @override
   void dispose() {
+    if (_workspaceCommands.open == _showCommands) _workspaceCommands.open = null;
     _multiSelectFocusNode.dispose();
     super.dispose();
   }
@@ -874,8 +881,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final title = _getDestinationTitle(destination);
 
     final phoneKeyboardBindings = {
-      const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): _showCommands,
-      const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
           _createAndOpenNote(context),
@@ -1971,8 +1978,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
     final tabletKeyboardBindings = {
-      const SingleActivator(LogicalKeyboardKey.keyP, control: true, shift: true): _showCommands,
-      const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true):
           _createAndOpenNoteTablet,
@@ -2447,6 +2454,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                               _openSearchScreen(
                                                                 context,
                                                               ),
+                                                        ),
+                                                        QuietIconButton(
+                                                          icon: PhosphorIconsRegular.command,
+                                                          tooltip: 'Command Palette (Ctrl+P)',
+                                                          onPressed: _showCommands,
                                                         ),
                                                         PopupMenuButton<String>(
                                                           icon: const Icon(
@@ -3427,8 +3439,66 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 
+  Future<bool> _revealWorkspace() async {
+    // Publish pending Visual edits before a desktop command can replace the
+    // embedded editor. Routed editors additionally run their normal exit flow.
+    await EmailEditorBridge.active?.prepare();
+    if (!mounted) return false;
+    final route = ModalRoute.of(context);
+    if (route == null) return false;
+    return ref.read(workspaceCommandsProvider).reveal(route);
+  }
+
   Future<void> _showCommands() async {
-    final action = await showNotesCommandPalette(context);
+    final commands = ref.read(workspaceCommandsProvider);
+    if (commands.isOpen || EmailImportLauncher.isActive) return;
+    commands.isOpen = true;
+    WorkspaceCommandAction? action;
+    try {
+      action = await showWorkspaceCommandPalette(context, ref,
+        onCommand: _runCommand,
+        onSearch: () => _openSearchScreen(context),
+        onNote: (note) async {
+          if (!await _revealWorkspace() || !mounted) return;
+          if (_selectedNoteIdForTablet == note.id &&
+              MediaQuery.sizeOf(context).width >= 900) {
+            return;
+          }
+          // A result comes from the entire active notebook, independent of the
+          // list's current tag and filters. Open the canonical editor route.
+          _openNote(context, note);
+        },
+        onTag: (tag) async {
+          if (!await _revealWorkspace() || !mounted) return;
+          ref.read(notesQueryProvider.notifier).clearAllFilters();
+          ref.read(selectedTagFilterProvider.notifier).state = tag.isEmpty ? null : tag;
+          ref.read(selectedTagIdProvider.notifier).state = null;
+          ref.read(currentDestinationProvider.notifier).state = tag.isEmpty
+              ? AppDestination.tagBrowser : AppDestination.tag;
+        },
+      );
+    } finally {
+      commands.isOpen = false;
+    }
+    if (!mounted || action == null) return;
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not complete command. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _runCommand(NotesCommand action) async {
+    if (!mounted) return;
+    if (action != NotesCommand.importEmail &&
+        action != NotesCommand.importEmailAllFiles &&
+        !await _revealWorkspace()) {
+      return;
+    }
     if (!mounted) return;
     if (action == NotesCommand.importEmail ||
         action == NotesCommand.importEmailAllFiles) {

@@ -1,3 +1,11 @@
+import 'package:quitepaper/features/notes/application/workspace_commands.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/notes/domain/notes_sort.dart';
+import 'package:quitepaper/features/notes/domain/notes_filter.dart';
+import 'package:quitepaper/features/tags/application/tag_suggestions.dart';
+import 'package:quitepaper/features/email_import/presentation/email_workspace_actions.dart';
+import 'package:quitepaper/features/settings/presentation/typography_settings_screen.dart';
+import 'package:quitepaper/features/settings/presentation/default_settings_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,30 +66,42 @@ void main() {
     notes = DriftNotesRepository(db);
   });
   tearDown(() => db.close());
-  Widget app(Widget home, {TargetPlatform platform = TargetPlatform.linux}) =>
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          isNavSidebarVisibleProvider.overrideWith((ref) => false),
-          notesRepositoryProvider.overrideWithValue(notes),
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          currentUserProvider.overrideWithValue(null),
-          syncStateProvider.overrideWithValue(const SyncState()),
-          templateServiceProvider.overrideWith(
-            (ref) => TemplateService(
-              repository: TemplateRepository(db),
-              notes: notes,
-              onNoteCreated: () {
-                ref.read(notesCollectionProvider.notifier).refresh();
-              },
-            ),
+  Widget app(Widget home, {TargetPlatform platform = TargetPlatform.linux}) {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    return ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        tagSuggestionServiceProvider.overrideWithValue(
+          TagSuggestionService(useNative: false),
+        ),
+        isNavSidebarVisibleProvider.overrideWith((ref) => false),
+        notesRepositoryProvider.overrideWithValue(notes),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        currentUserProvider.overrideWithValue(null),
+        syncStateProvider.overrideWithValue(const SyncState()),
+        templateServiceProvider.overrideWith(
+          (ref) => TemplateService(
+            repository: TemplateRepository(db),
+            notes: notes,
+            onNoteCreated: () {
+              ref.read(notesCollectionProvider.notifier).refresh();
+            },
           ),
-        ],
-        child: MaterialApp(
+        ),
+      ],
+      child: Consumer(
+        builder: (context, ref, _) => MaterialApp(
+          navigatorKey: navigatorKey,
+          navigatorObservers: [ref.watch(workspaceCommandsProvider)],
+          builder: (context, child) =>
+              EmailWorkspaceActions(navigatorKey: navigatorKey, child: child!),
           theme: AppTheme.light().copyWith(platform: platform),
           home: home,
         ),
-      );
+      ),
+    );
+  }
+
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 100));
@@ -187,6 +207,9 @@ void main() {
           ),
         );
         await settle(tester);
+        if (desktop) {
+          expect(find.byTooltip('Command Palette (Ctrl+P)'), findsOneWidget);
+        }
         await tester.tap(
           find.byTooltip(desktop ? 'More actions' : 'More options').first,
         );
@@ -231,6 +254,136 @@ void main() {
       },
     );
   }
+  Future<void> openCommands(WidgetTester tester) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await settle(tester);
+    expect(find.text('Search commands'), findsOneWidget);
+  }
+
+  Future<void> chooseCommand(
+    WidgetTester tester,
+    String query,
+    String label,
+  ) async {
+    await tester.enterText(find.byType(TextField).last, query);
+    await settle(tester);
+    await tester.tap(find.text(label).hitTestable());
+    await settle(tester);
+  }
+
+  testWidgets(
+    'Linux Ctrl+P works in settings and reveals typography subsettings',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(app(const NotesScreen()));
+      await settle(tester);
+      await openCommands(tester);
+      await chooseCommand(tester, 'font size', 'Typography: Font Size');
+      expect(find.byType(TypographySettingsScreen), findsOneWidget);
+      expect(find.text('Font Size').hitTestable(), findsOneWidget);
+      // Opening a page from a command must release the palette's reentry guard.
+      await openCommands(tester);
+      await chooseCommand(
+        tester,
+        'bengali dates',
+        'Default Settings: Bengali dates & numerals',
+      );
+      expect(find.byType(DefaultSettingsScreen), findsOneWidget);
+      expect(
+        find.text('Bengali dates & numerals').hitTestable(),
+        findsOneWidget,
+      );
+      await openCommands(tester);
+      await chooseCommand(
+        tester,
+        'backup folder',
+        'Backup and import: Backup Folder',
+      );
+      expect(find.text('Daily Auto-Backup').hitTestable(), findsOneWidget);
+      expect(find.text('Backup Folder'), findsNothing);
+
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'Linux palette searches the notebook outside active filters and jumps to nested tags',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final now = DateTime.now();
+      await notes.saveNote(
+        Note(
+          id: 'palette-note',
+          title: 'Nebula project',
+          content: 'Unique constellation',
+          createdAt: now,
+          updatedAt: now,
+          tags: const ['work/project'],
+        ),
+      );
+      await notes.createTag('home');
+      await tester.pumpWidget(app(const NotesScreen()));
+      await settle(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(NotesScreen)),
+      );
+      container.read(selectedTagFilterProvider.notifier).state = 'home';
+      container.read(currentDestinationProvider.notifier).state =
+          AppDestination.tag;
+      await settle(tester);
+      await openCommands(tester);
+      await chooseCommand(tester, '@constellation', 'Nebula project');
+      expect(find.byType(EditorScreen), findsOneWidget);
+      // A routed editor uses its ordinary save-and-exit operation when a command
+      // returns to the notes workspace.
+      await openCommands(tester);
+      await chooseCommand(tester, '#work/proj', '#work/project');
+      expect(find.byType(EditorScreen), findsNothing);
+      expect(container.read(currentDestinationProvider), AppDestination.tag);
+      expect(container.read(selectedTagFilterProvider), 'work/project');
+      expect(container.read(notesQueryProvider).filter.tags, {'work/project'});
+      await finish(tester);
+    },
+  );
+
+  testWidgets('Linux palette applies sorting and content filters', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(app(const NotesScreen()));
+    await settle(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NotesScreen)),
+    );
+    await openCommands(tester);
+    await chooseCommand(tester, 'sort title', 'Sort: Title • A → Z');
+    expect(container.read(notesQueryProvider).sort.field, SortField.title);
+    expect(
+      container.read(notesQueryProvider).sort.direction,
+      SortDirection.ascending,
+    );
+    await openCommands(tester);
+    await chooseCommand(tester, 'filter links', 'Filter: Links');
+    expect(container.read(notesQueryProvider).filter.contentFilters, {
+      ContentFilter.hasLinks,
+    });
+    await openCommands(tester);
+    await chooseCommand(tester, 'clear all filters', 'Clear all filters');
+    expect(container.read(notesQueryProvider).filter.contentFilters, isEmpty);
+    await finish(tester);
+  });
+
   testWidgets(
     'desktop command shortcut opens palette then shared picker without a blank note',
     (tester) async {
@@ -241,9 +394,7 @@ void main() {
       await tester.pumpWidget(app(const NotesScreen()));
       await settle(tester);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await settle(tester);
       await tester.tap(find.text('New from Template'));

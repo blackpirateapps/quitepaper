@@ -1,3 +1,4 @@
+import 'widgets/settings_target.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,7 +51,7 @@ class DefaultSettingsScreen extends ConsumerWidget {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
+            child: SettingsList(
               padding: const EdgeInsets.only(
                 left: AppSpacing.lg,
                 right: AppSpacing.lg,
@@ -442,6 +443,7 @@ class DefaultSettingsScreen extends ConsumerWidget {
     required VoidCallback onTap,
   }) {
     return InkWell(
+      key: SettingsTarget.keyFor(context, title),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -557,6 +559,7 @@ class DefaultSettingsScreen extends ConsumerWidget {
     required ValueChanged<bool> onChanged,
   }) {
     return Padding(
+      key: SettingsTarget.keyFor(context, title),
       padding: const EdgeInsets.symmetric(
         horizontal: 16.0,
         vertical: 12.0,

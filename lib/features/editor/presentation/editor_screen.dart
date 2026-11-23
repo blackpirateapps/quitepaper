@@ -1,3 +1,4 @@
+import '../../notes/application/workspace_commands.dart';
 import '../../email_import/application/email_editor_bridge.dart';
 import '../../email_import/presentation/email_workspace_actions.dart';
 import 'dart:convert';
@@ -173,6 +174,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
   late final EmailEditorBridge _emailBridge;
+  Route<dynamic>? _commandRoute;
+  late final WorkspaceCommands _workspaceCommands;
   Future<Note?> _prepareEmailPreview() async {
     if (!mounted) return null;
     _bodyEditorKey.currentState?.flushPendingChanges();
@@ -215,6 +218,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
+    _workspaceCommands = ref.read(workspaceCommandsProvider);
     _emailBridge=EmailEditorBridge(prepare:_prepareEmailPreview,accept:_acceptEmailAppend);
     _emailBridge.attach();
     WidgetsBinding.instance.addObserver(this);
@@ -1743,6 +1747,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
+    _workspaceCommands.routeExits.remove(_commandRoute);
     _emailBridge.detach();
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
@@ -1782,6 +1787,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.onClose == null) {
+      _commandRoute = ModalRoute.of(context);
+      if (_commandRoute != null) {
+        _workspaceCommands.routeExits[_commandRoute!] = _requestExit;
+      }
+    }
+
     ref.watch(allTagsProvider);
     final editorState = ref.watch(editorProviderFamily(_editorParams));
     final editorNotifier =

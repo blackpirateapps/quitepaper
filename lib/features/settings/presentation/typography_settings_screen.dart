@@ -1,3 +1,4 @@
+import 'widgets/settings_target.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,7 +73,7 @@ void compose() => print('Quiet Paper');
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
+            child: SettingsList(
               padding: const EdgeInsets.only(
                 left: AppSpacing.lg,
                 right: AppSpacing.lg,
@@ -189,6 +190,7 @@ void compose() => print('Quiet Paper');
                   colors: colors,
                   children: [
                     _buildSliderRow(
+                      context: context,
                       colors: colors,
                       label: 'Font Size',
                       valueStr: '${typography.fontSize.round()} pt',
@@ -202,6 +204,7 @@ void compose() => print('Quiet Paper');
                     ),
                     _buildDivider(colors),
                     _buildSliderRow(
+                      context: context,
                       colors: colors,
                       label: 'Line Height',
                       valueStr: '${typography.lineHeight.toStringAsFixed(1)}x',
@@ -216,6 +219,7 @@ void compose() => print('Quiet Paper');
                     ),
                     _buildDivider(colors),
                     _buildSliderRow(
+                      context: context,
                       colors: colors,
                       label: 'Letter Spacing',
                       valueStr:
@@ -231,6 +235,7 @@ void compose() => print('Quiet Paper');
                     ),
                     _buildDivider(colors),
                     _buildSliderRow(
+                      context: context,
                       colors: colors,
                       label: 'Paragraph Indent',
                       valueStr: '${typography.paragraphIndent.round()} px',
@@ -255,6 +260,7 @@ void compose() => print('Quiet Paper');
                   colors: colors,
                   children: [
                     Padding(
+                      key: SettingsTarget.keyFor(context, 'Paragraph Width'),
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md,
                         vertical: AppSpacing.sm,
@@ -302,6 +308,7 @@ void compose() => print('Quiet Paper');
                     ),
                     _buildDivider(colors),
                     ListTile(
+                      key: SettingsTarget.keyFor(context, 'Reset to Default'),
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.vertical(
                           bottom: Radius.circular(AppRadii.lg),
@@ -448,21 +455,16 @@ void compose() => print('Quiet Paper');
     required AppColors colors,
     required List<Widget> children,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
+    return Material(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(
-          color: colors.divider.withValues(alpha: 0.6),
-          width: 1,
-        ),
+        side: BorderSide(color: colors.divider.withValues(alpha: 0.6)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
       ),
     );
   }
@@ -484,6 +486,7 @@ void compose() => print('Quiet Paper');
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: SettingsTarget.keyFor(context, title),
       title: Text(
         title,
         style: AppTypography.bodyMedium.copyWith(
@@ -513,6 +516,7 @@ void compose() => print('Quiet Paper');
   }
 
   Widget _buildSliderRow({
+    required BuildContext context,
     required AppColors colors,
     required String label,
     required String valueStr,
@@ -523,6 +527,7 @@ void compose() => print('Quiet Paper');
     required ValueChanged<double> onChanged,
   }) {
     return Padding(
+      key: SettingsTarget.keyFor(context, label),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs,

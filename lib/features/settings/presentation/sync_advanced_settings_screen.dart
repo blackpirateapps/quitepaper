@@ -1,3 +1,4 @@
+import 'widgets/settings_target.dart';
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -188,7 +189,7 @@ class _SyncAdvancedSettingsScreenState
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
+            child: SettingsList(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
                 vertical: AppSpacing.md,

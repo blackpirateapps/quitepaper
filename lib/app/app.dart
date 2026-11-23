@@ -1,3 +1,4 @@
+import '../features/notes/application/workspace_commands.dart';
 import '../features/watched_import/presentation/watched_import_lifecycle.dart';
 import 'dart:ui';
 import '../features/email_import/presentation/email_workspace_actions.dart';
@@ -100,6 +101,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
 
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
+      navigatorObservers: [ref.read(workspaceCommandsProvider)],
       title: 'Quiet Paper',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const DesktopAppScrollBehavior(),

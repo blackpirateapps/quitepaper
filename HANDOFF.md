@@ -8,6 +8,19 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest feature: Linux command palette and Ctrl+P (November 23, 2026)
+
+The notes workspace and global shortcut now share the full command palette on
+Linux desktop. Open it with **Ctrl+P** (Cmd+P on macOS), the desktop toolbar
+button, or the existing overflow menu. It includes note/template creation,
+email import, note lookup, nested-tag jumps, sort/filter actions and searchable
+settings pages and individual controls. Type `@text` for notes or `#parent/child`
+for tags; arrows select, Enter opens and Escape dismisses. Settings links reveal
+the existing controls and retain their validation and confirmation flows.
+Linux tag lookup reuses the existing Rust ranking bridge with the portable
+fallback. No schema, sync or native build contract changed. See engineering
+log 349 in [the active logs](handoff/latest-logs.md).
+
 ## Latest feature: multi-tag picker and suggestions (November 23, 2026)
 
 The editor overflow action, tag bar, frontmatter tag field and selected-note

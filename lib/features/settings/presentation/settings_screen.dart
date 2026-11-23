@@ -1,3 +1,4 @@
+import 'widgets/settings_target.dart';
 import '../../watched_import/application/watched_import_provider.dart';
 import '../../watched_import/presentation/watched_folders_screen.dart';
 import 'dart:async';
@@ -178,7 +179,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
+            child: SettingsList(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
                 vertical: AppSpacing.md,

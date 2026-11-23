@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../notes/presentation/widgets/notes_command_palette.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../notes/application/workspace_commands.dart';
 import '../application/email_import_gateway.dart';
 import '../application/email_input.dart';
 import 'email_import_launcher.dart';
@@ -66,7 +67,7 @@ class EmailDesktopRouter {
 
 /// Existing desktop_drop cannot expose filenames during hover. No email overlay
 /// is shown until the drop can be classified; ordinary text drags remain untouched.
-class EmailWorkspaceActions extends StatelessWidget {
+class EmailWorkspaceActions extends ConsumerWidget {
   const EmailWorkspaceActions({
     super.key,
     required this.navigatorKey,
@@ -75,34 +76,13 @@ class EmailWorkspaceActions extends StatelessWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final Widget child;
   BuildContext? get _context => navigatorKey.currentState?.overlay?.context;
-  Future<void> _palette() async {
-    final context = _context;
-    if (context == null || EmailImportLauncher.isActive) return;
-    final command = await showNotesCommandPalette(
-      context,
-      commands: const [
-        NotesCommand.importEmail,
-        NotesCommand.importEmailAllFiles,
-      ],
-    );
-    if (context.mounted && command != null) {
-      await EmailImportLauncher.pick(
-        context,
-        allFiles: command == NotesCommand.importEmailAllFiles,
-      );
-    }
-  }
-
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
+  Widget build(BuildContext context, WidgetRef ref) => CallbackShortcuts(
     bindings: {
-      const SingleActivator(
-        LogicalKeyboardKey.keyP,
-        control: true,
-        shift: true,
-      ): _palette,
-      const SingleActivator(LogicalKeyboardKey.keyP, meta: true, shift: true):
-          _palette,
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true): () =>
+          ref.read(workspaceCommandsProvider).open?.call(),
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true): () =>
+          ref.read(workspaceCommandsProvider).open?.call(),
       const SingleActivator(
         LogicalKeyboardKey.keyI,
         control: true,

@@ -8278,3 +8278,86 @@ test --no-pub tool/tag_suggestions_native_test.dart`. Rust's three focused
 `cargo fmt --all --check`, `cargo clippy -p quietpaper_watched_import --all-targets
 -- -D warnings` and the pinned `scripts/check_rust_bridge.sh` regeneration diff
 check pass. Only relevant tests were run; the full test suite was not run.
+
+
+## 349. Linux command palette, Ctrl+P and workspace actions (November 23, 2026)
+
+The notes palette previously exposed four creation/import commands under
+Ctrl+Shift+P, while the app-level shortcut used a separate email-only palette.
+`WorkspaceCommands` now shares the notes-owned launcher with the app shortcut;
+Ctrl+P and Cmd+P open the same full palette from the workspace and other routes.
+A dedicated desktop notes-toolbar button displays the binding, alongside the
+existing phone/desktop overflow entries. Ctrl+Shift+P remains the editor preview
+shortcut. Ctrl+Shift+I retains direct email import.
+
+`showCommandPalette` supports typed entries, multiword command matching,
+debounced asynchronous note/tag lookup, loading/error/empty states, selection by
+Up/Down, physical Enter/numpad Enter, mobile Go and Escape. Request generations
+hide stale results and guard disposal. Plain text searches commands and the
+active notebook; `@` limits lookup to notes and `#` to tags. Note lookup uses
+bounded repository/FTS queries (12 results), independent of list filters. It
+opens the existing editor and masks protected-note labels. Tag lookup returns
+up to 12 paths using `TagSuggestionService`, preserving pinned/recent/usage and
+nested-path ordering. On Linux this reuses the existing Rust FRB ranking API;
+other targets and failed native loads retain the existing Dart fallback. No new
+Rust code or bridge generation was needed.
+
+The palette includes blank/template creation, both email-import pickers, full
+search, tag browsing, each field/direction of sorting, pinned-first ordering,
+content/attachment/security filters, clearing filters and the full filter sheet
+for dates and multi-tag combinations. These actions reuse canonical handlers
+and query preferences rather than adding alternate persistence paths.
+
+The explicit settings catalogue links settings sections and individual controls
+for defaults/editor/gestures/journal/image compression, theme/appearance,
+typography, imports/backups, OCR/maintenance/debugging, cloud/security and About.
+Additional destinations open Templates, Speech Recognition, Watched Folders on
+supported platforms, account/encryption passwords, devices, conflicts, shares,
+cloud usage and all three storage-management tabs. Account-dependent destinations
+route through sign-in when necessary. Compression choices link to their existing
+chooser controls. Destructive/maintenance actions retain their ordinary controls
+and confirmations; finding a setting never changes its value.
+
+`SettingsTarget` gives controls stable anchors and scrolls a linked setting into
+view. Small settings pages use eager `SettingsList` columns so offscreen controls
+can be revealed immediately. Disabled backup/OCR child controls fall back to the
+parent switch. Typography cards now provide their own Material surface for
+visible ListTile ink and clean runtime diagnostics. `WorkspaceCommands` also
+observes routes; routed editors register their existing save-and-exit operation.
+Note/tag/create commands return to the workspace through this operation, refusing
+the transition when a save or guarded modal refuses exit. The existing editor prepare barrier publishes pending Visual edits before a
+command replaces the embedded desktop editor, and choosing its already-open
+note avoids opening a second editor for the same note. Cached coordinator
+references allow disposal without accessing Riverpod after unmounting.
+
+Validation: `flutter analyze` passes with zero issues; `git diff --check` passes.
+The focused gate passes **154 Flutter tests**:
+
+```sh
+flutter test --no-pub \
+  test/widgets/notes_command_palette_test.dart \
+  test/templates/template_navigation_test.dart \
+  test/templates/template_widget_test.dart \
+  test/templates/template_editor_integration_test.dart \
+  test/templates/template_save_race_test.dart \
+  test/settings/settings_screen_test.dart \
+  test/settings/default_settings_test.dart \
+  test/settings/typography_settings_test.dart \
+  test/settings/advanced_maintenance_settings_test.dart \
+  test/settings/about_app_screen_test.dart \
+  test/settings/desktop_ollama_ocr_settings_test.dart \
+  test/widgets/quiet_adaptive_modal_test.dart \
+  test/tags/tag_suggestions_test.dart \
+  test/email_import/email_editor_bridge_test.dart
+```
+
+After the final embedded-editor flush safeguard, the overlapping navigation,
+editor integration and email editor bridge files pass all **37 tests** again.
+The three existing native ranking tests pass with
+`cargo test -p quietpaper_watched_import api::tags::tests`.
+Coverage includes Linux Ctrl+P above settings/editor routes, toolbar/menu access,
+settings controls below the viewport and disabled backup-child fallback,
+notebook lookup outside active filters, nested-tag navigation, sort/filter state,
+arrows/physical Enter, late async results, mobile keyboard layout, normal editor
+save/failure handling and retained template/email behavior. No full Flutter suite,
+app build, installed-package replay or physical-device acceptance was run.
