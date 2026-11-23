@@ -6,6 +6,7 @@ import '../../notes/application/note_security_service.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
+import '../../tags/application/tag_suggestions.dart';
 import '../domain/editor_editing_style.dart';
 import 'editor_state.dart';
 
@@ -31,8 +32,10 @@ class EditorNotifier extends StateNotifier<EditorState> {
     required Note initialNote,
     required this.repository,
     this.retainDuringSave,
+    this.onTagsAdded,
     bool initialPreviewMode = false,
-  }) : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
+  }) : _savedTags = initialNote.tags.map(TagParser.normalizeTag).toSet(),
+       _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
        super(
          EditorState(
            note: initialNote,
@@ -44,12 +47,15 @@ class EditorNotifier extends StateNotifier<EditorState> {
 
   final NotesRepository repository;
   final VoidCallback Function()? retainDuringSave;
+  final ValueChanged<List<String>>? onTagsAdded;
+  Set<String> _savedTags;
   final Debouncer _debouncer;
   int _saveRevision = 0;
 
   void acceptImportedNote(Note note) {
     if (note.id != state.note.id) return;
     _debouncer.cancel();
+    _savedTags = note.tags.map(TagParser.normalizeTag).toSet();
     state = state.copyWith(note: note, isDirty: false, isSaving: false);
   }
 
@@ -161,14 +167,19 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debouncedSave();
   }
 
-  void addTag(String tag) {
-    final normalized = TagParser.normalizeTag(tag);
-    if (!TagParser.isValidTag(normalized)) return;
-    if (state.note.tags.contains(normalized)) return;
+  void addTag(String tag) => addTags([tag]);
 
-    final updatedTags = [...state.note.tags, normalized];
+  /// Apply a picker batch with one revision and one save.
+  void addTags(Iterable<String> tags) {
+    final existing = state.note.tags.map(TagParser.normalizeTag).toSet();
+    final additions = tags
+        .map(TagParser.normalizeTag)
+        .where(TagParser.isValidTag)
+        .toSet()
+        .difference(existing);
+    if (additions.isEmpty) return;
     final updated = state.note.copyWith(
-      tags: updatedTags,
+      tags: [...state.note.tags, ...additions],
       updatedAt: DateTime.now(),
     );
     _saveRevision++;
@@ -319,6 +330,11 @@ class EditorNotifier extends StateNotifier<EditorState> {
         await repository.saveNote(noteToSave, preserveEmptyTags: true);
       }
 
+      final savedTags = combinedTags.map(TagParser.normalizeTag).toSet();
+      final added = savedTags.difference(_savedTags).toList();
+      _savedTags = savedTags;
+      if (added.isNotEmpty) onTagsAdded?.call(added);
+
       if (mounted) {
         state = state.copyWith(
           isDirty: _saveRevision != revision,
@@ -423,6 +439,9 @@ final editorProviderFamily = StateNotifierProvider.autoDispose
       return EditorNotifier(
         initialNote: params.note,
         repository: repository,
+        onTagsAdded: (tags) {
+          ref.read(recentTagNamesProvider.notifier).record(tags);
+        },
         retainDuringSave: () {
           final link = ref.keepAlive();
           return link.close;

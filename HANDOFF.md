@@ -8,6 +8,19 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest feature: multi-tag picker and suggestions (November 23, 2026)
+
+The editor overflow action, tag bar, frontmatter tag field and selected-note
+action now share a searchable multi-tag picker. It suggests pinned tags, actual
+recent additions and most-used tags; supports comma-separated input, staged
+chips and keyboard completion; and scopes slash-separated subtag searches with
+parent breadcrumbs and a browse-subtags action. Editor batches save together,
+and frontmatter batches update the document once. Recency is device-local and
+records successful saves rather than tag metadata edits. Rust ranking uses the
+existing Linux FRB library, with equivalent Dart ranking on other platforms and
+when native loading fails. No schema or sync protocol changed. See engineering
+log 348 and [the tag guide](handoff/tags-and-search.md#multi-tag-picker).
+
 ## Latest feature: Android watched folders and audit (November 21, 2026)
 
 Watched Folders now supports Android through persisted, read-only SAF folder

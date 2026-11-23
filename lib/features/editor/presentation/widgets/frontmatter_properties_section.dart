@@ -102,11 +102,12 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
-  void _onAddTag(String tag) {
+  void _onAddTag(String tag) => _onAddTags([tag]);
+
+  void _onAddTags(List<String> tags) {
     if (widget.readOnly) return;
-    final currentTags = List<String>.from(widget.frontmatter.tags);
-    if (!currentTags.contains(tag)) {
-      currentTags.add(tag);
+    final currentTags = {...widget.frontmatter.tags, ...tags}.toList();
+    if (currentTags.length != widget.frontmatter.tags.length) {
       final updated = FrontmatterEditorHelper.updateTags(
         documentText: widget.rawDocument,
         tags: currentTags,
@@ -546,6 +547,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                             showAddButton: !widget.readOnly,
                             padding: EdgeInsets.zero,
                             onAddTag: _onAddTag,
+                            onAddTags: _onAddTags,
                             onRemoveTag: _onRemoveTag,
                           ),
                         ),

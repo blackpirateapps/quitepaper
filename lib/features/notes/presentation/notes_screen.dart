@@ -15,7 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../../export/presentation/export_note_sheet.dart';
-import '../../import/presentation/widgets/add_tag_modal.dart';
+import '../../tags/presentation/widgets/tag_picker_dialog.dart';
+import '../../tags/application/tag_suggestions.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/cli/cli_args_provider.dart';
 import '../../../core/documents/document_provider.dart';
@@ -597,26 +598,32 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Future<void> _addTagToSelectedNotes() async {
     final notes = _selectedNotes();
     if (notes.isEmpty) return;
-    final tag = await AddTagDialog.show(
+    final commonTags = notes.first.tags.toSet();
+    for (final note in notes.skip(1)) {
+      commonTags.retainAll(note.tags);
+    }
+    final tags = await TagPickerDialog.show(
       context,
-      title: 'Add tag to selected',
-      hintText: 'e.g. project, notes',
+      title: 'Add tags to selected notes',
+      existingTags: commonTags.toList(),
     );
-    if (tag == null || tag.isEmpty || !mounted) return;
+    if (tags == null || tags.isEmpty || !mounted) return;
 
     final repository = ref.read(notesRepositoryProvider);
     final now = DateTime.now();
     var updated = 0;
     for (final note in notes) {
-      final hasTag = note.tags.any(
-        (t) => TagParser.normalizeTag(t).toLowerCase() == tag.toLowerCase(),
-      );
-      if (hasTag) continue;
+      final existing = note.tags.map(TagParser.normalizeTag).toSet();
+      final additions = tags.where((tag) => !existing.contains(tag)).toList();
+      if (additions.isEmpty) continue;
       await repository.saveNote(
-        note.copyWith(tags: [...note.tags, tag], updatedAt: now),
+        note.copyWith(tags: [...note.tags, ...additions], updatedAt: now),
       );
       updated++;
     }
+    if (!mounted) return;
+    await ref.read(recentTagNamesProvider.notifier).record(tags);
+    if (!mounted) return;
     ref.read(notesCollectionProvider.notifier).refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -624,8 +631,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       SnackBar(
         content: Text(
           updated == 0
-              ? 'All selected notes already have #$tag'
-              : 'Added #$tag to $updated notes',
+              ? 'All selected notes already have these tags'
+              : 'Added ${tags.length} ${tags.length == 1 ? 'tag' : 'tags'} to $updated notes',
         ),
         duration: const Duration(seconds: 2),
       ),
@@ -1825,7 +1832,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Add tag…',
+                    'Add tags…',
                     style: AppTypography.bodySmall.copyWith(
                       color: colors.textPrimary,
                     ),

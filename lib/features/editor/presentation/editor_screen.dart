@@ -2286,6 +2286,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                      TagEditorBar(
                                        tags: note.tags,
                                        onAddTag: editorNotifier.addTag,
+                                       onAddTags: editorNotifier.addTags,
                                        onRemoveTag: _onRemoveTag,
                                      ),
                                      const SizedBox(height: 12.0),
@@ -4550,14 +4551,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   color: colors.textSecondary,
                 ),
                 title: Text(
-                  'Add tag',
+                  'Add tags',
                   style: AppTypography.bodyMedium.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
                 onTap: () {
                   Navigator.of(sheetCtx).pop();
-                  TagEditorBar.showAddTagDialog(context, notifier.addTag);
+                  TagEditorBar.showAddTagDialog(
+                    context, notifier.addTag,
+                    existingTags: ref.read(editorProviderFamily(_editorParams)).note.tags,
+                    onAddTags: notifier.addTags,
+                  );
                 },
               ),
               ListTile(

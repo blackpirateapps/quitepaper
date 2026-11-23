@@ -132,3 +132,43 @@ attachment labels enter the existing FTS/fuzzy-search paths; no separate email
 index or ranking policy was added. The source-hash/Message-ID index serves only
 duplicate detection. Fresh-device encrypted sync tests verify ordinary search
 and tag behavior. See [email import](email-import.md).
+
+## Multi-tag picker
+
+`TagPickerDialog` replaces the editor's plain overflow input and is shared by
+the tag bar, frontmatter field and selected-note tagging action. Suggestions
+appear before typing. Suggested combines pinned order, local recency and note
+counts; Recent, Most used and Pinned expose those categories independently.
+Search relevance precedes category ordering. Attached and staged tags are
+excluded. Results are bounded to 40 rows, and asynchronous results from older
+queries are hidden while the next query loads.
+
+Tap suggestions or press Enter to stage a tag, use Tab to complete a path and
+arrow keys to navigate, or paste comma/newline-separated tags. Staged chips can
+be removed; Cancel discards all staged changes. Apply also validates and includes
+any remaining typed input, with a count including those pending tags. Invalid
+paste batches remain editable without partially accepting their valid prefixes.
+Slash queries such as `work/` stay within that parent and prefer direct children;
+leaf queries such as `project` can find `work/project`. Breadcrumb buttons and
+row browse actions fill parent paths. Trailing slashes cannot create tags.
+
+`EditorNotifier.addTags` deduplicates/normalizes a batch and saves it once.
+Frontmatter writes a combined tag list in one document update to avoid repeatedly
+replacing tags using a stale widget snapshot. Bulk note tagging excludes tags
+common to all selected notes and appends only missing tags to each note.
+
+`recently_added_tags_v1` stores at most 50 canonical names in SharedPreferences,
+newest first. Editor saves report newly added metadata/inline tags only after
+successful persistence; metadata-only edits and failed saves do not update use.
+Bulk tagging records history after successful writes. History starts empty on
+upgrade, is device-local, and does not change tag sync timestamps. Missing or
+renamed names are filtered by the current catalogue until used again. Preference
+write failure keeps in-memory history without failing an already-saved note.
+
+Pure Rust `api/tags.rs` supplies deterministic ranking via the existing Linux
+watched-import FRB library. `TagSuggestionService` uses the same ordering in Dart
+on Android/iOS/other targets or native-load failure; mobile builds gain no Rust
+toolchain prerequisite. Bridge output remains under the watched-import native
+directory to reuse the existing bundled library and initialization guard.
+`tool/tag_suggestions_native_test.dart` compares the actual shared library with
+portable results across categories, paths, Unicode, exclusions and limits.

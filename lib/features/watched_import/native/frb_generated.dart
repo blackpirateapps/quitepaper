@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/engine.dart';
+import 'api/tags.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -64,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 125233266;
+  int get rustContentHash => -1049547051;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -94,6 +95,14 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiEnginePauseWatch({required int handle});
+
+  Future<List<String>> crateApiTagsRankTagSuggestions({
+    required List<TagSuggestionInput> tags,
+    required String query,
+    required List<String> excluded,
+    required TagSuggestionOrder order,
+    required int limit,
+  });
 
   Future<Uint8List> crateApiEngineReadCandidateSnapshot({
     required int handle,
@@ -298,6 +307,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "pause_watch", argNames: ["handle"]);
 
   @override
+  Future<List<String>> crateApiTagsRankTagSuggestions({
+    required List<TagSuggestionInput> tags,
+    required String query,
+    required List<String> excluded,
+    required TagSuggestionOrder order,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_tag_suggestion_input(tags, serializer);
+          sse_encode_String(query, serializer);
+          sse_encode_list_String(excluded, serializer);
+          sse_encode_tag_suggestion_order(order, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiTagsRankTagSuggestionsConstMeta,
+        argValues: [tags, query, excluded, order, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTagsRankTagSuggestionsConstMeta =>
+      const TaskConstMeta(
+        debugName: "rank_tag_suggestions",
+        argNames: ["tags", "query", "excluded", "order", "limit"],
+      );
+
+  @override
   Future<Uint8List> crateApiEngineReadCandidateSnapshot({
     required int handle,
     required String jobId,
@@ -311,7 +361,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -348,7 +398,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -379,7 +429,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -407,7 +457,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -439,7 +489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -470,7 +520,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -504,7 +554,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -609,6 +659,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TagSuggestionInput> dco_decode_list_tag_suggestion_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_tag_suggestion_input).toList();
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -636,6 +692,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       canonicalPath: dco_decode_String(arr[0]),
       identity: dco_decode_String(arr[1]),
     );
+  }
+
+  @protected
+  TagSuggestionInput dco_decode_tag_suggestion_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return TagSuggestionInput(
+      name: dco_decode_String(arr[0]),
+      noteCount: dco_decode_u_32(arr[1]),
+      pinned: dco_decode_bool(arr[2]),
+      pinnedOrder: dco_decode_i_32(arr[3]),
+      recentOrder: dco_decode_i_32(arr[4]),
+    );
+  }
+
+  @protected
+  TagSuggestionOrder dco_decode_tag_suggestion_order(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TagSuggestionOrder.values[raw as int];
   }
 
   @protected
@@ -764,6 +841,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TagSuggestionInput> sse_decode_list_tag_suggestion_input(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TagSuggestionInput>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_tag_suggestion_input(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -800,6 +891,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_canonicalPath = sse_decode_String(deserializer);
     var var_identity = sse_decode_String(deserializer);
     return RootInfo(canonicalPath: var_canonicalPath, identity: var_identity);
+  }
+
+  @protected
+  TagSuggestionInput sse_decode_tag_suggestion_input(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_noteCount = sse_decode_u_32(deserializer);
+    var var_pinned = sse_decode_bool(deserializer);
+    var var_pinnedOrder = sse_decode_i_32(deserializer);
+    var var_recentOrder = sse_decode_i_32(deserializer);
+    return TagSuggestionInput(
+      name: var_name,
+      noteCount: var_noteCount,
+      pinned: var_pinned,
+      pinnedOrder: var_pinnedOrder,
+      recentOrder: var_recentOrder,
+    );
+  }
+
+  @protected
+  TagSuggestionOrder sse_decode_tag_suggestion_order(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return TagSuggestionOrder.values[inner];
   }
 
   @protected
@@ -909,6 +1028,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_tag_suggestion_input(
+    List<TagSuggestionInput> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_tag_suggestion_input(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -942,6 +1073,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.canonicalPath, serializer);
     sse_encode_String(self.identity, serializer);
+  }
+
+  @protected
+  void sse_encode_tag_suggestion_input(
+    TagSuggestionInput self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_u_32(self.noteCount, serializer);
+    sse_encode_bool(self.pinned, serializer);
+    sse_encode_i_32(self.pinnedOrder, serializer);
+    sse_encode_i_32(self.recentOrder, serializer);
+  }
+
+  @protected
+  void sse_encode_tag_suggestion_order(
+    TagSuggestionOrder self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

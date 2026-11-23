@@ -8223,3 +8223,58 @@ SIGSEGV/exit 139 under KVM and software boot before reaching a stable picker.
 Physical devices, external/cloud providers, restart/revocation UI replay and
 battery/large-file memory behavior remain explicit acceptance limits. No full
 Flutter suite ran; no production install, release package or publication occurred.
+
+## 348. Multi-tag picker, suggestions and nested completion (November 23, 2026)
+
+The overflow Add tag action previously opened an isolated text-only dialog with
+no connection to the tag catalogue. It now opens `TagPickerDialog`, shared with
+the editor tag bar, frontmatter tags and selected-note bulk action. Suggestions
+load immediately; Suggested combines pinned ordering, actual local recency and
+usage, with separate Recent, Most used and Pinned categories. Search relevance
+comes first. Attached/staged tags are excluded, queries react to live catalogue
+changes, and earlier asynchronous query results are hidden during loading.
+
+The picker stages multiple additions as removable chips. Tapping/Enter selects,
+Tab completes a tag and arrows navigate suggestions. Comma/newline input is
+normalized, validated and deduplicated; Apply includes remaining typed input and
+shows the total number of additions. Invalid batches do not partially stage.
+Cancel never changes the note. Slash-separated queries remain inside their parent
+path, prioritize direct children and show clickable parent breadcrumbs; row
+actions browse deeper. Missing valid paths can be created, including numeric
+children and Unicode names, while trailing/doubled slashes remain invalid. The
+body scrolls with the phone keyboard open, categories wrap, and action buttons
+are constrained for narrow screens and larger text.
+
+`EditorNotifier.addTags` applies one revision/save per batch. The frontmatter
+field similarly writes the combined list once, avoiding repeated writes against
+the same old document. Bulk tagging skips tags already present on each note and
+hides only tags shared by all selected notes. `RecentTagNames` retains 50 names
+under `recently_added_tags_v1` in SharedPreferences. Editor metadata/inline tag
+additions enter history after successful saves; ordinary text/metadata edits and
+failed saves do not change recency. Bulk tagging records after successful writes.
+History starts empty on upgrade, filters missing names and remains device-local.
+No database migration, note serialization or encrypted sync changes were needed.
+
+Pure Rust ranking is exposed as `api::tags::rank_tag_suggestions` through the
+existing Linux FRB library; no filesystem work or note body crosses the ranking
+API. Bridge bindings were regenerated with pinned codegen 2.12.0. Android/iOS
+and other targets use equivalent Dart ranking, also used if the Linux library
+cannot load. Existing mobile builds keep their current build prerequisites.
+The real-library integration compares all category orders, nested/leaf/Unicode
+queries, exclusions and result limits against the portable implementation.
+
+Validation: `flutter analyze --no-pub` passes with zero issues. Focused Flutter
+files passed: `test/tags/tag_suggestions_test.dart`,
+`test/tags/tag_picker_dialog_test.dart`, `test/editor/editor_provider_tag_test.dart`,
+`test/editor/editor_overflow_menu_test.dart`,
+`test/editor/frontmatter_properties_section_test.dart`,
+`test/editor/tag_search_service_test.dart` and `test/editor/tag_inline_menu_test.dart`.
+The new `overflow Add tags suggests existing tags and persists a batch with
+recency` case in `test/editor/dual_mode_editor_screen_test.dart` passes when
+selected with `--plain-name`. The actual library test passes using
+`QP_WATCHED_NATIVE_LIBRARY=target/debug/libquietpaper_watched_import.so flutter
+test --no-pub tool/tag_suggestions_native_test.dart`. Rust's three focused
+`api::tags::tests` pass; `cargo build -p quietpaper_watched_import`,
+`cargo fmt --all --check`, `cargo clippy -p quietpaper_watched_import --all-targets
+-- -D warnings` and the pinned `scripts/check_rust_bridge.sh` regeneration diff
+check pass. Only relevant tests were run; the full test suite was not run.

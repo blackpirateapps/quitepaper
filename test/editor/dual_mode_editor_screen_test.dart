@@ -23,6 +23,7 @@ import 'package:quitepaper/features/notes/application/notes_provider.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/tags/application/tag_suggestions.dart';
 
 void main() {
   group('Dual-Mode EditorScreen & Frontmatter Integration Tests', () {
@@ -59,6 +60,35 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 800));
     }
+
+    testWidgets('overflow Add tags suggests existing tags and persists a batch with recency', (tester) async {
+      final now = DateTime.now();
+      final note = Note(id: 'overflow-multiple-tags', title: 'Tags', content: 'Body',
+        createdAt: now, updatedAt: now, tags: ['attached']);
+      await repository.saveNote(note);
+      await repository.createTag('pinned', isPinned: true);
+      await repository.createTag('work/project');
+      await tester.pumpWidget(createEditorApp(note));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add tags'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('tag-option-attached')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('tag-option-pinned')));
+      await tester.pumpAndSettle();
+      final input = find.byKey(const ValueKey('tag-picker-input'));
+      await tester.enterText(input, 'work/');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('tag-option-work/project')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add 2 tags'));
+      await tester.pumpAndSettle();
+      expect((await repository.getNoteById(note.id))!.tags,
+          unorderedEquals(['attached', 'pinned', 'work/project']));
+      expect(prefs.getStringList(RecentTagNames.storageKey), ['work/project', 'pinned']);
+      await finishTest(tester);
+    });
 
     for (final code in [false, true]) {
       testWidgets('Active Visual ${code ? "code" : "paragraph"} switches to a live Markdown field', (tester) async {

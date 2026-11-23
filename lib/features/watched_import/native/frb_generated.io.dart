@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/engine.dart';
+import 'api/tags.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -49,6 +50,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<TagSuggestionInput> dco_decode_list_tag_suggestion_input(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -59,6 +63,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RootInfo dco_decode_root_info(dynamic raw);
+
+  @protected
+  TagSuggestionInput dco_decode_tag_suggestion_input(dynamic raw);
+
+  @protected
+  TagSuggestionOrder dco_decode_tag_suggestion_order(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -100,6 +110,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<TagSuggestionInput> sse_decode_list_tag_suggestion_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -110,6 +125,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RootInfo sse_decode_root_info(SseDeserializer deserializer);
+
+  @protected
+  TagSuggestionInput sse_decode_tag_suggestion_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TagSuggestionOrder sse_decode_tag_suggestion_order(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -160,6 +185,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_tag_suggestion_input(
+    List<TagSuggestionInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -173,6 +204,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_root_info(RootInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tag_suggestion_input(
+    TagSuggestionInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_tag_suggestion_order(
+    TagSuggestionOrder self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
