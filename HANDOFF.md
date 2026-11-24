@@ -1349,3 +1349,12 @@ variants. Regressions cover São Paulo, Zürich, Greek, Korean, Bengali mark
 preservation and legacy aliases.
 Validation: `flutter analyze --no-pub` clean; 42 grouping/provider/merge-UI tests
 pass. Dependency resolution adds only `unorm_dart` 0.3.3. No full suite.
+
+### JRN-015 — Correct antimeridian coordinate centroids
+
+Unnamed-place longitude uses the circular mean of cluster longitudes instead of
+an arithmetic mean. Dateline clusters remain near ±180; exact 180 is represented
+consistently as -180. Tests check distance from both cluster members, input-order
+determinism and ordinary clustering across Greenwich.
+Validation: `flutter analyze --no-pub` clean; 36 grouping/provider tests pass.
+No full suite.

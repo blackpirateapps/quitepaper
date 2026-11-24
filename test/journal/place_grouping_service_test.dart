@@ -228,6 +228,28 @@ void main() {
     });
   });
 
+  test('coordinate centroids stay near the antimeridian and are deterministic', () {
+    final inputs = [
+      _entry('east', '', DateTime(2026, 1, 1), lat: 10, lng: 179.999),
+      _entry('west', '', DateTime(2026, 1, 2), lat: 10, lng: -179.999),
+    ];
+    final group = service.group(inputs).single;
+    final coordinates = group.matchKey.substring('~coord:'.length).split(',');
+    final lat = double.parse(coordinates[0]);
+    final lng = double.parse(coordinates[1]);
+    expect(lng.abs(), greaterThan(179.99));
+    for (final input in inputs) {
+      expect(PlaceGroupingService.haversineMeters(lat, lng,
+        input.location.latitude, input.location.longitude), lessThan(1500));
+    }
+    expect(service.group(inputs.reversed.toList()).single.displayName, group.displayName);
+    final ordinary = service.group([
+      _entry('a', '', DateTime(2026), lat: 10, lng: -0.001),
+      _entry('b', '', DateTime(2026), lat: 10, lng: 0.001),
+    ]).single;
+    expect(ordinary.displayName, 'Unnamed place near 10.00, 0.00');
+  });
+
   group('coordinate aliases', () {
     final entries = [
       _entry('home', '', DateTime(2026, 1, 1), lat: 22.57, lng: 88.36),

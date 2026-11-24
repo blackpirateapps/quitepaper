@@ -409,7 +409,16 @@ class _CoordCluster {
       members.map((e) => e.location.latitude).reduce((a, b) => a + b) /
       members.length;
 
-  double get centroidLng =>
-      members.map((e) => e.location.longitude).reduce((a, b) => a + b) /
-      members.length;
+  double get centroidLng {
+    // Longitude wraps at ±180; an arithmetic mean puts dateline clusters near 0.
+    var sinSum = 0.0;
+    var cosSum = 0.0;
+    for (final member in members) {
+      final radians = member.location.longitude * math.pi / 180.0;
+      sinSum += math.sin(radians);
+      cosSum += math.cos(radians);
+    }
+    final degrees = math.atan2(sinSum, cosSum) * 180.0 / math.pi;
+    return degrees == 180.0 ? -180.0 : degrees;
+  }
 }
