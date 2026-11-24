@@ -51,6 +51,7 @@ class JournalAllEntriesView extends ConsumerStatefulWidget {
 class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _entryKeys = {};
+  int _jumpGeneration = 0;
 
   @override
   void dispose() {
@@ -102,70 +103,65 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
   }
 
   Future<void> _jumpToEntry(String noteId, String journalDate) async {
-    // 1. Collapse the calendar so timeline has maximum viewport
+    final generation = ++_jumpGeneration;
     ref.read(calendarIsCollapsedProvider.notifier).state = true;
+    await WidgetsBinding.instance.endOfFrame;
 
-    // Allow frame to animate calendar collapse
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-
-    final targetKey = _entryKeys[noteId];
-    if (targetKey?.currentContext != null) {
-      final disableAnimations =
-          WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.reduceMotion;
-
-      await Scrollable.ensureVisible(
-        targetKey!.currentContext!,
-        duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 350),
-        curve: Curves.easeOutCubic,
-        alignment: 0.12,
-      );
-    } else if (_scrollController.hasClients) {
-      // If the item is offscreen in a lazy list, estimate location by month
+    var estimated = false;
+    var attempts = 0;
+    while (mounted && generation == _jumpGeneration && _scrollController.hasClients) {
       final groups = ref.read(journalMonthGroupsProvider).valueOrNull ?? [];
-      final parsed = JournalDateHelper.tryParseDateString(journalDate);
-      if (parsed != null) {
-        final targetMonthKey = JournalDateHelper.monthKey(parsed.year, parsed.month);
-        int itemAccumulator = 0;
-        for (final g in groups) {
-          if (g.monthKey == targetMonthKey) {
-            for (final n in g.entries) {
-              if (n.id == noteId) break;
-              itemAccumulator++;
-            }
-            break;
-          }
-          itemAccumulator += g.entries.length + 1; // +1 for section header
-        }
+      final entries = groups.expand((group) => group.entries).toList();
+      final targetIndex = entries.indexWhere(
+        (note) => note.id == noteId && note.journalDate == journalDate,
+      );
+      // Stop if a live update removed the target, or no layout progress is possible.
+      if (targetIndex < 0 || attempts++ > entries.length + groups.length) return;
 
-        final estimatedOffset = (itemAccumulator * 80.0) + 120.0;
-        final targetOffset = estimatedOffset.clamp(
-          0.0,
-          _scrollController.position.maxScrollExtent,
-        );
-
-        await _scrollController.animateTo(
-          targetOffset,
-          duration: const Duration(milliseconds: 300),
+      // Lazy construction can create a key on any frame: always look it up afresh.
+      final targetContext = _entryKeys[noteId]?.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        final reduceMotion =
+            WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.reduceMotion;
+        await Scrollable.ensureVisible(
+          targetContext,
+          duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 350),
           curve: Curves.easeOutCubic,
+          alignment: 0.12,
         );
-
-        // Try ensureVisible again once scrolled near
-        await Future<void>.delayed(const Duration(milliseconds: 80));
-        if (mounted && targetKey?.currentContext != null) {
-          await Scrollable.ensureVisible(
-            targetKey!.currentContext!,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            alignment: 0.12,
-          );
+        if (mounted && generation == _jumpGeneration) {
+          ref.read(highlightedJournalEntryIdProvider.notifier).state = noteId;
         }
+        return;
       }
-    }
 
-    if (mounted) {
-      // Set temporary highlight
-      ref.read(highlightedJournalEntryIdProvider.notifier).state = noteId;
+      final position = _scrollController.position;
+      double nextOffset;
+      if (!estimated) {
+        // A coarse starting point only. Variable titles, snippets and tags make
+        // both row heights and the sliver's total extent estimates inexact.
+        estimated = true;
+        nextOffset = position.maxScrollExtent * targetIndex / entries.length;
+      } else {
+        // Seek toward the target using the identities of actually built entries.
+        // Overlapping viewport steps cannot skip a month, regardless of its height.
+        var nearestIndex = 0;
+        var nearestDistance = entries.length;
+        for (var index = 0; index < entries.length; index++) {
+          if (_entryKeys[entries[index].id]?.currentContext == null) continue;
+          final distance = (index - targetIndex).abs();
+          if (distance < nearestDistance) {
+            nearestIndex = index;
+            nearestDistance = distance;
+          }
+        }
+        final direction = targetIndex > nearestIndex ? 1 : -1;
+        nextOffset = position.pixels + direction * position.viewportDimension * 0.85;
+      }
+      nextOffset = nextOffset.clamp(position.minScrollExtent, position.maxScrollExtent);
+      if (nextOffset == position.pixels) return;
+      _scrollController.jumpTo(nextOffset);
+      await WidgetsBinding.instance.endOfFrame;
     }
   }
 

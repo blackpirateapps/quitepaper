@@ -1276,3 +1276,24 @@ March-to-April 31-day split, exact 30-day spring/fall gaps and leap-year dates.
 Validation: `flutter analyze --no-pub` clean; 13 visit/Places tests pass in the
 normal timezone; all 8 visit tests also pass with `TZ=America/New_York`.
 The timezone runs overlap. No full suite.
+
+### JRN-010 — Reveal the requested entry in variable-height archives
+
+Timeline jumps re-read lazy entry keys after every layout. A coarse scroll
+estimate is refined with overlapping viewport steps toward actually built note
+identities; once built, the target is precisely revealed and highlighted. A newer
+jump supersedes pending work, and removed targets stop the seek. The code respects
+reduced-motion preferences for the final reveal.
+
+The new regression seeds 1,005 real SQLite journal entries with varying snippets,
+tags and short/wrapped titles at 700×700. It verifies a previously unbuilt June 15,
+2024 tile becomes fully visible and highlighted, then jumps back toward newer
+entries. Both cases fail on the previous implementation and pass with this fix.
+Validation: `flutter analyze --no-pub` clean; all 19 tests pass with
+`flutter test --no-pub test/journal/journal_timeline_jump_test.dart test/journal/journal_all_entries_widget_test.dart`.
+`git diff --check` passes. No full suite or new native-device/performance run.
+
+All first-pass findings **JRN-001–010 are fixed**, each committed and pushed
+separately on `audit/journal-rigorous-2026-11-24`. The original audit evidence is
+preserved and its progress summaries distinguish fixed findings from the
+second-pass **JRN-011–020, which remain open**. Per-fix test totals above overlap.

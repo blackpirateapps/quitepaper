@@ -1,12 +1,13 @@
 # Journal audit — November 24, 2026
 
-Status: **first pass complete; 10 confirmed open bugs, no fixes.** Findings were
+Original audit status: **first pass complete; 10 confirmed bugs, no fixes at
+that revision.** Findings were
 recorded as they were confirmed. The unresolved stress observation below is
 excluded from that count.
 
 **Second pass complete:** [10 additional findings and evidence](round-2/README.md)
-continue the numbering through JRN-020, bringing the cumulative total to **20
-confirmed open bugs**. The original ten findings below are preserved.
+continue the numbering through JRN-020, bringing the original cumulative total
+to **20 confirmed bugs**. The original ten findings below are preserved.
 
 Branch: `audit/journal-rigorous-2026-11-24`. Application source:
 `12c49b30b62ca72e13cfffd3c577857db7c51e09`.
@@ -40,9 +41,14 @@ part of this isolated window's acceptance coverage.
 
 ## Fix progress
 
-JRN-001–009 are fixed with repository regression coverage. See the November 24
-[handoff](../../../HANDOFF.md) for implementation and validation. The findings
-and evidence below describe the original audited revision; JRN-010–020 remain open.
+**JRN-001–010 are fixed**, each in its own commit and push on the audit branch.
+See the November 24 [handoff](../../../HANDOFF.md#journal-audit-fixes--november-24-2026)
+for each implementation and its focused validation. JRN-011–020 remain open.
+The findings, intentional-failure replay instructions and native evidence below
+refer to the original audited revision. Fix verification uses repository/unit/
+widget tests, including a 1,005-entry variable-height timeline regression and an
+America/New_York DST run; no new native-device or release-performance acceptance
+is claimed. The full Flutter suite was not run.
 
 ## JRN-001 — Ordinary date properties claim a canonical journal day
 

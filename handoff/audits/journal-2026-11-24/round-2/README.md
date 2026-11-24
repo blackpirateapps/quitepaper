@@ -1,6 +1,9 @@
 # Journal audit, second pass — November 24, 2026
 
-Status: **complete; 10 additional confirmed bugs, 20 cumulative. No fixes.**
+Original audit status: **complete; 10 additional confirmed bugs, 20 cumulative.**
+
+Follow-up: JRN-001–010 from the first pass are now fixed; the ten second-pass
+findings below (JRN-011–020) remain open. See [fix progress](../README.md#fix-progress).
 
 This extends the [first audit](../README.md), preserving its ten findings as
 JRN-001–010. Application source remains `12c49b3`; the starting audit commit is
