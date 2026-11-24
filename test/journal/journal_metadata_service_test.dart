@@ -106,6 +106,19 @@ Body text
       expect(updated, contains('Body text'));
     });
 
+    test('rewrites preserve nested keys, comments and scalar whitespace', () {
+      const custom = 'source:\n  date: 2020-02-20\n  journal: false\n  title: Source\nsummary: |\n  journal: a line of prose\n\n  date: another line\n# retained comment';
+      final ensured = JournalMetadataService.ensureJournalFrontmatter(
+        content: '---\n$custom\n---\nBody', journalDate: '2026-01-15',
+      );
+      expect(ensured, '---\njournal: true\ndate: 2026-01-15\n$custom\n---\nBody');
+      expect(JournalMetadataService.ensureJournalFrontmatter(
+        content: ensured, journalDate: '2026-01-15',
+      ), ensured);
+      expect(JournalMetadataService.removeJournalFrontmatter(ensured),
+        '---\n$custom\n---\nBody');
+    });
+
     test('removeJournalFrontmatter strips journal keys from conflict copies', () {
       const journalMarkdown = '''---
 journal: true

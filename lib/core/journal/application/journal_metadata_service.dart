@@ -135,7 +135,7 @@ abstract final class JournalMetadataService {
       final trimmed = line.trim();
       final colonIndex = trimmed.indexOf(':');
 
-      if (colonIndex != -1) {
+      if (colonIndex != -1 && !line.startsWith(RegExp(r'\s'))) {
         final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
         if (key == 'journal') {
           if (!hasJournalKey) {
@@ -184,18 +184,16 @@ abstract final class JournalMetadataService {
     for (final line in lines) {
       final trimmed = line.trim();
       final colonIndex = trimmed.indexOf(':');
-      if (colonIndex != -1) {
+      if (colonIndex != -1 && !line.startsWith(RegExp(r'\s'))) {
         final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
         if (key == 'journal' || key == 'date') {
           continue;
         }
       }
-      if (trimmed.isNotEmpty) {
-        remainingLines.add(line);
-      }
+      remainingLines.add(line);
     }
 
-    if (remainingLines.isEmpty) {
+    if (remainingLines.every((line) => line.trim().isEmpty)) {
       return remainder.trimLeft();
     }
 

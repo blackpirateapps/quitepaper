@@ -1213,3 +1213,11 @@ dates and journal flags from changing the canonical day or classifying a note.
 Regression coverage includes nested flags/dates and scalar text.
 Validation: `flutter analyze --no-pub` clean; 27 tests pass in the metadata,
 repository and database journal test files. No full suite.
+
+### JRN-003 — Preserve nested frontmatter during journal rewrites
+
+Ensure/remove operations now match only unindented managed keys. Nested dates,
+journal properties, comments, block scalar contents and blank lines are retained.
+Regression checks verify the entire rewritten document and ensure idempotence.
+Validation: `flutter analyze --no-pub` clean; 23 tests pass in metadata service,
+journal Properties domain and note journal metadata files. No full suite.
