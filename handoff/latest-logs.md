@@ -8461,3 +8461,49 @@ Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
 Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
 layout, nested paths, comma batches, cancellation and single editor/frontmatter
 updates. No full suite, app build or physical-device/cloud-sync replay was run.
+
+## 352. Journal audit with Dart VM and native Linux windows (November 24, 2026)
+
+Audited application revision `12c49b3` on
+`audit/journal-rigorous-2026-11-24`, without fixing production code. Findings were
+written into the [audit report](audits/journal-2026-11-24/README.md) as confirmed.
+All **10 confirmed bugs remain open**: ordinary date properties reserve journal
+days; nested YAML dates override canonical dates; journal frontmatter rewrites
+destroy nested dates; failed inserts return ghost entries; calendar previews
+open trashed notes without restoration; the month picker overflows short screens;
+Bengali day numerals remain ASCII; coordinate-place renames are ignored; spring
+DST joins visits across a 31-day gap; and wrapped titles make timeline jumps
+land in the wrong month.
+
+Validation: `flutter analyze` is clean before and after the audit. The existing
+focused command passes **207 tests**:
+
+```sh
+flutter test test/journal test/notes/note_metadata_journal_test.dart
+```
+
+Four of 14 additional adversarial probes pass; ten assertions intentionally fail
+against existing behavior. The separate `TZ=America/New_York` visit probe also
+fails. Passing probes include 100 concurrent canonical-entry requests,
+trash/restore identity and content, and 76,336 calendar-date round trips.
+Reproduction sources are archived as `.dart.txt`, outside active tests/builds.
+The passing baseline emits two pre-existing Drift multiple-database warnings in
+the place-alias-store fixture. An isolated nine-test rerun passes and reproduces
+both warnings. This fixture concern is documented separately; the zero-warning
+test requirement is not met on unchanged source, and no suppression or fix was
+applied under the user's audit-only instruction.
+
+The real `QuietPaperApp` was launched in isolated Linux debug windows and
+inspected through the Dart VM service. Pointer events and Hyprland keyboard
+events verified calendar previews, writing/leaving/reopening, historical entries,
+Places drill-in and rename. A batched seed produced a 1,005-entry archive; short
+titles permit the selected-date jump, while wrapped titles reproducibly land in
+December instead of the requested June. An earlier incremental seed lost its VM
+connection without a captured cause and remains an explicitly unresolved stress
+observation. Runtime logs retain the startup sharing-plugin exception and keyring
+warnings separately from journal findings.
+
+The report preserves 16 screenshots, raw VM records, test/runtime logs, probe
+sources, replay instructions and limits. No full suite, production-source fix,
+cloud/GPS replay, physical mobile test, restart-durability check or release
+performance claim is included. The isolated windows were closed after the audit.

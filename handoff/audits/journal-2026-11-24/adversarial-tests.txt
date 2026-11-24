@@ -1,0 +1,184 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart
+00:00 +0: ordinary date property must not reserve canonical journal day
+00:00 +0 -1: ordinary date property must not reserve canonical journal day [E]
+  Expected: {'isJournal': false, 'canonicalId': <not 'ordinary'>}
+    Actual: {'isJournal': true, 'canonicalId': 'ordinary'}
+     Which: at location ['isJournal'] is <true> instead of <false>
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 37:5     main.<fn>
+
+00:00 +0 -1: explicit journal false must remain an ordinary note
+00:00 +0 -2: explicit journal false must remain an ordinary note [E]
+  Expected: false
+    Actual: <true>
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 45:5     main.<fn>
+
+00:00 +0 -2: nested YAML date must not overwrite top-level journal date
+00:00 +0 -3: nested YAML date must not overwrite top-level journal date [E]
+  Expected: '2026-01-15'
+    Actual: '2020-02-20'
+     Which: is different.
+            Expected: 2026-01-15
+              Actual: 2020-02-20
+                         ^
+             Differ at offset 3
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 51:5     main.<fn>
+
+00:00 +0 -3: ensure frontmatter must preserve nested dates
+00:00 +0 -4: ensure frontmatter must preserve nested dates [E]
+  Expected: contains '  date: 2020-02-20'
+    Actual: '---\n'
+              'journal: true\n'
+              'source:\n'
+              'date: 2026-01-15\n'
+              '---\n'
+              'Body'
+     Which: does not contain '  date: 2020-02-20'
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 57:5     main.<fn>
+
+00:00 +0 -4: remove frontmatter must preserve nested dates
+00:00 +0 -5: remove frontmatter must preserve nested dates [E]
+  Expected: contains '  date: 2020-02-20'
+    Actual: '---\n'
+              'source:\n'
+              '---\n'
+              'Body'
+     Which: does not contain '  date: 2020-02-20'
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 63:5     main.<fn>
+
+00:00 +0 -5: failed SQLite insert must report failure rather than return ghost note
+00:00 +0 -6: failed SQLite insert must report failure rather than return ghost note [E]
+  Expected: throws anything
+    Actual: <Instance of 'Future<Note>'>
+     Which: emitted <Instance of 'Note'>
+
+  package:matcher                                    expectLater
+  package:flutter_test/src/widget_tester.dart 507:8  expectLater
+  test/journal/journal_audit_probe_test.dart 68:11   main.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                         _CustomZone.registerUnaryCallback
+  test/journal/journal_audit_probe_test.dart 67:5    main.<fn>
+
+00:00 +0 -6: 100 concurrent requests must produce one persisted canonical entry
+00:00 +1 -6: trash retains canonical identity and restore preserves content
+00:01 +2 -6: all valid dates roundtrip across leap and century boundaries
+AUDIT_DATE_ROUNDTRIPS=76336
+00:04 +3 -6: coordinate-only place rename must affect displayed group
+00:04 +3 -7: coordinate-only place rename must affect displayed group [E]
+  Expected: 'Home'
+    Actual: 'Unnamed place near 22.57, 88.36'
+     Which: is different.
+            Expected: Home
+              Actual: Unnamed pl ...
+                      ^
+             Differ at offset 0
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 113:5    main.<fn>
+
+00:04 +3 -7: 31 calendar day gap must split visits across DST
+AUDIT_DST_OFFSETS=5:30:00.000000,5:30:00.000000; elapsedDays=31
+00:04 +4 -7: selected trashed day must offer restore rather than open editor
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: no matching candidates
+  Actual: _TextWidgetFinder:<Found 1 widget with text "Show in All Entries": [
+            Text("Show in All Entries", inherit: true, color: Color(alpha: 1.0000, red: 0.8392,
+green: 0.3725, blue: 0.3333, colorSpace: ColorSpace.sRGB), size: 12.5, weight: 600, letterSpacing:
+0.2, height: 1.4x, dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+          ]>
+   Which: means one was found but none were expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart:136:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart line 136
+The test description was:
+  selected trashed day must offer restore rather than open editor
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:07 +4 -8: selected trashed day must offer restore rather than open editor [E]
+  Test failed. See exception logs above.
+  The test description was: selected trashed day must offer restore rather than open editor
+
+00:07 +4 -8: month picker must remain usable at phone landscape height
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<A RenderFlex overflowed by 157 pixels on the bottom.>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart:149:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart line 149
+The test description was:
+  month picker must remain usable at phone landscape height
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:07 +4 -9: month picker must remain usable at phone landscape height [E]
+  Test failed. See exception logs above.
+  The test description was: month picker must remain usable at phone landscape height
+
+00:07 +4 -9: Bengali calendar must use Bengali day numerals
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "২৪": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart:163:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart line 163
+The test description was:
+  Bengali calendar must use Bengali day numerals
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:08 +4 -10: Bengali calendar must use Bengali day numerals [E]
+  Test failed. See exception logs above.
+  The test description was: Bengali calendar must use Bengali day numerals
+
+00:08 +4 -10: Some tests failed.
+
+Failing tests:
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart: Bengali calendar must use Bengali day numerals
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart: coordinate-only place rename must affect displayed group
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart: ensure frontmatter must preserve nested dates
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart: explicit journal false must remain an ordinary note
+  ... and 6 more

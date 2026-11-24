@@ -8,6 +8,20 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Journal audit — November 24, 2026
+
+The journal audit on `audit/journal-rigorous-2026-11-24` found **10 confirmed open
+bugs**, recorded as they were discovered in [the audit report](handoff/audits/journal-2026-11-24/README.md).
+The focused journal gate passes 207 tests with two existing Drift fixture
+warnings; static analysis is clean. Four of 14
+new adversarial probes pass and ten intentionally fail to expose existing bugs;
+a separate New York DST probe also fails. Native Linux verification uses the
+Dart VM, real keyboard input and an isolated 1,005-entry archive. Findings cover
+journal classification, frontmatter damage, failed writes, Trash preview,
+layout/localization, place rename/visit grouping and incorrect timeline jumps.
+Screenshots, probe sources, raw evidence and verification limits are preserved.
+No fixes or production source changes were made. No full suite ran. See log 352.
+
 ## Latest fix: stable, compact tag picker (November 24, 2026)
 
 The shared Add tags picker now keeps its current suggestions visible while the

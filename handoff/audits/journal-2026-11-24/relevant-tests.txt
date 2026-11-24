@@ -1,0 +1,492 @@
+Waiting for another flutter command to release the startup lock...
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 100.0.0 (111.0.0 available)
+  analyzer 13.0.0 (14.7.0 available)
+  archive 4.0.9 (4.7.1 available)
+  build 4.0.7 (5.0.0 available)
+  build_config 1.3.2 (1.4.0 available)
+  build_daemon 4.1.5 (4.1.7 available)
+  build_runner 2.15.1 (2.17.1 available)
+  built_collection 5.1.1 (6.0.0 available)
+  built_value 8.12.7 (8.13.0 available)
+  camera 0.12.0+2 (0.12.2 available)
+  camera_android_camerax 0.7.4+6 (0.7.6+2 available)
+  camera_avfoundation 0.10.2 (0.11.1 available)
+  camera_platform_interface 2.13.1 (2.15.1 available)
+  camera_web 0.3.5+5 (0.3.6 available)
+  cli_util 0.5.2 (0.6.1 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.2.0 available)
+  code_builder 4.12.0 (4.13.0 available)
+  coverage 1.15.1 (1.16.1 available)
+  cross_file 0.3.5+4 (0.4.0 available)
+  crypto 3.0.7 (3.0.8 available)
+  cupertino_icons 1.0.9 (2.0.0 available)
+  dart_quill_delta 9.6.0 (10.8.3 available)
+  dart_style 3.1.9 (3.1.14 available)
+  dbus 0.7.15 (0.8.1 available)
+  desktop_drop 0.8.4 (0.9.2 available)
+  device_info_plus 12.4.0 (13.3.0 available)
+  device_info_plus_platform_interface 7.0.3 (8.1.0 available)
+  drift 2.34.3 (2.35.4 available)
+  drift_dev 2.34.5 (2.35.3 available)
+  ffmpeg_kit_flutter_new_min 2.1.0 (4.0.0 available)
+  file_picker 8.3.7 (13.4.1 available)
+  flutter_markdown 0.7.7+1 (discontinued replaced by flutter_markdown_plus)
+  flutter_riverpod 2.6.1 (3.5.0 available)
+  flutter_rust_bridge 2.12.0 (2.13.0 available)
+  flutter_secure_storage 9.2.4 (11.2.0 available)
+  flutter_secure_storage_linux 1.2.3 (3.0.3 available)
+  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
+  flutter_secure_storage_platform_interface 1.1.2 (2.1.1 available)
+  flutter_secure_storage_web 1.2.1 (2.1.1 available)
+  flutter_secure_storage_windows 3.1.2 (4.2.2 available)
+  flutter_svg 2.3.2 (2.5.0 available)
+  flutter_test_robots 0.0.24 (1.2.0 available)
+  flutter_test_runners 0.0.4 (1.0.0 available)
+  frontend_server_client 4.1.0 (4.2.0 available)
+  geocoding 5.0.0 (5.0.1 available)
+  geolocator 14.0.2 (14.1.2 available)
+  geolocator_android 5.0.3 (5.2.1 available)
+  geolocator_apple 2.3.14 (2.4.3 available)
+  geolocator_linux 0.2.4 (0.2.6 available)
+  geolocator_platform_interface 4.3.0 (4.4.1 available)
+  glob 2.1.3 (2.2.0 available)
+  google_fonts 8.2.1 (9.0.0 available)
+  google_mlkit_commons 0.13.0 (1.0.3 available)
+  google_mlkit_text_recognition 0.17.1 (1.0.3 available)
+  gsettings 0.2.8 (0.2.9 available)
+  hooks 2.0.2 (2.2.0 available)
+  html 0.15.6 (0.15.7 available)
+  http_multi_server 3.2.2 (3.2.3 available)
+  image 4.9.2 (4.13.1 available)
+  io 1.0.5 (1.1.0 available)
+  jni 1.0.3 (1.2.1 available)
+  jni_flutter 1.0.2 (1.1.0 available)
+  js 0.6.7 (0.7.2 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  mime 2.0.0 (2.1.0 available)
+  mockito 5.7.0 (5.8.1 available)
+  native_toolchain_c 0.19.2 (0.19.6 available)
+  objective_c 9.5.0 (9.6.4 available)
+  package_config 2.2.0 (3.0.0 available)
+  package_info_plus 9.0.1 (10.2.2 available)
+  package_info_plus_platform_interface 3.2.1 (4.1.0 available)
+  pasteboard 0.5.0 (0.6.2 available)
+  pdf 3.13.0 (3.13.1 available)
+  permission_handler 11.3.1 (13.0.2 available)
+  permission_handler_android 12.1.0 (14.1.1 available)
+  permission_handler_apple 9.6.1 (9.6.5 available)
+  permission_handler_platform_interface 4.4.0 (4.4.1 available)
+  permission_handler_windows 0.2.2 (0.2.4 available)
+  petitparser 7.0.2 (7.1.0 available)
+  platform 3.1.6 (3.2.0 available)
+  pool 1.5.2 (1.5.3 available)
+  posix 6.5.2 (6.5.4 available)
+  printing 5.15.0 (5.15.1 available)
+  pub_semver 2.2.0 (2.2.1 available)
+  pubspec_parse 1.5.0 (1.7.0 available)
+  qr 3.0.2 (4.0.1 available)
+  record 7.1.1 (7.2.0 available)
+  record_android 2.1.2 (2.3.0 available)
+  record_linux 2.1.1 (2.2.0 available)
+  record_platform_interface 2.1.0 (2.2.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  record_web 2.1.2 (2.2.0 available)
+  record_windows 2.2.3 (2.4.0 available)
+  riverpod 2.6.1 (3.5.0 available)
+  share_plus 10.1.4 (13.3.1 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences 2.5.5 (2.5.6 available)
+  shared_preferences_android 2.4.27 (2.5.5 available)
+  shared_preferences_foundation 2.5.6 (2.6.2 available)
+  shelf 1.4.2 (1.4.3 available)
+  shelf_static 1.1.3 (1.2.0 available)
+  source_gen 4.2.4 (4.3.1 available)
+  sqlite3 3.5.1 (3.9.2 available)
+  sqlparser 0.45.0 (0.45.1 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  stream_transform 2.1.1 (2.1.2 available)
+  super_keyboard 0.4.1 (0.4.2 available)
+  syncfusion_flutter_core 33.2.15 (35.2.12 available)
+  syncfusion_flutter_pdf 33.2.15 (35.2.12 available)
+  syncfusion_flutter_pdfviewer 33.2.13 (35.2.12 available)
+  syncfusion_flutter_signaturepad 33.2.15 (35.2.12 available)
+  syncfusion_pdfviewer_linux 33.2.15 (35.2.12 available)
+  syncfusion_pdfviewer_macos 33.2.15 (35.2.12 available)
+  syncfusion_pdfviewer_platform_interface 33.2.15 (35.2.12 available)
+  syncfusion_pdfviewer_web 33.2.15 (35.2.12 available)
+  syncfusion_pdfviewer_windows 33.2.15 (35.2.12 available)
+  synchronized 3.5.0 (3.6.1+1 available)
+  test 1.31.1 (1.33.0 available)
+  test_api 0.7.12 (0.7.15 available)
+  test_core 0.6.18 (0.6.21 available)
+  url_launcher 6.3.2 (6.3.3 available)
+  url_launcher_android 6.3.32 (6.3.35 available)
+  url_launcher_ios 6.4.1 (6.4.2 available)
+  url_launcher_linux 3.2.2 (3.2.3 available)
+  url_launcher_macos 3.2.5 (3.2.6 available)
+  url_launcher_windows 3.1.5 (3.1.6 available)
+  vector_graphics 1.2.6 (1.3.1 available)
+  vector_graphics_codec 1.1.13 (1.2.0 available)
+  vector_graphics_compiler 1.3.4 (1.3.6 available)
+  vector_math 2.4.2 (2.4.4 available)
+  vm_service 15.2.0 (15.4.0 available)
+  web 1.1.1 (1.1.2 available)
+  webview_flutter_android 4.14.0 (4.14.1 available)
+  webview_flutter_wkwebview 3.26.0 (3.27.2 available)
+  whisper_ggml 2.6.0 (2.10.0 available)
+  win32 5.15.0 (6.4.0 available)
+  win32_registry 2.1.0 (3.0.3 available)
+  xml 7.0.1 (7.1.0 available)
+  yaml 3.1.3 (3.1.4 available)
+Got dependencies!
+1 package is discontinued.
+139 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart
+00:00 +0: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:00 +1: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:00 +2: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:00 +3: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:00 +4: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:00 +5: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility shows for an unlocated, unlocked journal entry (toggle on, day not suppressed)
+00:01 +6: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility hidden when the entry already has a location
+00:01 +7: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility hidden on a locked (password-protected) note
+00:01 +8: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: travelDatesForMonthProvider (§2.4) returns only the dates in the month whose entry is moment: travel
+00:01 +9: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: travelDatesForMonthProvider (§2.4) returns only the dates in the month whose entry is moment: travel
+00:01 +10: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: travelDatesForMonthProvider (§2.4) returns only the dates in the month whose entry is moment: travel
+00:01 +11: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility hidden when this day is suppressed
+00:01 +12: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/backfill_place_nudge_test.dart: BackfillPlaceNudge visibility hidden when this day is suppressed
+00:01 +13: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:02 +14: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:03 +15: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:03 +16: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:03 +17: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:03 +18: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) travel day renders a hollow ring and its semantics mention travel
+00:04 +19: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/calendar_travel_marker_test.dart: Calendar travel marker (Feature 2) non-travel entry day is a plain filled dot and its semantics omit travel
+00:04 +20: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +21: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +22: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +23: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +24: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +25: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +26: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +27: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:05 +28: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +29: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +30: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +31: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +32: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +33: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:06 +34: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:07 +35: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:07 +36: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:07 +37: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders empty timeline state when no journal entries exist
+00:07 +38: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +39: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +40: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +41: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +42: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +43: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +44: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +45: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +46: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +47: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +48: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +49: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +50: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +51: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +52: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +53: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +54: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +55: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +56: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +57: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +58: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +59: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +60: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +61: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +62: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +63: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +64: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +65: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:07 +66: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests renders month group headers and chronological timeline tiles
+00:08 +67: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +68: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +69: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +70: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +71: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +72: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +73: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:08 +74: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tapping a calendar date with entry shows preview and Show in All Entries button
+00:09 +75: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +76: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +77: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +78: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +79: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +80: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +81: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +82: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +83: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:10 +84: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:11 +85: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: renders a place card per located place
+00:11 +86: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month navigation buttons navigate previous and next months
+00:11 +87: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month navigation buttons navigate previous and next months
+00:11 +88: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month navigation buttons navigate previous and next months
+00:11 +89: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month navigation buttons navigate previous and next months
+00:11 +90: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: granularity toggle collapses cities into one country
+00:11 +91: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_places_view_test.dart: granularity toggle collapses cities into one country
+00:11 +92: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:11 +93: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:11 +94: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +95: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +96: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +97: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +98: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +99: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests month/year picker dialog displays year indicator dot for years with entries and allows jumping across years
+00:12 +100: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_service_test.dart: JournalService Unit Tests getOrCreateToday returns created note on first call and same note on second
+00:12 +101: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:12 +102: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:12 +103: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:12 +104: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:12 +105: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:12 +106: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet layout delegates note selection to onNoteSelected callback
+00:13 +107: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_service_test.dart: JournalService Unit Tests openOrCreateTodayFlow applies journal/<year> when autoTagYear is true
+00:13 +108: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_service_test.dart: JournalService Unit Tests openOrCreateTodayFlow applies journal/<year> when autoTagYear is true
+00:13 +109: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests opening All Entries or selecting empty date never automatically creates today note
+00:13 +110: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests opening All Entries or selecting empty date never automatically creates today note
+00:14 +111: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +112: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +113: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +114: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +115: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +116: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +117: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:14 +118: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:15 +119: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: composes place and weather when both present
+00:15 +120: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests JournalTimelineTile renders active selection highlight and semantics when selected
+00:15 +121: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests JournalTimelineTile renders active selection highlight and semantics when selected
+00:15 +122: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_timeline_dateline_test.dart: renders no dateline when neither place nor weather exists
+00:15 +123: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet split view in QuietPaperApp highlights selected journal entry in timeline when tapped
+00:15 +124: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet split view in QuietPaperApp highlights selected journal entry in timeline when tapped
+00:15 +125: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_all_entries_widget_test.dart: JournalAllEntriesView Widget Tests tablet split view in QuietPaperApp highlights selected journal entry in timeline when tapped
+00:17 +126: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_place_test.dart: OnThisDayView place segment (Feature 3) appends the city-level place to the metadata line when present
+00:17 +127: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +128: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +129: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +129: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart: PlaceAliasStore (§2.3, device-local) merge points every match key at the canonical key + display name
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+00:18 +130: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +130: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart: PlaceAliasStore (§2.3, device-local) rename updates display name for all entries under a canonical key
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+00:18 +131: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +132: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +133: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +134: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +134: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart: PlaceAliasStore (§2.3, device-local) unmergeCanonical persists and stays unmerged in a fresh store
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:quitepaper/core/database/app_database.g.dart:12300:36)
+#4      new AppDatabase (package:quitepaper/core/database/app_database.dart:96:7)
+#5      databaseProvider.<anonymous closure> (package:quitepaper/features/notes/application/notes_provider.dart:81:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     keyManagerProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:42:19)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     isKeyManagerUnlockedProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:56:18)
+#28     StateProvider._create (package:riverpod/src/state_provider/base.dart:85:54)
+#29     StateProviderElement.create (package:riverpod/src/state_provider/base.dart:140:35)
+#30     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#31     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#32     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#33     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#34     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#35     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#36     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#37     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#38     placeAliasStoreProvider.<anonymous closure> (package:quitepaper/features/journal/application/place_alias_store.dart:342:20)
+#39     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#40     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#41     Result.guard (package:riverpod/src/result.dart:21:28)
+#42     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#43     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#44     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#45     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#46     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#47     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#48     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#49     ProviderBase.read (package:riverpod/src/framework/provider_base.dart:105:26)
+#50     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#51     main.<anonymous closure>.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart:120:17)
+<asynchronous suspension>
+#52     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#53     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#54     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:18 +135: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +135: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart: PlaceAliasStore (§2.3, device-local) persists to SharedPreferences and reloads in a fresh store
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:quitepaper/core/database/app_database.g.dart:12300:36)
+#4      new AppDatabase (package:quitepaper/core/database/app_database.dart:96:7)
+#5      databaseProvider.<anonymous closure> (package:quitepaper/features/notes/application/notes_provider.dart:81:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     keyManagerProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:42:19)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     isKeyManagerUnlockedProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:56:18)
+#28     StateProvider._create (package:riverpod/src/state_provider/base.dart:85:54)
+#29     StateProviderElement.create (package:riverpod/src/state_provider/base.dart:140:35)
+#30     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#31     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#32     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#33     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#34     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#35     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#36     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#37     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#38     placeAliasStoreProvider.<anonymous closure> (package:quitepaper/features/journal/application/place_alias_store.dart:342:20)
+#39     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#40     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#41     Result.guard (package:riverpod/src/result.dart:21:28)
+#42     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#43     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#44     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#45     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#46     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#47     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#48     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#49     ProviderBase.read (package:riverpod/src/framework/provider_base.dart:105:26)
+#50     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#51     main.<anonymous closure>.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart:139:27)
+<asynchronous suspension>
+#52     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#53     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#54     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:18 +136: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +137: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +138: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:18 +139: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests renders historical entry cards with relative year labels and triggers selection
+00:19 +140: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays historical memories section with correct period header, day grouping, and updated exact-date subtitle
+00:19 +141: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests orders historical year groups newest to oldest and notes chronologically within year
+00:19 +142: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests orders historical year groups newest to oldest and notes chronologically within year
+00:19 +143: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests orders historical year groups newest to oldest and notes chronologically within year
+00:19 +144: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests orders historical year groups newest to oldest and notes chronologically within year
+00:19 +145: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: PlaceAlias database ops putLocalPlaceAlias marks dirty; markPlaceAliasSynced clears it
+00:20 +146: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +147: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +148: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +149: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +150: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +151: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +152: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +153: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:20 +154: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +155: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +156: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +157: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +158: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +159: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +160: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +161: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +162: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +163: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +164: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +165: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +166: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +167: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +168: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +169: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +170: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +171: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +172: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +173: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +174: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: Cross-device place-alias sync (engine) a merge on A converges to B with identical ids
+00:20 +175: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests shows older memories button when earlier notes exist and triggers loadOlderMemories
+00:20 +176: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests shows older memories button when earlier notes exist and triggers loadOlderMemories
+00:20 +177: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: PlaceAliasStore DB path merge writes dirty encrypted rows and reflects in state
+00:20 +178: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests renders error state gracefully preserving exact-date section
+00:20 +179: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_sync_test.dart: PlaceAliasStore DB path unmerge tombstones a synced row
+00:20 +180: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests Case 4: displays quiet empty states for both sections when neither has entries
+00:20 +181: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests Case 4: displays quiet empty states for both sections when neither has entries
+00:20 +182: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests excludes current year notes from historical week section
+00:21 +183: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +184: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +185: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +185: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_providers_test.dart: placeListProvider silently excludes unlocated and locked notes; groups located ones
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+00:22 +186: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +186: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_providers_test.dart: placeListProvider is empty while the entries stream is still loading
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+00:22 +187: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +188: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +189: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:22 +190: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:23 +191: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +192: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +193: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +194: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +195: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +196: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +197: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:23 +198: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:24 +199: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests renders JOURNAL section with Today, All Entries, and On This Day
+00:24 +200: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: unmerge restores the separate cards
+00:24 +201: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests tapping All Entries updates currentDestination to AppDestination.allJournalEntries
+00:24 +202: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests tapping All Entries updates currentDestination to AppDestination.allJournalEntries
+00:24 +203: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: merged state persists across a fresh view (device-local)
+00:24 +204: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests tapping On This Day updates currentDestination to AppDestination.onThisDay
+00:24 +205: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests tapping Today invokes openOrCreateToday and creates today note if not found
+00:25 +206: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/sidebar_journal_widget_test.dart: SidebarView Journal Section Widget Tests tapping Today does not apply year tag when autoTagTodayJournal is false
+00:26 +207: All tests passed!
