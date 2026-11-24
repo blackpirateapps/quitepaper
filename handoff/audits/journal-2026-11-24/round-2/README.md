@@ -2,7 +2,8 @@
 
 Original audit status: **complete; 10 additional confirmed bugs, 20 cumulative.**
 
-Follow-up: JRN-001–019 are fixed. JRN-020 remains open.
+Follow-up: **all 20 confirmed findings, JRN-001–020, are fixed**, each in a
+separate commit and push.
 Implementation details and per-fix checks are in [HANDOFF.md](../../../../HANDOFF.md). See [fix progress](../README.md#fix-progress).
 
 This extends the [first audit](../README.md), preserving its ten findings as
@@ -260,9 +261,11 @@ Leaving and reopening the journal still shows the body without ` TEST`; see
 
 ## Evidence and replay
 
-Production source, schema and protocols are unchanged. The temporary test
-entrypoints and intentional-failure tests are archived as `.dart.txt`; ordinary
-CI does not run them. The native window was closed and its clock offset reset
+Production source, schema and protocols were unchanged at the original audit
+checkpoint. The temporary test entrypoints and intentional-failure tests are
+archived as `.dart.txt`; replay them on the original `12c49b3` source, since the
+fixes change the alias mutation and earliest-year provider APIs. Ordinary CI uses
+the current regression tests, not these historical probes. The native window was closed and its clock offset reset
 to zero before finishing.
 
 - [Edge probe source](edge_probe_test.dart.txt) and

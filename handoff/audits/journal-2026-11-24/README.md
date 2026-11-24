@@ -41,14 +41,23 @@ part of this isolated window's acceptance coverage.
 
 ## Fix progress
 
-**JRN-001–010 are fixed**, each in its own commit and push on the audit branch.
-See the November 24 [handoff](../../../HANDOFF.md#journal-audit-fixes--november-24-2026)
-for each implementation and its focused validation. JRN-011–019 are also fixed; JRN-020 remains open.
+**All 20 confirmed findings, JRN-001–020, are fixed**, each in its own commit
+and push on `audit/journal-rigorous-2026-11-24`. See the November 24
+[handoff](../../../HANDOFF.md#journal-audit-fixes--november-24-2026) and
+[remaining-fixes log](../../../HANDOFF.md#remaining-journal-audit-fixes--november-24-2026)
+for implementation details and focused validation. The first-pass alias-fixture
+warnings are also resolved, and the pending-weather label now fits narrow columns.
+
 The findings, intentional-failure replay instructions and native evidence below
-refer to the original audited revision. Fix verification uses repository/unit/
-widget tests, including a 1,005-entry variable-height timeline regression and an
-America/New_York DST run; no new native-device or release-performance acceptance
-is claimed. The full Flutter suite was not run.
+refer to the original audited revision (`12c49b3`). Replaying archived probes
+requires that revision; current production regressions are in `test/journal` and
+the focused editor test files listed in HANDOFF. Verification includes a
+1,005-entry variable-height timeline, SQLite failure/retry and atomicity, Unicode
+and coordinate edge cases, midnight/resume and New York DST, reactive backfill,
+and the real editor retaining pending Visual edits through weather/save/reopen.
+All per-fix analysis and relevant tests pass; the full Flutter suite was not run.
+No new native-device, live GPS/weather or release-performance acceptance is claimed.
+Unresolved stress observations below remain outside the confirmed bug count.
 
 ## JRN-001 — Ordinary date properties claim a canonical journal day
 
@@ -353,6 +362,6 @@ titles; `coordinate` adds the coordinate-only location. Dates in the seed are
 relative to the device clock, so adjust the historical selection when replaying
 on another day. Remove the temporary entrypoint when finished.
 
-No production Dart, schema, synchronization or native-platform source changes
-are included in this branch. Only the audit artifacts and handoff documentation
-are committed.
+At the original audit checkpoint, only audit artifacts and handoff documentation
+were committed; production Dart, schema, synchronization and native-platform
+source were unchanged. Subsequent fixes are described in Fix progress above.

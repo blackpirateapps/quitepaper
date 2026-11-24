@@ -1405,3 +1405,31 @@ pagination changes through Trash/restore/delete, then use the real memories view
 to reveal Show older memories and load a 2010 paper-diary entry without restart.
 Validation: `flutter analyze --no-pub` clean; 30 backfill/repository/memories/
 clock tests pass. No full suite.
+
+### JRN-020 — Preserve edits while location/weather requests are pending
+
+Weather completion reads the latest canonical document instead of its pre-request
+snapshot. EditorScreen supplies a reader that publishes pending Visual edits
+before returning the source buffer. GPS-derived location is merged only at
+completion. Request generations and document identity prevent a late response
+from touching a different note or clearing its newer request; read-only state and
+newer location/weather values supersede pending results. Failed/disposed requests
+do not submit a replacement document. Location acquisition has an injectable
+callback for deterministic concurrency coverage.
+
+The pending-weather label now wraps within narrow Properties columns, fixing the
+incidental loading-label overflow recorded during the audit and reproduced by
+editor integration. Race tests cover rebuilt and not-yet-rebuilt bodies, concurrent
+property edits, both GPS/HTTP waits, changed location/weather, read-only state,
+document switching, failed responses and disposal. Real EditorScreen regressions
+at 1400×900 and 550×1200 type before the 50ms Visual debounce, complete weather,
+then verify both the text and weather persist through save and reopening.
+Validation: `flutter analyze --no-pub` clean; all 64 focused weather/Properties/
+frontmatter/editor tests pass without warnings. `git diff --check` passes.
+No full suite, new native-device run or live GPS/weather request was performed.
+
+All **20 confirmed journal audit findings (JRN-001–020) are fixed**. JRN-011–020
+were each committed and pushed separately after their relevant checks, following
+the ten first-pass fixes. Audit evidence retains its original source/reproduction
+context; unresolved stress observations and physical-device/release acceptance
+limits are not claimed resolved. Per-fix test totals overlap.
