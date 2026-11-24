@@ -40,9 +40,9 @@ part of this isolated window's acceptance coverage.
 
 ## Fix progress
 
-JRN-001–003 are fixed with repository regression coverage. See the November 24
+JRN-001–004 are fixed with repository regression coverage. See the November 24
 [handoff](../../../HANDOFF.md) for implementation and validation. The findings
-and evidence below describe the original audited revision; JRN-004–020 remain open.
+and evidence below describe the original audited revision; JRN-005–020 remain open.
 
 ## JRN-001 — Ordinary date properties claim a canonical journal day
 

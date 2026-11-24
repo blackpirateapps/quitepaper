@@ -658,16 +658,10 @@ class DriftNotesRepository implements NotesRepository {
       // Catch concurrent creation race and query existing record
       final raced = await _db.getJournalEntry(dateStr);
       if (raced != null) return _mapToDomain(raced);
+      rethrow;
     }
 
-    return Note(
-      id: newId,
-      title: defaultTitle,
-      content: initialContent,
-      createdAt: now,
-      updatedAt: now,
-      journalDate: dateStr,
-    );
+    throw StateError('Journal entry for $dateStr was not persisted.');
   }
 
   @override

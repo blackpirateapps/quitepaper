@@ -1221,3 +1221,12 @@ journal properties, comments, block scalar contents and blank lines are retained
 Regression checks verify the entire rewritten document and ensure idempotence.
 Validation: `flutter analyze --no-pub` clean; 23 tests pass in metadata service,
 journal Properties domain and note journal metadata files. No full suite.
+
+### JRN-004 — Report journal persistence failures
+
+Creation rethrows a failed write when no concurrent canonical entry exists;
+missing post-write rows also fail explicitly. Callers only receive persisted
+entries. SQLite-trigger regression coverage verifies the original error, no ghost
+row, successful retry and 100 concurrent requests sharing one stored entry.
+Validation: `flutter analyze --no-pub` clean; all 20 repository/service tests pass.
+No full suite.

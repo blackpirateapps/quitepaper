@@ -52,6 +52,26 @@ void main() {
       expect(secondCall.journalDate, '2026-09-01');
     });
 
+    test('failed insert reports the storage error and can be retried', () async {
+      await db.customStatement("CREATE TRIGGER fail_journal_insert BEFORE INSERT ON notes BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END");
+      await expectLater(
+        repository.getOrCreateJournalEntry(DateTime(2026, 1, 15)),
+        throwsA(predicate<Object>((error) => error.toString().contains('simulated write failure'))),
+      );
+      expect(await repository.getJournalEntry('2026-01-15'), isNull);
+      await db.customStatement('DROP TRIGGER fail_journal_insert');
+      final saved = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+      expect((await repository.getNoteById(saved.id))!.journalDate, '2026-01-15');
+    });
+
+    test('100 concurrent creations return one persisted canonical entry', () async {
+      final notes = await Future.wait(List.generate(100,
+        (_) => repository.getOrCreateJournalEntry(DateTime(2026, 1, 15))));
+      expect(notes.map((note) => note.id).toSet(), hasLength(1));
+      expect(await repository.getAllJournalEntries(), hasLength(1));
+      expect(await repository.validateJournalIntegrity(), isEmpty);
+    });
+
     test('user can customize journal note title while preserving journalDate', () async {
       final date = DateTime(2026, 9, 1);
       final note = await repository.getOrCreateJournalEntry(date);
