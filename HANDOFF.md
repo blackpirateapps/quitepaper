@@ -1378,3 +1378,18 @@ shapes and malformed JSON produce recoverable weather errors instead of
 inventing clear 0°C weather. Genuine measured zero values remain valid.
 Validation: `flutter analyze --no-pub` clean; 27 weather/Properties-domain tests
 pass, including complete responses, malformed payloads and HTTP errors. No full suite.
+
+### JRN-018 — Refresh journal dates at midnight and resume
+
+A shared `JournalDayClock` schedules the next local midnight and rechecks wall
+time on resume. It cancels background/disposed timers and accounts for 23/25-hour
+DST days. Today, exact-date memories, historical headings/queries and calendar/
+timeline Today highlights consume that shared day. The wall-clock function is
+injectable for deterministic tests; browsing month/selection is preserved.
+Regression coverage uses the actual memories view and repository to verify the
+heading and queried notes change together with Today. It also covers forward/
+backward resume adjustments, year boundaries, leap-day rescheduling, exact local
+midnight timing on a DST day and disposal.
+Validation: `flutter analyze --no-pub` clean; 40 clock/memories/sidebar/archive/
+timeline tests pass. All 4 clock tests also pass under `TZ=America/New_York`.
+These totals overlap. No full suite or real overnight/device acceptance run.

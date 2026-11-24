@@ -7,6 +7,7 @@ import '../../settings/application/default_settings_provider.dart';
 import '../../../core/journal/domain/journal_date_helper.dart';
 import '../../../core/journal/domain/journal_models.dart';
 import 'journal_service.dart';
+import 'journal_day_clock.dart';
 
 /// Active display locale tag for journal dates & numerals: `'bn'` when the
 /// opt-in Bengali-dates setting is on, else null (default English). Display
@@ -26,7 +27,7 @@ final journalServiceProvider = Provider<JournalService>((ref) {
 
 /// Current local calendar date for journal operations (YYYY-MM-DD)
 final todayJournalDateProvider = Provider<String>((ref) {
-  return JournalDateHelper.todayString();
+  return JournalDateHelper.todayString(ref.watch(journalDayClockProvider));
 });
 
 /// Watches today's journal entry. Emits null if today's entry does not exist yet.
@@ -46,8 +47,7 @@ final hasTodayJournalEntryProvider = Provider<bool>((ref) {
 /// Watches On This Day entries (matching today's month and day from previous years).
 final onThisDayEntriesStreamProvider = StreamProvider<List<Note>>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
-  final now = DateTime.now();
-  final localNow = JournalDateHelper.toLocalDate(now);
+  final localNow = ref.watch(historicalReferenceDateProvider);
 
   return repository.watchOnThisDayEntries(
     month: localNow.month,
@@ -162,7 +162,7 @@ final highlightedJournalEntryIdProvider = StateProvider<String?>((ref) => null);
 /// Reference date used for historical queries and calculations (defaults to DateTime.now()).
 /// Can be overridden in widget and unit tests for deterministic testing.
 final historicalReferenceDateProvider = Provider<DateTime>((ref) {
-  return DateTime.now();
+  return ref.watch(journalDayClockProvider);
 });
 
 /// Number of historical years to load (default: 5). Progressively increased in batches of 5.

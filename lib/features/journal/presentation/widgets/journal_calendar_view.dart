@@ -39,7 +39,7 @@ class JournalCalendarView extends ConsumerWidget {
     final travelDates = ref.watch(travelDatesForMonthProvider(visibleMonth));
     final selectedEntryAsync = ref.watch(selectedDateJournalEntryProvider);
 
-    final now = DateTime.now();
+    final now = JournalDateHelper.tryParseDateString(ref.watch(todayJournalDateProvider))!;
     final isCurrentMonth = visibleMonth.year == now.year && visibleMonth.month == now.month;
     final localeTag = ref.watch(journalLocaleTagProvider);
     final monthDisplayTitle = JournalDateHelper.formatMonthYear(
