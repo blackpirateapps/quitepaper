@@ -1318,3 +1318,22 @@ and a failed decode retains the last readable state for later recovery.
 Validation: `flutter analyze --no-pub` clean; 14 asynchronous/store tests pass,
 including controlled out-of-order completion, local rename, decode recovery and
 disposal. No full suite.
+
+### JRN-013 — Recoverable, atomic place-alias persistence
+
+Place mutations now return `Future<void>`, serialize writes, and publish visible
+state only after persistence succeeds. The encrypted repository reads the latest
+aliases and applies each complete mutation in one SQLite transaction. Legacy
+preference writes are awaited; a locked vault fails explicitly. Initialization
+and post-write reloads use the snapshot generation guard, and queued edits can
+recover after a failed action. Legacy migration is also transactional.
+
+Places awaits merge/rename/unmerge and shows a recoverable error with Retry on
+failure. Merge selection and drill-in close only after success. Callers/tests
+now await the mutation API; encrypted rows and sync protocol are unchanged.
+Regression tests inject failures in rename, the second merge insertion and the
+second unmerge deletion, verify rollback, retry and store reopening, and exercise
+queued repeated merges, lock/recovery and the production Retry UI.
+Validation: `flutter analyze --no-pub` clean; 45 tests pass across alias
+persistence/asynchronous/store/provider/merge-UI/sync files, plus a final
+overlapping 9-test persistence/snapshot guard run. No full suite.

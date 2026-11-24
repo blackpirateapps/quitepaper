@@ -2,7 +2,7 @@
 
 Original audit status: **complete; 10 additional confirmed bugs, 20 cumulative.**
 
-Follow-up: JRN-001–012 are fixed. JRN-013–020 remain open.
+Follow-up: JRN-001–013 are fixed. JRN-014–020 remain open.
 Implementation details and per-fix checks are in [HANDOFF.md](../../../../HANDOFF.md). See [fix progress](../README.md#fix-progress).
 
 This extends the [first audit](../README.md), preserving its ten findings as

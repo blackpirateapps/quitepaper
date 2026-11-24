@@ -76,8 +76,10 @@ class PlaceAliasRepository {
           placeAliasId: r.id,
         );
         if (pt.matchKey.isNotEmpty) {
-          map[pt.matchKey] =
-              PlaceAlias(canonicalKey: pt.canonicalKey, displayName: pt.displayName);
+          map[pt.matchKey] = PlaceAlias(
+            canonicalKey: pt.canonicalKey,
+            displayName: pt.displayName,
+          );
         }
       } catch (_) {
         // Undecryptable row → skip; never break the Places surface.
@@ -89,9 +91,13 @@ class PlaceAliasRepository {
   /// Encrypts and write-through-upserts one alias row (marks it dirty).
   Future<void> put(String matchKey, PlaceAlias alias) async {
     final key = _key();
-    if (key == null) return;
-    final id =
-        cryptoService.computePlaceAliasId(matchKey: matchKey, masterKeyBytes: key);
+    if (key == null) {
+      throw StateError('Unlock the vault to save place changes.');
+    }
+    final id = cryptoService.computePlaceAliasId(
+      matchKey: matchKey,
+      masterKeyBytes: key,
+    );
     final envelope = await cryptoService.encryptPlaceAliasPayload(
       plaintext: PlaceAliasPlaintext(
         matchKey: matchKey,
@@ -113,10 +119,43 @@ class PlaceAliasRepository {
   /// Tombstones the row for [matchKey] so the removal propagates on sync.
   Future<void> remove(String matchKey) async {
     final key = _key();
-    if (key == null) return;
-    final id =
-        cryptoService.computePlaceAliasId(matchKey: matchKey, masterKeyBytes: key);
+    if (key == null) {
+      throw StateError('Unlock the vault to save place changes.');
+    }
+    final id = cryptoService.computePlaceAliasId(
+      matchKey: matchKey,
+      masterKeyBytes: key,
+    );
     await database.tombstoneLocalPlaceAlias(id);
+  }
+
+  Future<Map<String, PlaceAlias>> readAliases() async {
+    return decodeRows(await database.getAllPlaceAliases());
+  }
+
+  /// Read, transform and commit a complete mutation atomically. Re-read here so
+  /// queued actions include prior local writes and already-committed remote edits.
+  Future<Map<String, PlaceAlias>> updateAliases(
+    Map<String, PlaceAlias> Function(Map<String, PlaceAlias>) change,
+  ) {
+    return database.transaction(() async {
+      if (!isUnlocked) {
+        throw StateError('Unlock the vault to save place changes.');
+      }
+      final current = await readAliases();
+      final next = change(Map<String, PlaceAlias>.of(current));
+      for (final entry in next.entries) {
+        final old = current[entry.key];
+        if (old?.canonicalKey != entry.value.canonicalKey ||
+            old?.displayName != entry.value.displayName) {
+          await put(entry.key, entry.value);
+        }
+      }
+      for (final key in current.keys.where((key) => !next.containsKey(key))) {
+        await remove(key);
+      }
+      return next;
+    });
   }
 
   /// One-time import of the legacy device-local SharedPreferences alias map
@@ -125,40 +164,34 @@ class PlaceAliasRepository {
   Future<void> migrateFromPrefs(Map<String, PlaceAlias> legacy) async {
     final done = await database.getSyncMetadata('place_alias_migrated');
     if (done == 'true') return;
-    for (final entry in legacy.entries) {
-      await put(entry.key, entry.value);
-    }
-    await database.setSyncMetadata('place_alias_migrated', 'true');
+    await database.transaction(() async {
+      for (final entry in legacy.entries) {
+        await put(entry.key, entry.value);
+      }
+      await database.setSyncMetadata('place_alias_migrated', 'true');
+    });
   }
 }
 
-// PLACEHOLDER_STORE
-
-/// Reversible merge/alias store for the Places surface (§2.3).
-///
-/// Exposes the SAME `Map<String, PlaceAlias>` state shape and the SAME four
-/// mutation signatures as before, so [PlaceGroupingService] and the Places UI
-/// are untouched. Internally it now persists to the synced, encrypted
-/// `place_aliases` collection (see [PlaceAliasRepository]) when the vault is
-/// unlocked, and falls back to the legacy device-local SharedPreferences store
-/// otherwise (graceful degradation; no data loss while locked).
-///
-/// Mutations update the in-memory map synchronously (so the UI reacts
-/// instantly), then write through to the DB (marking rows dirty) and request a
-/// debounced sync so merges propagate across devices promptly. A live DB watch
-/// keeps the map convergent with remote pulls.
+/// Reversible place-alias store. Mutations are serialized and only publish after
+/// durable persistence succeeds; callers receive failures and can offer retry.
+/// An unlocked repository uses encrypted, transactional rows; device-local use
+/// awaits SharedPreferences. Live database snapshots converge remote changes.
 class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
   PlaceAliasStore({
     PlaceAliasRepository? repository,
     SharedPreferences? prefs,
     void Function()? onMutation,
-  })  : _repo = repository,
-        _prefs = prefs,
-        _syncTrigger = onMutation,
-        super(repository == null ? _loadPrefs(prefs) : const {}) {
-    _init();
+  }) : _repo = repository,
+       _prefs = prefs,
+       _syncTrigger = onMutation,
+       super(repository == null ? _loadPrefs(prefs) : const {}) {
+    _initialization = _init();
   }
 
+  late final Future<void> _initialization;
+  Future<void> _mutations = Future<void>.value();
+  bool _isWriting = false;
   final PlaceAliasRepository? _repo;
   final SharedPreferences? _prefs;
   final void Function()? _syncTrigger;
@@ -181,13 +214,35 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
         if (!repo.isUnlocked) return;
         try {
           final map = await repo.decodeRows(rows);
-          if (mounted && version == _snapshotVersion) state = map;
+          if (mounted &&
+              repo.isUnlocked &&
+              !_isWriting &&
+              version == _snapshotVersion) {
+            state = map;
+          }
         } catch (_) {
           // Keep the last readable snapshot; the next emission can recover.
         }
       });
+      await _reload(repo);
     } catch (_) {
       // DB/crypto unavailable → stay with whatever (empty) state we have.
+    }
+  }
+
+  Future<void> _reload(PlaceAliasRepository repo) async {
+    if (!repo.isUnlocked) return;
+    final version = ++_snapshotVersion;
+    try {
+      final map = await repo.readAliases();
+      if (mounted &&
+          repo.isUnlocked &&
+          !_isWriting &&
+          version == _snapshotVersion) {
+        state = map;
+      }
+    } catch (_) {
+      // Retain the last readable state; a mutation still reports write failures.
     }
   }
 
@@ -201,20 +256,20 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
   /// Folds [matchKeys] into one place: each key is pointed at [canonicalKey]
   /// with the shared [displayName]. The canonical key is also mapped to itself
   /// so entries that already produce it adopt the chosen display name.
-  void merge(
+  Future<void> merge(
     List<String> matchKeys, {
     required String canonicalKey,
     required String displayName,
-  }) {
-    final alias = PlaceAlias(canonicalKey: canonicalKey, displayName: displayName);
-    final next = Map<String, PlaceAlias>.of(state);
+  }) => _mutate((next) {
+    final alias = PlaceAlias(
+      canonicalKey: canonicalKey,
+      displayName: displayName,
+    );
     final keys = <String>{...matchKeys, canonicalKey};
-    // Include every constituent of selected merged groups, including legacy
-    // alias chains, then flatten them directly onto the new canonical key.
     var expanded = true;
     while (expanded) {
       expanded = false;
-      for (final entry in state.entries) {
+      for (final entry in next.entries) {
         if (keys.contains(entry.value.canonicalKey) && keys.add(entry.key)) {
           expanded = true;
         }
@@ -223,85 +278,70 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
     for (final key in keys) {
       next[key] = alias;
     }
-    state = next;
-    _persist(() async {
-      for (final key in keys) {
-        await _repo!.put(key, alias);
-      }
-    });
-  }
+    return next;
+  });
 
-  /// Renames a merged place: updates [displayName] for every entry that points
-  /// at [canonicalKey], and ensures the canonical key maps to itself.
-  void rename({
+  /// Renames every constituent of a merged place, including its self-map.
+  Future<void> rename({
     required String canonicalKey,
     required String displayName,
-  }) {
-    final alias = PlaceAlias(canonicalKey: canonicalKey, displayName: displayName);
-    final affected = <String>{canonicalKey};
-    final next = Map<String, PlaceAlias>.of(state);
-    next.updateAll((key, existing) {
-      if (existing.canonicalKey == canonicalKey) {
-        affected.add(key);
-        return alias;
-      }
-      return existing;
-    });
+  }) => _mutate((next) {
+    final alias = PlaceAlias(
+      canonicalKey: canonicalKey,
+      displayName: displayName,
+    );
+    next.updateAll(
+      (key, existing) =>
+          existing.canonicalKey == canonicalKey ? alias : existing,
+    );
     next[canonicalKey] = alias;
-    state = next;
-    _persist(() async {
-      for (final key in affected) {
-        await _repo!.put(key, alias);
-      }
-    });
-  }
+    return next;
+  });
 
-  /// Removes the alias entry for [matchKey], restoring it to its own group
-  /// (reversible unmerge). No-op when the key is not aliased. Creates a
-  /// tombstone so the removal propagates to other devices.
-  void unmerge(String matchKey) {
-    if (!state.containsKey(matchKey)) return;
-    state = Map<String, PlaceAlias>.of(state)..remove(matchKey);
-    _persist(() async {
-      await _repo!.remove(matchKey);
-    });
-  }
+  /// Restores a single constituent to its own group.
+  Future<void> unmerge(String matchKey) =>
+      _mutate((next) => next..remove(matchKey));
 
-  /// Fully reverses a merge: removes every alias entry pointing at
-  /// [canonicalKey] (including the canonical self-map). Tombstones each removed
-  /// row so the unmerge propagates. No-op when nothing maps to [canonicalKey].
-  void unmergeCanonical(String canonicalKey) {
-    final toRemove = <String>[
-      for (final e in state.entries)
-        if (e.value.canonicalKey == canonicalKey) e.key,
-    ];
-    if (toRemove.isEmpty) return;
-    state = Map<String, PlaceAlias>.of(state)
-      ..removeWhere((_, alias) => alias.canonicalKey == canonicalKey);
-    _persist(() async {
-      for (final key in toRemove) {
-        await _repo!.remove(key);
-      }
-    });
-  }
+  /// Fully reverses a merge, including the canonical self-map.
+  Future<void> unmergeCanonical(String canonicalKey) => _mutate(
+    (next) =>
+        next..removeWhere((_, alias) => alias.canonicalKey == canonicalKey),
+  );
 
-  /// Routes a mutation's persistence: DB write-through + sync trigger when a
-  /// repository is available (unlocked vault), else the legacy prefs write.
-  void _persist(Future<void> Function() dbOp) {
-    ++_snapshotVersion; // Pending older decodes cannot undo local mutations.
-    final repo = _repo;
-    if (repo != null && repo.isUnlocked) {
-      unawaited(() async {
-        try {
-          await dbOp();
-        } catch (_) {
-          // Swallow write errors; the row stays as-is and retries next cycle.
+  Future<void> _mutate(
+    Map<String, PlaceAlias> Function(Map<String, PlaceAlias>) change,
+  ) {
+    final result = _mutations.then((_) async {
+      await _initialization;
+      if (!mounted) throw StateError('Place view was closed.');
+      ++_snapshotVersion;
+      _isWriting = true;
+      final repo = _repo;
+      try {
+        final Map<String, PlaceAlias> next;
+        if (repo != null) {
+          next = await repo.updateAliases(change);
+        } else {
+          next = change(Map<String, PlaceAlias>.of(state));
+          await _persistPrefs(next);
         }
-        _syncTrigger?.call();
-      }());
-    } else {
-      _persistPrefs();
-    }
+        if (mounted) {
+          ++_snapshotVersion;
+          state = next;
+        }
+      } finally {
+        _isWriting = false;
+        // Reconcile any remote emission deferred while the transaction ran.
+        if (mounted && repo != null) unawaited(_reload(repo));
+      }
+      if (repo != null) _syncTrigger?.call();
+    });
+    // Failed actions are reported to their callers without poisoning the queue.
+    _mutations = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
   }
 
   static Map<String, PlaceAlias> _loadPrefs(SharedPreferences? prefs) {
@@ -317,8 +357,10 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
           final canonical = value['canonicalKey'];
           final display = value['displayName'];
           if (canonical is String && display is String) {
-            result[key] =
-                PlaceAlias(canonicalKey: canonical, displayName: display);
+            result[key] = PlaceAlias(
+              canonicalKey: canonical,
+              displayName: display,
+            );
           }
         }
       });
@@ -328,17 +370,19 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
     }
   }
 
-  void _persistPrefs() {
+  Future<void> _persistPrefs(Map<String, PlaceAlias> next) async {
     final prefs = _prefs;
     if (prefs == null) return; // in-memory only (e.g. tests without prefs)
     final map = <String, Map<String, String>>{
-      for (final entry in state.entries)
+      for (final entry in next.entries)
         entry.key: {
           'canonicalKey': entry.value.canonicalKey,
           'displayName': entry.value.displayName,
         },
     };
-    unawaited(prefs.setString(storageKey, jsonEncode(map)));
+    if (!await prefs.setString(storageKey, jsonEncode(map))) {
+      throw StateError('Could not save place changes.');
+    }
   }
 }
 
@@ -349,40 +393,43 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
 /// path.
 final placeAliasStoreProvider =
     StateNotifierProvider<PlaceAliasStore, Map<String, PlaceAlias>>((ref) {
-  SharedPreferences? prefs;
-  try {
-    prefs = ref.watch(sharedPreferencesProvider);
-  } catch (_) {
-    // No prefs in this scope → in-memory only.
-  }
-
-  // Rebuild onto the synced path once the vault unlocks.
-  var unlocked = false;
-  try {
-    unlocked = ref.watch(isKeyManagerUnlockedProvider);
-  } catch (_) {}
-
-  PlaceAliasRepository? repo;
-  void Function()? onMutation;
-  if (unlocked) {
-    try {
-      final db = ref.watch(databaseProvider);
-      final crypto = ref.watch(cryptoServiceProvider);
-      final km = ref.watch(keyManagerProvider);
-      if (km.isUnlocked) {
-        repo = PlaceAliasRepository(
-          database: db,
-          cryptoService: crypto,
-          keyManager: km,
-        );
-        final SyncEngine engine = ref.read(syncEngineProvider);
-        onMutation = engine.triggerSyncDebounced;
+      SharedPreferences? prefs;
+      try {
+        prefs = ref.watch(sharedPreferencesProvider);
+      } catch (_) {
+        // No prefs in this scope → in-memory only.
       }
-    } catch (_) {
-      repo = null;
-    }
-  }
 
-  return PlaceAliasStore(repository: repo, prefs: prefs, onMutation: onMutation);
-});
+      // Rebuild onto the synced path once the vault unlocks.
+      var unlocked = false;
+      try {
+        unlocked = ref.watch(isKeyManagerUnlockedProvider);
+      } catch (_) {}
 
+      PlaceAliasRepository? repo;
+      void Function()? onMutation;
+      if (unlocked) {
+        try {
+          final db = ref.watch(databaseProvider);
+          final crypto = ref.watch(cryptoServiceProvider);
+          final km = ref.watch(keyManagerProvider);
+          if (km.isUnlocked) {
+            repo = PlaceAliasRepository(
+              database: db,
+              cryptoService: crypto,
+              keyManager: km,
+            );
+            final SyncEngine engine = ref.read(syncEngineProvider);
+            onMutation = engine.triggerSyncDebounced;
+          }
+        } catch (_) {
+          repo = null;
+        }
+      }
+
+      return PlaceAliasStore(
+        repository: repo,
+        prefs: prefs,
+        onMutation: onMutation,
+      );
+    });

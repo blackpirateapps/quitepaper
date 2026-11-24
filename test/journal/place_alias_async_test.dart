@@ -17,15 +17,25 @@ class _KeyManager implements KeyManager {
 
 class _DelayedRepository extends PlaceAliasRepository {
   _DelayedRepository(AppDatabase db)
-      : super(database: db, cryptoService: DefaultCryptoService(), keyManager: _KeyManager());
+    : super(
+        database: db,
+        cryptoService: DefaultCryptoService(),
+        keyManager: _KeyManager(),
+      );
   final rows = StreamController<List<PlaceAliasEntity>>.broadcast();
+  final persisted = <String, PlaceAlias>{};
+  @override
+  Future<Map<String, PlaceAlias>> readAliases() async => Map.of(persisted);
   final decodes = <Completer<Map<String, PlaceAlias>>>[];
   @override
   Future<void> migrateFromPrefs(Map<String, PlaceAlias> legacy) async {}
   @override
   Stream<List<PlaceAliasEntity>> watchRows() => rows.stream;
   @override
-  Future<void> put(String matchKey, PlaceAlias alias) async {}
+  Future<void> put(String matchKey, PlaceAlias alias) async {
+    persisted[matchKey] = alias;
+  }
+
   @override
   Future<Map<String, PlaceAlias>> decodeRows(List<PlaceAliasEntity> rows) {
     final result = Completer<Map<String, PlaceAlias>>();
@@ -72,7 +82,7 @@ void main() {
 
   test('a pending decode cannot undo a local rename', () async {
     await emit();
-    store.rename(canonicalKey: 'city', displayName: 'Home');
+    await store.rename(canonicalKey: 'city', displayName: 'Home');
     repository.decodes[0].complete(_named('Old name'));
     await pumpEventQueue();
     expect(store.state['city']!.displayName, 'Home');
