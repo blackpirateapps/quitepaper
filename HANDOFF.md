@@ -8,6 +8,18 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Latest fix: stable, compact tag picker (November 24, 2026)
+
+The shared Add tags picker now keeps its current suggestions visible while the
+initial cloud sync refreshes the tag catalogue. Selecting or removing a staged
+tag filters the existing results locally, preserving focus and scroll position
+without another ranking request. One **Suggestions** list combines search
+relevance, pin order, actual recent additions and usage counts; category chips
+have been removed. Android/iOS use a keyboard-aware bottom sheet and desktop
+uses a compact dialog. Stable bounds and a single selection strip prevent
+layout jumps. See engineering log 351 in [the active logs](handoff/latest-logs.md)
+and [the tag guide](handoff/tags-and-search.md#multi-tag-picker).
+
 ## Latest fix: command-palette CI regressions (November 23, 2026)
 
 The command-palette commit failed three workflows on four shared test cases.

@@ -137,11 +137,23 @@ and tag behavior. See [email import](email-import.md).
 
 `TagPickerDialog` replaces the editor's plain overflow input and is shared by
 the tag bar, frontmatter field and selected-note tagging action. Suggestions
-appear before typing. Suggested combines pinned order, local recency and note
-counts; Recent, Most used and Pinned expose those categories independently.
-Search relevance precedes category ordering. Attached and staged tags are
-excluded. Results are bounded to 40 rows, and asynchronous results from older
-queries are hidden while the next query loads.
+appear before typing in one **Suggestions** list. The ranking algorithm orders
+by search relevance, pinned status/manual pin order, actual local recency, note
+counts and finally name for deterministic ties. There are no category chips.
+Attached tags are excluded from ranking; staged tags are filtered locally from
+the bounded 40-row results without starting another request. The default list
+stays subscribed while searching, so choosing a search result restores it
+immediately. Catalogue refreshes retain the current query's previous results
+while ranking runs; separate query providers prevent old search matches from
+appearing for new input. Late superseded requests cannot overwrite newer results.
+
+Android/iOS use the shared adaptive modal's bottom sheet, with keyboard insets
+and safe-area handling. Desktop uses its editorial dialog. Content is bounded to
+440×460 logical pixels and shrinks to the available viewport. The header, input,
+selection strip and compact result rows share a vertical scroll viewport, while
+Cancel/Apply remain in the footer. The single horizontally scrolling chip strip
+reserves its height before selection, keeping the input/list stable as tags are
+staged. Selection preserves the active focus, keyed rows and scroll offset.
 
 Tap suggestions or press Enter to stage a tag, use Tab to complete a path and
 arrow keys to navigate, or paste comma/newline-separated tags. Staged chips can

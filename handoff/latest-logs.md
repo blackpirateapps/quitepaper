@@ -8410,3 +8410,54 @@ flutter test --no-pub test/templates/template_navigation_test.dart \
 
 No full Flutter suite was run locally. Workflow definitions, generated bindings,
 Rust code, database schema and sync behavior are unchanged by this fix.
+
+## 351. Stable, compact adaptive tag picker (November 24, 2026)
+
+The Add tags picker cleared its result list whenever `allTagsProvider` emitted
+another catalogue during initial sync. Its family request also included staged
+tags, so every selection/removal restarted asynchronous ranking. The changing
+result/selection height made the dialog jump and flash while the user interacted.
+
+The picker now retains the current query's previous ranked results across
+catalogue refreshes and shows progress only before that query has any result.
+Different queries still use separate family providers, preventing stale matches
+from appearing for new input. The default query remains subscribed during search,
+so choosing a result and clearing the input immediately restores its warm list.
+Only already-attached tags participate in the request's exclusion key; staged
+tags are filtered locally. Stable row keys, input focus and scroll offset survive
+selection. A disappearing exact match cannot temporarily produce duplicate
+existing/create rows while ranking catches up; keyboard reveal callbacks capture
+the chosen name before the next asynchronous rebuild.
+
+The category chips are replaced by one **Suggestions** label and the existing
+combined ranking: query relevance, pinned status/manual order, actual local
+recency, usage counts and name as the deterministic tie-breaker. Rust/Dart
+ranking and local recency persistence retain their existing contracts.
+
+`QuietAdaptiveModal` presents an opaque, rounded bottom sheet on Android/iOS and
+an editorial dialog on desktop. The picker uses a compact 440×460 bounded content
+area, smaller text/row spacing and a reserved horizontally scrolling selection
+strip. The scrollable content shrinks for keyboard/safe-area constraints while
+Cancel/Apply remain in the footer. Escape/Cancel discard staged changes; applying
+still returns one validated batch to the existing editor/frontmatter/bulk callers.
+No schema or sync protocol changed.
+
+Validation: `flutter analyze` reports no issues; `git diff --check` passes.
+All **57 focused Flutter tests pass** with:
+
+```sh
+flutter test --no-pub test/tags/tag_picker_dialog_test.dart \
+  test/tags/tag_suggestions_test.dart \
+  test/editor/editor_overflow_menu_test.dart \
+  test/editor/editor_provider_tag_test.dart \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+New regressions cover an initially empty catalogue receiving sync pages, delayed
+and out-of-order overlapping ranking completions, retained input/selection/scroll,
+local chip removal without requests, immediate return to default suggestions,
+exact-match removal during refresh, long-list selection without scroll resets,
+Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
+Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
+layout, nested paths, comma batches, cancellation and single editor/frontmatter
+updates. No full suite, app build or physical-device/cloud-sync replay was run.
