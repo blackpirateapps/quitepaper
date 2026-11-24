@@ -1241,3 +1241,11 @@ opening. The empty timeline state now scrolls as part of the archive, avoiding
 an overflow when an expanded preview consumes most of a short viewport.
 Validation: `flutter analyze --no-pub` clean; 24 archive/service tests pass, with
 a final overlapping 16-test archive run passing after layout cleanup. No full suite.
+
+### JRN-006 — Scrollable month/year picker
+
+The picker scrolls within the dialog's available height; footer actions wrap on
+narrow phones. Dialog interaction regressions at 640×320 and 360×640 exercise
+year navigation, December selection, Current Month and Cancel without overflow.
+Validation: `flutter analyze --no-pub` clean; 18 picker/archive tests pass.
+No full suite.
