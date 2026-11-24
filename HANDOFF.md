@@ -1309,3 +1309,12 @@ unrelated group. Device-local alias fixtures explicitly override vault lock stat
 preventing the default key manager from creating unintended databases.
 Validation: `flutter analyze --no-pub` clean; 16 alias-store/merge-UI tests pass
 without the previously documented fixture warnings. No full suite.
+
+### JRN-012 — Order asynchronous place-alias snapshots
+
+Each incoming snapshot has a generation; only the latest decode may publish.
+Local mutations invalidate pending older decodes, disposal prevents late writes,
+and a failed decode retains the last readable state for later recovery.
+Validation: `flutter analyze --no-pub` clean; 14 asynchronous/store tests pass,
+including controlled out-of-order completion, local rename, decode recovery and
+disposal. No full suite.

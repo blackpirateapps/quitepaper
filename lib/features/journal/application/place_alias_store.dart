@@ -163,6 +163,7 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
   final SharedPreferences? _prefs;
   final void Function()? _syncTrigger;
   StreamSubscription<List<PlaceAliasEntity>>? _sub;
+  int _snapshotVersion = 0;
 
   /// Legacy single SharedPreferences key holding the JSON-encoded alias map.
   static const String storageKey = 'journal_place_aliases';
@@ -174,10 +175,16 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
       if (repo.isUnlocked) {
         await repo.migrateFromPrefs(_loadPrefs(_prefs));
       }
+      if (!mounted) return;
       _sub = repo.watchRows().listen((rows) async {
+        final version = ++_snapshotVersion;
         if (!repo.isUnlocked) return;
-        final map = await repo.decodeRows(rows);
-        if (mounted) state = map;
+        try {
+          final map = await repo.decodeRows(rows);
+          if (mounted && version == _snapshotVersion) state = map;
+        } catch (_) {
+          // Keep the last readable snapshot; the next emission can recover.
+        }
       });
     } catch (_) {
       // DB/crypto unavailable → stay with whatever (empty) state we have.
@@ -186,6 +193,7 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
 
   @override
   void dispose() {
+    ++_snapshotVersion;
     _sub?.cancel();
     super.dispose();
   }
@@ -280,6 +288,7 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
   /// Routes a mutation's persistence: DB write-through + sync trigger when a
   /// repository is available (unlocked vault), else the legacy prefs write.
   void _persist(Future<void> Function() dbOp) {
+    ++_snapshotVersion; // Pending older decodes cannot undo local mutations.
     final repo = _repo;
     if (repo != null && repo.isUnlocked) {
       unawaited(() async {

@@ -43,7 +43,7 @@ part of this isolated window's acceptance coverage.
 
 **JRN-001–010 are fixed**, each in its own commit and push on the audit branch.
 See the November 24 [handoff](../../../HANDOFF.md#journal-audit-fixes--november-24-2026)
-for each implementation and its focused validation. JRN-011 is also fixed; JRN-012–020 remain open.
+for each implementation and its focused validation. JRN-011–012 are also fixed; JRN-013–020 remain open.
 The findings, intentional-failure replay instructions and native evidence below
 refer to the original audited revision. Fix verification uses repository/unit/
 widget tests, including a 1,005-entry variable-height timeline regression and an
