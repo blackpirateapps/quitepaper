@@ -392,6 +392,48 @@ void main() {
       await finishTest(tester);
     });
 
+    for (final trashAfterSelection in [false, true]) {
+      testWidgets('trashed preview requires restore ($trashAfterSelection)', (tester) async {
+        final note = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 15));
+        await repository.saveNote(note.copyWith(title: 'Saved reflection',
+          content: '${note.content}\nKeep this reflection.'));
+        if (!trashAfterSelection) await repository.trashNote(note.id);
+        Note? opened;
+        await tester.pumpWidget(buildTestWidget(
+          isTablet: true, onNoteSelected: (note) => opened = note,
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+            calendarSelectedDateProvider.overrideWith((ref) => '2026-09-15'),
+          ],
+        ));
+        await tester.pumpAndSettle();
+        if (trashAfterSelection) {
+          await repository.trashNote(note.id);
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('This entry is in Trash.'), findsOneWidget);
+        expect(find.text('Show in All Entries'), findsNothing);
+        await tester.tap(find.text('Saved reflection'));
+        await tester.pumpAndSettle();
+        expect(find.text('Restore & Open'), findsOneWidget);
+        expect(opened, isNull);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect((await repository.getNoteById(note.id))!.isTrashed, isTrue);
+        expect(opened, isNull);
+        await tester.tap(find.text('Restore entry'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Restore & Open'));
+        await tester.pumpAndSettle();
+        expect(opened!.id, note.id);
+        expect(opened!.isTrashed, isFalse);
+        expect(opened!.content, contains('Keep this reflection.'));
+        expect((await repository.getNoteById(note.id))!.isTrashed, isFalse);
+        expect(find.text('Show in All Entries'), findsOneWidget);
+        await finishTest(tester);
+      });
+    }
+
     testWidgets('JournalTimelineTile renders active selection highlight and semantics when selected', (tester) async {
       final note1 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
       final note2 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 2));

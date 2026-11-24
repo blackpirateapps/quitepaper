@@ -209,13 +209,12 @@ class _JournalAllEntriesViewState extends ConsumerState<JournalAllEntriesView> {
 
                       // Empty timeline state
                       if (groups.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
+                        SliverToBoxAdapter(
                           child: Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 400),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xl),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [

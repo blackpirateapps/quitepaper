@@ -1230,3 +1230,14 @@ entries. SQLite-trigger regression coverage verifies the original error, no ghos
 row, successful retry and 100 concurrent requests sharing one stored entry.
 Validation: `flutter analyze --no-pub` clean; all 20 repository/service tests pass.
 No full suite.
+
+### JRN-005 — Restore trashed calendar entries before opening
+
+Selected trashed dates show an explicit Trash state and Restore entry action,
+hide the timeline jump and route title/action taps through the existing
+Restore & Open / Cancel flow. Both initially trashed and subsequently trashed
+selections are tested: cancel keeps Trash intact; restore retains ID/body before
+opening. The empty timeline state now scrolls as part of the archive, avoiding
+an overflow when an expanded preview consumes most of a short viewport.
+Validation: `flutter analyze --no-pub` clean; 24 archive/service tests pass, with
+a final overlapping 16-test archive run passing after layout cleanup. No full suite.
