@@ -1267,3 +1267,12 @@ Renamed/merged coordinate places stop presenting as unnamed. Regressions cover
 GPS jitter, reversible rename and merges across coordinate/labeled groups.
 Validation: `flutter analyze --no-pub` clean; 37 tests pass across place grouping,
 Places view and merge UI, without fixture warnings. No full suite.
+
+### JRN-009 — Visit gaps count calendar days across DST
+
+Visit clustering subtracts UTC representations of each resolved calendar date,
+so DST's 23/25-hour days cannot alter gap thresholds. Regressions cover the
+March-to-April 31-day split, exact 30-day spring/fall gaps and leap-year dates.
+Validation: `flutter analyze --no-pub` clean; 13 visit/Places tests pass in the
+normal timezone; all 8 visit tests also pass with `TZ=America/New_York`.
+The timezone runs overlap. No full suite.

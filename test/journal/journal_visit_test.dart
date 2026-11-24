@@ -74,6 +74,27 @@ void main() {
       expect(a.length, 2);
     });
 
+    test('spring DST does not shorten a 31-calendar-day gap', () {
+      final visits = clusterVisits([
+        _note('march', '2026-03-01'), _note('april', '2026-04-01'),
+      ]);
+      expect(visits, hasLength(2));
+      expect(visits.first.noteIds, ['april']);
+      expect(visits.last.noteIds, ['march']);
+    });
+
+    test('30-calendar-day DST gaps stay together at the threshold', () {
+      for (final dates in [
+        ['2026-03-01', '2026-03-31'],
+        ['2026-10-15', '2026-11-14'],
+        ['2024-02-01', '2024-03-02'],
+      ]) {
+        final notes = [for (final date in dates) _note(date, date)];
+        expect(clusterVisits(notes), hasLength(1));
+        expect(clusterVisits(notes, gapThresholdDays: 29), hasLength(2));
+      }
+    });
+
     test('respects a custom gap threshold', () {
       final notes = [
         _note('a', '2024-10-01'),
