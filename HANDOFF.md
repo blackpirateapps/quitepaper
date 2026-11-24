@@ -10,6 +10,15 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ## Journal audit — November 24, 2026
 
+The [second audit pass](handoff/audits/journal-2026-11-24/round-2/README.md) found
+**10 additional bugs, bringing the total to 20**. They include weather fetches
+overwriting concurrent journal edits, repeated merge failures, alias persistence
+and ordering failures, coordinate/Unicode grouping, incomplete weather responses,
+midnight/resume staleness and older-backfill pagination. Native UI and Dart VM
+replays confirm the central interaction failures. All 72 selected existing tests
+pass; 12 new probes produce three passes and nine expected failures. No fixes
+or full-suite run. See log 353 and the second-pass evidence for exact limits.
+
 The journal audit on `audit/journal-rigorous-2026-11-24` found **10 confirmed open
 bugs**, recorded as they were discovered in [the audit report](handoff/audits/journal-2026-11-24/README.md).
 The focused journal gate passes 207 tests with two existing Drift fixture

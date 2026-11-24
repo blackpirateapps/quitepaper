@@ -1,0 +1,92 @@
+Launching tool/journal_audit_native.dart on Linux in debug mode...
+Building Linux application...
+✓ Built build/linux/x64/debug/bundle/quitepaper
+[IMPORTANT:flutter/shell/platform/embedder/embedder_surface_gl_impeller.cc(126)] Using the Impeller rendering backend (OpenGLESSDF).
+Gdk-Message: 16:08:36.634: Unable to load  from the cursor theme
+Syncing files to device Linux...                                   340ms
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on Linux is available at: http://127.0.0.1:38929/VM_SESSION/
+The Flutter DevTools debugger and profiler on Linux is available at: http://127.0.0.1:38929/VM_SESSION/devtools/?uri=ws://127.0.0.1:38929/VM_SESSION/ws
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:08:39.348: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:08:39.351: libsecret_error: Failed to unlock the keyring
+
+══╡ EXCEPTION CAUGHT BY SERVICES LIBRARY ╞══════════════════════════════════════════════════════════
+The following MissingPluginException was thrown while activating platform stream on channel
+receive_sharing_intent/events-media:
+MissingPluginException(No implementation found for method listen on channel
+receive_sharing_intent/events-media)
+
+When the exception was thrown, this was the stack:
+#0      MethodChannel._invokeMethod (package:flutter/src/services/platform_channel.dart:364:7)
+<asynchronous suspension>
+#1      EventChannel.receiveBroadcastStream.<anonymous closure> (package:flutter/src/services/platform_channel.dart:711:11)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Initial share intent unavailable.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+AUDIT_SEED_PROGRESS=0
+
+Performing hot restart...
+Restarted application in 2,542ms.
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:10:59.311: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:10:59.314: libsecret_error: Failed to unlock the keyring
+
+══╡ EXCEPTION CAUGHT BY SERVICES LIBRARY ╞══════════════════════════════════════════════════════════
+The following MissingPluginException was thrown while activating platform stream on channel
+receive_sharing_intent/events-media:
+MissingPluginException(No implementation found for method listen on channel
+receive_sharing_intent/events-media)
+
+When the exception was thrown, this was the stack:
+#0      MethodChannel._invokeMethod (package:flutter/src/services/platform_channel.dart:364:7)
+<asynchronous suspension>
+#1      EventChannel.receiveBroadcastStream.<anonymous closure> (package:flutter/src/services/platform_channel.dart:711:11)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Initial share intent unavailable.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+
+Performing hot reload...
+Reloaded 3 of 4732 libraries in 1,602ms (compile: 263 ms, reload: 732 ms, reassemble: 395 ms).
+
+Performing hot restart...
+Restarted application in 2,750ms.
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:16:06.770: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:46557): WARNING **: 16:16:06.772: libsecret_error: Failed to unlock the keyring
+
+══╡ EXCEPTION CAUGHT BY SERVICES LIBRARY ╞══════════════════════════════════════════════════════════
+The following MissingPluginException was thrown while activating platform stream on channel
+receive_sharing_intent/events-media:
+MissingPluginException(No implementation found for method listen on channel
+receive_sharing_intent/events-media)
+
+When the exception was thrown, this was the stack:
+#0      MethodChannel._invokeMethod (package:flutter/src/services/platform_channel.dart:364:7)
+<asynchronous suspension>
+#1      EventChannel.receiveBroadcastStream.<anonymous closure> (package:flutter/src/services/platform_channel.dart:711:11)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Initial share intent unavailable.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+
+Application finished.

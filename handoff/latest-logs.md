@@ -8507,3 +8507,54 @@ The report preserves 16 screenshots, raw VM records, test/runtime logs, probe
 sources, replay instructions and limits. No full suite, production-source fix,
 cloud/GPS replay, physical mobile test, restart-durability check or release
 performance claim is included. The isolated windows were closed after the audit.
+
+## 353. Second journal audit: ten additional confirmed bugs (November 24, 2026)
+
+Extended the journal audit on `audit/journal-rigorous-2026-11-24`, with findings
+written as confirmed in the [second-pass report](audits/journal-2026-11-24/round-2/README.md).
+Application source remains unchanged. **JRN-011–020 add ten confirmed open bugs,
+bringing the cumulative total to twenty.**
+
+Repeated merging leaves existing constituents in an old group; asynchronous
+alias decryption can roll back newer state; failed alias writes disappear on
+reopening without a retry record; canonically equivalent Unicode place names
+split into duplicate groups; antimeridian longitude averaging places a cluster
+near Greenwich; rounded coordinate keys join clusters outside the radius; and
+incomplete weather responses invent clear, 0°C measurements. Cached dates remain
+on yesterday after midnight/resume, and the earliest-year cache hides newly
+backfilled older memories. A pending weather fetch also overwrites journal body
+edits made while its request is in flight, with the loss retained on reopening.
+
+Native Linux/Dart VM replay confirms repeated merge splitting, midnight/resume
+staleness, older-backfill pagination staleness and weather-related edit loss.
+The clock experiment uses a process-scoped wall-clock shim; monotonic time and
+the host clock are unchanged. Weather is intercepted by a delayed mock HTTP
+client while exercising the real button and native keyboard input. The report
+preserves nine new screenshots, VM records, runtime logs and replay sources.
+
+All **72 selected existing tests pass** without warnings in this pass's logs:
+
+```sh
+flutter test --no-pub --reporter expanded \
+  test/journal/place_grouping_service_test.dart \
+  test/journal/places_merge_ui_test.dart \
+  test/journal/place_alias_sync_test.dart \
+  test/journal/on_this_day_widget_test.dart \
+  test/journal/journal_metadata_service_test.dart
+flutter test --no-pub --reporter expanded \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+The eleven new edge probes produce three passes and eight expected failures;
+the separate Properties weather-race probe produces one expected failure.
+A positive durability probe closes and reopens a temporary SQLite file and
+retains the journal ID and saved body. The first pass's existing warning-bearing
+alias fixture was not rerun in this selected gate; it remains unresolved.
+An initial test-font layout overflow is retained as an uncounted observation,
+and the previously unresolved incremental-seed process exit remains unresolved.
+
+Final `flutter analyze` is clean; the clock shim builds with C warnings treated
+as errors. Probe code is archived as `.dart.txt`, without adding failing ordinary
+CI tests or shipping VM hooks. The window was closed and its clock offset reset.
+No fixes, full suite, physical mobile checks, live GPS/weather/cloud requests or
+release performance claims are included.

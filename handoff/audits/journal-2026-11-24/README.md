@@ -1,8 +1,12 @@
 # Journal audit — November 24, 2026
 
-Status: **audit complete; 10 confirmed open bugs, no fixes.** Findings were
+Status: **first pass complete; 10 confirmed open bugs, no fixes.** Findings were
 recorded as they were confirmed. The unresolved stress observation below is
 excluded from that count.
+
+**Second pass complete:** [10 additional findings and evidence](round-2/README.md)
+continue the numbering through JRN-020, bringing the cumulative total to **20
+confirmed open bugs**. The original ten findings below are preserved.
 
 Branch: `audit/journal-rigorous-2026-11-24`. Application source:
 `12c49b30b62ca72e13cfffd3c577857db7c51e09`.
