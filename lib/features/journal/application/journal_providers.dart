@@ -200,10 +200,10 @@ final historicalWeekQueryDescriptorProvider = Provider<({
   );
 });
 
-/// Future provider for the earliest journal year in the database.
-final earliestJournalYearFutureProvider = FutureProvider<int?>((ref) {
+/// Watches the earliest active journal year, reacting to backfill and sync.
+final earliestJournalYearStreamProvider = StreamProvider<int?>((ref) {
   final repository = ref.watch(notesRepositoryProvider);
-  return repository.getEarliestJournalYear();
+  return repository.watchEarliestJournalYear();
 });
 
 /// Stream of notes matching the historical week date range.
@@ -293,7 +293,7 @@ List<HistoricalYearGroup> groupHistoricalNotes(
 final historicalWeekProvider = Provider<HistoricalWeekState>((ref) {
   final descriptor = ref.watch(historicalWeekQueryDescriptorProvider);
   final notesAsync = ref.watch(historicalWeekNotesStreamProvider);
-  final earliestYearAsync = ref.watch(earliestJournalYearFutureProvider);
+  final earliestYearAsync = ref.watch(earliestJournalYearStreamProvider);
   final count = ref.watch(historicalLoadedYearsCountProvider);
 
   final oldestQueriedYear = descriptor.referenceYear - count;
@@ -337,7 +337,7 @@ abstract final class HistoricalWeekActions {
 
   static void retry(WidgetRef ref) {
     ref.invalidate(historicalWeekNotesStreamProvider);
-    ref.invalidate(earliestJournalYearFutureProvider);
+    ref.invalidate(earliestJournalYearStreamProvider);
   }
 }
 

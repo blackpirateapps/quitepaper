@@ -1351,6 +1351,18 @@ class AppDatabase extends _$AppDatabase {
 
   /// Returns the earliest calendar year of active journal entries in the database,
   /// or null if no active journal entries exist.
+  /// Watches the oldest active journal day, including backfill, sync and Trash changes.
+  Stream<int?> watchEarliestJournalYear() {
+    final query = select(notesTable)
+      ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
+      ..orderBy([(n) => OrderingTerm.asc(n.journalDate)])
+      ..limit(1);
+    return query.watchSingleOrNull().map((first) {
+      final date = first?.journalDate;
+      return date == null ? null : int.tryParse(date.split('-').first);
+    }).distinct();
+  }
+
   Future<int?> getEarliestJournalYear() async {
     final query = select(notesTable)
       ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))

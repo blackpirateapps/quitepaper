@@ -101,6 +101,7 @@ abstract class NotesRepository {
   });
   Stream<List<Note>> watchNotesForDates(List<String> dateStrings);
   Future<int?> getEarliestJournalYear();
+  Stream<int?> watchEarliestJournalYear();
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
   Future<List<String>> validateJournalIntegrity();
 }
@@ -623,6 +624,9 @@ class DriftNotesRepository implements NotesRepository {
   Future<int?> getEarliestJournalYear() {
     return _db.getEarliestJournalYear();
   }
+
+  @override
+  Stream<int?> watchEarliestJournalYear() => _db.watchEarliestJournalYear();
 
   @override
   Future<Note> getOrCreateJournalEntry(DateTime localDate) async {

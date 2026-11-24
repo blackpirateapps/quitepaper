@@ -38,8 +38,8 @@ void main() {
             historicalWeekNotesStreamProvider.overrideWith(
               (ref) => Stream.value([]),
             ),
-            earliestJournalYearFutureProvider.overrideWith(
-              (ref) => Future.value(null),
+            earliestJournalYearStreamProvider.overrideWith(
+              (ref) => Stream.value(null),
             ),
           ],
           child: const MaterialApp(home: OnThisDayView()),

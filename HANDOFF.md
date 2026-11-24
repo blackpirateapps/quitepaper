@@ -1393,3 +1393,15 @@ midnight timing on a DST day and disposal.
 Validation: `flutter analyze --no-pub` clean; 40 clock/memories/sidebar/archive/
 timeline tests pass. All 4 clock tests also pass under `TZ=America/New_York`.
 These totals overlap. No full suite or real overnight/device acceptance run.
+
+### JRN-019 — React to older backfills in memories pagination
+
+The database/repository expose `watchEarliestJournalYear`, and memories consume
+`earliestJournalYearStreamProvider` instead of a cached one-shot future. The
+limit-one active-entry query reacts to backfill, direct database/sync updates,
+Trash, restore and permanent removal without loading the full archive.
+Regression tests backfill outside the queried week, check earliest-year and
+pagination changes through Trash/restore/delete, then use the real memories view
+to reveal Show older memories and load a 2010 paper-diary entry without restart.
+Validation: `flutter analyze --no-pub` clean; 30 backfill/repository/memories/
+clock tests pass. No full suite.
