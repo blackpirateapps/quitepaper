@@ -104,7 +104,7 @@ class PlaceGroupingService {
     final accumulators = <String, _PlaceAccumulator>{};
 
     _groupLabeled(labeled, granularity, aliases, accumulators);
-    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, accumulators);
+    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, aliases, accumulators);
 
     final places = accumulators.values
         .map((a) => a.build(granularity))
@@ -156,6 +156,7 @@ class PlaceGroupingService {
   void _groupByRadius(
     List<PlaceEntryInput> unlabeled,
     double radiusMeters,
+    Map<String, PlaceAlias> aliases,
     Map<String, _PlaceAccumulator> accumulators,
   ) {
     if (unlabeled.isEmpty) return;
@@ -191,18 +192,20 @@ class PlaceGroupingService {
     for (final c in clusters) {
       final latStr = c.centroidLat.toStringAsFixed(2);
       final lngStr = c.centroidLng.toStringAsFixed(2);
-      final key = '~coord:$latStr,$lngStr';
-      final displayName = 'Unnamed place near $latStr, $lngStr';
+      final rawKey = '~coord:$latStr,$lngStr';
+      final alias = aliases[rawKey];
+      final key = alias?.canonicalKey ?? rawKey;
+      final displayName = alias?.displayName ?? 'Unnamed place near $latStr, $lngStr';
       final acc = accumulators.putIfAbsent(
         key,
-        () => _PlaceAccumulator(matchKey: key, isUnnamed: true),
+        () => _PlaceAccumulator(matchKey: key, isUnnamed: alias == null),
       );
       for (final e in c.members) {
         acc.addLabeled(
           noteId: e.noteId,
           date: e.date,
           displayName: displayName,
-          fromAlias: true, // force the computed unnamed label to win.
+          fromAlias: alias != null,
         );
       }
     }

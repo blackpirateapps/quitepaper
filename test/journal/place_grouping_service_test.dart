@@ -200,6 +200,41 @@ void main() {
     });
   });
 
+  group('coordinate aliases', () {
+    final entries = [
+      _entry('home', '', DateTime(2026, 1, 1), lat: 22.57, lng: 88.36),
+      _entry('jitter', '', DateTime(2026, 1, 2), lat: 22.5701, lng: 88.3601),
+    ];
+    test('rename applies to the whole coordinate cluster and is reversible', () {
+      final original = service.group(entries).single;
+      final renamed = service.group(entries, aliases: {
+        original.matchKey: PlaceAlias(canonicalKey: original.matchKey, displayName: 'Home'),
+      }).single;
+      expect(renamed.displayName, 'Home');
+      expect(renamed.isUnnamed, isFalse);
+      expect(renamed.noteIds, ['home', 'jitter']);
+      expect(renamed.matchKey, original.matchKey);
+      expect(service.group(entries).single.displayName, original.displayName);
+    });
+
+    test('coordinates can merge with labeled places or other coordinate clusters', () {
+      final inputs = [...entries,
+        _entry('city', 'Kyoto, Japan', DateTime(2026, 1, 3)),
+        _entry('away', '', DateTime(2026, 1, 4), lat: 35.0, lng: 135.0),
+      ];
+      final keys = service.group(inputs).map((place) => place.matchKey);
+      final merged = service.group(inputs, aliases: {
+        for (final key in keys)
+          key: const PlaceAlias(canonicalKey: 'journey', displayName: 'Journey'),
+        'journey': const PlaceAlias(canonicalKey: 'journey', displayName: 'Journey'),
+      }).single;
+      expect(merged.matchKey, 'journey');
+      expect(merged.displayName, 'Journey');
+      expect(merged.isUnnamed, isFalse);
+      expect(merged.noteIds, ['home', 'jitter', 'city', 'away']);
+    });
+  });
+
   group('radius fallback — unlabeled coordinates', () {
     test('clusters nearby blank-address coords into one unnamed place', () {
       // Two points ~150 m apart (same block) with no address.

@@ -1258,3 +1258,12 @@ Bengali preference, selects a Bengali day, verifies its ASCII selection key and
 switches back to English without changing that key.
 Validation: `flutter analyze --no-pub` clean; 58 tests pass across Bengali dates,
 date helpers, archive widgets and timeline datelines. No full suite.
+
+### JRN-008 — Coordinate place aliases
+
+Radius-based grouping consumes the alias map after clustering, applying the
+chosen display name and canonical merge target just as labeled grouping does.
+Renamed/merged coordinate places stop presenting as unnamed. Regressions cover
+GPS jitter, reversible rename and merges across coordinate/labeled groups.
+Validation: `flutter analyze --no-pub` clean; 37 tests pass across place grouping,
+Places view and merge UI, without fixture warnings. No full suite.
