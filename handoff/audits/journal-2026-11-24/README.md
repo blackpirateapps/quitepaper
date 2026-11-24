@@ -38,6 +38,12 @@ editor and reopening its saved contents. This does not establish persistence
 across a process restart. Location/weather acquisition and cloud sync are not
 part of this isolated window's acceptance coverage.
 
+## Fix progress
+
+JRN-001 is fixed with repository regression coverage. See the November 24
+[handoff](../../../HANDOFF.md) for implementation and validation. The findings
+and evidence below describe the original audited revision; JRN-002–020 remain open.
+
 ## JRN-001 — Ordinary date properties claim a canonical journal day
 
 **Severity: high. Status: confirmed by repository probes.**

@@ -47,6 +47,7 @@ Just a normal note with a date
 ''';
       final meta = JournalMetadataService.extractJournalMetadata(markdown);
       expect(meta.isJournal, isFalse);
+      expect(meta.journalDate, isNull);
     });
 
     test('ensureJournalFrontmatter is idempotent and does not duplicate headers', () {

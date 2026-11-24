@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
 
 void main() {
   late AppDatabase db;
@@ -16,6 +17,25 @@ void main() {
   });
 
   group('DriftNotesRepository Journal Tests', () {
+    for (final flag in ['', 'journal: false\n']) {
+      test('ordinary dated note stays outside journal ($flag)', () async {
+        final now = DateTime.now();
+        await repository.saveNote(Note(
+          id: 'invoice', title: 'Invoice',
+          content: '---\n${flag}date: 2026-01-15\n---\nInvoice body',
+          createdAt: now, updatedAt: now,
+        ));
+        final ordinary = (await repository.getNoteById('invoice'))!;
+        expect(ordinary.isJournal, isFalse);
+        expect(ordinary.journalDate, isNull);
+        expect(await repository.getAllJournalEntries(), isEmpty);
+        final journal = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+        expect(journal.id, isNot('invoice'));
+        expect(journal.isJournal, isTrue);
+        expect((await repository.getNoteById('invoice'))!.content, ordinary.content);
+      });
+    }
+
     test('getOrCreateJournalEntry creates note atomically with canonical frontmatter', () async {
       final date = DateTime(2026, 9, 1);
       final note = await repository.getOrCreateJournalEntry(date);

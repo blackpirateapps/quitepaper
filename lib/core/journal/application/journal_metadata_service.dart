@@ -93,9 +93,6 @@ abstract final class JournalMetadataService {
       return JournalMetadata(isJournal: true, journalDate: dateStr);
     } else if (isJournal) {
       return const JournalMetadata(isJournal: true, journalDate: null);
-    } else if (dateStr != null) {
-      // Only classified as journal entry if `journal: true` is explicitly specified
-      return JournalMetadata(isJournal: false, journalDate: dateStr);
     }
 
     return JournalMetadata.none;

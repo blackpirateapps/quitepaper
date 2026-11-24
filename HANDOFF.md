@@ -1193,3 +1193,15 @@ pass, and the Rust dependency audit is clean. Implementation is complete;
 **production release acceptance remains INCOMPLETE** for the explicit manual
 portal/desktop/device and real Proton-fixture checks in that report. No full
 Flutter suite has been run or authorized on this laptop. See engineering log 344.
+
+## Journal audit fixes — November 24, 2026
+
+### JRN-001 — Ordinary dated notes
+
+Journal metadata now exposes a canonical journal date only when `journal: true`
+is explicit. Ordinary dated notes, including `journal: false`, retain their
+content and stay outside journal queries; opening that day creates a separate
+journal entry. Existing explicitly indexed journal notes remain supported.
+Validation: `flutter analyze` clean; 32 relevant tests pass in
+`journal_metadata_service_test.dart`, `journal_repository_test.dart`,
+`journal_database_test.dart` and `note_metadata_journal_test.dart`. No full suite.
