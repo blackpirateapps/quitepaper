@@ -40,6 +40,34 @@ void main() {
     });
   });
 
+  test('canonical Unicode spellings group together without altering display text', () {
+    for (final names in [
+      ['São Paulo', 'Sa\u0303o Paulo'],
+      ['Zürich', 'Zu\u0308rich'],
+      ['Αθήνα', 'Αθη\u0301να'],
+      ['서울', '\u1109\u1165\u110b\u116e\u11af'],
+    ]) {
+      final grouped = service.group([
+        _entry('composed', '${names[0]}, Country', DateTime(2026, 1, 1)),
+        _entry('decomposed', '${names[1]}, Country', DateTime(2026, 1, 2)),
+      ]);
+      expect(grouped, hasLength(1), reason: names.toString());
+      expect(grouped.single.displayName, names.first);
+    }
+    expect(PlaceGroupingService.normalizeKey('ঢাকা'), 'ঢাকা');
+  });
+
+  test('legacy decomposed aliases still rename equivalent place spellings', () {
+    final places = service.group([
+      _entry('a', 'São Paulo, Brazil', DateTime(2026, 1, 1)),
+      _entry('b', 'Sa\u0303o Paulo, Brazil', DateTime(2026, 1, 2)),
+    ], aliases: {
+      'sa\u0303o paulo': const PlaceAlias(canonicalKey: 'home', displayName: 'Home'),
+    });
+    expect(places.single.displayName, 'Home');
+    expect(places.single.noteIds, ['a', 'b']);
+  });
+
   group('haversineMeters', () {
     test('zero distance for identical points', () {
       expect(

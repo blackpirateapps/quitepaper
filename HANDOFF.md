@@ -1337,3 +1337,15 @@ queued repeated merges, lock/recovery and the production Retry UI.
 Validation: `flutter analyze --no-pub` clean; 45 tests pass across alias
 persistence/asynchronous/store/provider/merge-UI/sync files, plus a final
 overlapping 9-test persistence/snapshot guard run. No full suite.
+
+### JRN-014 — Canonically equivalent Unicode place names
+
+Place keys normalize to Unicode NFC before existing Latin accent folding, so
+composed/decomposed spellings group together across scripts. Added the pure-Dart
+`unorm_dart` dependency for canonical composition. Display text is preserved;
+legacy decomposed alias keys remain reachable without changing encrypted IDs or
+canonical destinations. Exact current alias keys take precedence over legacy
+variants. Regressions cover São Paulo, Zürich, Greek, Korean, Bengali mark
+preservation and legacy aliases.
+Validation: `flutter analyze --no-pub` clean; 42 grouping/provider/merge-UI tests
+pass. Dependency resolution adds only `unorm_dart` 0.3.3. No full suite.

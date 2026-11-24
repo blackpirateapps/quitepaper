@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:unorm_dart/unorm_dart.dart' as unicode;
 
 import '../../location/location_models.dart';
 import '../domain/journal_place.dart';
@@ -103,8 +104,15 @@ class PlaceGroupingService {
 
     final accumulators = <String, _PlaceAccumulator>{};
 
-    _groupLabeled(labeled, granularity, aliases, accumulators);
-    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, aliases, accumulators);
+    // Keep legacy decomposed alias spellings reachable without changing their
+    // encrypted IDs or canonical destinations. Exact current keys win ties.
+    final aliasEntries = aliases.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final normalizedAliases = <String, PlaceAlias>{
+      for (final entry in aliasEntries) normalizeKey(entry.key): entry.value,
+      ...aliases,
+    };
+    _groupLabeled(labeled, granularity, normalizedAliases, accumulators);
+    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, normalizedAliases, accumulators);
 
     final places = accumulators.values
         .map((a) => a.build(granularity))
@@ -260,10 +268,10 @@ class PlaceGroupingService {
 
   // --- Normalization ----------------------------------------------------------
 
-  /// Normalizes a label into a match key: lowercase, strip diacritics,
+  /// Normalizes a label into a match key: lowercase, canonical Unicode composition, strip Latin diacritics,
   /// collapse internal whitespace, trim.
   static String normalizeKey(String raw) {
-    final lowered = raw.toLowerCase().trim();
+    final lowered = unicode.nfc(raw.toLowerCase()).trim();
     final stripped = _stripDiacritics(lowered);
     return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
@@ -278,7 +286,7 @@ class PlaceGroupingService {
   }
 
   /// Common Latin diacritic → base-letter folding (lowercase only; callers
-  /// lowercase first). Deliberately small and dependency-free.
+  /// lowercase first). Deliberately small; canonical composition happens before folding.
   static const Map<String, String> _diacritics = {
     'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a',
     'ă': 'a', 'ą': 'a',
