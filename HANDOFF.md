@@ -1369,3 +1369,12 @@ Tests cover the reported >1,500-meter separation, stable reversed input, isolate
 rename, explicit merge and collisions below six-decimal coordinate precision.
 Validation: `flutter analyze --no-pub` clean; 45 grouping/provider/merge-UI tests
 pass. No full suite.
+
+### JRN-017 — Reject missing weather measurements
+
+Weather responses require a numeric finite temperature and a finite,
+non-negative integer weather code. Missing/null/wrong-type fields, invalid
+shapes and malformed JSON produce recoverable weather errors instead of
+inventing clear 0°C weather. Genuine measured zero values remain valid.
+Validation: `flutter analyze --no-pub` clean; 27 weather/Properties-domain tests
+pass, including complete responses, malformed payloads and HTTP errors. No full suite.
