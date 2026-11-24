@@ -250,6 +250,44 @@ void main() {
     expect(ordinary.displayName, 'Unnamed place near 10.00, 0.00');
   });
 
+  test('rounded key collisions keep separate clusters, aliases and explicit merges', () {
+    final inputs = [
+      _entry('a', '', DateTime(2026, 1, 1), lat: 1.0051, lng: 103.0051),
+      _entry('b', '', DateTime(2026, 1, 2), lat: 1.0149, lng: 103.0149),
+    ];
+    expect(PlaceGroupingService.haversineMeters(1.0051, 103.0051, 1.0149, 103.0149),
+      greaterThan(PlaceGroupingService.defaultNeighborhoodRadiusMeters));
+    final groups = service.group(inputs);
+    expect(groups, hasLength(2));
+    expect(groups.map((place) => place.matchKey).toSet(), hasLength(2));
+    expect(groups.every((place) => place.entryCount == 1), isTrue);
+    final first = groups.singleWhere((place) => place.noteIds.contains('a'));
+    expect(first.matchKey, '~coord:1.01,103.01');
+    expect(service.group(inputs.reversed.toList()).map((place) => place.matchKey).toList(),
+      groups.map((place) => place.matchKey).toList());
+    final renamed = service.group(inputs, aliases: {
+      first.matchKey: PlaceAlias(canonicalKey: first.matchKey, displayName: 'Home'),
+    });
+    expect(renamed, hasLength(2));
+    expect(renamed.singleWhere((place) => place.displayName == 'Home').noteIds, ['a']);
+    final merged = service.group(inputs, aliases: {
+      for (final place in groups)
+        place.matchKey: const PlaceAlias(canonicalKey: 'trip', displayName: 'Trip'),
+    });
+    expect(merged.single.noteIds, ['a', 'b']);
+    expect(merged.single.displayName, 'Trip');
+  });
+
+  test('coordinate collision suffixes retain full seed precision', () {
+    final groups = service.group([
+      _entry('a', '', DateTime(2026), lat: 1.0051000, lng: 103.0051000),
+      _entry('b', '', DateTime(2026), lat: 1.0051001, lng: 103.0051001),
+      _entry('c', '', DateTime(2026), lat: 1.0051002, lng: 103.0051002),
+    ], coordinateClusterRadiusMeters: 0.001);
+    expect(groups, hasLength(3));
+    expect(groups.map((place) => place.matchKey).toSet(), hasLength(3));
+  });
+
   group('coordinate aliases', () {
     final entries = [
       _entry('home', '', DateTime(2026, 1, 1), lat: 22.57, lng: 88.36),

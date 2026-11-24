@@ -197,10 +197,17 @@ class PlaceGroupingService {
       target.add(e);
     }
 
+    final coordinateKeys = <String>{};
     for (final c in clusters) {
       final latStr = c.centroidLat.toStringAsFixed(2);
       final lngStr = c.centroidLng.toStringAsFixed(2);
-      final rawKey = '~coord:$latStr,$lngStr';
+      final roundedKey = '~coord:$latStr,$lngStr';
+      // Rounded display coordinates are not unique identities. Preserve the
+      // legacy key for the first deterministic cluster; disambiguate collisions
+      // using the exact seed coordinates, never another rounded centroid.
+      final rawKey = coordinateKeys.add(roundedKey)
+          ? roundedKey
+          : '$roundedKey#${c.seedLat},${c.seedLng}';
       final alias = aliases[rawKey];
       final key = alias?.canonicalKey ?? rawKey;
       final displayName = alias?.displayName ?? 'Unnamed place near $latStr, $lngStr';

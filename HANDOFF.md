@@ -1358,3 +1358,14 @@ consistently as -180. Tests check distance from both cluster members, input-orde
 determinism and ordinary clustering across Greenwich.
 Validation: `flutter analyze --no-pub` clean; 36 grouping/provider tests pass.
 No full suite.
+
+### JRN-016 — Distinct identities for colliding coordinate clusters
+
+Separate radius clusters no longer recombine through rounded centroid keys.
+The deterministic first cluster retains the legacy rounded key; subsequent
+collisions add exact seed coordinates. Existing aliases apply to that first
+cluster, while explicit aliases can still intentionally merge distinct clusters.
+Tests cover the reported >1,500-meter separation, stable reversed input, isolated
+rename, explicit merge and collisions below six-decimal coordinate precision.
+Validation: `flutter analyze --no-pub` clean; 45 grouping/provider/merge-UI tests
+pass. No full suite.
