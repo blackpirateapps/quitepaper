@@ -2,8 +2,8 @@
 
 Original audit status: **complete; 10 additional confirmed bugs, 20 cumulative.**
 
-Follow-up: JRN-001–010 from the first pass are now fixed; the ten second-pass
-findings below (JRN-011–020) remain open. See [fix progress](../README.md#fix-progress).
+Follow-up: JRN-001–011 are fixed. JRN-012–020 remain open.
+Implementation details and per-fix checks are in [HANDOFF.md](../../../../HANDOFF.md). See [fix progress](../README.md#fix-progress).
 
 This extends the [first audit](../README.md), preserving its ten findings as
 JRN-001–010. Application source remains `12c49b3`; the starting audit commit is

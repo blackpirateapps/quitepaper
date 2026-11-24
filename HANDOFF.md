@@ -1297,3 +1297,15 @@ All first-pass findings **JRN-001–010 are fixed**, each committed and pushed
 separately on `audit/journal-rigorous-2026-11-24`. The original audit evidence is
 preserved and its progress summaries distinguish fixed findings from the
 second-pass **JRN-011–020, which remain open**. Per-fix test totals above overlap.
+
+## Remaining journal audit fixes — November 24, 2026
+
+### JRN-011 — Preserve constituents through repeated place merges
+
+Merge expands selected canonical keys to all existing constituents (including
+legacy chains) before flattening them onto the new destination. Regressions
+cover three successive merges, reload, rename, reversible unmerge and an
+unrelated group. Device-local alias fixtures explicitly override vault lock state,
+preventing the default key manager from creating unintended databases.
+Validation: `flutter analyze --no-pub` clean; 16 alias-store/merge-UI tests pass
+without the previously documented fixture warnings. No full suite.

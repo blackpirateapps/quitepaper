@@ -201,6 +201,17 @@ class PlaceAliasStore extends StateNotifier<Map<String, PlaceAlias>> {
     final alias = PlaceAlias(canonicalKey: canonicalKey, displayName: displayName);
     final next = Map<String, PlaceAlias>.of(state);
     final keys = <String>{...matchKeys, canonicalKey};
+    // Include every constituent of selected merged groups, including legacy
+    // alias chains, then flatten them directly onto the new canonical key.
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final entry in state.entries) {
+        if (keys.contains(entry.value.canonicalKey) && keys.add(entry.key)) {
+          expanded = true;
+        }
+      }
+    }
     for (final key in keys) {
       next[key] = alias;
     }

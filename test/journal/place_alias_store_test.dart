@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/sync/sync_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/features/journal/application/place_alias_store.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
@@ -16,7 +17,10 @@ void main() {
 
   ProviderContainer withPrefs() {
     final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        isKeyManagerUnlockedProvider.overrideWith((ref) => false),
+      ],
     );
     addTearDown(container.dispose);
     return container;
@@ -37,6 +41,25 @@ void main() {
       // Canonical key maps to itself so its own entries adopt the display name.
       expect(state['kolkata']!.canonicalKey, 'kolkata');
       expect(state['kolkata']!.displayName, 'Kolkata');
+    });
+
+    test('repeated merges flatten all constituents and remain reversible', () async {
+      final store = withPrefs().read(placeAliasStoreProvider.notifier);
+      store.merge(['alpha', 'beta'], canonicalKey: 'trip', displayName: 'Trip');
+      store.merge(['trip', 'gamma'], canonicalKey: 'journey', displayName: 'Journey');
+      store.merge(['journey', 'delta'], canonicalKey: 'adventure', displayName: 'Adventure');
+      store.merge(['other'], canonicalKey: 'unrelated', displayName: 'Unrelated');
+      for (final key in ['alpha', 'beta', 'trip', 'gamma', 'journey', 'delta', 'adventure']) {
+        expect(store.state[key]!.canonicalKey, 'adventure');
+        expect(store.state[key]!.displayName, 'Adventure');
+      }
+      await pumpEventQueue();
+      final reopened = withPrefs().read(placeAliasStoreProvider.notifier);
+      expect(reopened.state['alpha']!.canonicalKey, 'adventure');
+      reopened.rename(canonicalKey: 'adventure', displayName: 'Home');
+      expect(reopened.state['beta']!.displayName, 'Home');
+      reopened.unmergeCanonical('adventure');
+      expect(reopened.state.keys.toSet(), {'other', 'unrelated'});
     });
 
     test('rename updates display name for all entries under a canonical key', () {
@@ -114,7 +137,10 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       final c2 = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        isKeyManagerUnlockedProvider.overrideWith((ref) => false),
+      ],
       );
       addTearDown(c2.dispose);
       expect(c2.read(placeAliasStoreProvider).isEmpty, isTrue);
@@ -132,7 +158,10 @@ void main() {
 
       // A brand-new container over the same prefs rehydrates the map.
       final c2 = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        isKeyManagerUnlockedProvider.overrideWith((ref) => false),
+      ],
       );
       addTearDown(c2.dispose);
 
@@ -143,7 +172,9 @@ void main() {
     });
 
     test('falls back to in-memory when SharedPreferences is absent', () {
-      final c = ProviderContainer(); // no override → prefs provider throws
+      final c = ProviderContainer(overrides: [
+        isKeyManagerUnlockedProvider.overrideWith((ref) => false),
+      ]); // no prefs override → prefs provider throws
       addTearDown(c.dispose);
 
       final store = c.read(placeAliasStoreProvider.notifier);
