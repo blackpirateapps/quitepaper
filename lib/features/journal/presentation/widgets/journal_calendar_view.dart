@@ -392,7 +392,7 @@ class JournalCalendarView extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '$dayNumber',
+                            JournalDateHelper.formatDayNumber(dayNumber, localeTag: ref.watch(journalLocaleTagProvider)),
                             style: AppTypography.bodySmall.copyWith(
                               color: isSelected
                                   ? colors.accent

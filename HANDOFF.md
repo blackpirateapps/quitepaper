@@ -1249,3 +1249,12 @@ narrow phones. Dialog interaction regressions at 640×320 and 360×640 exercise
 year navigation, December selection, Current Month and Cancel without overflow.
 Validation: `flutter analyze --no-pub` clean; 18 picker/archive tests pass.
 No full suite.
+
+### JRN-007 — Bengali day numerals
+
+Calendar day cells and padded timeline days use locale-aware number formatting.
+Canonical date/month keys stay ASCII. The widget regression enables the actual
+Bengali preference, selects a Bengali day, verifies its ASCII selection key and
+switches back to English without changing that key.
+Validation: `flutter analyze --no-pub` clean; 58 tests pass across Bengali dates,
+date helpers, archive widgets and timeline datelines. No full suite.
