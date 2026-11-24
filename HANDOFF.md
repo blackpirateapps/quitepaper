@@ -1205,3 +1205,11 @@ journal entry. Existing explicitly indexed journal notes remain supported.
 Validation: `flutter analyze` clean; 32 relevant tests pass in
 `journal_metadata_service_test.dart`, `journal_repository_test.dart`,
 `journal_database_test.dart` and `note_metadata_journal_test.dart`. No full suite.
+
+### JRN-002 — Top-level journal metadata extraction
+
+Extraction ignores indented YAML mappings and block scalar text, keeping nested
+dates and journal flags from changing the canonical day or classifying a note.
+Regression coverage includes nested flags/dates and scalar text.
+Validation: `flutter analyze --no-pub` clean; 27 tests pass in the metadata,
+repository and database journal test files. No full suite.

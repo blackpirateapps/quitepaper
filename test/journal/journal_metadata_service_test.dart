@@ -50,6 +50,19 @@ Just a normal note with a date
       expect(meta.journalDate, isNull);
     });
 
+    test('extraction ignores nested dates, flags and block scalar contents', () {
+      final meta = JournalMetadataService.extractJournalMetadata(
+        '---\njournal: true\ndate: 2026-01-15\nsource:\n  date: 2020-02-20\n  journal: false\nsummary: |\n  date: 1990-01-01\n---\nBody',
+      );
+      expect(meta.isJournal, isTrue);
+      expect(meta.journalDate, '2026-01-15');
+      final nestedOnly = JournalMetadataService.extractJournalMetadata(
+        '---\nsource:\n  journal: true\n  date: 2020-02-20\n---\nBody',
+      );
+      expect(nestedOnly.isJournal, isFalse);
+      expect(nestedOnly.journalDate, isNull);
+    });
+
     test('ensureJournalFrontmatter is idempotent and does not duplicate headers', () {
       const initial = '''---
 journal: true

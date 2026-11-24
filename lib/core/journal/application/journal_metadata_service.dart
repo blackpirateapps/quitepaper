@@ -54,6 +54,8 @@ abstract final class JournalMetadataService {
     String? dateStr;
 
     for (final line in lines) {
+      // Indented mappings and block scalars belong to user metadata.
+      if (line.startsWith(RegExp(r'\s'))) continue;
       final trimmed = line.trim();
       if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
 
