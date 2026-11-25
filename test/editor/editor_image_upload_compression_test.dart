@@ -25,6 +25,8 @@ import 'package:quitepaper/features/settings/application/settings_provider.dart'
 import 'package:quitepaper/features/settings/domain/default_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/pump_until_found.dart';
+
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
 
@@ -185,7 +187,7 @@ void main() {
     expect(dropTargetFinder, findsOneWidget);
     final dropTarget = tester.widget<DropTarget>(dropTargetFinder);
 
-    // Simulate drop done with large image inside runAsync so File I/O resolves
+    // Start native file I/O outside the fake test clock.
     await tester.runAsync(() async {
       dropTarget.onDragDone?.call(
         DropDoneDetails(
@@ -194,8 +196,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.byType(ImageCompressionDialog));
     await tester.pumpAndSettle();
 
     // Verify dialog appeared
@@ -205,13 +207,13 @@ void main() {
 
     // Tap "Insert Image"
     await tester.tap(find.text('Insert Image'));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Dialog should be gone
     expect(find.byType(ImageCompressionDialog), findsNothing);
+
+    expect(compressionService.compressCallCount, 1);
 
     // Check that attachment markdown was inserted
     expect(find.textContaining('qp://asset/'), findsOneWidget);
@@ -243,8 +245,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.byType(ImageCompressionDialog));
     await tester.pumpAndSettle();
 
     // Check "Remember my choice"
@@ -253,9 +255,7 @@ void main() {
 
     // Confirm insert
     await tester.tap(find.text('Insert Image'));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Verify preference was persisted
@@ -271,7 +271,7 @@ void main() {
 
   testWidgets('Dropping image > 500 KB when setting is alwaysCompress bypasses dialog and compresses directly', (tester) async {
     // Set setting to alwaysCompress
-    prefs.setString(DefaultSettingsNotifier.imageCompressionActionKey, 'always_compress');
+    await prefs.setString(DefaultSettingsNotifier.imageCompressionActionKey, 'always_compress');
 
     final now = DateTime.now();
     final note = Note(
@@ -294,12 +294,14 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Dialog should NEVER have appeared
     expect(find.byType(ImageCompressionDialog), findsNothing);
+
+    expect(compressionService.compressCallCount, 1);
 
     // Attachment markdown was inserted directly
     expect(find.textContaining('qp://asset/'), findsOneWidget);
@@ -331,8 +333,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Dialog should not appear for small image
@@ -368,8 +370,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.byType(ImageCompressionDialog));
     await tester.pumpAndSettle();
 
     expect(find.byType(ImageCompressionDialog), findsOneWidget);
@@ -409,8 +411,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.byType(ImageCompressionDialog));
     await tester.pumpAndSettle();
 
     expect(find.byType(ImageCompressionDialog), findsOneWidget);
@@ -421,9 +423,7 @@ void main() {
 
     // Confirm insert
     await tester.tap(find.text('Insert Image'));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Dialog dismissed
@@ -441,7 +441,7 @@ void main() {
   });
 
   testWidgets('Dropping image > 500 KB when setting is keepOriginal bypasses dialog and inserts without compressing', (tester) async {
-    prefs.setString(DefaultSettingsNotifier.imageCompressionActionKey, 'keep_original');
+    await prefs.setString(DefaultSettingsNotifier.imageCompressionActionKey, 'keep_original');
 
     final now = DateTime.now();
     final note = Note(
@@ -464,8 +464,8 @@ void main() {
           globalPosition: Offset.zero,
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 200));
     });
+    await pumpUntilFound(tester, find.textContaining('qp://asset/'));
     await tester.pumpAndSettle();
 
     // Dialog should not appear

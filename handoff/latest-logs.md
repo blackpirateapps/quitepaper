@@ -6802,7 +6802,2098 @@ Cleanup: all three isolated audit process groups were terminated. The normal
 Application source and normal executable regression tests are unchanged; temporary
 probe targets are retained only as `.dart.txt` audit artifacts.
 
-## 299. Linux browser web clipper over native messaging (November 17, 2026)
+## 299. CL-01: Replace selected task text on Enter (November 16, 2026)
+
+Visual checklist Enter uses the ordered replacement range, preserving styled prefix/suffix spans and committing the split as one undo step. Forward and reverse widget regressions assert task text, focus selection and undo.
+
+Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 11 passed. Full suite left to GitHub Actions.
+
+## 300. CL-02: Preserve Visual task hierarchy (November 16, 2026)
+
+ChecklistItemBlock now stores indentation with backward-compatible JSON defaults. Parsing, serialization, copies, equality, Enter continuation and row padding preserve nesting and completion state. Regressions cover Markdown/JSON round trips and nested editing.
+
+Validation: flutter analyze: no issues; parser/serializer and checklist tests: 31 passed. Full suite left to GitHub Actions.
+
+## 301. CL-03: Join tasks with forward Delete (November 16, 2026)
+
+Forward Delete at a collapsed task-end caret merges the following task while retaining styled text, the current checkbox state, the join caret and one-step undo. Other Delete operations retain native text-field behavior.
+
+Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 13 passed. Full suite left to GitHub Actions.
+
+## 302. CL-04: Keep checklist toolbar markers and insertion caret (November 16, 2026)
+
+Checklist controller listeners now publish text edits and their selections even while the insertion menu owns focus; unfocused selection-only notifications stay ignored. Actual EditorScreen toolbar regressions verify Tag typing, Link Note autocomplete and saved rich JSON.
+
+Validation: flutter analyze: no issues; dual-mode editor and checklist tests: 37 passed. Full suite left to GitHub Actions.
+
+## 303. CL-06: Let IME confirm composition before splitting tasks (November 16, 2026)
+
+Hardware Enter no longer invokes checklist structure edits while the row has a nonempty composing range. The IME-channel regression checks unchanged content/composition, then verifies Enter resumes continuation after composition ends. Physical CJK keyboards remain outside this widget validation scope.
+
+Validation: flutter analyze: no issues; rich_text_checklist_editor_test.dart: 14 passed. Full suite left to GitHub Actions.
+
+## 304. CL-07: Continue quoted and numbered Markdown tasks (November 16, 2026)
+
+Markdown smart Enter recognizes checkbox markers inside quote and numbered prefixes, resets new tasks to unchecked and increments numbered tasks. Enter replacing a forward/reverse selection now deletes that range and preserves task continuation; regression cases cover compound prefixes and ordered delimiters.
+
+Validation: flutter analyze: no issues; markdown_smart_editing_test.dart: 14 passed. Full suite left to GitHub Actions.
+
+## 305. CL-08: Load nested Super Editor tasks without merging children (November 16, 2026)
+
+The math-aware Markdown loading and structured-paste boundary now parses each task row before CommonMark can fold descendants into one parent element. Each task retains independent text, inline formatting, two/four-space nesting and completion state. Parser round trips and actual Super Editor edit/save regressions cover the audited fixture.
+
+Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 63 passed. Full suite left to GitHub Actions.
+
+## 306. CL-05: Turn platform newlines into checklist structure (November 16, 2026)
+
+Visual checklist IME updates split styled text into unchecked continuation tasks or exit an empty task into a paragraph. Multiline edits preserve neighbors and indentation, move focus/caret to the resulting block, and commit as one undo step. Widget IME-channel cases cover continuation, empty exit and multiline continuation/exit; physical phones remain untested.
+
+Validation: flutter analyze: no issues; checklist and Visual stability tests: 33 passed. Full suite left to GitHub Actions.
+
+## 307. CL-09: Preserve rapid native checklist input (November 16, 2026)
+
+Enter resolves live task models and moves the existing mounted TextField, controller and focus node into the continuation row. Linux splits on the ordered IME newline so hardware Enter cannot overtake earlier printable input; queued old-buffer updates are rebased after the split. Native 41-task creation now preserves every exact label, focus and persisted JSON, with zero Flutter errors; durable evidence is in fix-verification/cl09-native.jsonl.gz.
+
+Validation: flutter analyze: no issues; checklist and Visual stability tests: 35 passed; native rapid-creation acceptance passed. Full suite left to GitHub Actions.
+
+## 308. CL-10: Paste at the AST caret and replace selected tasks (November 16, 2026)
+
+Visual snippet insertion now splices parsed blocks into the AST selection, preserving styled prefix/suffix spans, checkbox/nesting metadata, unaffected block identities and the resulting caret. It replaces forward/reverse cross-task selections in one undo step. Native clipboard paste, delayed autosave and reopening now preserve the exact audited task order/state; evidence is in fix-verification/cl10-native.jsonl.gz.
+
+Validation: flutter analyze: no issues; rich controller and dual-mode editor tests: 43 passed; native paste/reopen acceptance passed. Full suite left to GitHub Actions.
+
+## 309. CL-12: Keep long-list arrow navigation responsive and focused (November 16, 2026)
+
+Task boundary navigation handles repeated keys, publishes the destination synchronously and transfers the existing input client between rows. Selection-only changes skip full-surface reconstruction and unchanged task spans are not invalidated. Native ten-Down navigation in 250 tasks now reaches Task 0010 at offset 9 with all labels exact and zero Flutter errors. Widget regressions inspect focus, caret and stable EditableText identity per event and navigate back to the start.
+
+Validation: flutter analyze: no issues; Visual stability, checklist and large-document tests: 39 passed; native 250-task navigation acceptance passed. Full suite left to GitHub Actions.
+
+## 310. CL-11: Consume Linux Home at the paragraph boundary (November 16, 2026)
+
+A dedicated Super Editor Linux keyboard plugin moves/extends the caret for plain Home and consumes the key even if it cannot move. This prevents the native IME from reinserting its synthetic prefix and paragraph buffer. Ctrl/Meta/Alt combinations retain existing handlers. Folded and nonfolded widget/native cases preserve exact Tail text, caret and saved Markdown; evidence is in fix-verification/cl11-native.jsonl.gz.
+
+Validation: flutter analyze: no issues; smart-task and quiet-super-editor tests: 65 passed; native folded/nonfolded Home acceptance passed. Full suite left to GitHub Actions.
+
+Final integration recheck: `flutter test --no-pub
+test/editor/editor_image_upload_compression_test.dart
+test/editor/dual_mode_editor_screen_test.dart` passes all 32 tests. This checks
+the image insertion test that timed out in an earlier CI run and rechecks actual
+EditorScreen integration after checklist reconciliation changes. No full local
+suite was run; GitHub Actions runs the full suite for each pushed fix.
+
+## 311. Native notes-list swipe-search audit and animation fixes (November 17, 2026)
+
+Audited baseline `5d869e9` in an isolated native Linux window using the real
+`NotesScreen`, sample notes, an in-memory database and Wayland virtual-pointer
+drags. Captured frames reproduce two failures: the list rubber-bands underneath
+the translated card (up to 111.61dp additional row movement), and an early Back
+tap is ignored during opening. The [audit report](audits/swipe-search-2026-11-17/README.md)
+retains before/after screenshots, compressed frame/state evidence, derived checks,
+validation logs and replay sources. Initial invalid input/setup attempts are
+explicitly excluded from the evidence.
+
+`PullDownSearchScrollPhysics` wraps the existing phone/tablet list and empty-state
+physics. It keeps the scroll position at its minimum while the deliberate reveal
+owns the drag, including upward reversal, and retains platform scrolling outside
+that gesture. Scroll notifications still arm only user drags starting at the top;
+pointer release/cancel now ends the reveal immediately instead of waiting for a
+ballistic scroll end. Canceled pointers restore the list even above threshold.
+
+`PullDownSearchReveal` replaces competing spring/slide controllers with one
+interruptible position animation. Back can reverse opening; opening can interrupt
+closing or spring-back without resetting the card position. Inline search owns a
+state-aware `PopScope`. Notes-screen search focus uses `isSearchReady`, deferring
+focus until the card exits; closing unfocuses search. `SearchScreen` also checks
+its current autofocus setting before executing a queued focus request.
+
+All 12 final native cases pass: short/full pulls, reversal and early Back across
+populated phone, populated tablet and empty phone layouts. Populated-phone frame
+evidence now measures zero extra row movement, and early Back restores notes.
+No Flutter errors were recorded. Tablet retains its full-window search route.
+The window is closed and the regular `lib/main.dart` Linux debug bundle rebuilt.
+
+Validation: `flutter analyze` has no issues. All 49 tests pass in
+`test/features/notes/pull_down_search_animation_test.dart`,
+`test/features/notes/gestures_test.dart`, `test/editor/in_note_search_test.dart`
+and `test/search/search_workspace_test.dart`. New checks cover animation
+continuity, cancellation, focus timing and system Back. No full suite was run.
+Native replay uses mouse dragging with an Android platform override; physical
+mobile touch and software-keyboard animation remain untested. Updated `HANDOFF.md`
+and the tags/search guide with the behavior and audit reference.
+
+Post-rebase verification on main `6fa397e`: the same 49 relevant tests pass,
+analysis is clean, and the normal Linux debug build succeeds. The remote changes
+affect the editor; notes/search source and the audited animation are unchanged.
+
+## 312. Linux CI image-import and document-viewer async test races (November 17, 2026)
+
+Inspected the recent GitHub Actions Linux failures. Main run
+[43890273557](https://github.com/blackpirateapps/quitepaper/actions/runs/43890273557)
+passed analysis but failed two image-import tests with `pumpAndSettle timed out`
+(2,680 passed, two failed), preventing compilation and packaging. Audit-branch run
+[44033716234](https://github.com/blackpirateapps/quitepaper/actions/runs/44033716234)
+failed the scanner viewer's `3 pages` expectation (2,676 passed, one failed).
+The compression-confirm timeout also reproduced locally before this fix.
+
+The image tests previously allowed only 200–300 ms of real time for file I/O,
+encryption and persistence before settling Flutter's fake clock. Pending work
+left the import overlay's spinner animating indefinitely during settlement.
+The viewer's two fake-clock pumps likewise did not wait for its annotated-file
+existence check; the card resolves document data asynchronously as well.
+
+Added `test/support/pump_until_found.dart`: a bounded 15-second wall-clock wait
+that alternates real async execution with frame pumping until the expected
+widget appears. Image tests wait for their dialog or inserted asset URI before
+settling animations. Compression paths also assert one compressor call, and
+preference writes are awaited. Scanner tests wait for loaded page metadata and
+initialize mock preferences to isolate viewer settings. Existing behavior
+assertions remain in place; application code and CI quality gates are unchanged.
+
+Validation: `flutter analyze` reports no issues. All 10 tests in
+`test/editor/editor_image_upload_compression_test.dart` and
+`test/scanner/scanner_ui_test.dart` pass. No full suite was run locally.
+
+## 313. PDF Viewer Native Audit and Targeted Stress Tests (November 16, 2026)
+
+Audited application source `5d869e9` on branch
+`audit/pdf-viewer-stress-2026-11-16`; no production fixes were made. The
+[durable report](audits/pdf-viewer-stress-2026-11-16/README.md) records **10 open
+findings**, including two high-priority annotation-loss paths: newer edits are
+lost when an older pending save finishes, and Back closes the viewer after failed
+autosave. Other findings concern an in-flight thumbnail deletion race, selected
+thumbnail visibility on long PDFs, stale header totals, malformed-PDF feedback,
+narrow mobile toolbar layout, large-document native debug stalls, and export
+cancellation/overwrite handling. Every finding was written to Markdown when
+confirmed, then consolidated with scope and reproduction details.
+
+Two isolated native Linux processes exercised the real DocumentViewerScreen,
+Syncfusion/PDFium, Drift memory metadata, real encrypted document storage and
+thumbnail caching. Temporary XDG/storage directories and synthetic keys/PDFs
+protected the ordinary notebook and Downloads. The save race/failure probes
+injected a service-boundary delay or exception; ordinary persistence was real.
+A loopback harness exposed state and deterministic public controller operations;
+Hyprland pointer/keyboard input exercised the user controls. Native batches are
+explicitly distinguished from pointer drawing and physical mobile testing.
+
+Evidence: 58 native snapshots with readable summaries and compressed raw JSONL,
+synthetic screenshots, frame samples, runtime logs, exact harness/probe sources,
+and native scripts. The 250-page, 328KB PDF showed multi-second debug stalls with
+the sidebar open; a fresh-process sidebar-closed control completed five jumps
+near the driver's intentional 950ms wait floor. The mixed 12-page fixture served
+36 simultaneous thumbnail requests in 881ms (including cached/duplicate pages).
+100 annotations survived 10 Undo/10 Redo operations, encrypted save/reopen, and
+revert/reopen to zero. Large-PDF search eventually found all 250 matches.
+
+A new durable test, `test/documents/pdf_thumbnail_stress_test.dart`, verifies
+2,500 concurrent requests deduplicate 250 pages, encrypted disk restart returns
+all 250 without rerendering, and settled deletion removes the cache. Its fake
+renderer isolates service behavior rather than claiming native raster speed.
+Adversarial observational probes are archived as `.dart.txt` and do not lock bugs
+into passing regression tests. The report excludes invalid menu targeting,
+premature streamed-search assertions and inconclusive native highlighting drag
+attempts. Suspected reload annotation loss was ruled out by settled reload and
+normal Back/save/reopen controls.
+
+Validation: final `flutter analyze --no-pub` reports **no issues**. All **48 focused
+tests pass** across the ten named viewer, annotation, thumbnail and renderer files
+listed in the report. No full suite was run. Mobile layout observations include
+a deliberately caught 16px RenderFlex overflow; the native exception arrays are
+empty, while malformed-PDF and injected-storage failures appear in their own
+callbacks/debug output. This is an audit of observable failures, not a claim
+that the existing suite catches them.
+
+Cleanup: both isolated process groups were closed, temporary executable probes
+were archived and removed, and `flutter build linux --debug --no-pub -t
+lib/main.dart` restored the normal app bundle successfully. Updated HANDOFF.md
+and the document domain guide to link the open findings and scope limitations.
+
+Final validation-log review also corrected the existing OCR menu test fixture:
+`document_viewer_ocr_menu_test.dart` now overrides annotation resolution instead
+of creating a second real database, generates a valid PDF, and pumps 600ms so
+Syncfusion's 500ms startup timer completes. This removes four Drift warnings and
+makes the PDF body actually mount during the toolbar tests. The intermediate
+warning/timer logs are retained; the final scoped run is clean. Application
+source is unchanged.
+
+## 314. Integrate PDF Viewer Fixes with Current Main (November 17, 2026)
+
+Prepared PR #9 for merging by resolving the handoff conflicts against current
+`main`. Preserved the completed checklist audit, swipe-to-search work, Linux CI
+async-test fixes, and all ten PDF viewer fixes with their audit evidence. Renumbered
+the PDF audit log from 299 to 313 to avoid colliding with the checklist history,
+and updated the document guide to reflect the completed PDF remediation.
+
+The PDF fixes preserve annotations across pending saves and failed exit autosaves,
+invalidate stale thumbnail jobs, bound native sidebar rendering, keep the selected
+thumbnail visible, expose PDF load errors and retries, fit compact toolbars, use
+loaded page totals, respect export cancellation, and write desktop overwrite paths.
+
+Validation: `flutter analyze` reports no issues.
+`flutter test test/documents test/pdf --reporter expanded` passes all 106
+relevant tests. No full test suite was run.
+
+
+## 315. Android Web Clipper Bug Audit (November 17, 2026)
+
+Audited source `810704c40ce943d9b339279e5b83193001d32b01` on branch
+`audit/android-web-clipper-2026-11-17`. The [audit index](audits/android-web-clipper-2026-11-17/README.md)
+links ten open findings with reproduction steps, expected/observed behavior,
+source locations and probe evidence. Snapshot images receive Markdown snippets
+as src values; default save loses fetched CSS; snapshot failures still report
+success; removed tags return; canonical and pre-redirect URLs misbase resources;
+browser copyWith cannot clear messages; query aliases substitute the wrong image;
+browser success pops the new editor; an open capture discards a distinct second share.
+
+No application, architecture or test files were changed. Temporary probes were
+archived as Markdown and removed. Android-themed screen/preview and coordinator
+widgets isolate navigation and share routing; a real loopback HTTP redirect and
+mocked service/image responses confirm persistence and URL defects. Native Android
+intents, device WebView rendering and authenticated-page behavior remain unverified.
+
+Validation: `flutter analyze` reports no issues. `flutter test test/web_clipper`
+passes all 42 existing relevant tests. The two Quick Capture normalizer/screen
+files pass 15 tests. Ten additional temporary probes pass by asserting the observed
+bugs, not their absence. No full test suite ran. All committed files are Markdown;
+the pre-existing untracked smart-tables prompt was left outside the audit commit.
+
+
+## 316. Physical Android Web Clipper Follow-up with Real Links (November 17, 2026)
+
+The [USB follow-up](audits/android-web-clipper-2026-11-17/usb-device-follow-up/README.md)
+adds WC-11 through WC-16, bringing the [audit](audits/android-web-clipper-2026-11-17/README.md)
+to **16 open bugs**. The Redmi K20 Pro runs Android 16 and WebView 145.0.7632.45.
+Eight public links were exercised with real network responses; actual WebView
+DOM capture and native touch/save actions complement phone-side direct scanning.
+
+New findings: the URL dialog overflows when Continue gains its loading spinner;
+nested layout tables repeat prose; RFC 9110 collapses to its index appendix;
+Hexo documentation loses code figures; a star description rejects a large content
+photo; and a failed WebView load becomes Ready to clip. The first, second, third,
+fourth and sixth have device/live-page evidence. Photo filtering is isolated by
+a minimal component probe; no corresponding live NASA/Wikipedia loss is claimed.
+The real browser save also confirms WC-09, including its stuck processing state,
+and successful navigation retains the stale message described by WC-07.
+
+No application fix was made. Reports, two native screenshots, content counts,
+state/navigation records and exact executed harness/probe source are preserved.
+The separate package com.blackpiratex.quietpaper.audit used a memory database,
+synthetic encryption keys and anonymous auth. The original app was not updated,
+cleared or uninstalled. The audit package and USB forwards were removed afterward.
+Temporary manifest/build edits were restored and temporary Dart files removed.
+
+After the earlier emulator attempt and reported laptop crash, the USB build was
+serialized and limited to one Gradle worker and a 2GB Java heap; no emulator ran.
+It completed in 174.6 seconds. Final static analysis reports no issues. The six
+relevant existing extractor/converter/filter/preview/browser files pass 23 tests,
+and four temporary component probes pass by characterizing the bugs. Concurrency
+was 1; no full suite ran. A synthetic-font preview overflow suspicion was excluded:
+native evidence identifies the URL-dialog loading state instead.
+
+
+## 317. Notes List Bug and Performance Audit (November 17, 2026)
+
+Audited main `9bf2cdd` on `audit/notes-list-2026-11-17` after reading HANDOFF and
+the tags/search guide. The [audit report](audits/notes-list-2026-11-17/README.md)
+documents ten open findings with severity, source locations, deterministic
+reproduction, expected/observed behavior and proposed acceptance checks.
+
+Confirmed defects: initial read failures render an empty library; modification-date
+grouping breaks title ordering; metadata cache identity retains stale tags;
+refresh discards loaded notes beyond 250; refresh/query generations collide;
+Retry skips failed refreshes; prewarming beyond the 500-entry LRU reparses the
+collection; desktop ZIP export silently keeps an existing file; paginated mapping
+drops journal/share metadata; and failed destination loads retain old-context rows.
+
+No application code or architecture changed. Replay sources live under the audit,
+outside normal test discovery, because bug-characterization passes confirm bugs
+rather than enforce their absence. Isolated fixtures never open user notes. Native
+profiling uses an in-memory 10,000-note database, 1,000 loaded rows, and real Linux
+profile frame timings at desktop and phone viewport sizes. Mobile widget coverage
+uses Android platform variants; physical mobile performance remains unverified.
+
+Validation: 141 existing notes/gesture tests and 21 focused audit probes pass.
+Static analysis is clean. The report records native measurements. No full
+test suite ran. The pre-existing smart-tables prompt remains outside this commit.
+
+## 318. NL-01 Notes List Remediation (November 17, 2026)
+
+Phone and desktop lists show a load error with Retry before the empty-state branch. Retry recovers existing notes; genuinely empty libraries retain their ordinary empty state.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; `flutter test test/notes/notes_list_audit_regression_test.dart`: 4 passed. No full suite ran.
+
+## 319. NL-02 Notes List Remediation (November 17, 2026)
+
+Grouping preserves query order with contiguous date buckets, uses the selected created/updated date, and groups title sorts without date reordering. Phone/desktop regressions cover all sort directions and pin settings; 85-note keyset pagination checks preserve order at each page boundary.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; focused audit, domain and pin tests: 35 passed; expanded audit regressions including keyset boundaries: 7 passed. No full suite ran.
+
+## 320. NL-03 Notes List Remediation (November 17, 2026)
+
+Metadata cache keys compare exact content, title, timestamp, tag values and snippet rather than content length and partial hashes. Same-time tag edits and same-length body replacements now produce fresh metadata, while unchanged values reuse cached instances. Exact note-ID invalidation preserves other IDs.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; cache, journal metadata, scrolling and screen regression files: 19 passed. No full suite ran.
+
+## 321. NL-04 Notes List Remediation (November 17, 2026)
+
+Refresh reconstructs the loaded window using bounded keyset pages and publishes the replacement atomically. Regressions retain 440 and 1,000 loaded IDs, edited content and continuation cursors; phone and desktop lists preserve a deep visible row and its scroll position.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery, pagination races and screen regressions: 16 passed. No full suite ran.
+
+## 322. NL-05 Notes List Remediation (November 17, 2026)
+
+The collection notifier assigns monotonically increasing request generations to every initial load and refresh. Async success, error and load-more cleanup check the current generation and mounting before updating state. Regressions cover both completion orders, stale failures, overlapping refresh/filter/sort changes, disposal and old-page cleanup during a new page request.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery and pagination race files: 12 passed. No full suite ran.
+
+## 323. NL-06 Notes List Remediation (November 17, 2026)
+
+Retry dispatches the recorded failed operation: initial load, refresh, or next page. Failed refreshes restart at the beginning even at end-of-list, and failed pages retry their cursor without losing loaded notes. Automatic scrolling leaves a displayed error intact until Retry or explicit refresh.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; collection recovery and screen regression files: 23 passed. No full suite ran.
+
+## 324. NL-08 Notes List Remediation (November 17, 2026)
+
+Removed collection-wide metadata and thumbnail scans from both list providers and the screen. Mounted tiles extract lazily; grouped data watches notes/sort rather than loading flags. Speculative prewarm fills unused capacity without evicting recent entries. Linux profile replay reduces repeated 600/1,000-note prewarm from 364/598ms medians to at most 1 microsecond, with no Flutter errors; raw evidence and physical-mobile limits are in fix-verification/README.md.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; cache, scrolling, redesign and screen regression files: 50 passed. Native build/raster p95 stays below 16.67ms in both layouts, with one desktop build outlier. No full suite ran.
+
+## 325. NL-09 Notes List Remediation (November 17, 2026)
+
+Desktop ZIP exports always replace and flush picker-returned paths before reporting success. Null/empty picker responses cancel without writing; picker and filesystem failures show an export error. Mobile pickers retain ownership of supplied bytes. Regressions decode exact new/overwritten archives and cover cancellation and failures.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; ZIP export and multi-selection tests: 16 passed. No full suite ran.
+
+## 326. NL-10 Notes List Remediation (November 17, 2026)
+
+Full and paginated reads share a complete NoteEntity-to-Note mapper, including journalDate, shareId and shareUrl. Batch tag hydration remains unchanged. Regressions compare every persisted domain field across active, Archive and Trash reads, including journal/share flags and local pins.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; database query and pin-scope files: 25 passed. No full suite ran.
+
+## 327. NL-11 Notes List Remediation (November 17, 2026)
+
+New queries immediately clear old rows, counts and cursors, including destination, tag, sort and filter transitions. Query changes also end batch selection so old IDs cannot be acted on under the new query. Phone/desktop regressions assert empty loading/error collections, no actionable old rows, and successful Retry with the new predicates retained.
+
+Implementation and permanent regression coverage accompany this entry. See the
+[notes list audit](audits/notes-list-2026-11-17/README.md) for the original
+reproduction and updated resolution.
+
+Validation: `flutter analyze`: no issues; screen, recovery and selection regression files: 46 passed. No full suite ran.
+
+Final notes-list integration validation: all **192** relevant notes and gesture
+tests pass with `--concurrency=1`; Flutter analysis reports no issues. The full
+suite was not run. Historical probes remain separate from normal discovery.
+The normal Linux profile bundle was restored from `lib/main.dart`; final test,
+analysis and build logs are retained in the audit fix-verification directory.
+
+## 328. Images and Document Scanner Bug and Performance Audit (November 17, 2026)
+
+Read the root handoff, OCR/documents guide, scanner geometry/preset contract and
+image/scanner implementations before creating `audit/images-scanner-2026-11-17`
+from active-branch baseline `8724bf0`. Findings were appended immediately to the
+[audit report](audits/images-scanner-2026-11-17/README.md). All **14 findings remain
+open**; this is an audit and evidence commit, with no production fixes.
+
+Eight P1 findings cover crop coordinates after rotation, tone preview/export
+mismatch, desktop image-save false success, synchronous full-resolution preview
+preparation, stale automatic crop overwrite, dropped GIF frames, inline cache
+lock-resolution bypass, and stale source pixels. Six P2 findings cover missing
+crop review, incorrect landscape PDF geometry, unbounded source-byte retention,
+late gallery callbacks after disposal, parent notifications during viewer build,
+and the ORIGINAL comparison retaining the baked scanner mode.
+
+Verification: **114 existing tests** in `test/scanner`, `test/image_processing`,
+the four image layout/dimension/inline/viewer files and two editor compression
+files pass, serialized with `--concurrency=1`. **16 additional characterization
+probes** pass against real pixel processing/PDF output and controlled async
+widget completions. Expected application diagnostics are asserted or retained;
+none is represented as a repaired behavior. Final `flutter analyze --no-pub`
+reports no issues. No full suite ran.
+
+Performance evidence includes 4000×3000 JPEG preview preparation (three measured
+calls, with source creation outside timing), 90 Dart VM pipeline/encode samples
+across six modes at 600/1600/2048px, and sequential 1/5/10-page Auto processing.
+The report records medians, sample p95, output sizes and process RSS, exact run
+commands, runtime/CPU and limitations. Flutter JIT/UI-isolate duration is distinct
+from native release frame timing. Physical cameras, Android/iOS, native mobile
+pickers, GPU/raster FPS, sustained thermal/load behavior and OCR-model latency
+were not exercised. No real user notes were changed. An unrelated pre-existing
+untracked prompt is excluded from the commit.
+
+Modified files: `HANDOFF.md`, this log, a reference in `ocr-and-documents.md`, and
+`handoff/audits/images-scanner-2026-11-17/` (report, three reproducible Dart sources,
+raw focused-test/analysis outputs and benchmark/environment JSON).
+
+
+## 329. Images and Scanner Audit Remediation — November 18, 2026
+
+Resolved all 14 findings from the November 17 image/scanner audit on its original
+branch, with one fix commit per finding. The audit retains the baseline evidence
+and adds individual resolutions; permanent acceptance tests replace the old
+characterization assertions for current-branch verification.
+
+Geometry now applies to EXIF-oriented source coordinates before rotation. Review
+renders bounded crop/dewarp previews, and ORIGINAL comparison swaps to separate
+unfiltered capture bytes. CPU tone processing uses the same affine color matrix
+as the GPU preview. Preparation and neutral-export decisions run in a shared
+serial worker queue, alongside detector/mode jobs, removing the full-source UI
+isolate stall and duplicate neutral decode without an expensive synchronous
+fallback. Timer tests verify yielding rather than making device-FPS claims.
+
+Geometry revisions let manual framing supersede delayed detection. Scanner
+acquisition/preparation checks mounting and job generations after async work.
+Both PDF generators preserve landscape aspect ratios. Multiframe compression
+retains original encoded bytes, frames and timing. Desktop image saves write and
+flush picker destinations before success and handle overwrite/cancel/failure;
+mobile picker byte ownership is preserved.
+
+Inline images no longer keep unbounded process-wide source maps. Asset loads
+always resolve access, including cache hits in the underlying service; secure
+key lock/clear-key flows purge attachment plaintext caches. Source/variant
+snapshots and request generations guard stale successes, errors and dimensions.
+Viewer status notifications are coalesced after the current frame to avoid
+mutating their parent during build.
+
+Modified production areas: `image_processor.dart`, `image_compression_service.dart`,
+`pdf_generator.dart`, scanner `pdf_builder.dart`, `document_scanner_screen.dart`,
+`page_adjustment_sheet.dart`, `scanner_preview_canvas.dart`, attachment
+`image_viewer_modal.dart`, `quiet_asset_image_view.dart`, new `image_file_save.dart`,
+`attachment_service.dart` and `key_manager.dart`. Regression coverage lives in
+three new image/scanner test files and the expanded attachment-service tests.
+`HANDOFF.md`, the OCR/document guide and the original audit report are aligned.
+
+Validation: `flutter analyze` reports no issues; the combined serialized image,
+scanner, viewer, attachment-service and editor-import/compression run passes
+**152 tests**. Exact commands and raw outputs are in
+[fix verification](audits/images-scanner-2026-11-17/fix-verification/README.md).
+No full suite, app build, new physical-device/native-picker replay or release
+benchmark ran. Existing benchmark data retains its original Linux/JIT limits.
+The unrelated pre-existing smart-tables prompt remains outside the commits.
+
+
+## 330. Release version bump to 1.6.4 (Build 22) (November 18, 2026)
+
+Updated current `main` from **1.6.3+21** to **1.6.4+22** after incorporating the
+notes-list and image/scanner audit fixes. The local build suffix increments to
+22; CI continues deriving build numbers from the Git commit count.
+
+Synchronized startup and provider fallbacks, backup/device/location defaults,
+the weather HTTP user agent, update-checker/dialog defaults, `.qpnote` export
+metadata and the Linux CLI version. Updated version-format test examples,
+release/AAB workflow examples, RPM packaging and Windows numeric/string
+fallbacks. Added a dated AppStream release entry. Android, iOS and macOS continue
+reading Flutter-managed version metadata.
+
+Updated version badges and footers in all four HTML pages in both `public/` and
+`backend/public/`. Prepended matching November 18 changelog entries covering
+notes/search reliability, scanner geometry and image previews, animation
+preservation, PDF/export fixes, Android web clipping, editor/checklist behavior
+and encrypted image access. The previous changelog entries remain intact.
+Updated the current-release summary in `HANDOFF.md` and the platform guide.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub --concurrency=1 test/version/app_version_test.dart test/update/update_service_test.dart test/update/update_dialog_test.dart test/cli/cli_runner_test.dart test/backup/backup_service_test.dart test/devices/devices_test.dart test/features/export/qpnote_package_and_validator_test.dart`: **51 passed**.
+- Version/site audit: `pubspec.yaml` is 1.6.4+22; Windows fallback is 1,6,4,22;
+  no stale 1.6.3 references remain in current runtime code, version examples or
+  workflow inputs. Both site copies match byte-for-byte across all four pages.
+  HTML parses, 1.6.4 is the newest website/AppStream release, and the previous
+  1.6.3 website entry is preserved verbatim.
+- `git diff --check`: clean. No full test suite or app build ran.
+
+Historical release entries, audit evidence, engineering logs and the verbatim
+handoff backup retain their original versions. Dependency versions, legacy
+format defaults and the backend package's independent version are preserved.
+The unrelated pre-existing smart-tables prompt remains outside the commit.
+
+
+## 331. Critical GitHub Dependency Alert Remediation (November 18, 2026)
+
+Read GitHub's open Dependabot and secret-scanning alerts. The two critical
+findings were both in `backend/package-lock.json`, through Vitest 3.2.7's
+Tinypool 1.1.1 dependency:
+
+- [Alert #7](https://github.com/blackpirateapps/quitepaper/security/dependabot/7):
+  GHSA-85c8-ppgw-ccpr / CVE-2026-104849, inherited `run()` options can select an
+  attacker-controlled worker after prototype pollution (fixed in Tinypool 2.1.2).
+- [Alert #8](https://github.com/blackpirateapps/quitepaper/security/dependabot/8):
+  GHSA-5gmw-xhrv-c9v3 / CVE-2026-104848, inherited worker options can inject
+  executable arguments or environment variables (fixed in Tinypool 2.1.1).
+
+Upgraded the backend's Vitest requirement from `^3.0.5` to `^4.1.12` and
+regenerated its npm lockfile. Vitest 4 removes Tinypool entirely, addressing both
+critical findings without forcing an unsupported transitive major-version
+override. Vitest and its mocker resolve to 4.1.12, also covering the reported
+path-traversal/manual-mock-registration advisories. The refreshed development
+toolchain resolves Vite 8.3.8 and source-map-js 1.2.2. Backend production source,
+direct runtime dependency versions and Flutter dependencies are unchanged.
+
+Use Node 22 LTS 22.12+ for the Vite toolchain; validation used Node 22.23.1.
+The initial npm 10.9.8 install hit an Arborist `edgesOut` resolver exception.
+Regenerated using npm 11.21.3, then verified a clean `npm ci` using the existing
+npm 10.9.8. No permanent npm configuration change or peer-dependency bypass was
+needed.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/sync/sync_api_client_retry_test.dart`: **5 passed**.
+- In `backend/`, `npm ci` and `npm run build`: passed.
+- In `backend/`, `npm test -- tests/auth.test.ts tests/crypto-blind.test.ts tests/sync.test.ts tests/conflict.test.ts tests/admin.test.ts`:
+  **26 passed across five selected files**, exercising worker isolation,
+  authentication, source inspection, sync, conflicts and admin access.
+- In `backend/`, `npm audit --audit-level=critical --json`: exit 0, **0 critical**;
+  **17 lower-severity package findings remain** (7 high, 9 moderate, 1 low).
+  These npm package counts differ from GitHub's per-advisory alert counts.
+- Lockfile inspection confirms no Tinypool package remains. `git diff --check`
+  passes. No full Flutter or backend test suite ran.
+
+GitHub's code-scanning endpoint returned HTTP 404, `no analysis found`, with a
+token-scope hint; its code-quality endpoint also returned HTTP 404. No claim of
+a clean code-scanning/code-quality report is made. Secret scanning lists one
+existing Google API key alert; this work neither changes its status nor rotates
+the key. Lower-severity dependency findings remain for separate remediation.
+GitHub must rescan the pushed dependency graph to close resolved alerts.
+
+Modified files: `backend/package.json`, `backend/package-lock.json`,
+`HANDOFF.md` and this log. The unrelated pre-existing untracked smart-tables
+prompt remains outside the commit.
+
+
+## 332. Remaining Security Alert Remediation (November 18, 2026)
+
+Read the six remaining open Dependabot alerts (#1, #4, #5, #6, #16 and #17),
+secret-scanning alert #1 and the full npm audit after log 331. Upgraded Firebase
+Admin from 13.10.0 to **14.5.1** and Zod from 3.25.76 to **4.6.7**. The refreshed
+dependency tree removes uuid entirely and resolves @grpc/grpc-js **1.14.7**,
+@fastify/busboy **3.2.6** and fast-xml-parser **5.12.1**. Vitest remains 4.1.12;
+Tinypool remains absent.
+
+Firebase Admin 14 removes the legacy namespace API and requires Node 22+. Auth
+initialization/token verification now use modular `firebase-admin/app` and
+`firebase-admin/auth` imports. Email backfill uses the modular Auth type/client.
+Preserved certificate normalization, application-default credentials, test auth
+hooks and revoked-token checking. `backend/package.json` pins Node `^22.12.0`,
+also meeting the Vite toolchain minimum. Validation used Node 22.23.1 / npm 10.9.8;
+dependency resolution used npm 11.21.3 after the resolver issue recorded in log 331.
+
+Migrated removed Zod `error.errors` reads to `error.issues` in admin, attachment,
+document and public-share validation. Custom minimum-length issues use `origin`.
+Zod 4's stricter UUID bit validation would reject previously accepted IDs, so
+`z.guid()` preserves the existing shape contract. Added regression tests for
+early rejection of oversized sync/tag/version/place-alias/annotation/OCR/reference
+and share-attachment arrays without reading child properties, legacy IDs,
+tombstone/default behavior and structured HTTP 400 validation errors. Email tests
+now mock the modular Firebase Auth client, exercising successful batch lookup and
+offline fallbacks without Google metadata requests or warnings.
+
+Removed the committed Firebase client-key fallback and redacted its two archived
+documentation copies, updating the backup descriptions to acknowledge the
+redaction. Builds may supply `FIREBASE_API_KEY`, runtime callers may supply a key,
+and the backend public config endpoint remains the normal discovery path.
+Missing configuration fails before credential-bearing requests; rejected keys
+can still refresh configuration and retry once. The existing deployed endpoint
+was checked for a non-empty key without logging the value. Added its variable to
+`backend/.env.example`.
+
+The owner confirmed **Firebase-only API restrictions are verified**. Based on
+that confirmation and Firebase's public-client-key documentation, resolved
+GitHub secret-scanning alert #1 as `false_positive`, with an audit comment.
+No cloud configuration, key rotation, Git history rewrite or plugin connection
+occurred. Flutter coverage verifies backend discovery, unavailable config,
+rotation retry, cleared settings and explicit build/runtime key precedence.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/auth/auth_service_resiliency_test.dart test/sync/sync_api_client_retry_test.dart`:
+  **24 passed**.
+- `flutter test --no-pub --dart-define=FIREBASE_API_KEY=build-test-key test/auth/auth_service_resiliency_test.dart --plain-name 'FirebaseAuthService uses only build configuration when no key is supplied'`:
+  verifies the configured-build path separately.
+- In `backend/`, clean `npm ci` and `npm run build`: passed.
+- `npm test -- tests/validation.test.ts tests/auth.test.ts tests/email-sync.test.ts tests/keys.test.ts tests/sync.test.ts tests/shares.test.ts tests/attachments.test.ts tests/documents.test.ts tests/admin.test.ts tests/devices.test.ts`:
+  **92 passed in ten selected files**, with no runtime warnings on the final run.
+- `npm audit --omit=dev --json`: exit 0, **zero production vulnerabilities**.
+- Full npm audit still reports **five high package findings** representing one
+  underlying Picomatch advisory, GHSA-fc5q-39xc-vjpf. There is no patched release;
+  the linked upstream PR explicitly leaves the attack case unfixed. This
+  development-only finding is documented in `docs/security-review.md`, not
+  suppressed. npm's proposed Vitest downgrade would reintroduce fixed security
+  vulnerabilities and was not applied.
+- No Google-style key literals remain in `lib/` or `handoff/`. `git diff --check`
+  passes. No full Flutter or backend test suite ran.
+
+Updated the root handoff, handoff index, sync guide and security review. The
+unrelated pre-existing smart-tables prompt remains outside the commit. GitHub
+rescans the pushed lockfile to close the six remediated Dependabot alerts.
+
+
+## 333. Vercel Firebase Startup ESM Compatibility (November 18, 2026)
+
+Reproduced the reported Vercel `ERR_REQUIRE_ESM` locally using Node 22.23.1
+with `--no-experimental-require-module`. Firebase Admin 14.5.1 pulls in
+`jwks-rsa` 4.1.0, whose CommonJS `src/utils.js` synchronously requires ESM-only
+`jose` 6.2.17 during Firebase Auth module loading. Local Node's default
+`require(esm)` interoperability masked the deployment failure. The dependency
+behavior is documented in the
+[upstream changelog](https://github.com/auth0/node-jwks-rsa/blob/master/CHANGELOG.md#v400-2026-02-27)
+and [Firebase issue 3181](https://github.com/firebase/firebase-admin-node/issues/3181).
+
+Added an npm override scoped to `jwks-rsa` that pins its `jose` dependency to
+**5.10.0**, providing a CommonJS entry point. Updated the lockfile without
+changing other package versions or platform metadata. Firebase Admin remains
+14.5.1, `jwks-rsa` remains 4.1.0 and Node remains `^22.12.0`. A fresh `npm ci`
+applies the fix without editing installed dependencies or adding install scripts.
+Revisit the override when upstream can load in this runtime without it.
+
+Added `backend/tests/firebase-runtime.test.ts` with two fresh-process
+regressions under `--no-experimental-require-module`. Both failed with the
+reported error before the override and pass after it. Coverage includes
+Firebase Auth/App Check loading and initialization, offline RSA JWKS resolution,
+verification of a real signature and rejection of tampered content. These
+checks bypass Vitest's loader and require no Firebase credentials or network.
+
+Validation:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub test/auth/auth_service_resiliency_test.dart test/sync/sync_api_client_retry_test.dart`:
+  **24 passed**.
+- In `backend/`, clean `npm ci` and `npm run build`: passed.
+- `npm test -- tests/firebase-runtime.test.ts tests/auth.test.ts tests/email-sync.test.ts tests/keys.test.ts`:
+  **18 passed across four selected files**, with no runtime warnings.
+- The compiled `dist/api/index.js` handler imports and returns HTTP 200 for
+  `/api/v1/health` under `--no-experimental-require-module`.
+- `npm audit --omit=dev --json`: **zero production vulnerabilities**. The
+  existing five development-only Picomatch package findings remain, as
+  documented in the security review.
+- `git diff --check`: clean. No full Flutter or backend test suite ran.
+
+Updated `HANDOFF.md` and the security review. The unrelated pre-existing
+smart-tables prompt remains outside the commit. Local runtime validation does
+not establish the status of a live Vercel deployment; Vercel must deploy the
+updated package manifest and lockfile to apply the fix.
+
+## 334. Email Import Phase 1 — Repository Audit (November 19, 2026)
+
+Completed source reconnaissance on `feat/email-import` before implementation.
+`docs/email-import/implementation.md` maps parser, vault, Drift schema 20,
+repository/mapper, FTS, backup, encrypted sync/merge, desktop drops, settings,
+Android ContentResolver/plugin and Quick Capture integration boundaries.
+The resolved sharing plugin is 1.9.0; its initial/stream overlap, path conversion,
+missing ClipData/subject handling and current first-item routing need adapters.
+No existing application command palette was found. Existing cloud asset limits
+are smaller than required local email import limits; preserve explicit pending
+sync errors rather than claiming every larger asset can upload.
+
+Validation: `flutter analyze` reports no issues.
+`flutter test --no-pub --concurrency=1 test/quick_capture/quick_capture_coordinator_test.dart test/web_clipper/html_to_markdown_converter_test.dart test/notes/notes_query_database_test.dart`
+passes **20 tests**. An initial command named a nonexistent query-executor test;
+corrected to the actual database-query test file. No full suite ran. No runtime
+code changed. Physical Android and Linux packaging validation remain later work.
+
+## 335. Email Import Phase 2 — Bounded MIME Parser (November 19, 2026)
+
+Implemented pure Dart models, normalized bounded file input, MIME range walking,
+RFC 2047 headers, RFC 2231 filenames, UTF-8/declared charset decoding, strict base64
+and quoted-printable validation, alternative selection, mixed/related/nested
+parts, opaque attached emails, metadata, SHA-256 and canonical fingerprints.
+Parsing runs in a worker isolate. Budgets enforce 50 MiB source/total attachments,
+25 MiB individual attachments, 10 MiB bodies, 200 parts, 20 levels and 64 KiB
+headers. A dedicated DOM converter preserves editable structure, blocks active
+HTML, remote/data/file images and unsafe links, and emits local CID placeholders.
+The original email is preserved byte-for-byte in the ephemeral model.
+
+Added enough_mail 3.0.0 after inspecting its resolved implementation and MPL-2.0
+license. The adapter uses codecs rather than unbounded convenience parsing and
+suppresses upstream content-bearing diagnostics. No existing dependency version
+changed. Added versioned NoteImportSource serialization and deterministic union.
+
+Validation: `flutter analyze`: no issues;
+`flutter test --no-pub test/email_import/email_parser_test.dart`: **18 passed**.
+Fixtures and boundary tests cover parser formats, malicious content, decoding and
+resource errors, input normalization and background parsing. `dart format` and
+`git diff --check` pass. No full suite ran. Persistence and UI follow in phases 3–4.
+
+## 336. Email Import Phase 3 — Storage and Sync (November 19, 2026)
+
+Added optional typed import sources throughout Note, shared entity mapping,
+repository, encrypted NotePlaintext, desktop/CLI sync, conflict merging and
+resolution, backup generation/restoration, duplication and QPNote export metadata.
+Drift **20 → 21** defensively adds notes.import_sources with empty-array default.
+Canonical sources union by stable identity so older editor snapshots cannot erase
+provenance. Local indexed hashes/fingerprints/Message-IDs are derived in the same
+save transaction and cascade on deletion; restores and sync use this same path.
+The backend receives no new plaintext email fields or import endpoints.
+
+EmailImportService checks confirmation options, duplicates, keys and destination,
+journals fresh asset UUIDs before preparation, imports through AttachmentService,
+and commits the note, tags, FTS, source index and journal removal together.
+Original bytes remain exact encrypted generic assets; decoded attachments and CID
+images reuse identical representations and never request OCR. Archive mode saves
+metadata and original only. Appends splice parsed blocks into rich ASTs while
+preserving existing block identities, or concatenate Markdown, rejecting stale,
+missing, protected and trashed destinations. SQLite timestamp precision is
+accounted for in revision checks. Failed/canceled work rolls back database rows
+and removes ciphertext; a durable journal supports restart cleanup even when
+metadata rolled back. Existing generic attachment size policy is unchanged;
+email-specific imports permit 50 MiB originals / 25 MiB parts locally. The existing
+10 MB cloud asset policy can leave larger assets pending; no success is fabricated.
+
+Validation:
+- `dart run build_runner build --delete-conflicting-outputs`: successful generated
+  Drift update; current builder reports that the obsolete flag is ignored.
+- `flutter analyze`: no issues.
+- Selected persistence, migrations, conflict resolver, backup, attachment service,
+  sync engine and notes-query files: **63 passed**.
+- After adding real backup/restore coverage and export/CLI propagation, selected
+  email persistence, QPNote validator/package, export service and CLI runner files:
+  **34 passed**. Email persistence now has 15 tests, including real encryption,
+  restart, schema-20 migration, restored bytes/indexes, stale append rollback,
+  CID assets, exact/related duplicates, lock/cancel and interruption recovery.
+- Initial focused runs caught test API names and timestamp-zone/precision
+  assumptions; fixed them and reran successfully. No failures were suppressed.
+- `git diff --check`: clean. No full suite, backend tests or device replay ran;
+  backend source and its API contract are unchanged.
+
+## 337. Email Import Phase 4 — Preview Workflow (November 19, 2026)
+
+Implemented EmailImportScreen and an injectable EmailImportGateway over the
+parser, duplicate index, repository, destination search and persistence service.
+The route provides editable title and tags, optional shared sender/recipients/date,
+metadata/body/attachment review, all three import modes, explicit append target,
+current-note prioritization, duplicate/open-existing/copy choices, keyboard Escape,
+Back, disabled repeat Save, progress, cancellation, per-item errors and batch
+summary/navigation results. Shared content cannot select archive mode. Source
+changes after batch review are rejected before saving. Failed items remain
+selected for review/retry. No note is created until confirmation.
+
+Batch discovery is sequential and bounded to 100 inputs. Only the selected email
+retains raw/decoded preview bytes; other entries retain small summaries and source
+fingerprints, and are parsed again at save with source identity checks. Sensitive
+preview invalidation is tied to existing secure attachment-cache clearing, used
+by lock/logout. It clears plaintext, controllers and pending shared content and
+prevents late parser/search callbacks from restoring it. A final cancel/lock check
+after repository save keeps the current database transaction reversible.
+
+Validation: `flutter analyze`: no issues. Selected preview and persistence files:
+**24 passed** (9 widgets and 15 storage tests); the 9-widget file passes again
+after the source-change/late-lock guards. Widget tests cover title/tag edits,
+metadata, successful return, duplicates, append target, disabled Save/progress,
+visible storage errors, Escape, mixed invalid batches, lock clearing and dark
+390px layout. Initial widgets caught missing keyboard focus and narrow dropdown
+overflow, both fixed. `dart format` and `git diff --check` pass. No full suite ran.
+Platform entry points are connected in the next two phases.
+
+## 338. Email Import Phase 5 — Linux Integration (November 19, 2026)
+
+Connected application-wide desktop drops, existing note-list/editor drop paths,
+settings import actions, filtered multi-picker and explicit all-files fallback,
+Ctrl+Shift+I and searchable Ctrl/Cmd+Shift+P commands. Linux desktop metadata
+registers message/rfc822 and message/global; initial .eml launch arguments open
+preview. Mixed drops feed every input into review, listing rejected/unsupported
+items rather than silently dropping them. URI-list normalization preserves portal
+paths and ignores ordinary text. Nested drop handlers await one shared bounded
+classification; non-email files still reach their original handlers.
+
+EmailEditorBridge flushes existing user edits before preview, prioritizes the
+current destination, and adopts committed appends without a stale autosave.
+Markdown keeps its text selection; rich AST keeps existing blocks/selection;
+Super Editor appends only the new section after the frame, preserving its current
+nodes, caret and history. Imported notes disable automatic remote link preview
+baking/promotion so opening the result does not fetch email-linked resources.
+The app retains existing normal link behavior for other notes.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected desktop email, dual-mode editor and Super Editor files: **60 passed**.
+- `test/email_import/email_editor_bridge_test.dart`: **3 passed**, exercising live
+  appends in each mode, source retention and no later stale autosave. This test
+  caught a build-phase toolbar notification; deferred append fixes it.
+- `flutter build linux --debug`: succeeded, producing the standard native bundle.
+- `bash -n` passes DEB/AppImage/Flatpak scripts. `git diff --check`: clean.
+- Full suite was not run. Package installation/runtime tests were not performed:
+  dpkg-deb, rpmbuild, appimagetool and flatpak-builder are unavailable. Flatpak
+  runtime exists, but no newly built bundle is available for sandbox replay.
+  Existing filesystem grants are unchanged; inaccessible dropped paths surface
+  an import error and the picker remains the portal access fallback.
+- desktop_drop 0.8.4 exposes only coordinates during hover, not filenames/types.
+  Therefore no email-specific hover overlay is fabricated for unknown content;
+  the classified drop opens the receiving/parsing preview. Existing generic
+  editor drop feedback is retained. Physical file-manager drag replay is pending.
+
+## 339. Email Import Phase 6 — Android Share Integration (November 19, 2026)
+
+Added IncomingShareReceiver as the bounded native normalization boundary for the
+existing ShareIntentHandler. SEND, SEND_MULTIPLE and VIEW read EXTRA_STREAM,
+ClipData, text/HTML and subjects; ContentResolver supplies MIME/display metadata
+without path guessing. Each stream is staged on a serial worker into an
+application-private UUID directory with owner-only access, technical filenames,
+50 MiB/file and 100-file/request limits. Errors expose only sanitized item numbers.
+The private copies are deleted when Dart acknowledges completion/cancellation;
+interrupted copies are purged on the next activity initialization. Temporary URI
+grants are never persisted. No storage permissions were added.
+
+The inspected receive_sharing_intent 1.9.0 plugin otherwise creates a second,
+unbounded plaintext copy. MainActivity therefore supplies normalized launch
+intents to that plugin on Android while delivering the original intent through
+the native normalizer to the **same existing Dart ShareIntentHandler**. Widget
+launch handling remains on the existing Quick Capture channel. Native request IDs
+and a bounded serial coordinator deduplicate initial/event delivery, preserve
+intentional new shares, wait for active drafts/previews, acknowledge failures and
+invalidate queued/active plaintext on secure cache clear. No restart creates a
+note without review. Generic binary SEND is registered; binary VIEW is not broadly
+registered. Message MIME VIEW/SEND and existing PDF/text/Markdown filters remain.
+
+Shared text still enters Quick Capture. An explicit Save as Email action opens
+the common preview with editable optional metadata and Shared content labeling;
+HTML is sanitized locally. Bare URLs keep clipping/capture behavior. Successful
+email confirmation removes the capture draft and opens the saved note; cancel
+leaves the draft unchanged. Generic file imports retain supplied display names
+instead of the technical staged path. Shared errors no longer expose raw paths.
+
+Validation:
+- `flutter analyze`: no issues.
+- Selected incoming coordinator, shared-text, preview, all Quick Capture tests and
+  browser-screen file: **47 passed**. Coverage includes initial/stream identity,
+  serial ordering, intentional re-shares, failure acknowledgment, secure clear,
+  queue bounds, explicit text-to-email preview/cancel, URL preservation and
+  existing captures/browser actions. A first command named a nonexistent clipper
+  screen test; corrected to web_clip_browser_screen_test.dart and reran.
+- `flutter build apk --debug --flavor github --no-pub`: **passed**, producing
+  `build/app/outputs/flutter-apk/app-github-debug.apk`; DEX inspection confirms the
+  native receiver and queue bound are present.
+- The Android build emits pre-existing plugin KGP migration and NDK-version
+  warnings (repository pins 27; installed plugins request 28). No Flutter/package
+  upgrade or unrelated build-policy change was made. Compilation succeeds.
+- `adb devices` (SDK platform-tools) reports no connected devices. Actual provider
+  grants, chooser registration, cold/warm Activity lifecycle, ClipData and OEM
+  share behavior require device instrumentation/manual replay; automated Dart
+  boundaries and native compilation are not a claim of hardware verification.
+- `git diff --check`: clean. No full Flutter suite ran.
+
+## 340. Email Import Phase 7 — Regression and Security Review (November 19, 2026)
+
+Expanded deterministic parser/security and integration coverage and ran the
+focused affected-subsystem gate in `tool/verify_email_import.sh`. No full Flutter
+or backend suite was invoked. The final implementation review corrected:
+
+- CRLF multiline plaintext and quoted-printable soft lines; plain headings/rules
+  stay literal while lists/quotes remain readable. Charset expansion is counted
+  against the decoded UTF-8 body budget without allocating another oversized
+  buffer. Encoded-header failures reject safely without upstream diagnostics.
+- Pre-DOM token, element-length and nesting checks, with a linear lexical scan
+  that avoids repeated body scans on unterminated tags. Nested layout tables
+  retain paragraphs/code once. Unsafe/incomplete web links remain inert.
+- Strict calendar/clock/timezone validation instead of the library's date rollover
+  or unknown-zone fallback. Original header strings remain preserved.
+- Generic-file detection requires a continuous initial RFC header block; quoted
+  From/Subject lines inside ordinary Markdown no longer intercept its import.
+- Canonical fingerprints preserve meaningful body/subject case and paragraph
+  structure. Shared-content defaults use the same identity during preview/save.
+  Newly discovered duplicates refresh review warnings rather than trapping Retry.
+- Active native request IDs remain protected when completed-ID history evicts old
+  entries. Malformed Android extras fail with sanitized receiving errors.
+- Imported assets avoid preloading plaintext caches. Deduplication hashing and
+  rich-append conversion run in workers; worker closures do not capture Drift.
+- Failed ciphertext deletion retains the preparation journal for later cleanup.
+  A regression exercises failed deletion and subsequent successful recovery.
+- The preview and launcher share one mutable request owner: lock clearing releases
+  shared text, source paths and filename-bearing errors. Partial commits retain
+  only note IDs for post-cancel reconciliation, list refresh and normal sync.
+  Hidden editors therefore cannot overwrite a successfully appended earlier item.
+- Batch progress uses the original selected count; skipped/invalid counts and
+  filename-bearing item errors are clear. Destination failures clear stale picks.
+- QPNote export now uses the complete note mapper. Newer local backup content can
+  retain restored sources without timestamp/body changes; older client envelopes
+  cannot erase provenance and schedule an encrypted repair push. Delete-vs-edit
+  checks account for source changes. Vault erase also clears preparation IDs.
+
+Automated evidence:
+
+- `flutter analyze`: no issues on the final code review checks.
+- `bash tool/verify_email_import.sh`: **301 passed** in the selected Flutter batch,
+  then **1 passed** in the specifically selected real QPNote export test (**302**
+  total). This includes email, capture, clipper, backup, database/migrations,
+  queries, sync/conflicts/fresh-device retention, attachments, editor conversion,
+  export and FTS. The script deliberately lists only relevant paths.
+- Subsequent review fixes: **49 passed** in parser/preview/desktop/live-editor
+  files; **26 passed** in email persistence plus attachment service; **17 passed**
+  in final preview/desktop/shared-text files. These runs overlap the broad gate
+  and must not be added as a count of unique tests. New email files collectively
+  contain 76 tests after the final cleanup regression.
+- Real two-device encrypted sync verifies canonical source retention, fresh-device
+  duplicate lookup and FTS search without server-visible subjects/senders.
+- A complete Visual → Markdown → Super → save → reopen widget cycle preserves
+  metadata, paragraphs/lists/tables/quotes/links, asset references and provenance.
+- The restore fixture releases its source executor before creating the independent
+  destination, eliminating the existing multiple-database diagnostic. An earlier
+  broad export-file run printed the existing PDF Courier fallback notice; the final
+  gate scopes this field-mapping change to the relevant QPNote export test.
+- `flutter build linux --debug --no-pub` and
+  `flutter build apk --debug --flavor github --no-pub`: passed. Android retains the
+  pre-existing KGP/NDK advisories from log 339; no device was connected.
+- Backend Node 22.23.1: `npm run build` passed;
+  `npm test -- tests/crypto-blind.test.ts tests/sync.test.ts tests/conflict.test.ts tests/attachments.test.ts`:
+  **18 passed in four files**. Backend production code/API schema is unchanged.
+- `git diff --check`: clean. Final documentation-phase checks follow separately.
+
+Performance observations (synthetic fixtures, Linux x64, Dart 3.13.2 JIT; parser
+only, one run per case, no mobile/release claim): 10,127-byte plaintext **109ms**;
+1,058,920-byte HTML **566ms**; 10,000,381-byte multipart **419ms**;
+41,943,563-byte multipart **1,529ms**; 50 × small messages **128ms** total.
+Main-isolate 10ms timers continued in every case (149 ticks during the largest).
+Whole-process peak RSS reached **580.4 MiB**, including JIT, source construction,
+isolate copying and prior cases; this is not a per-import retained-heap figure.
+`tool/email_import_benchmark.dart` and `docs/email-import/benchmark-linux-jit.json`
+provide reproducible inputs/raw observations. Encryption/storage timing, mobile
+memory and installed-package performance remain unmeasured.
+
+Platform limits remain explicit: physical Android chooser/provider/lifecycle and
+Linux file-manager/Flatpak replay are pending, packaging builders are unavailable,
+and existing cloud size policies can leave larger locally preserved assets
+pending. The preview warns about the 10 MB asset upload policy. No unrestricted
+filesystem permissions or external email parsing/network conversion were added.
+
+## 341. Email Import Phase 8 — Final Handoff (November 19, 2026)
+
+Published `handoff/email-import.md` as the canonical subsystem guide and
+`docs/email-import/engineering-report.md` as the requested functionality,
+architecture, major-file, schema/sync, testing, security and remaining-risk report.
+Updated the root/index and storage, editor, platform, search and document guides.
+The implementation record and synthetic benchmark preserve phase evidence.
+
+Final checks completed before the instruction to stop local builds:
+
+- `flutter analyze`: no issues.
+- `flutter test --no-pub --concurrency=1 test/email_import`: **76 passed**.
+- `flutter build linux --debug --no-pub`: passed.
+- `flutter build apk --debug --flavor github --no-pub`: passed; inherited NDK/KGP
+  advisories remain as recorded in log 339.
+- `dart build cli -t bin/qp.dart -o build/cli`: passed, producing the native qp CLI.
+- Prior phase 7 evidence: 302 focused Flutter checks, targeted follow-ups and
+  18 selected backend contract tests passed; those overlapping counts are not
+  presented as a unique aggregate. No full Flutter or backend suite ran.
+
+After the user's instruction, checked that no build process remained active and
+finished documentation only. No further builds were started. Final documentation
+uses the existing completed checks and passes `git diff --check`.
+
+All eight phases have separate commits/pushes on `feat/email-import`. Physical
+Android chooser/provider/lifecycle and installed Linux packaging/sandbox replay
+remain unverified. The existing cloud size policy can leave larger locally
+preserved assets pending, and text-only shares cannot supply missing source data.
+The report makes these limits explicit rather than claiming production hardware
+verification. No deployment, release, branch merge or unrelated upgrade occurred.
+
+## 342. Offline Email Import — Initialize Device Vault Before Preview (November 19, 2026)
+
+An Android user without Cloud Sync could not preview an email: the screen checked
+`isUnlocked` before initialization, then invalidated the source and displayed
+“Preview cleared.” Accountless installations had never generated the encryption
+key required by the attachment vault. This was an application prerequisite bug,
+not evidence of an Android provider refusing the email.
+
+Changes:
+
+- `EmailImportGateway.initialize` awaits key initialization before preview gates.
+  For a signed-out notebook without wrapped keys, bounded attachment/document
+  existence queries prevent generating a replacement for an existing encrypted
+  library. A fresh local notebook initializes its key without an account/network
+  request and updates the shared unlock provider before ordinary recovery.
+- `KeyManager.ensureLocalKey` creates one 256-bit master key through the existing
+  secure-storage abstraction, persisting it before exposing it to encryption.
+  Concurrent creation is shared and existing device/cloud keys are reused.
+  Unavailable or malformed storage fails closed; transient reads and failed writes
+  can retry. Initialization is idempotent after successful loading.
+- Explicit locks and lifecycle revisions prevent delayed startup/creation from
+  unlocking a notebook. Key clearing waits for pending local persistence before
+  deleting stored material. A new cloud vault wraps the existing local key;
+  password/recovery adoption of a different cloud key is rejected before it can
+  strand encrypted local assets. Existing auth failure handling still locks the
+  local session; restarting restores its persisted device key.
+- Preview waits for preparation, preserves incoming sources on storage errors,
+  offers Retry, and ignores late results/errors after actual secure invalidation.
+  Real lock/logout continues clearing shared bodies, paths and review state.
+- Added local-key lifecycle/security tests, real accountless import/encrypted
+  original/restart coverage, missing-key and signed-in-vault guards, and UI tests
+  for initialization, retry and a lock while initialization is suspended. Updated
+  the OCR search fake for the new KeyManager interface without changing behavior.
+- Updated root/domain handoffs and the engineering report. Device-only keys remain
+  in this installation's secure storage. Existing backup payloads preserve asset
+  ciphertext but do not export the master key; a backup envelope password does
+  not make a device-only asset key portable. Cross-vault migration and device-only
+  key recovery on another installation are outside this correction.
+
+Validation (no full suite and **no app builds**):
+
+- `flutter analyze`: **no issues** on the final source; an initial missing method
+  in the explicitly implemented OCR fake was corrected before the clean run.
+- `flutter test --no-pub --concurrency=1 test/crypto test/email_import test/attachments/attachment_service_test.dart test/sync/sync_screens_test.dart test/sync/sync_engine_test.dart test/sync/fresh_device_sync_content_retention_test.dart`:
+  **140 passed**, including accountless encrypted persistence and real sync flows.
+- `flutter test --no-pub --concurrency=1 test/crypto/local_key_test.dart test/search/ocr_global_search_test.dart`:
+  **20 passed**, including two additional startup-lock/key-clear race regressions.
+  The existing unauthenticated metadata lookups print their handled diagnostics;
+  all assertions pass. This run overlaps the preceding gate.
+- Final `flutter test --no-pub --concurrency=1 test/email_import/email_import_screen_test.dart`:
+  **12 passed**, including the deterministic suspended-initialization lock case.
+- Changed implementation/new test files are formatted; `git diff --check`: clean.
+  The existing OCR search fixture receives only the required interface method.
+
+Physical Android replay remains pending. No Flutter/Android/Linux/CLI build,
+release, deployment, full test suite, backend change or schema migration was run
+or introduced for this correction. Commit/push target remains `feat/email-import`.
+
+
+## 334. Phase 1 Local Note Templates (November 18, 2026)
+
+Implemented the supplied Phase 1 template specification on
+`audit/templates-2026-11-18`. The prompt was an untracked file in the main
+checkout and was copied into this branch without changing that checkout.
+
+Added eight immutable built-in Markdown structures and independent UUID-backed
+user snapshots, name search, read-only previews, favorites, rename/delete and
+new ordinary notes. Dedicated Drift schema **21** tables keep template data out
+of note lists, indexes, tag counts and cloud synchronization. A version-20
+migration fixture verifies preservation of notes, tags, journals, attachments
+and sync metadata. Full local-vault erasure removes snapshots and favorite rows.
+
+The service flushes pending Visual edits and awaits local autosave before
+re-reading a source. Overlapping saves retain and reschedule newer edits.
+Protected content stays ineligible even when unlocked; journal, trash,
+read-only and transient sources are excluded. Document/attachment/local media
+references are rejected with the specified explanation, not stripped. Original
+canonical Markdown/AST bytes remain independent of source and generated notes.
+
+Instantiation resolves/validates by stable ID and uses the existing note
+repository with fresh identity/timestamps, clear state flags and normalized
+snapshot/active-tag metadata. Safely quoted YAML title changes affect only the
+new copy. Markdown Source and Super Editor receive a display projection of rich
+JSON without rewriting stored content merely on open. All editor modes and the
+save → instantiate → edit independence flow have real widget integration tests.
+
+Shared adaptive UI connects editor overflow, phone/desktop list overflow,
+separate nested-tag menus, Settings and a Ctrl/Cmd+Shift+P spotlight command
+palette. The baseline had a spotlight primitive but no general command registry.
+Blank New Note and Ctrl/Cmd+N retain their existing handlers. Search and row
+snippets are bounded; only selected documents undergo full preview validation.
+
+Backups gain optional template/favorite collections inside the existing v1
+payload and authenticated encrypted envelope. Old backups remain valid. Merge
+uses stable IDs/newer timestamps; replacement clears obsolete local data.
+Template restoration participates in the existing transaction and rolls back if
+a later note restore fails. Explicit unencrypted backups retain that existing
+user choice; no plaintext sidecar or cloud template payload is introduced.
+
+Validation uses Flutter **3.47.2** / Dart **3.13.2** and one test worker:
+
+- Regenerated Drift code with `dart run build_runner build --delete-conflicting-outputs`.
+- An initial selected regression run passed **250 tests**.
+- Combined template and selected regression coverage passed **349 tests**.
+- Final focused rerun `flutter test --no-pub --concurrency=1 test/templates test/tags/tag_hierarchy_ui_test.dart`
+  passed **91 tests**: **77 template tests** and **14 tag hierarchy tests**, with
+  no runtime warnings. This includes a new bounded-row-excerpt test added after
+  the combined run, giving **350 distinct selected tests** across the runs.
+- Actual encrypted backups, legacy restore, rollback, restart persistence,
+  unsupported media, protected sources, all editor formats, tag navigation,
+  submission guards, themes, keyboard insets and 1,000-template scale cases pass.
+- The eight bundled bodies match the specification verbatim.
+- Final `flutter analyze`: **no issues**. `git diff --check`: passed.
+
+The combined run exposed existing Drift test-harness warnings. The attachment
+backup test now explicitly documents its independent database setup, and four
+tag-widget scopes now inject their in-memory database/repository instead of
+opening implicit connections. No assertions were removed or weakened. Navigation
+tests use bundled font bytes through Google Fonts' testing hook, so unrelated
+sidebar font downloads are not part of offline template verification.
+
+The complete Flutter test suite was **not run**, following the user's explicit
+instruction that it hangs their laptop. No physical Android/desktop build or
+live backend deployment is claimed. The report uses
+`IMPLEMENTED — Verification incomplete` for those excluded verification steps;
+there is no known unfinished feature implementation.
+
+Added [templates.md](templates.md), [templates-report.md](templates-report.md),
+updated the handoff map, editor/storage contracts and root `HANDOFF.md`.
+
+
+## 335. Templates UI polish and Android command palette (November 19, 2026)
+
+The templates entry previously preceded every Settings section, the management
+screen repeated its title and exposed large raw Markdown excerpts, and two
+notes-menu actions lacked the icon treatment used by adjacent actions.
+The palette's touch presentation inherited a transparent modal background and
+lacked keyboard handling, leaving its controls without a clear visible surface.
+
+- Moved Templates to the first General row after cloud/account/security settings,
+  with a Phosphor files icon and explanatory subtitle.
+- Matched the management app bar and 680 dp content column to Settings. Removed
+  the duplicate title; added a compact themed search field, clear action and
+  empty-search guidance. Both management and picker catalogs use explicit small
+  text styles, quiet dividers, Phosphor file/star/action controls and short
+  built-in descriptions instead of raw Markdown previews. User snapshots still
+  use the existing bounded excerpt helper; catalog rows remain lazy.
+- Added Phosphor files/command icons to both notes overflow layouts, keeping
+  their labels flexible so they fit within the popup menu width.
+- Gave the palette an opaque paper surface, title/close control, keyboard inset
+  spacing, bounded scrolling, themed search, empty results and Enter/Go
+  activation. Its two commands still use the notes screen's existing blank-note
+  and template-note creation handlers.
+
+Modified the settings screen, notes screen/palette, templates screen/browser,
+focused template widget/navigation tests and handoff documentation. Tests now
+use the actual app theme and exercise settings ordering, a single title, search
+clearing, both overflow icon sets, Android/desktop palette navigation and
+portrait/landscape keyboard layouts. No persistence or schema change.
+
+Validation: `flutter analyze` reports no issues. The final command
+`flutter test --no-pub --concurrency=1 test/templates/template_widget_test.dart test/templates/template_navigation_test.dart test/settings/settings_screen_test.dart`
+passes all **55 tests**. Both menu layouts also exercise New Note through the
+keyboard Go action and New from Template through touch selection. Light/dark
+widget-rendered catalog layouts and the Android keyboard palette were visually
+inspected using temporary snapshots. `git diff --check` passes. No full suite
+or physical Android device test ran.
+
+## 343. Linux Rust watched-folder import (November 20, 2026)
+
+Started at `826cc7e45ae34480047526c39f642fb627efcf0e` on
+`feat/linux-rust-watched-folder-import`. The requested prompt was untracked in the
+main checkout; its exact contents are now included in this feature branch.
+
+The first Rust workspace pins Rust 1.97.1 and FRB crate/Dart/generator 2.12.0.
+Linux-only Cargokit builds and bundles the cdylib automatically. Its vendored
+build tool has a small documented patch to honor the exact toolchain instead of
+moving `stable`; debug/release/profile use `--locked`. Other platform plugin
+scaffolds were excluded. Generated bridge files are checked in and have a stale
+binding check; Flutter stays pinned to 3.47.2.
+
+Rust owns recursive inotify/poll fallback, bounded discovery, stability, safe
+component-relative no-follow opens, SHA256, in-memory immutable snapshots,
+reconciliation and cancellation. Dart retains canonical conversion/encryption
+and the authoritative Drift transaction. Schema 23 adds installation-local
+folders/jobs/receipts/baselines/history/stage journals. Receipt uniqueness and
+note/tag/search/dirty-sync state commit together; receipts deliberately have no
+note-delete cascade. Removing a watched folder retains receipts. Full vault
+erasure removes them. No source writes, native secrets or network calls exist.
+
+The headless adapter reuses EmailParser/EmailImportService and existing Markdown,
+PDF, image and note services. Only optional planned-ID, cache and transactional
+commit hooks were added to canonical services. Device-only key preparation uses
+the existing email gateway. Local ordinary notes are plaintext SQLite; this work
+does not introduce or claim database-at-rest encryption.
+
+Linux settings show mandatory initial inventory decisions, fixed recursive/dedup/
+keep-original defaults, pause/resume/rescan/removal and bounded history with
+explicit retry/copy actions. GTK's native chooser enables document-portal access;
+portal roots select polling and report degraded health without adding home access.
+
+Validation in progress: Rust fmt/clippy/check and native tests pass; a subprocess
+restart test exercises lost native ACK/redelivery and polling. New real SQLite
+and controller regressions cover receipt retention, rollback, migration, EML parity,
+review arrivals, lock and account isolation. Flutter analysis has reported no
+issues; the broader focused run is still being completed. Ordinary Linux debug
+compilation and a real generated-FRB bundle load/snapshot smoke pass. See the
+[implementation report](../docs/linux-rust-watched-import.md) for exact final
+commands, package evidence and explicit acceptance gaps. No full suite ran.
+
+## 344. Watched import hardening and release verification (November 21, 2026)
+
+Followed the first implementation commit `232e586` with fault, security and
+packaging verification. The [report](../docs/linux-rust-watched-import.md) and
+[measured evidence](../docs/linux-rust-watched-import-evidence.json) distinguish
+implemented behavior from unverified release acceptance.
+
+- A real 1,000-file native stress run exposed self-generated inotify open events
+  restarting the quiet timer. Filtering read-access hints corrects the slowdown;
+  write-close/modify/rename/overflow hints remain. A permanent native regression
+  and the bounded benchmark cover the correction.
+- Native reads now use component-relative `openat2` with BENEATH, NO_SYMLINKS,
+  NO_MAGICLINKS and NO_XDEV, retaining no-follow/nonblocking behavior, raw Linux
+  filename bytes and final descriptor/path/hash checks. Empty/disguised binary
+  files are rejected. Kernel 5.6+ and allowed openat2 are required, with no unsafe
+  fallback. Parent traversal, symlinks and special files are refused.
+- Markdown local image extraction and note creation share the existing parser and
+  importer through optional callbacks. Rust owns related-file reads; encrypted
+  stage journals, bounded references/combined bytes, safe canonical links and
+  no-OCR behavior preserve the transaction. Missing/unsafe images refuse the note
+  and clean earlier ciphertext. Manual import behavior remains unchanged.
+- Recorded native retry delays populate durable `next_retry`; attempts/generations
+  survive retries. Security invalidation clears history immediately. Initial
+  review preserves post-inventory arrivals; interrupted incomplete baselines hold
+  for explicit reselection. Source provenance survives folder removal and safely
+  percent-encodes non-UTF-8 bytes for file-manager reveal.
+- Three real Flutter subprocess crash tests terminate during staging, inside the
+  note/receipt transaction, and after commit before ACK. Recovery/replay preserves
+  exactly one note/receipt, cleans orphan stages and leaves original bytes intact.
+- Backup v1 tests confirm notes restore without local root paths or autoactivation.
+  Schema 22 and early schema-23 migration cases preserve unrelated data. Ordinary
+  local note text remains plaintext SQLite; no database-at-rest encryption is claimed.
+- Linux packaging now verifies extracted native libraries and CLI payloads.
+  AppImage tool/runtime downloads are separately checksum pinned. Flatpak uses
+  GNOME 50, preserves Dart CLI snapshots without stripping, and carries the CLI
+  beside the GUI libraries. CI gains package and disposable Flatpak smoke gates.
+  Android/iOS/Windows/macOS acquire no new Rust build prerequisite.
+
+Final analysis is clean. The expanded focused Flutter gate passes **235 tests**;
+subsequent **22-test** watcher and **6-test** widget runs overlap it. The real
+Rust→canonical EML→SQLite integration case passes. Rust fmt/clippy/check and **8
+unit + 3 integration entries** pass (one entry is the subprocess helper). RustSec
+reports zero vulnerabilities and cargo-deny passes advisories/licenses/sources/bans,
+with documented transitive duplicate-version warnings. Drift/codegen and script/
+YAML checks pass. No full Flutter suite ran.
+
+The native benchmark handles 1,000 stable hash/snapshot/ACK candidates in roughly
+107.5 seconds, with one event per batch, approximately 15 MiB of sampled process
+RSS growth and descriptors returning to baseline across five restarts. The
+10,001-file discovery-only measurement is 5.29 ms. These are synthetic native
+measurements, not MIME/encryption throughput or GUI frame-time guarantees.
+
+Fresh DEB/RPM/AppImage/tarball extraction, native ELF/FRB load, asset manifest and
+CLI checks pass. The GNOME 50 Flatpak installs into a disposable user environment
+and runs its native engine/source smoke and packaged CLI inside the runtime sandbox.
+Flatpak packaging restores executable bits lost by CI artifact transport. Package
+hashes and remaining installed-platform limits are recorded in the report.
+Production release acceptance remains **INCOMPLETE** until the explicit manual
+portal/desktop/device and real Proton-fixture gates there are completed.
+
+## 345. Email HTML conditional-comment false rejection (November 21, 2026)
+
+A laptop watched import reported `html_complexity` for a normal HTML-only order
+message. Read-only structural inspection found the pre-DOM heuristic counted
+Outlook conditional-comment fallback tables as real nesting (116 levels), although
+the actual DOM had 818 nodes and depth 74, below the existing limit of 80. The
+canonical converter now skips comment bodies before counting live nesting. It
+recognizes normal `-->`, `--!>` and abrupt empty-comment endings so malformed
+comments cannot bypass live nesting checks. The global token, element-size and
+post-parse node/depth limits are retained. Both manual and watched imports use
+this same converter; there is no second parser or HTML fallback/truncation.
+
+Synthetic regressions cover balanced Outlook fallback wrappers, unterminated
+comments, malformed endings and real excessive nesting. The watcher screen now
+explains `html_complexity` as a content safety limit and points to history Retry,
+rather than blaming permissions/storage/unlock. A widget regression verifies it.
+Read-only parsing of the actual local source succeeds, produces a nonempty body,
+verifies its original raw hash and leaves its source bytes unchanged. No note was
+saved during diagnosis. No private message was added to fixtures; verification
+logs record pass/fail and structural counts, not message contents.
+
+Validation: `flutter analyze` passes with no issues.
+`flutter test --no-pub --concurrency=1 test/email_import
+test/watched_import/watched_import_controller_test.dart
+test/watched_import/watched_import_storage_test.dart` passes **110 tests**.
+The full Flutter suite remains prohibited and was not run.
+
+Ordinary `flutter build linux --release --no-pub` passes with two Ninja jobs.
+A fresh local RPM at `build/linux/dist/quiet-paper-html-fix.rpm` passes isolated
+extraction, ELF/native FRB source/snapshot/ACK, asset-manifest and packaged CLI
+smoke checks. SHA256: `f1a252dd333b647731c49e57cd03e5870ac080ec6424dbd6b8fa73a599597b35`.
+The running `/opt` application was not replaced: system installation requires the
+user's administrator password. Restart after installing, then choose Retry from
+the failed history row; Rescan alone preserves terminal failed jobs by design.
+
+## 346. Multiple watched folders and per-folder file types (November 21, 2026)
+
+The previous SQLite singleton index, Dart controller and Rust process slot limited
+watched imports to one root. The Watched Folders screen now provides an Add Folder
+button and independent cards with enable switches, file-type chips, initial
+review, health/error state, rescan, open and remove controls. Email, PDF, Markdown,
+text, PNG, JPEG and WebP can be selected independently; Markdown/JPEG include their
+extension aliases. All groups default on, and an empty selection imports nothing.
+Settings, enabled state and initial-review decisions survive restart. Removal
+preserves notes, original sources, duplicate receipts and bounded history.
+
+Architecture and files:
+
+- `lib/core/database/{app_database,watched_import_schema}.dart`: schema 24 adds
+  JSON `file_types`, removes `watched_single_root`, and uniquely indexes notebook
+  scope plus canonical root. The schema-23 migration retains the existing folder,
+  review/policy and enabled state, defaulting its file types to all groups.
+- `features/watched_import/data/watched_import_repository.dart` scopes lookup,
+  enrollment, provenance, baseline/review and removal to folder IDs. Same-scope
+  canonical-path/identity aliases are rejected. History includes the source folder
+  ID so Retry/Import Again actions target the correct watcher.
+- `domain/watched_file_type.dart` defines persisted groups and extension aliases.
+  `application/watched_import_controller.dart` owns independent handles/status and
+  per-folder generations, with one polling loop serializing canonical imports.
+  Disable/filter/remove invalidates only that folder's late commit; lock/account
+  changes invalidate all. Stage recovery precedes engine startup and never runs
+  alongside another watched import. Close waits for the polling task; the final
+  removed handle also cancels the timer.
+- `rust/quietpaper_watched_import/src/api/engine.rs` replaces the process singleton
+  with a handle-indexed engine map. Snapshot, pause/resume and shutdown resolve
+  only that handle. Per-worker bounded channels, source validation and cancellation
+  remain intact. Native behavioral contract is now 2; the Dart loader and bundle
+  smoke reject older libraries. FRB 2.12.0 bindings were regenerated and checked.
+- `presentation/watched_folders_screen.dart` exposes per-folder settings on narrow
+  and wide screens. Changes during pending review update eligibility counts without
+  requesting a disruptive native reconciliation. Baselines include all supported
+  types, so Only New does not import old content when a type is later enabled.
+  After acceptance, filters apply before snapshots/import and edits trigger rescan.
+  Markdown-linked images remain part of the note regardless of standalone filters.
+
+Verification: `flutter analyze` passes with no issues. The explicit focused run
+`flutter test --no-pub --concurrency=1 test/watched_import
+ test/templates/template_database_test.dart test/database/database_migration_test.dart
+ test/email_import/email_persistence_test.dart` passes 70 tests. The final controller
+run passes 13 tests, adding restart coverage and rechecking folder-specific toggles,
+filters, Only New, removal, duplicate receipts, cancellation and narrow light/dark
+UI layouts. The real Rust→Dart→canonical-import integration test passes with two
+roots, cross-folder EML dedup, independent disable/removal, and importing text after
+changing its filter. Rust's focused `restart` integration target passes 4 entries,
+including simultaneous handles and source/snapshot/pause/shutdown isolation.
+`cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
+`cargo build --workspace --locked`, the FRB regeneration diff check, and the actual
+shared-library FRB contract-2 snapshot/ACK smoke pass. The full Flutter suite was
+not run. Existing installed-app/Flatpak portal acceptance limits remain; this change
+does not claim an installed GUI replay or publish a new package.
+
+## 347. Android watched folders and adversarial audit (November 21, 2026)
+
+The prior multi-folder feature was Linux-only. Android now exposes both settings
+entry points and uses a separate SAF-backed `AndroidWatchedEngine`, preserving the
+shared per-folder settings, review/baseline, canonical import, receipts and history.
+`WatchedFolderBridge` uses the Android tree picker and persisted read grants,
+opaque document IDs and bounded provider I/O on worker threads; it never guesses
+paths or loads the Linux Rust library. It adds no manifest permission or background
+service. Android scans while foregrounded, every 30 seconds and on startup/resume/
+manual rescan, with three stable observations over three seconds before hashing.
+Snapshots re-open/hash/check metadata; content hashes distinguish revisions even
+when provider size/mtime is missing. Schema 25 persists provider folder labels and
+retains previous settings. Markdown-related reads remain rooted in the selected
+tree; existing canonical format limits, staging recovery and duplicate receipts
+remain authoritative. Custom backups/sync exclude these watcher tables.
+
+`MainActivity` attaches the bridge, routes selection results, and cancels provider
+reads on stop/destroy. Dart lifecycle suspension invalidates late imports and
+resumes all enabled folders. Per-folder startup futures prevent duplicate handles
+when enrollment races resume. Native read/lookup queues, pages, entry counts,
+stability work, traversal depth and fallback image lookups are bounded. Source
+open/reveal uses Android intents and surfaces revoked-grant errors in the UI.
+
+[The requested Markdown audit](../docs/audits/android-watched-folders-2026-11-21.md)
+records eight findings and their evidence/fixes, including first-folder-only
+resume, duplicate starts, a cleanup future cycle, unenforced retry delay,
+cancelled partial inventory accepted as complete, unsupported downloads blocking
+valid inventory, discarded permission codes and uncaught source-action errors.
+Tests exercise source changes, missing/lying metadata, binary signatures, virtual/
+partial providers, cycles/pagination, bounded streams, cancellation, foreground
+commit rejection, restarts, migrations, folder isolation and Android UI routing.
+
+The audit's final validation section records exact commands: `flutter analyze`
+passes with no issues, 114 focused Flutter tests pass (including crash recovery),
+12 focused Kotlin reader tests pass, and the real Linux two-root canonical-import
+integration passes. Android app and instrumented test APKs build. The real SAF/picker instrumented class is compiled
+but **not runtime-verified**: an isolated API-35 emulator repeatedly crashed with
+SIGSEGV/exit 139 under KVM and software boot before reaching a stable picker.
+Physical devices, external/cloud providers, restart/revocation UI replay and
+battery/large-file memory behavior remain explicit acceptance limits. No full
+Flutter suite ran; no production install, release package or publication occurred.
+
+## 348. Multi-tag picker, suggestions and nested completion (November 23, 2026)
+
+The overflow Add tag action previously opened an isolated text-only dialog with
+no connection to the tag catalogue. It now opens `TagPickerDialog`, shared with
+the editor tag bar, frontmatter tags and selected-note bulk action. Suggestions
+load immediately; Suggested combines pinned ordering, actual local recency and
+usage, with separate Recent, Most used and Pinned categories. Search relevance
+comes first. Attached/staged tags are excluded, queries react to live catalogue
+changes, and earlier asynchronous query results are hidden during loading.
+
+The picker stages multiple additions as removable chips. Tapping/Enter selects,
+Tab completes a tag and arrows navigate suggestions. Comma/newline input is
+normalized, validated and deduplicated; Apply includes remaining typed input and
+shows the total number of additions. Invalid batches do not partially stage.
+Cancel never changes the note. Slash-separated queries remain inside their parent
+path, prioritize direct children and show clickable parent breadcrumbs; row
+actions browse deeper. Missing valid paths can be created, including numeric
+children and Unicode names, while trailing/doubled slashes remain invalid. The
+body scrolls with the phone keyboard open, categories wrap, and action buttons
+are constrained for narrow screens and larger text.
+
+`EditorNotifier.addTags` applies one revision/save per batch. The frontmatter
+field similarly writes the combined list once, avoiding repeated writes against
+the same old document. Bulk tagging skips tags already present on each note and
+hides only tags shared by all selected notes. `RecentTagNames` retains 50 names
+under `recently_added_tags_v1` in SharedPreferences. Editor metadata/inline tag
+additions enter history after successful saves; ordinary text/metadata edits and
+failed saves do not change recency. Bulk tagging records after successful writes.
+History starts empty on upgrade, filters missing names and remains device-local.
+No database migration, note serialization or encrypted sync changes were needed.
+
+Pure Rust ranking is exposed as `api::tags::rank_tag_suggestions` through the
+existing Linux FRB library; no filesystem work or note body crosses the ranking
+API. Bridge bindings were regenerated with pinned codegen 2.12.0. Android/iOS
+and other targets use equivalent Dart ranking, also used if the Linux library
+cannot load. Existing mobile builds keep their current build prerequisites.
+The real-library integration compares all category orders, nested/leaf/Unicode
+queries, exclusions and result limits against the portable implementation.
+
+Validation: `flutter analyze --no-pub` passes with zero issues. Focused Flutter
+files passed: `test/tags/tag_suggestions_test.dart`,
+`test/tags/tag_picker_dialog_test.dart`, `test/editor/editor_provider_tag_test.dart`,
+`test/editor/editor_overflow_menu_test.dart`,
+`test/editor/frontmatter_properties_section_test.dart`,
+`test/editor/tag_search_service_test.dart` and `test/editor/tag_inline_menu_test.dart`.
+The new `overflow Add tags suggests existing tags and persists a batch with
+recency` case in `test/editor/dual_mode_editor_screen_test.dart` passes when
+selected with `--plain-name`. The actual library test passes using
+`QP_WATCHED_NATIVE_LIBRARY=target/debug/libquietpaper_watched_import.so flutter
+test --no-pub tool/tag_suggestions_native_test.dart`. Rust's three focused
+`api::tags::tests` pass; `cargo build -p quietpaper_watched_import`,
+`cargo fmt --all --check`, `cargo clippy -p quietpaper_watched_import --all-targets
+-- -D warnings` and the pinned `scripts/check_rust_bridge.sh` regeneration diff
+check pass. Only relevant tests were run; the full test suite was not run.
+
+
+## 349. Linux command palette, Ctrl+P and workspace actions (November 23, 2026)
+
+The notes palette previously exposed four creation/import commands under
+Ctrl+Shift+P, while the app-level shortcut used a separate email-only palette.
+`WorkspaceCommands` now shares the notes-owned launcher with the app shortcut;
+Ctrl+P and Cmd+P open the same full palette from the workspace and other routes.
+A dedicated desktop notes-toolbar button displays the binding, alongside the
+existing phone/desktop overflow entries. Ctrl+Shift+P remains the editor preview
+shortcut. Ctrl+Shift+I retains direct email import.
+
+`showCommandPalette` supports typed entries, multiword command matching,
+debounced asynchronous note/tag lookup, loading/error/empty states, selection by
+Up/Down, physical Enter/numpad Enter, mobile Go and Escape. Request generations
+hide stale results and guard disposal. Plain text searches commands and the
+active notebook; `@` limits lookup to notes and `#` to tags. Note lookup uses
+bounded repository/FTS queries (12 results), independent of list filters. It
+opens the existing editor and masks protected-note labels. Tag lookup returns
+up to 12 paths using `TagSuggestionService`, preserving pinned/recent/usage and
+nested-path ordering. On Linux this reuses the existing Rust FRB ranking API;
+other targets and failed native loads retain the existing Dart fallback. No new
+Rust code or bridge generation was needed.
+
+The palette includes blank/template creation, both email-import pickers, full
+search, tag browsing, each field/direction of sorting, pinned-first ordering,
+content/attachment/security filters, clearing filters and the full filter sheet
+for dates and multi-tag combinations. These actions reuse canonical handlers
+and query preferences rather than adding alternate persistence paths.
+
+The explicit settings catalogue links settings sections and individual controls
+for defaults/editor/gestures/journal/image compression, theme/appearance,
+typography, imports/backups, OCR/maintenance/debugging, cloud/security and About.
+Additional destinations open Templates, Speech Recognition, Watched Folders on
+supported platforms, account/encryption passwords, devices, conflicts, shares,
+cloud usage and all three storage-management tabs. Account-dependent destinations
+route through sign-in when necessary. Compression choices link to their existing
+chooser controls. Destructive/maintenance actions retain their ordinary controls
+and confirmations; finding a setting never changes its value.
+
+`SettingsTarget` gives controls stable anchors and scrolls a linked setting into
+view. Small settings pages use eager `SettingsList` columns so offscreen controls
+can be revealed immediately. Disabled backup/OCR child controls fall back to the
+parent switch. Typography cards now provide their own Material surface for
+visible ListTile ink and clean runtime diagnostics. `WorkspaceCommands` also
+observes routes; routed editors register their existing save-and-exit operation.
+Note/tag/create commands return to the workspace through this operation, refusing
+the transition when a save or guarded modal refuses exit. The existing editor prepare barrier publishes pending Visual edits before a
+command replaces the embedded desktop editor, and choosing its already-open
+note avoids opening a second editor for the same note. Cached coordinator
+references allow disposal without accessing Riverpod after unmounting.
+
+Validation: `flutter analyze` passes with zero issues; `git diff --check` passes.
+The focused gate passes **154 Flutter tests**:
+
+```sh
+flutter test --no-pub \
+  test/widgets/notes_command_palette_test.dart \
+  test/templates/template_navigation_test.dart \
+  test/templates/template_widget_test.dart \
+  test/templates/template_editor_integration_test.dart \
+  test/templates/template_save_race_test.dart \
+  test/settings/settings_screen_test.dart \
+  test/settings/default_settings_test.dart \
+  test/settings/typography_settings_test.dart \
+  test/settings/advanced_maintenance_settings_test.dart \
+  test/settings/about_app_screen_test.dart \
+  test/settings/desktop_ollama_ocr_settings_test.dart \
+  test/widgets/quiet_adaptive_modal_test.dart \
+  test/tags/tag_suggestions_test.dart \
+  test/email_import/email_editor_bridge_test.dart
+```
+
+After the final embedded-editor flush safeguard, the overlapping navigation,
+editor integration and email editor bridge files pass all **37 tests** again.
+The three existing native ranking tests pass with
+`cargo test -p quietpaper_watched_import api::tags::tests`.
+Coverage includes Linux Ctrl+P above settings/editor routes, toolbar/menu access,
+settings controls below the viewport and disabled backup-child fallback,
+notebook lookup outside active filters, nested-tag navigation, sort/filter state,
+arrows/physical Enter, late async results, mobile keyboard layout, normal editor
+save/failure handling and retained template/email behavior. No full Flutter suite,
+app build, installed-package replay or physical-device acceptance was run.
+
+
+## 350. Command-palette CI regression fixes (November 23, 2026)
+
+Commit `82efe3d` failed [Test & Analyze](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509532),
+[Build Linux App](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509456)
+and [Linux Rust watched import](https://github.com/blackpirateapps/quitepaper/actions/runs/45211509348).
+The two broad Flutter gates each reported 3,176 passed and the same four failed
+cases; the watched-import focused gate reported 272 passed and the same email
+shortcut failure. Android APK compilation passed. Local reproduction of just
+`email_desktop_test.dart` and `editor_overflow_menu_test.dart` reproduced all
+four failures (13 passed, four failed).
+
+The editor's new `ModalRoute.of(context)` dependency rebuilds it when a menu
+route appears above it. Its existing `Navigator.canPop()` check then counted the
+popup, giving the root editor an erroneous toolbar Back button as well as the
+submenu's Back button. `EditorScreen` now derives toolbar Back availability from
+its own `ModalRoute.canPop`. The original Insert/Share/Privacy submenu tests
+pass without weakening or broadening their one-Back-button assertions. Pushed
+editors retain their Back button and normal save-and-exit handler.
+
+The desktop email test still sent Ctrl+Shift+P and assumed a standalone,
+email-only global palette without a ProviderScope. It now provides the shared
+`WorkspaceCommands` coordinator and invokes Ctrl+P from a focused text field.
+The test checks one launcher invocation, retained note/email actions, filtering
+for the generic-file fallback and physical Enter returning that command. The
+real notes-owned catalogue and route navigation remain covered separately by
+the command-palette integration tests.
+
+Local validation: `flutter analyze` reports no issues and `git diff --check`
+passes. Both failing Flutter files now pass all **17 tests** with:
+
+```sh
+flutter test --no-pub test/email_import/email_desktop_test.dart \
+  test/editor/editor_overflow_menu_test.dart
+```
+
+The additional relevant gate passes **34 tests** (51 focused tests total),
+covering desktop/phone palette navigation, settings links, note/tag jumps, editor
+save/exit failures and keyboard/async behavior:
+
+```sh
+flutter test --no-pub test/templates/template_navigation_test.dart \
+  test/templates/template_editor_integration_test.dart \
+  test/widgets/notes_command_palette_test.dart
+```
+
+No full Flutter suite was run locally. Workflow definitions, generated bindings,
+Rust code, database schema and sync behavior are unchanged by this fix.
+
+## 351. Stable, compact adaptive tag picker (November 24, 2026)
+
+The Add tags picker cleared its result list whenever `allTagsProvider` emitted
+another catalogue during initial sync. Its family request also included staged
+tags, so every selection/removal restarted asynchronous ranking. The changing
+result/selection height made the dialog jump and flash while the user interacted.
+
+The picker now retains the current query's previous ranked results across
+catalogue refreshes and shows progress only before that query has any result.
+Different queries still use separate family providers, preventing stale matches
+from appearing for new input. The default query remains subscribed during search,
+so choosing a result and clearing the input immediately restores its warm list.
+Only already-attached tags participate in the request's exclusion key; staged
+tags are filtered locally. Stable row keys, input focus and scroll offset survive
+selection. A disappearing exact match cannot temporarily produce duplicate
+existing/create rows while ranking catches up; keyboard reveal callbacks capture
+the chosen name before the next asynchronous rebuild.
+
+The category chips are replaced by one **Suggestions** label and the existing
+combined ranking: query relevance, pinned status/manual order, actual local
+recency, usage counts and name as the deterministic tie-breaker. Rust/Dart
+ranking and local recency persistence retain their existing contracts.
+
+`QuietAdaptiveModal` presents an opaque, rounded bottom sheet on Android/iOS and
+an editorial dialog on desktop. The picker uses a compact 440×460 bounded content
+area, smaller text/row spacing and a reserved horizontally scrolling selection
+strip. The scrollable content shrinks for keyboard/safe-area constraints while
+Cancel/Apply remain in the footer. Escape/Cancel discard staged changes; applying
+still returns one validated batch to the existing editor/frontmatter/bulk callers.
+No schema or sync protocol changed.
+
+Validation: `flutter analyze` reports no issues; `git diff --check` passes.
+All **57 focused Flutter tests pass** with:
+
+```sh
+flutter test --no-pub test/tags/tag_picker_dialog_test.dart \
+  test/tags/tag_suggestions_test.dart \
+  test/editor/editor_overflow_menu_test.dart \
+  test/editor/editor_provider_tag_test.dart \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+New regressions cover an initially empty catalogue receiving sync pages, delayed
+and out-of-order overlapping ranking completions, retained input/selection/scroll,
+local chip removal without requests, immediate return to default suggestions,
+exact-match removal during refresh, long-list selection without scroll resets,
+Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
+Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
+layout, nested paths, comma batches, cancellation and single editor/frontmatter
+updates. No full suite, app build or physical-device/cloud-sync replay was run.
+
+## 352. Journal audit with Dart VM and native Linux windows (November 24, 2026)
+
+Audited application revision `12c49b3` on
+`audit/journal-rigorous-2026-11-24`, without fixing production code. Findings were
+written into the [audit report](audits/journal-2026-11-24/README.md) as confirmed.
+All **10 confirmed bugs remain open**: ordinary date properties reserve journal
+days; nested YAML dates override canonical dates; journal frontmatter rewrites
+destroy nested dates; failed inserts return ghost entries; calendar previews
+open trashed notes without restoration; the month picker overflows short screens;
+Bengali day numerals remain ASCII; coordinate-place renames are ignored; spring
+DST joins visits across a 31-day gap; and wrapped titles make timeline jumps
+land in the wrong month.
+
+Validation: `flutter analyze` is clean before and after the audit. The existing
+focused command passes **207 tests**:
+
+```sh
+flutter test test/journal test/notes/note_metadata_journal_test.dart
+```
+
+Four of 14 additional adversarial probes pass; ten assertions intentionally fail
+against existing behavior. The separate `TZ=America/New_York` visit probe also
+fails. Passing probes include 100 concurrent canonical-entry requests,
+trash/restore identity and content, and 76,336 calendar-date round trips.
+Reproduction sources are archived as `.dart.txt`, outside active tests/builds.
+The passing baseline emits two pre-existing Drift multiple-database warnings in
+the place-alias-store fixture. An isolated nine-test rerun passes and reproduces
+both warnings. This fixture concern is documented separately; the zero-warning
+test requirement is not met on unchanged source, and no suppression or fix was
+applied under the user's audit-only instruction.
+
+The real `QuietPaperApp` was launched in isolated Linux debug windows and
+inspected through the Dart VM service. Pointer events and Hyprland keyboard
+events verified calendar previews, writing/leaving/reopening, historical entries,
+Places drill-in and rename. A batched seed produced a 1,005-entry archive; short
+titles permit the selected-date jump, while wrapped titles reproducibly land in
+December instead of the requested June. An earlier incremental seed lost its VM
+connection without a captured cause and remains an explicitly unresolved stress
+observation. Runtime logs retain the startup sharing-plugin exception and keyring
+warnings separately from journal findings.
+
+The report preserves 16 screenshots, raw VM records, test/runtime logs, probe
+sources, replay instructions and limits. No full suite, production-source fix,
+cloud/GPS replay, physical mobile test, restart-durability check or release
+performance claim is included. The isolated windows were closed after the audit.
+
+## 353. Second journal audit: ten additional confirmed bugs (November 24, 2026)
+
+Extended the journal audit on `audit/journal-rigorous-2026-11-24`, with findings
+written as confirmed in the [second-pass report](audits/journal-2026-11-24/round-2/README.md).
+Application source remains unchanged. **JRN-011–020 add ten confirmed open bugs,
+bringing the cumulative total to twenty.**
+
+Repeated merging leaves existing constituents in an old group; asynchronous
+alias decryption can roll back newer state; failed alias writes disappear on
+reopening without a retry record; canonically equivalent Unicode place names
+split into duplicate groups; antimeridian longitude averaging places a cluster
+near Greenwich; rounded coordinate keys join clusters outside the radius; and
+incomplete weather responses invent clear, 0°C measurements. Cached dates remain
+on yesterday after midnight/resume, and the earliest-year cache hides newly
+backfilled older memories. A pending weather fetch also overwrites journal body
+edits made while its request is in flight, with the loss retained on reopening.
+
+Native Linux/Dart VM replay confirms repeated merge splitting, midnight/resume
+staleness, older-backfill pagination staleness and weather-related edit loss.
+The clock experiment uses a process-scoped wall-clock shim; monotonic time and
+the host clock are unchanged. Weather is intercepted by a delayed mock HTTP
+client while exercising the real button and native keyboard input. The report
+preserves nine new screenshots, VM records, runtime logs and replay sources.
+
+All **72 selected existing tests pass** without warnings in this pass's logs:
+
+```sh
+flutter test --no-pub --reporter expanded \
+  test/journal/place_grouping_service_test.dart \
+  test/journal/places_merge_ui_test.dart \
+  test/journal/place_alias_sync_test.dart \
+  test/journal/on_this_day_widget_test.dart \
+  test/journal/journal_metadata_service_test.dart
+flutter test --no-pub --reporter expanded \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+The eleven new edge probes produce three passes and eight expected failures;
+the separate Properties weather-race probe produces one expected failure.
+A positive durability probe closes and reopens a temporary SQLite file and
+retains the journal ID and saved body. The first pass's existing warning-bearing
+alias fixture was not rerun in this selected gate; it remains unresolved.
+An initial test-font layout overflow is retained as an uncounted observation,
+and the previously unresolved incremental-seed process exit remains unresolved.
+
+Final `flutter analyze` is clean; the clock shim builds with C warnings treated
+as errors. Probe code is archived as `.dart.txt`, without adding failing ordinary
+CI tests or shipping VM hooks. The window was closed and its clock offset reset.
+No fixes, full suite, physical mobile checks, live GPS/weather/cloud requests or
+release performance claims are included.
+
+## 354. Linux CLI Rust rewrite — batch 1 (November 25, 2026)
+
+Started on `feat/linux-cli-rust-rewrite` from `12c49b3`. The user requested a
+batched rewrite of the Linux Dart CLI, with progress documented and a commit/push
+after each batch. [The migration report](../docs/linux-cli-rust-rewrite.md) tracks
+all five batches, completed scope, behavior differences and the next acceptance
+gate. This batch finishes the independent read-only Rust executable: **3 of 9
+existing command families**, not a claim that one third of all work is complete.
+
+`rust/quietpaper_cli` joins the Cargo workspace and builds `qp`, with `list`/`ls`,
+`show`/`cat`/`view`/`s`, `tags`/`t`, global database/help/version options, JSON and
+plain output. It preserves canonical/legacy Linux database discovery and the
+Dart JSON contract. Database access is read-only with a busy timeout and a read
+snapshot, reads committed desktop WAL writes, and makes no schema/title/history
+or queue changes. Tests use disposable fixtures and actual Drift schema-25
+notebooks. Missing notebooks fail with setup guidance instead of creating files.
+
+The rewrite corrects active tag counts, excludes deleted tags from filters,
+escapes literal search wildcards and requires explicit IDs for ambiguous matches.
+Interactive selection, local writes/editors, encryption/attachments, upload sync
+and packaging cutover remain in batches 2–5. Linux distribution workflows still
+package the full existing Dart CLI; the Rust CLI does not delegate to Dart.
+The release-version checklist now includes the Rust package version.
+
+`scripts/test_rust_cli.sh` and `.github/workflows/linux_cli_rust.yml` provide the
+focused gate. Ordinary Flutter-only runs explicitly skip the three binary
+compatibility tests unless `QP_RUST_CLI_BIN` is set; the dedicated gate always
+builds the binary and enables them. Final local validation passes Rust fmt,
+Clippy with warnings denied, **12 Rust tests**, binary build/help/version smoke,
+`flutter analyze` with no issues, and **53 focused Flutter CLI tests** including
+all three cross-language tests. `git diff --check`, `cargo audit`, and Cargo deny
+advisory/license/source/ban checks pass. The latter permits duplicate-version
+warnings under the existing policy. Advisory checks prompted an upgrade to
+rusqlite 0.43's patched bundled SQLite and replacement of Chrono with Jiff before
+acceptance; no advisory ignores were added. No full Flutter suite, app/package
+build, production notebook, cloud operation or physical-device validation ran.
+
+## 355. Linux CLI Rust rewrite — batch 2 (November 25, 2026)
+
+Adds local `new`, `edit`, `delete`/restore and aliases, external editors with
+quoted arguments and environment selection, and numbered interactive lookup.
+All six local command families now run in Rust. Existing desktop notebooks are
+updated without schema creation/migration. Immediate transactions include tags,
+per-tag pin caches, version history, FTS projections and sync queue records;
+write failures roll everything back. Desktop provenance/share/revision fields
+survive. Concurrent editor changes prevent overwrite; private temporary files
+and recovery drafts preserve user text. Protected/rich-note editing stays in the
+desktop app. Attachment-bearing saves remain guarded until batch 3 and uploads
+until batch 4; the installed CLI still uses Dart until packaging cutover.
+
+Validation: Rust fmt, Clippy with warnings denied and 13 Rust tests pass;
+`flutter analyze` is clean. All 58 focused Flutter CLI cases pass across the
+directory gate and compatibility rerun, including eight cross-language cases.
+New real-Drift checks cover note writes, FTS/history/queue entries, pin-cache
+preservation, trash/restore/permanent cascades, transactional failure rollback,
+private draft permissions and concurrent edits. No full suite ran.
+See [the batch progress report](../docs/linux-cli-rust-rewrite.md).
+
+## 356. Linux CLI Rust rewrite — batch 3 (November 25, 2026)
+
+Ports read-only desktop keyring/fallback credentials, Argon2id password unwrap,
+QPA1 image encryption and all image-import/list/open commands. Local Markdown
+destinations/reference definitions and repeated explicit files deduplicate;
+code/frontmatter/remote URLs remain literal. Imports preserve original image
+bytes by default, or explicitly compress supported still images to JPEG within
+bounded input/decoder/output sizes. Animation is never silently flattened.
+Staged 0600 ciphertext and database rows commit with the note or roll back
+together; original drafts survive failures. Clipboard helpers are bounded and
+opening an image requires interactive temporary-plaintext cleanup. Custom
+database paths are canonicalized; credential files remain unchanged.
+
+Validation: Rust fmt/Clippy, 16 Rust tests, `flutter analyze` and all 63 focused
+Flutter CLI tests pass. Dart decrypts Rust QPA1 data; Drift reads its metadata;
+tests cover duplicate imports, fallback-store immutability, JPEG conversion,
+injected attachment failure cleanup, source preservation and controlled
+clipboard access. Real pseudo-terminal tests accept a correct password and
+reject a wrong one for Dart-wrapped keys. Cargo deny checks pass with narrow
+BSD-3-Clause exceptions for SHA-1 UUID naming and constant-time crypto crates;
+no advisory ignores. No full suite or production notebook/keyring/cloud access.
+Eight of nine command families are ported. Upload sync and packaging remain.
+
+## 357. Linux CLI Rust rewrite — batch 4 (November 25, 2026)
+
+Ports `sync` and automatic post-save uploads, completing nine command families.
+The Rust client verifies cloud account keys, refreshes sessions without rewriting
+desktop credentials, encrypts note metadata/provenance, uploads QPA1 multipart
+payloads without account headers and confirms attachment references. HTTPS,
+certificate validation, redirect refusal and time/size limits apply. Local saves
+remain successful when upload is pending; explicit sync reports failures.
+
+Account-bound encrypted push journals retain idempotency across uncertain
+acknowledgements/reference failures. Full row/tag/queue fingerprints prevent
+clearing concurrent GUI mutations. Image state uses full-row checks, and retry
+discovery includes pending images on otherwise clean notes. Permanent deletions
+retain revision-bound tombstones. Both journals use existing local metadata keys;
+there is no schema change or pull-cursor advancement. Desktop pull/merge and OCR
+ownership remain unchanged.
+
+Validation: fmt/Clippy, 18 Rust tests, clean `flutter analyze`, and all 72 focused
+Flutter CLI cases pass. Actual loopback HTTP tests decrypt Rust ciphertext in
+Dart and cover HTTP/conflict/acknowledgement/race/key-mismatch/tombstone cases,
+exact idempotent replay after reference failure and pending-image discovery.
+Rust transport tests cover encrypted multipart/header isolation, attachment
+races, authentication refresh and account mismatch. Cargo deny passes. No full
+suite or live cloud access ran. Packaging/removal is the remaining batch.
+
+## 358. Linux CLI Rust rewrite — batch 5 and final acceptance (November 25, 2026)
+
+All five migration batches are complete. Linux build/release workflows and
+tarball/DEB/RPM/AppImage/Flatpak builders now require the release Rust `qp` binary,
+staged atomically by shared build/install scripts. The standalone Dart entry
+point, runner, commands, editor, credential/image and sync implementations are
+removed. The GUI launch-argument helper remains. Historical database/frontmatter
+parsing is retained only under `test/cli/support` as an independent fixture/JSON
+oracle. Tests of the retired Dart executable are replaced with Rust binary and
+interoperability coverage; the app's direct `args` dependency is removed.
+
+Fresh `qp new` notebooks use complete schema-25 DDL generated by the actual
+desktop migration. A schema-coherence test guards this snapshot. Private
+temporary initialization and non-clobbering publication support concurrent
+first creation, followed by normal SQLite/WAL writes. Existing notebooks remain
+under Drift migration control. Final fixes preserve GUI titles/manual tags on
+unchanged-editor/pin-only writes and lock concurrent CLI sync attempts before
+they can race an idempotency journal. GUI concurrency retains snapshot guards.
+
+Final validation passes Rust fmt/Clippy, **18 Rust tests**, clean Flutter analysis,
+and **29 focused Flutter tests** (26 CLI/schema and 3 launch/storage), with no
+test warnings. The actual Flutter Linux release bundle builds; third-party
+Whisper C++ literal-operator deprecation warnings remain. All five package
+formats build locally. Tarball/DEB/RPM/AppImage extraction verifies Flutter
+assets, native engine loading and a relocated headless CLI's offline note
+lifecycle. An isolated installed Flatpak loads the engine and creates/lists/tags
+a fresh Rust notebook. Bash/YAML syntax, Cargo audit and Cargo deny pass.
+Packaging tools were extracted under `/tmp`; no system packages or real user
+application installation/notebook were replaced. No full suite or live account,
+keyring, clipboard or cloud upload was used. Controlled transports/endpoints and
+Dart cryptography cover those protocols; the image viewer and manual GUI tour
+remain outside this CLI rewrite's acceptance scope.
+
+See [the completed batch report](../docs/linux-cli-rust-rewrite.md) and
+[artifact hashes and verification evidence](../docs/linux-cli-rust-rewrite-evidence.json).
+
+## 359. Recover note saves from legacy Tasks queue triggers (November 25, 2026)
+
+The installed Linux app could not persist repeated edits because its shared
+notebook retained `task_note_insert` / `task_note_update` from an experimental
+Tasks build. A queued note hit `UNIQUE constraint failed: task_dirty.note_id`
+during `notes` UPSERT: SQLite's outer conflict handling overrides the trigger's
+`INSERT OR IGNORE`, aborting the note transaction. The installed binary has no
+Tasks indexer to drain that queue. The editor's existing catch retains dirty
+state but hides the underlying SQLite error. Integrity and foreign-key checks
+were clean; disk exhaustion was not the cause.
+
+`AppDatabase.beforeOpen` now inspects only the two known queue triggers and
+atomically replaces their legacy insert with
+`INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING`.
+All remaining trigger statements, including archive/protection cleanup, are
+preserved. Existing notes, task indexes, queue and delete trigger are retained.
+Already-repaired triggers are left alone and ordinary notebooks acquire no task
+tables or triggers. No schema-version bump or generated-schema/CLI snapshot
+change is required: this repair runs on every database open, including shared
+notebooks whose version is still 25. Future Tasks trigger definitions must use
+the explicit UPSERT conflict clause rather than `OR IGNORE`.
+
+The installed database was backed up privately with SQLite's online backup API,
+then both trigger definitions were repaired together under `BEGIN IMMEDIATE`
+without restarting or modifying the installed binary. All 1,020 existing notes
+were preserved; integrity and foreign-key checks pass. Three repeated saves on
+an in-memory copy of the repaired notebook pass. Earlier reproduction using the
+installed SQLite 3.53.4 library failed on the second save with the old triggers;
+the same save passed after removing them from that disposable snapshot. No test
+notes were inserted into the live notebook or its cloud queue. Recovery cannot
+reconstruct edits already discarded before persistence.
+
+Validation: `flutter analyze` reports no issues; `git diff --check`
+passes. All **39 focused tests** pass with:
+
+```sh
+flutter test --no-pub test/database/legacy_task_trigger_repair_test.dart \
+  test/database/app_database_test.dart \
+  test/database/database_migration_test.dart
+```
+
+Four new file-backed regressions cover reopening a legacy notebook followed by
+repeated editor/new-note saves, actual tag/search persistence, task cleanup on
+archive/deletion, retained timestamps/data, idempotence and notebooks without
+Tasks. Disabling the startup repair reproduces the new autosave regression;
+restoring it passes. No full suite, app rebuild, live cloud request or GUI input
+automation was run. The unrelated pre-existing prompt file remains uncommitted.
+
+
+## 360. Tasks workspace, due dates and canonical task commands (November 25, 2026)
+
+### Scope and integration
+
+Implemented on `feat/tasks-workspace`: sidebar and command-palette navigation,
+desktop middle-pane/phone list UI, Open/Completed counts after search and owning
+note-tag subtree filters, local-date groups, source navigation, staged date picker
+and single-task capture. Capture resolves a vault-scoped UUIDv5 Task Inbox identity
+independently of its title, Today’s Journal through the daily-note service, or an
+eligible existing note. Drafts survive failures and pending writes reject duplicate
+submits/unfinished IME composition. Inbox Trash recovery uses the existing restore
+path. Successful capture provides destination navigation and guarded Undo.
+
+Canonical rich checklist nodes and strict terminal Markdown comments own optional
+UUID/date metadata. Legacy checkboxes use version hashes and ordinals; unique
+durable IDs resolve later revisions only with expected-field checks. Copies rekey,
+template instances clear deadlines, and personal Markdown export retains comments
+while preview/search/public sharing suppress recognized metadata.
+
+Schema **26** adds a local task projection, indexed status/date/identity paths,
+durable dirty triggers, generic parse-failure recovery and 32-note repair batches.
+Canonical saves maintain the projection atomically, including normal sync/import
+paths. Queries join live note eligibility; protected/archive/trash notes are gated,
+read-only editor sessions are excluded, and locked/session-invalidated providers
+prevent late results. No task payloads are logged and derived tables are excluded
+from sync/backups.
+
+Attached editors serialize mutations, preserve dirty text/composition boundaries
+and use their own histories. Closed commands re-read/save in one transaction.
+Field-aware Undo preserves independent durable-task edits and refuses unsafe
+capture removal or double-Undo. The existing client diff3 boundary now handles
+independent completion/date changes in Markdown and rich JSON. A real encrypted
+two-device regression found that ordinary repository saves reset server revisions;
+`saveNote` now preserves the prior revision when callers omit one. Explicit sync
+revisions continue to apply. No backend task columns or endpoint were added.
+
+### Performance and Rust decision
+
+Kept Dart/SQLite and the existing Rust bridge unchanged. The initial synthetic
+6,000-task, 120-note Linux release run measured 271 ms for repair, 33 ms for a full
+projection read, and 4,235 µs median / 5,187 µs p95 for 30 search/sort samples. That
+first corpus had completion/Unicode/mixed-format/fenced examples; the final probe
+also includes overdue/today/upcoming/undated metadata and legacy items. Final
+aggregate evidence is recorded below. There is no measured need for a task-native
+matching/ranking function, so no new toolchain or competing parser was introduced.
+
+### Validation and release status
+
+The first full Flutter run completed with **3,219 passing tests and two stale
+schema-25 assertions** in email migration fixtures. Those assertions were updated
+to 26; the subsequent focused sync/crypto/account/attachment/task run passed all
+**218 tests**, including the two real encrypted task merge regressions. The later
+expanded task-only run passed **39 tests**, including hardware Enter, IME staging,
+read-only session exclusion, Visual dirty-edit flush and shared Undo. Backend
+contract validation passed **144 tests in 21 files** after `npm ci --ignore-scripts`.
+Drift generation completed without a generated database diff. Final full-suite,
+analysis, build and native-probe results are recorded below.
+
+**Production release acceptance is incomplete.** Older rewriting clients can drop
+unknown rich task fields; supported-client rollout/version enforcement remains a
+release gate. Key-transition inbox identity, every conversion/join/clipboard path,
+assistive technology, exact folded-jump geometry and physical Android acceptance
+are explicitly tracked in [the Tasks subsystem guide](tasks.md). Do not infer
+production acceptance from compilation or synthetic native runs.
+
+#### Final benchmark and platform gates
+
+The final dated/legacy release corpus measured **2,094 ms** for data generation,
+canonical writes and candidate extraction; **708 ms** for four repair batches;
+**65 ms** to read 6,000 projections; and **8,854 µs median / 12,981 µs p95** for
+30 normalized search-and-sort samples. Replacing ISO-string allocation in date
+comparisons reduced the dated-corpus median from 39,431 µs. Timings were collected
+on this development host during other validation work and are not a production
+SLA. Dart/SQLite remains sufficient; no Rust task extension was added. Aggregate
+commands/results are in [the evidence file](../docs/tasks-workspace-evidence.json).
+
+Final `flutter analyze --no-pub` reports no issues. The final task/sharing run passes
+**47 tests**; the overlapping task/sharing/export run passes **51**. The payload
+regressions verify that public shares convert canonical rich JSON to Markdown
+before stripping task identity/date comments, preventing raw JSON metadata from
+being published. A full run caught this regression while the correction was being
+made; a clean full-suite rerun follows the fix.
+
+`flutter build linux --release --no-pub` passes, and the existing bundled-library
+smoke verifies ELF x86-64 loading and **FRB contract 2**. The isolated real Linux
+profile integration target passes its scenario and teardown. This is synthetic
+UI/service acceptance, not a personal-vault or physical-device test.
+`flutter build apk --debug --flavor github --no-pub` passes and produces
+`build/app/outputs/flutter-apk/app-github-debug.apk`. Android runtime testing was
+unavailable because no emulator/physical device was connected. Existing plugin
+Kotlin/NDK warnings and host accessibility-bus warnings remain; Flutter static
+analysis is clean. DEB/RPM/AppImage/Flatpak installation and physical Android
+acceptance are not claimed.
+
+#### Completed final verification
+
+The clean final `flutter test --no-pub --concurrency=2` run completed with
+**3,229 passing tests, zero failures** in 12m 08s. This completed before the user
+requested no further full-suite runs; no further full suite was started. Final
+analysis has zero issues, the focused task/sharing gate passes 47 tests, and
+`git diff --check` passes. The final Linux release bundle and bundled FRB smoke
+pass, and the final GitHub-flavor Android debug APK compiles successfully. The
+remaining changes after verification record documentation/evidence outcomes.
+
+Delivery remains a feature branch for review, with the production release gates
+in [tasks.md](tasks.md) explicitly open. No release deployment or physical Android
+validation is claimed.
+
+## 361. PR #20 integration with note-save recovery and Rust CLI (November 25, 2026)
+
+Merged current `main` into the Tasks workspace branch before PR integration.
+Resolved only the overlapping HANDOFF/log additions by retaining both histories;
+the original Tasks implementation entry is now 360. Source merges retain the
+journal fixes, canonical revision preservation, Rust CLI and startup repair.
+
+The Tasks creation DDL now uses explicit `ON CONFLICT(note_id) DO NOTHING` in
+both queue triggers, so fresh notebooks cannot reintroduce the duplicate-queue
+save error. Legacy trigger repair remains active. File-backed regressions now
+use the actual Tasks schema and check canonical index consumption, preserved
+legacy rows on open, repeated editor/new-note saves, archive/deletion cleanup,
+schema-25 upgrade/idempotence and repeated direct UPSERTs without an indexer.
+
+Regenerated the Rust CLI bootstrap snapshot from the actual Drift schema 26,
+including task tables/indexes and safe triggers. CLI interoperability checks use
+the current desktop schema version; intentional old-schema Rust fixtures remain
+unchanged. Fresh CLI notebooks can be opened by Tasks builds without migration.
+
+Validation: clean `flutter analyze --no-pub`; Rust CLI builds; all 26 focused
+Flutter CLI/schema tests pass using the rebuilt native binary. All 199 focused
+Tasks/persistence/editor/share/template/email/watched-import tests pass with:
+
+```sh
+flutter test --no-pub --concurrency=2 test/tasks test/database \
+  test/editor/smart_task_super_editor_test.dart test/share/share_service_test.dart \
+  test/templates/template_database_test.dart test/email_import/email_persistence_test.dart \
+  test/watched_import/watched_import_storage_test.dart
+QP_RUST_CLI_BIN=/path/to/rebuilt/qp flutter test --no-pub --concurrency=1 test/cli
+```
+
+`git diff --check origin/main` passes. No full suite, app/package build or personal-database
+migration was run for this integration. Existing manual/device/older-client
+rollout limits remain documented in [the Tasks guide](tasks.md).
+
+## 362. Linux browser web clipper over native messaging (November 17, 2026)
 
 Created `feat/linux-browser-web-clipper` after reading the handoff. Added a browser
 extension under `extensions/browser/` with shared popup, background and capture
@@ -6875,7 +8966,7 @@ current page are not captured. Firefox development loading is temporary until a
 signed distribution exists. The pre-existing untracked smart-tables plan is left
 untouched and excluded from this feature's commit.
 
-## 300. Register the browser clipper in the installed Brave Flatpak (November 17, 2026)
+## 363. Register the browser clipper in the installed Brave Flatpak (November 17, 2026)
 
 After the user loaded the unpacked extension and supplied its ID, installed the
 complete CLI bundle under Brave's private app data `quietpaper/cli/`, added a
@@ -6901,7 +8992,7 @@ Validation: `flutter analyze --no-pub` is clean and all seven tests in
 `test/cli/cli_browser_host_test.dart` pass. No full test suite was run. The
 pre-existing untracked smart-tables plan remains untouched.
 
-## 301. Keep browser and Android article clips free of recommendation modules (November 25, 2026)
+## 364. Keep browser and Android article clips free of recommendation modules (November 25, 2026)
 
 The reported The Hindu URL (`article71735766.ece`, including its recommendation
 query and fragment) has no semantic article/main root in the fetched HTML. Its
@@ -6952,3 +9043,44 @@ Validation:
 Work is isolated on `feat/linux-browser-web-clipper`; the main checkout's
 untracked prompt file is untouched. Reload the rebuilt browser extension to use
 the capture fix; Android receives its extractor fix in the next app build.
+
+## 365. PR #8 integration with the Rust CLI and current Android clipper (November 25, 2026)
+
+Resolved the browser extension branch against current `main`. The standalone Dart
+CLI was removed by PR #19, so retaining its browser host would leave the extension
+without a runnable native endpoint. `rust/quietpaper_cli/src/browser_host.rs` now
+implements the existing version-1 protocol on `qp browser-host`, using bounded
+native-endian frames, immediate flushed replies, lazy database access, and the
+existing Rust transaction for notes, tags, search, history and sync mutations.
+It does not fetch page/assets, read credentials, or upload after saving.
+
+HTML5 parsing uses `html5ever`/`markup5ever_rcdom`. The renderer preserves article
+headings, emphasis, links, images, lists, quotes, code languages/fences and tables;
+active HTML and non-web/local/vault URLs never reach saved Markdown. JSON-quoted
+YAML scalars protect browser metadata, and oversized/deep DOMs are rejected.
+Obsolete Dart browser-host source/tests are replaced by Rust transport/storage
+regressions and a Flutter test against the actual current desktop Drift schema.
+Build/install/Flatpak instructions use the Rust CLI, and the Rust CI gate also
+checks extension packaging and JavaScript handoff.
+
+The article-body/popular-module fix is retained while keeping all newer Android
+redirect/canonical URL, snapshot, document-section and UI behavior from `main`.
+Android's chosen tags stay explicit; YAML values remain safely quoted. Both sets
+of handoff entries are preserved, with branch logs renumbered 362–364 to follow
+existing main logs through 361. The untracked prompt in the primary checkout is
+untouched.
+
+Validation of the integrated source:
+
+- `flutter analyze`: no issues.
+- **98 focused Flutter tests** pass with `QP_RUST_CLI_BIN=target/debug/qp flutter
+  test --no-pub test/web_clipper test/cli`, enabling the cross-language tests.
+- **24 Rust tests** pass with `cargo test --locked -p quietpaper_cli`.
+- Rust formatting, Clippy with warnings denied, and `cargo deny check licenses`
+  pass. Only HTML parser dependencies are added; no second Markdown runtime or
+  legacy Dart executable is required.
+- **5 Python tests**, including both real headless Firefox checks, and **5
+  JavaScript background tests** pass. Authenticated live DOM capture saves through
+  the Rust host after its fixture server closes; ping replies before stdin EOF.
+- No full Flutter suite, physical Android device run, real extension popup
+  handshake, store publication or installed host replacement was performed.

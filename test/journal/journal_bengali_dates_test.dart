@@ -30,6 +30,13 @@ void main() {
       expect(bn, contains('২০২৬'));
     });
 
+    test('calendar and padded timeline days use localized numerals', () {
+      expect(JournalDateHelper.formatDayNumber(24, localeTag: 'bn'), '২৪');
+      expect(JournalDateHelper.formatDayTwoDigits(1, localeTag: 'bn'), '০১');
+      expect(JournalDateHelper.formatDayNumber(24), '24');
+      expect(JournalDateHelper.formatDayTwoDigits(1), '01');
+    });
+
     test('null localeTag keeps the English default', () {
       final en = JournalDateHelper.formatMonthYear(DateTime(2026, 9));
       expect(en, 'September 2026');

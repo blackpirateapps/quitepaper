@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:unorm_dart/unorm_dart.dart' as unicode;
 
 import '../../location/location_models.dart';
 import '../domain/journal_place.dart';
@@ -103,8 +104,15 @@ class PlaceGroupingService {
 
     final accumulators = <String, _PlaceAccumulator>{};
 
-    _groupLabeled(labeled, granularity, aliases, accumulators);
-    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, accumulators);
+    // Keep legacy decomposed alias spellings reachable without changing their
+    // encrypted IDs or canonical destinations. Exact current keys win ties.
+    final aliasEntries = aliases.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final normalizedAliases = <String, PlaceAlias>{
+      for (final entry in aliasEntries) normalizeKey(entry.key): entry.value,
+      ...aliases,
+    };
+    _groupLabeled(labeled, granularity, normalizedAliases, accumulators);
+    _groupByRadius(unlabeled, coordinateClusterRadiusMeters, normalizedAliases, accumulators);
 
     final places = accumulators.values
         .map((a) => a.build(granularity))
@@ -156,6 +164,7 @@ class PlaceGroupingService {
   void _groupByRadius(
     List<PlaceEntryInput> unlabeled,
     double radiusMeters,
+    Map<String, PlaceAlias> aliases,
     Map<String, _PlaceAccumulator> accumulators,
   ) {
     if (unlabeled.isEmpty) return;
@@ -188,21 +197,30 @@ class PlaceGroupingService {
       target.add(e);
     }
 
+    final coordinateKeys = <String>{};
     for (final c in clusters) {
       final latStr = c.centroidLat.toStringAsFixed(2);
       final lngStr = c.centroidLng.toStringAsFixed(2);
-      final key = '~coord:$latStr,$lngStr';
-      final displayName = 'Unnamed place near $latStr, $lngStr';
+      final roundedKey = '~coord:$latStr,$lngStr';
+      // Rounded display coordinates are not unique identities. Preserve the
+      // legacy key for the first deterministic cluster; disambiguate collisions
+      // using the exact seed coordinates, never another rounded centroid.
+      final rawKey = coordinateKeys.add(roundedKey)
+          ? roundedKey
+          : '$roundedKey#${c.seedLat},${c.seedLng}';
+      final alias = aliases[rawKey];
+      final key = alias?.canonicalKey ?? rawKey;
+      final displayName = alias?.displayName ?? 'Unnamed place near $latStr, $lngStr';
       final acc = accumulators.putIfAbsent(
         key,
-        () => _PlaceAccumulator(matchKey: key, isUnnamed: true),
+        () => _PlaceAccumulator(matchKey: key, isUnnamed: alias == null),
       );
       for (final e in c.members) {
         acc.addLabeled(
           noteId: e.noteId,
           date: e.date,
           displayName: displayName,
-          fromAlias: true, // force the computed unnamed label to win.
+          fromAlias: alias != null,
         );
       }
     }
@@ -257,10 +275,10 @@ class PlaceGroupingService {
 
   // --- Normalization ----------------------------------------------------------
 
-  /// Normalizes a label into a match key: lowercase, strip diacritics,
+  /// Normalizes a label into a match key: lowercase, canonical Unicode composition, strip Latin diacritics,
   /// collapse internal whitespace, trim.
   static String normalizeKey(String raw) {
-    final lowered = raw.toLowerCase().trim();
+    final lowered = unicode.nfc(raw.toLowerCase()).trim();
     final stripped = _stripDiacritics(lowered);
     return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
@@ -275,7 +293,7 @@ class PlaceGroupingService {
   }
 
   /// Common Latin diacritic → base-letter folding (lowercase only; callers
-  /// lowercase first). Deliberately small and dependency-free.
+  /// lowercase first). Deliberately small; canonical composition happens before folding.
   static const Map<String, String> _diacritics = {
     'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a',
     'ă': 'a', 'ą': 'a',
@@ -398,7 +416,16 @@ class _CoordCluster {
       members.map((e) => e.location.latitude).reduce((a, b) => a + b) /
       members.length;
 
-  double get centroidLng =>
-      members.map((e) => e.location.longitude).reduce((a, b) => a + b) /
-      members.length;
+  double get centroidLng {
+    // Longitude wraps at ±180; an arithmetic mean puts dateline clusters near 0.
+    var sinSum = 0.0;
+    var cosSum = 0.0;
+    for (final member in members) {
+      final radians = member.location.longitude * math.pi / 180.0;
+      sinSum += math.sin(radians);
+      cosSum += math.cos(radians);
+    }
+    final degrees = math.atan2(sinSum, cosSum) * 180.0 / math.pi;
+    return degrees == 180.0 ? -180.0 : degrees;
+  }
 }

@@ -1,3 +1,6 @@
+import '../../../tasks/presentation/task_date_picker.dart';
+import '../../domain/task_metadata.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +12,7 @@ import '../../application/rich_document_controller.dart';
 import '../../domain/document_selection.dart';
 import '../../domain/markdown_styles.dart';
 import '../../domain/rich_block.dart';
+import '../../domain/rich_document.dart';
 import '../../domain/rich_inline.dart';
 import '../../domain/text_attributes.dart';
 
@@ -57,6 +61,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   bool _isInternalUpdate = false;
   bool _isReconcilingStructure = false;
   RichDocumentSelection? _lastFocusSelection;
+  RichDocument? _lastSyncedDocument;
 
   @override
   void initState() {
@@ -96,6 +101,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     _isInternalUpdate = true;
     try {
       final doc = widget.controller.document;
+      _lastSyncedDocument = doc;
       final currentBlockIds = <String>{};
 
       for (final idx in widget.blockIndices) {
@@ -110,13 +116,14 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
             contextGetter: () => context,
             stylesGetter: () => widget.controller.styles,
           );
-          ctrl.addListener(() => _onTextChanged(block.id, ctrl));
+          ctrl.addListener(() => _onTextChanged(ctrl.block.id, ctrl));
           _controllers[block.id] = ctrl;
           if (widget.controller.selection.base.blockId == block.id) {
             _lastFocusSelection = null;
           }
         } else {
           final ctrl = _controllers[block.id]!;
+          final blockChanged = ctrl.block != block;
           ctrl.block = block;
           if (ctrl.text != block.plainText) {
             final sel = ctrl.selection;
@@ -127,20 +134,14 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                 extentOffset: sel.extentOffset.clamp(0, block.plainText.length),
               ),
             );
-          } else if (rebuildSpans) {
+          } else if (rebuildSpans && blockChanged) {
             ctrl.markNeedsRebuild();
           }
         }
 
-        final externalNode = idx == 0 ? widget.focusNode : null;
+        final externalNode = idx == 0 && !_focusNodes.values.contains(widget.focusNode) ? widget.focusNode : null;
         final existingNode = _focusNodes[block.id];
-        if (existingNode == null ||
-            (externalNode != null && existingNode != externalNode) ||
-            (externalNode == null && !_ownedFocusNodes.contains(existingNode))) {
-          if (existingNode != null) {
-            existingNode.removeListener(_focusListeners.remove(block.id)!);
-            if (_ownedFocusNodes.remove(existingNode)) existingNode.dispose();
-          }
+        if (existingNode == null) {
           final ctrl = _controllers[block.id]!;
           final node = externalNode ?? FocusNode();
           if (externalNode == null) _ownedFocusNodes.add(node);
@@ -176,6 +177,10 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     // The parent rebuild supplies current indices after structural edits.
     // Reading the old indices here can dispose or update the wrong item.
     final doc = widget.controller.document;
+    if (identical(doc, _lastSyncedDocument)) {
+      _checkSelectionFocus();
+      return;
+    }
     final ids = widget.blockIndices
         .where((index) => index < doc.blocks.length && doc.blocks[index] is ChecklistItemBlock)
         .map((index) => doc.blocks[index].id)
@@ -259,18 +264,38 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
   }
 
   void _onTextChanged(String blockId, _ChecklistItemTextController ctrl) {
-    if (_isInternalUpdate || _isReconcilingStructure) return;
+    if (_isInternalUpdate) return;
     final fn = _focusNodes[blockId];
-    if (fn == null || !fn.hasFocus) return;
+    if (fn == null) return;
 
+    // Linux can queue an editing value against the buffer from before a split.
+    // Rebase that value onto the destination rather than inserting the old row again.
+    final prefix = ctrl.consumedNativePrefix;
+    if (prefix != null) {
+      if (ctrl.text.startsWith(prefix) && ctrl.selection.isValid && ctrl.selection.start >= prefix.length) {
+        _isInternalUpdate = true;
+        try {
+          ctrl.value = ctrl.value.copyWith(text: ctrl.text.substring(prefix.length),
+            selection: TextSelection(baseOffset: ctrl.selection.baseOffset - prefix.length,
+              extentOffset: ctrl.selection.extentOffset - prefix.length),
+            composing: TextRange.empty);
+        } finally {
+          _isInternalUpdate = false;
+        }
+      } else {
+        ctrl.consumedNativePrefix = null;
+      }
+    }
     final doc = widget.controller.document;
     final blockIndex = doc.blocks.indexWhere((b) => b.id == blockId);
     if (blockIndex < 0) return;
     final block = doc.blocks[blockIndex];
-    if (block is! ChecklistItemBlock) return;
+    if (!block.isTextBlock) return;
 
     final newText = ctrl.text;
-    if (newText != block.plainText) {
+    final textChanged = newText != block.plainText;
+    if (!fn.hasFocus && !textChanged) return;
+    if (textChanged) {
       _isInternalUpdate = true;
       try {
         final updatedSpans = _spliceSpans(
@@ -279,8 +304,16 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
           newText: newText,
           defaultAttributes: widget.controller.typingAttributes,
         );
+        if (newText.contains('\n') && ctrl.value.composing.isCollapsed) {
+          widget.controller.updateChecklistInput(blockIndex, updatedSpans,
+            caretOffset: ctrl.selection.isValid ? ctrl.selection.extentOffset : newText.length);
+          _moveInputClient(blockId, ctrl, rebaseNativeUpdates: !kIsWeb && defaultTargetPlatform == TargetPlatform.linux);
+          widget.onChanged?.call(widget.controller.toMarkdown());
+          return;
+        }
         widget.controller.updateBlockSpans(blockIndex, updatedSpans);
-        ctrl.block = widget.controller.document.blocks[blockIndex] as ChecklistItemBlock;
+        final updated = widget.controller.document.blocks[blockIndex];
+        if (updated is ChecklistItemBlock) ctrl.block = updated;
         widget.onChanged?.call(widget.controller.toMarkdown());
       } finally {
         _isInternalUpdate = false;
@@ -319,35 +352,113 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     }
   }
 
+  Future<void> _editDate(String blockId) async {
+    if (widget.readOnly) return;
+    final block = widget.controller.document.findBlockById(blockId);
+    if (block is! ChecklistItemBlock) return;
+    if (block.taskData != null && block.taskMetadata == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unsupported task metadata. Repair it in Source mode before changing the date.',
+          ),
+        ),
+      );
+      return;
+    }
+    final picked = await showTaskDatePicker(
+      context,
+      today: TaskDate.local(DateTime.now()),
+      current: block.taskMetadata?.due,
+    );
+    if (picked == null || !mounted) return;
+    final live = widget.controller.document.findBlockById(blockId);
+    if (live is! ChecklistItemBlock || live.taskMetadata != block.taskMetadata) {
+      return;
+    }
+    final blocks = [...widget.controller.document.blocks];
+    final index = widget.controller.document.findBlockIndexById(blockId);
+    blocks[index] = live.copyWith(
+      taskData: TaskMetadata(
+        id: live.taskMetadata?.id ?? const Uuid().v4(),
+        due: picked.value,
+      ).toJson(),
+    );
+    widget.controller.setDocument(
+      widget.controller.document.copyWith(blocks: blocks),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
+  }
+
   void _toggleChecked(int blockIndex) {
     if (widget.readOnly) return;
     widget.controller.toggleChecklistItemChecked(blockIndex);
     widget.onChanged?.call(widget.controller.toMarkdown());
   }
 
-  KeyEventResult _handleEnter(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl) {
-    if (widget.readOnly) return KeyEventResult.ignored;
-    final sel = ctrl.selection;
-    final cursorOffset = sel.isValid ? sel.baseOffset.clamp(0, block.plainText.length) : block.plainText.length;
-
-    // If checklist item is empty: exit checklist -> converts to paragraph
-    if (block.plainText.trim().isEmpty) {
-      widget.controller.handleEnterAt(RichDocumentPosition(
-        blockIndex: blockIndex,
-        blockId: block.id,
-        offset: 0,
-      ));
-      widget.onChanged?.call(widget.controller.toMarkdown());
-      return KeyEventResult.handled;
+  void _moveInputClient(String sourceId, _ChecklistItemTextController ctrl, {bool rebaseNativeUpdates = false}) {
+    final selection = widget.controller.selection;
+    final target = widget.controller.document.blocks[selection.base.blockIndex];
+    if (target.id == sourceId || target is! ChecklistItemBlock) return;
+    // Reparent the mounted TextField along with its controller and FocusNode.
+    // Native key events continue through the same IME client across the split.
+    final displacedController = _controllers.remove(target.id);
+    final displacedNode = _focusNodes.remove(target.id);
+    if (displacedNode != null) displacedNode.removeListener(_focusListeners.remove(target.id)!);
+    final node = _focusNodes.remove(sourceId)!;
+    node.removeListener(_focusListeners.remove(sourceId)!);
+    _controllers.remove(sourceId);
+    _controllers[target.id] = ctrl;
+    _focusNodes[target.id] = node;
+    void onFocus() => _onFocusChanged(target.id, ctrl, node);
+    _focusListeners[target.id] = onFocus;
+    node.addListener(onFocus);
+    final wasInternalUpdate = _isInternalUpdate;
+    _isInternalUpdate = true;
+    try {
+      // Navigation exchanges the inactive target field with the active client,
+      // keeping focus usable even if another key arrives before the next frame.
+      if (displacedController != null && displacedNode != null) {
+        final source = widget.controller.document.blocks.firstWhere((b) => b.id == sourceId) as ChecklistItemBlock;
+        displacedController.block = source;
+        displacedController.value = TextEditingValue(text: source.plainText,
+          selection: TextSelection.collapsed(offset: source.plainText.length));
+        _controllers[sourceId] = displacedController;
+        _focusNodes[sourceId] = displacedNode;
+        void onSourceFocus() => _onFocusChanged(sourceId, displacedController, displacedNode);
+        _focusListeners[sourceId] = onSourceFocus;
+        displacedNode.addListener(onSourceFocus);
+      }
+      if (rebaseNativeUpdates) {
+        final consumedLength = (ctrl.text.length - target.plainText.length).clamp(0, ctrl.text.length);
+        ctrl.consumedNativePrefix = (ctrl.consumedNativePrefix ?? '') + ctrl.text.substring(0, consumedLength);
+      }
+      ctrl.block = target;
+      ctrl.value = TextEditingValue(text: target.plainText,
+        selection: TextSelection.collapsed(offset: selection.base.offset));
+    } finally {
+      _isInternalUpdate = wasInternalUpdate;
     }
+  }
 
-    // Non-empty checklist item: split or create new checklist item below
+  KeyEventResult _handleEnter(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl, {required String sourceId}) {
+    if (widget.readOnly) return KeyEventResult.ignored;
+    if (ctrl.value.composing.isValid && !ctrl.value.composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    // Linux delivers printable keys through the IME after the framework key
+    // response. Handling Enter here can overtake an earlier character update.
+    // Let the ordered IME newline perform the split instead.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+      return KeyEventResult.ignored;
+    }
+    final sel = ctrl.selection;
+    final cursorOffset = sel.isValid ? sel.start.clamp(0, block.plainText.length) : block.plainText.length;
     widget.controller.handleEnterAt(RichDocumentPosition(
-      blockIndex: blockIndex,
-      blockId: block.id,
-      offset: cursorOffset,
-    ));
-
+      blockIndex: blockIndex, blockId: block.id,
+      offset: block.plainText.trim().isEmpty ? 0 : cursorOffset,
+    ), replacementEnd: sel.isValid ? sel.end : cursorOffset);
+    _moveInputClient(sourceId, ctrl);
     widget.onChanged?.call(widget.controller.toMarkdown());
     return KeyEventResult.handled;
   }
@@ -416,6 +527,86 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     return KeyEventResult.handled;
   }
 
+  KeyEventResult _handleDelete(int blockIndex, ChecklistItemBlock block, _ChecklistItemTextController ctrl) {
+    if (widget.readOnly || !ctrl.selection.isValid ||
+        !ctrl.selection.isCollapsed || ctrl.selection.extentOffset != ctrl.text.length) {
+      return KeyEventResult.ignored;
+    }
+    final doc = widget.controller.document;
+    if (blockIndex + 1 >= doc.blocks.length) return KeyEventResult.ignored;
+    final next = doc.blocks[blockIndex + 1];
+    if (next is! ChecklistItemBlock) return KeyEventResult.ignored;
+    if (next.taskMetadata?.due != null) {
+      _confirmDatedJoin(block, next, ctrl.text.length);
+      return KeyEventResult.handled;
+    }
+    final blocks = List<RichBlock>.from(doc.blocks);
+    blocks[blockIndex] = block.copyWith(spans: [...block.spans, ...next.spans].normalized());
+    blocks.removeAt(blockIndex + 1);
+    widget.controller.setDocument(doc.copyWith(blocks: blocks),
+      newSelection: RichDocumentSelection.collapsed(RichDocumentPosition(
+        blockIndex: blockIndex, blockId: block.id, offset: ctrl.text.length,
+      )),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
+    return KeyEventResult.handled;
+  }
+
+  bool _joining = false;
+  Future<void> _confirmDatedJoin(
+    ChecklistItemBlock first,
+    ChecklistItemBlock second,
+    int offset,
+  ) async {
+    if (_joining) return;
+    _joining = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Join tasks?'),
+        content: const Text(
+          'The first task keeps its date. The second task’s date will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+    _joining = false;
+    if (confirmed != true || !mounted) return;
+    final document = widget.controller.document;
+    final index = document.findBlockIndexById(first.id);
+    if (index < 0 ||
+        index + 1 >= document.blocks.length ||
+        document.blocks[index] != first ||
+        document.blocks[index + 1] != second) {
+      return;
+    }
+    final blocks = [...document.blocks];
+    blocks[index] = first.copyWith(
+      spans: [...first.spans, ...second.spans].normalized(),
+    );
+    blocks.removeAt(index + 1);
+    widget.controller.setDocument(
+      document.copyWith(blocks: blocks),
+      newSelection: RichDocumentSelection.collapsed(
+        RichDocumentPosition(
+          blockIndex: index,
+          blockId: first.id,
+          offset: offset,
+        ),
+      ),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
+  }
+
   bool _atVerticalBoundary(int position, {required bool up}) {
     final block = widget.controller.document.blocks[widget.blockIndices[position]];
     final ctrl = _controllers[block.id]!;
@@ -451,8 +642,20 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       final y = targetRender.localToGlobal(boundary.center).dy;
       offset = targetRender.getPositionForPoint(Offset(x, y)).offset.clamp(0, ctrl.text.length);
     }
-    ctrl.selection = TextSelection.collapsed(offset: offset);
-    node.requestFocus();
+    // Publish the destination before the asynchronous focus notification can
+    // reconcile an older row selection over this navigation request.
+    _isInternalUpdate = true;
+    try {
+      ctrl.selection = TextSelection.collapsed(offset: offset);
+      widget.controller.updateSelection(RichDocumentSelection.collapsed(
+        RichDocumentPosition(blockIndex: widget.blockIndices[target], blockId: targetId, offset: offset),
+      ));
+      _moveInputClient(currentId, _controllers[currentId]!);
+    } finally {
+      _isInternalUpdate = false;
+    }
+    setState(() {});
+    widget.onActiveTargetChanged?.call(_controllers[targetId]!, _focusNodes[targetId]!);
     return KeyEventResult.handled;
   }
 
@@ -479,23 +682,30 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
       children.add(
         Padding(
           key: ValueKey(block.id),
-          padding: const EdgeInsets.symmetric(vertical: 2.0),
+          padding: EdgeInsets.only(left: block.indent * 24.0, top: 2, bottom: 2),
           child: Focus(
             onKeyEvent: (node, event) {
-              if (event is KeyDownEvent) {
+              if (event is KeyDownEvent || event is KeyRepeatEvent) {
+                final liveId = ctrl.block.id;
+                final liveIndex = widget.controller.document.blocks.indexWhere((b) => b.id == liveId);
+                if (liveIndex < 0) return KeyEventResult.ignored;
+                final liveBlock = widget.controller.document.blocks[liveIndex];
+                if (liveBlock is! ChecklistItemBlock) return KeyEventResult.ignored;
                 if ((event.logicalKey == LogicalKeyboardKey.enter ||
                     event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-                  return _handleEnter(blockIdx, block, ctrl);
+                  return _handleEnter(liveIndex, liveBlock, ctrl, sourceId: liveId);
+                } else if (event.logicalKey == LogicalKeyboardKey.delete) {
+                  return _handleDelete(liveIndex, liveBlock, ctrl);
                 } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
-                  return _handleBackspace(blockIdx, i, block, ctrl);
+                  return _handleBackspace(liveIndex, widget.blockIndices.indexOf(liveIndex), liveBlock, ctrl);
                 } else if (!HardwareKeyboard.instance.isShiftPressed &&
                     !HardwareKeyboard.instance.isControlPressed &&
                     !HardwareKeyboard.instance.isMetaPressed &&
                     !HardwareKeyboard.instance.isAltPressed) {
                   if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                    return _moveVertically(i, up: true);
+                    return _moveVertically(widget.blockIndices.indexOf(liveIndex), up: true);
                   } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                    return _moveVertically(i, up: false);
+                    return _moveVertically(widget.blockIndices.indexOf(liveIndex), up: false);
                   }
                 }
               }
@@ -549,6 +759,7 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                   // Dedicated Task Text Field
                   Expanded(
                     child: TextField(
+                      key: ctrl.fieldKey,
                       controller: ctrl,
                       focusNode: fn,
                       readOnly: widget.readOnly,
@@ -570,6 +781,17 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                           }
                           return item;
                         }).toList();
+                        if (!widget.readOnly) {
+                          buttonItems.add(
+                            ContextMenuButtonItem(
+                              label: 'Due date',
+                              onPressed: () {
+                                ContextMenuController.removeAny();
+                                _editDate(block.id);
+                              },
+                            ),
+                          );
+                        }
                         return AdaptiveTextSelectionToolbar.buttonItems(
                           anchors: editableTextState.contextMenuAnchors,
                           buttonItems: buttonItems,
@@ -600,6 +822,16 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                       },
                     ),
                   ),
+                  if (!widget.readOnly || block.taskMetadata?.due != null)
+                    IconButton(
+                      onPressed: widget.readOnly
+                          ? null
+                          : () => _editDate(block.id),
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      tooltip: block.taskMetadata?.due == null
+                          ? 'Add due date'
+                          : 'Due ${block.taskMetadata!.due}',
+                    ),
                 ],
               ),
             ),
@@ -692,6 +924,8 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
 /// Custom [TextEditingController] rendering rich inline spans (bold, italic, code, links)
 /// directly inside each checklist item.
 class _ChecklistItemTextController extends TextEditingController {
+  final fieldKey = GlobalKey();
+  String? consumedNativePrefix;
   _ChecklistItemTextController({
     required this.block,
     required this.contextGetter,

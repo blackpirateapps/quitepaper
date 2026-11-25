@@ -4,6 +4,7 @@ import '../attachments/attachment_provider.dart';
 import '../auth/auth_service.dart';
 import '../crypto/crypto_service.dart';
 import '../crypto/key_manager.dart';
+import '../crypto/local_vault_key_migration.dart';
 import '../device/device_info_service.dart';
 import '../documents/document_provider.dart';
 import '../storage/cloud_storage_provider.dart';
@@ -37,7 +38,16 @@ final cryptoServiceProvider = Provider<CryptoService>((ref) {
 
 final keyManagerProvider = Provider<KeyManager>((ref) {
   final crypto = ref.watch(cryptoServiceProvider);
-  final km = SecureKeyManager(cryptoService: crypto);
+  final migration = LocalVaultKeyMigration(
+    database: ref.watch(databaseProvider),
+    attachments: ref.watch(attachmentLocalStorageProvider),
+    documents: ref.watch(documentLocalStorageProvider),
+    crypto: crypto,
+  );
+  final km = SecureKeyManager(
+    cryptoService: crypto,
+    migrateLocalVault: migration.migrate,
+  );
   km.initialize();
   return km;
 });
@@ -68,8 +78,9 @@ final conflictResolverProvider = Provider<ConflictResolver>((ref) {
   );
 });
 
-final pendingConflictsStreamProvider =
-    StreamProvider<List<SyncConflict>>((ref) {
+final pendingConflictsStreamProvider = StreamProvider<List<SyncConflict>>((
+  ref,
+) {
   final repo = ref.watch(conflictRepositoryProvider);
   return repo.watchPendingConflicts();
 });

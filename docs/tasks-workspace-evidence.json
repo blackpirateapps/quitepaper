@@ -1,0 +1,97 @@
+{
+  "date": "2026-11-25",
+  "branch": "feat/tasks-workspace",
+  "release_acceptance": "blocked; see handoff/tasks.md",
+  "toolchains": {
+    "flutter": "3.47.2",
+    "dart": "3.13.2",
+    "host": "Fedora Linux 44 x86_64"
+  },
+  "dataset": {
+    "notes": 120,
+    "tasks_per_note": 50,
+    "tasks": 6000,
+    "formats": [
+      "Markdown",
+      "rich JSON"
+    ],
+    "features": [
+      "Unicode",
+      "formatting",
+      "fenced literals",
+      "completion",
+      "overdue",
+      "today",
+      "upcoming",
+      "undated",
+      "durable metadata",
+      "legacy checkboxes"
+    ]
+  },
+  "performance": {
+    "mode": "release AOT",
+    "write_and_generate_ms": 2094,
+    "repair_ms": 708,
+    "repair_batches": 4,
+    "projection_read_ms": 65,
+    "query": "Task 1 café; tag work subtree",
+    "search_sort_samples": 30,
+    "search_sort_median_us": 8854,
+    "search_sort_p95_us": 12981,
+    "pre_optimization_dated_median_us": 39431,
+    "optimization": "Compare calendar integer fields without allocating ISO strings",
+    "rust_decision": "Keep Dart/SQLite; no task FRB/native API or toolchain change"
+  },
+  "checks": {
+    "analysis": "No issues found",
+    "focused_tasks_and_sharing": {
+      "passed": 47
+    },
+    "tasks_sharing_and_export": {
+      "passed": 51
+    },
+    "sync_crypto_account_attachment_tasks": {
+      "passed": 218
+    },
+    "backend": {
+      "passed": 144,
+      "files": 21
+    },
+    "drift_generation": "passed; no app_database.g.dart diff",
+    "linux_release": "passed",
+    "linux_bundled_rust_smoke": "passed; contract 2",
+    "android_github_debug": "passed",
+    "linux_native_profile": {
+      "passed": true,
+      "device": "real Linux desktop; isolated synthetic in-memory vault"
+    },
+    "android_runtime": "unavailable; no connected emulator or physical device",
+    "full_flutter_suite": {
+      "passed": 3229,
+      "failed": 0,
+      "duration_seconds": 728,
+      "command": "flutter test --no-pub --concurrency=2",
+      "status": "completed before user requested no further full-suite runs"
+    }
+  },
+  "commands": [
+    "flutter analyze",
+    "flutter test --no-pub --concurrency=2",
+    "flutter test --no-pub test/tasks test/share/share_service_test.dart",
+    "flutter test --no-pub test/tasks test/share/share_service_test.dart test/features/export/rich_documents_exporter_test.dart",
+    "dart run build_runner build --delete-conflicting-outputs",
+    "npm ci --ignore-scripts && npm test (backend)",
+    "flutter build apk --debug --flavor github --no-pub",
+    "flutter build linux --release --no-pub",
+    "scripts/smoke_linux_rust_bundle.sh \"$PWD/build/linux/x64/release/bundle\"",
+    "dbus-run-session -- flutter drive --no-pub --driver=test_driver/tasks_driver.dart --target=integration_test/tasks_workspace_test.dart -d linux --profile",
+    "flutter build linux --release --no-pub -t tool/benchmark_tasks.dart && dbus-run-session -- build/linux/x64/release/bundle/quitepaper",
+    "git diff --check"
+  ],
+  "limits": [
+    "Older clients can drop unsupported rich task fields; no compatibility rollout enforcement shipped",
+    "Remaining editor conversion/join/clipboard and exact navigation acceptance in handoff/tasks.md",
+    "No physical Android, accessibility-service or distribution package installation acceptance",
+    "Linux accessibility bus on host reported permission warnings; screen-reader acceptance not claimed"
+  ]
+}

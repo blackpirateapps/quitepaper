@@ -6,6 +6,7 @@ import '../../notes/application/note_security_service.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../notes/data/notes_repository.dart';
 import '../../notes/domain/note_model.dart';
+import '../../tags/application/tag_suggestions.dart';
 import '../domain/editor_editing_style.dart';
 import 'editor_state.dart';
 
@@ -30,19 +31,33 @@ class EditorNotifier extends StateNotifier<EditorState> {
   EditorNotifier({
     required Note initialNote,
     required this.repository,
+    this.retainDuringSave,
+    this.onTagsAdded,
     bool initialPreviewMode = false,
-  })  : _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
-        super(
-          EditorState(
-            note: initialNote,
-            isPreviewMode: initialPreviewMode,
-            isUnlocked: !initialNote.isPasswordProtected,
-            activePasswordHint: NoteSecurityService.getHint(initialNote.content),
-          ),
-        );
+  }) : _savedTags = initialNote.tags.map(TagParser.normalizeTag).toSet(),
+       _debouncer = Debouncer(duration: const Duration(milliseconds: 700)),
+       super(
+         EditorState(
+           note: initialNote,
+           isPreviewMode: initialPreviewMode,
+           isUnlocked: !initialNote.isPasswordProtected,
+           activePasswordHint: NoteSecurityService.getHint(initialNote.content),
+         ),
+       );
 
   final NotesRepository repository;
+  final VoidCallback Function()? retainDuringSave;
+  final ValueChanged<List<String>>? onTagsAdded;
+  Set<String> _savedTags;
   final Debouncer _debouncer;
+  int _saveRevision = 0;
+
+  void acceptImportedNote(Note note) {
+    if (note.id != state.note.id) return;
+    _debouncer.cancel();
+    _savedTags = note.tags.map(TagParser.normalizeTag).toSet();
+    state = state.copyWith(note: note, isDirty: false, isSaving: false);
+  }
 
   void toggleReadOnly() {
     state = state.copyWith(isReadOnly: !state.isReadOnly);
@@ -75,7 +90,9 @@ class EditorNotifier extends StateNotifier<EditorState> {
         encryptedContent: state.note.content,
         password: password,
       );
-      final finalTitle = state.note.title.isNotEmpty ? state.note.title : decrypted.title;
+      final finalTitle = state.note.title.isNotEmpty
+          ? state.note.title
+          : decrypted.title;
       state = state.copyWith(
         note: state.note.copyWith(
           title: finalTitle,
@@ -97,32 +114,32 @@ class EditorNotifier extends StateNotifier<EditorState> {
     required String password,
     String? hint,
   }) async {
+    _saveRevision++;
     state = state.copyWith(
       activePassword: password,
       activePasswordHint: hint,
+      clearActivePasswordHint: hint == null,
       isUnlocked: true,
       isDirty: true,
     );
-    await saveNow();
+    await flushPendingChanges();
   }
 
   Future<void> removePasswordProtection() async {
+    _saveRevision++;
     state = state.copyWith(
       clearActivePassword: true,
       clearActivePasswordHint: true,
       isUnlocked: true,
       isDirty: true,
     );
-    await saveNow();
+    await flushPendingChanges();
   }
 
-  void lockNow() {
+  Future<void> lockNow() async {
     if (state.activePassword != null || state.note.isPasswordProtected) {
-      saveNow();
-      state = state.copyWith(
-        isUnlocked: false,
-        clearActivePassword: true,
-      );
+      await flushPendingChanges();
+      state = state.copyWith(isUnlocked: false, clearActivePassword: true);
     }
   }
 
@@ -133,6 +150,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       title: newTitle,
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     _debouncedSave();
   }
@@ -144,20 +162,27 @@ class EditorNotifier extends StateNotifier<EditorState> {
       content: newContent,
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     _debouncedSave();
   }
 
-  void addTag(String tag) {
-    final normalized = TagParser.normalizeTag(tag);
-    if (!TagParser.isValidTag(normalized)) return;
-    if (state.note.tags.contains(normalized)) return;
+  void addTag(String tag) => addTags([tag]);
 
-    final updatedTags = [...state.note.tags, normalized];
+  /// Apply a picker batch with one revision and one save.
+  void addTags(Iterable<String> tags) {
+    final existing = state.note.tags.map(TagParser.normalizeTag).toSet();
+    final additions = tags
+        .map(TagParser.normalizeTag)
+        .where(TagParser.isValidTag)
+        .toSet()
+        .difference(existing);
+    if (additions.isEmpty) return;
     final updated = state.note.copyWith(
-      tags: updatedTags,
+      tags: [...state.note.tags, ...additions],
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     saveNow();
   }
@@ -166,14 +191,17 @@ class EditorNotifier extends StateNotifier<EditorState> {
     final normalized = TagParser.normalizeTag(tag);
     final updatedTags = state.note.tags.where((t) => t != normalized).toList();
     final newTitle = TagParser.removeTagFromText(state.note.title, normalized);
-    final newContent =
-        TagParser.removeTagFromText(state.note.content, normalized);
+    final newContent = TagParser.removeTagFromText(
+      state.note.content,
+      normalized,
+    );
     final updated = state.note.copyWith(
       title: newTitle,
       content: newContent,
       tags: updatedTags,
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     saveNow();
   }
@@ -188,6 +216,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       tags: normalized,
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     saveNow();
   }
@@ -197,6 +226,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
       isPinned: !state.note.isPinned,
       updatedAt: DateTime.now(),
     );
+    _saveRevision++;
     state = state.copyWith(note: updated, isDirty: true);
     saveNow();
   }
@@ -209,13 +239,43 @@ class EditorNotifier extends StateNotifier<EditorState> {
     _debouncer.run(saveNow);
   }
 
-  Future<void> saveNow() async {
-    if (!mounted) return;
-    if (!state.isDirty) return;
+  Future<void>? _pendingSave;
+
+  Future<void> saveNow() {
+    if (_pendingSave != null) return _pendingSave!;
+    final release = retainDuringSave?.call();
+    return _pendingSave = _drainSaves().whenComplete(() {
+      _pendingSave = null;
+      release?.call();
+    });
+  }
+
+  /// Await local persistence, including edits made while an earlier save ran.
+  /// Existing autosave presents failures through dirty state; snapshots must
+  /// fail explicitly rather than read a stale persisted body.
+  Future<void> flushForTemplate() => flushPendingChanges();
+
+  Future<void> flushPendingChanges() async {
+    _debouncer.cancel();
+    await saveNow();
+    if (mounted && state.isDirty) await saveNow();
+    if (!mounted || state.isDirty || state.isSaving) {
+      throw StateError('The latest note changes could not be saved.');
+    }
+  }
+
+  Future<void> _drainSaves() async {
+    while (mounted && state.isDirty) {
+      if (!await _saveNow()) break;
+    }
+  }
+
+  Future<bool> _saveNow() async {
+    if (!mounted || !state.isDirty) return false;
 
     // If note is currently locked, do not overwrite ciphertext with empty/unlocked buffer
     if (!state.isUnlocked && state.note.isPasswordProtected) {
-      return;
+      return false;
     }
 
     // If completely empty and not password protected, skip save
@@ -223,7 +283,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
         state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
-      return;
+      return false;
     }
 
     // If title is empty, derive title from content
@@ -233,25 +293,32 @@ class EditorNotifier extends StateNotifier<EditorState> {
     }
 
     // Extract tags during debounced save and merge with explicit tags
-    final textForTags = state.note.isRichText ? state.note.plainText : state.note.content;
-    final extractedTags =
-        TagParser.extractTags('$titleToSave\n$textForTags', requireTerminator: true);
+    final textForTags = state.note.isRichText
+        ? state.note.plainText
+        : state.note.content;
+    final extractedTags = TagParser.extractTags(
+      '$titleToSave\n$textForTags',
+      requireTerminator: true,
+    );
     final combinedTags = {...state.note.tags, ...extractedTags}.toList();
     final noteToSave = state.note.copyWith(
       title: titleToSave,
       tags: combinedTags,
     );
 
+    final revision = _saveRevision;
+    final password = state.activePassword;
+    final hint = state.activePasswordHint;
     state = state.copyWith(note: noteToSave, isSaving: true);
 
     try {
-      if (state.activePassword != null) {
+      if (password != null) {
         final encryptedPayload = await NoteSecurityService.encryptNote(
           title: titleToSave,
-          content: state.note.content,
+          content: noteToSave.content,
           tags: combinedTags,
-          password: state.activePassword!,
-          hint: state.activePasswordHint,
+          password: password,
+          hint: hint,
         );
 
         final encryptedNoteInDb = noteToSave.copyWith(
@@ -263,30 +330,38 @@ class EditorNotifier extends StateNotifier<EditorState> {
         await repository.saveNote(noteToSave, preserveEmptyTags: true);
       }
 
+      final savedTags = combinedTags.map(TagParser.normalizeTag).toSet();
+      final added = savedTags.difference(_savedTags).toList();
+      _savedTags = savedTags;
+      if (added.isNotEmpty) onTagsAdded?.call(added);
+
       if (mounted) {
         state = state.copyWith(
-          isDirty: false,
+          isDirty: _saveRevision != revision,
           isSaving: false,
           lastSavedAt: DateTime.now(),
         );
       }
+      return true;
     } catch (_) {
       if (mounted) {
         state = state.copyWith(isSaving: false);
       }
+      return false;
     }
   }
 
   /// Cleans up note if empty upon exit
   Future<void> handleExitCleanup() async {
     _debouncer.cancel();
+    await saveNow();
     if (state.activePassword == null &&
         state.note.title.trim().isEmpty &&
         state.note.content.trim().isEmpty &&
         state.note.tags.isEmpty) {
       await repository.deletePermanently(state.note.id);
     } else {
-      await saveNow();
+      await flushPendingChanges();
     }
   }
 
@@ -341,10 +416,7 @@ class EditorNotifier extends StateNotifier<EditorState> {
     await repository.restoreFromTrash(state.note.id);
     if (mounted) {
       state = state.copyWith(
-        note: state.note.copyWith(
-          isTrashed: false,
-          deletedAt: null,
-        ),
+        note: state.note.copyWith(isTrashed: false, deletedAt: null),
       );
     }
   }
@@ -361,14 +433,19 @@ class EditorNotifier extends StateNotifier<EditorState> {
   }
 }
 
-final editorProviderFamily =
-    StateNotifierProvider.autoDispose.family<EditorNotifier, EditorState, EditorParams>(
-  (ref, params) {
-    final repository = ref.watch(notesRepositoryProvider);
-    return EditorNotifier(
-      initialNote: params.note,
-      repository: repository,
-      initialPreviewMode: params.initialPreviewMode,
-    );
-  },
-);
+final editorProviderFamily = StateNotifierProvider.autoDispose
+    .family<EditorNotifier, EditorState, EditorParams>((ref, params) {
+      final repository = ref.watch(notesRepositoryProvider);
+      return EditorNotifier(
+        initialNote: params.note,
+        repository: repository,
+        onTagsAdded: (tags) {
+          ref.read(recentTagNamesProvider.notifier).record(tags);
+        },
+        retainDuringSave: () {
+          final link = ref.keepAlive();
+          return link.close;
+        },
+        initialPreviewMode: params.initialPreviewMode,
+      );
+    });

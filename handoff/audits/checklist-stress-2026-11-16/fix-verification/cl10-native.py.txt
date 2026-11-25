@@ -1,0 +1,11 @@
+from qp_checklist_helpers3 import *
+prepare()
+reset('visual','- [ ] Alpha\n- [ ] Neighbor')
+field(text='Alpha');key('End')
+api('/clipboard',{'text':'\n- [ ] Beta\n- [x] Gamma'})
+key('v','CTRL');time.sleep(4)
+s=evaluate('CL-10 native paste persisted','Alpha/Beta/checked Gamma/Neighbor at caret',lambda s:texts(s)==['Alpha','Beta','Gamma','Neighbor'] and blocks(s)[2]['isChecked'])
+assert texts(s)==['Alpha','Beta','Gamma','Neighbor'] and blocks(s)[2]['isChecked']
+reset('visual',s['savedContent']);time.sleep(.8)
+s=evaluate('CL-10 native paste reopened','Exact pasted task structure survives reopen',lambda s:texts(s)==['Alpha','Beta','Gamma','Neighbor'] and blocks(s)[2]['isChecked'])
+assert texts(s)==['Alpha','Beta','Gamma','Neighbor'] and blocks(s)[2]['isChecked']

@@ -7,6 +7,8 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/documents/document_provider.dart';
+import '../../../core/attachments/attachment_provider.dart';
+import '../../../core/web_clipper/web_snapshot_assets.dart';
 import '../../../core/utils/link_launcher_helper.dart';
 import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
@@ -82,7 +84,11 @@ class _WebSnapshotViewerScreenState
       }
 
       final htmlBytes = resolution.data!.pdfBytes;
-      final html = utf8.decode(htmlBytes, allowMalformed: true);
+      final attachments = ref.read(attachmentServiceProvider);
+      final html = await hydrateSnapshotImages(
+        utf8.decode(htmlBytes, allowMalformed: true),
+        (id) async => (await attachments.resolveAsset(id)).data,
+      );
 
       if (mounted) {
         _htmlContent = html;
@@ -148,7 +154,9 @@ class _WebSnapshotViewerScreenState
             ),
             if (widget.sourceUrl != null && widget.sourceUrl!.isNotEmpty)
               Text(
-                Uri.tryParse(widget.sourceUrl!)?.host.replaceFirst('www.', '') ??
+                Uri.tryParse(
+                      widget.sourceUrl!,
+                    )?.host.replaceFirst('www.', '') ??
                     widget.sourceUrl!,
                 style: AppTypography.caption.copyWith(
                   color: colors.textTertiary,
@@ -163,10 +171,8 @@ class _WebSnapshotViewerScreenState
             QuietIconButton(
               icon: Icons.open_in_browser_rounded,
               tooltip: 'Open live URL in browser',
-              onPressed: () => LinkLauncherHelper.handleLinkTap(
-                context,
-                widget.sourceUrl!,
-              ),
+              onPressed: () =>
+                  LinkLauncherHelper.handleLinkTap(context, widget.sourceUrl!),
             ),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -181,10 +187,7 @@ class _WebSnapshotViewerScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: colors.accent,
-            ),
+            CircularProgressIndicator(strokeWidth: 2.5, color: colors.accent),
             const SizedBox(height: AppSpacing.md),
             Text(
               'Decrypting web snapshot…',
@@ -202,20 +205,19 @@ class _WebSnapshotViewerScreenState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded,
-                  size: 40, color: colors.textTertiary),
+              Icon(
+                Icons.error_outline_rounded,
+                size: 40,
+                color: colors.textTertiary,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _errorMessage!,
-                style:
-                    AppTypography.body.copyWith(color: colors.textSecondary),
+                style: AppTypography.body.copyWith(color: colors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.lg),
-              QuietButton(
-                label: 'Retry',
-                onPressed: _loadSnapshot,
-              ),
+              QuietButton(label: 'Retry', onPressed: _loadSnapshot),
             ],
           ),
         ),

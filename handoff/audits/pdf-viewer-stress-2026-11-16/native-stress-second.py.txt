@@ -1,0 +1,47 @@
+from qp_pdf_driver import *
+REPORT=pathlib.Path('handoff/audits/pdf-viewer-stress-2026-11-16/README.md')
+def finding(title,body):
+    if ('## '+title) not in REPORT.read_text():
+        with REPORT.open('a') as f:f.write('\n\n## '+title+'\n\n'+body+'\n')
+    print('FINDING',title,flush=True)
+def count(s):return len(s['viewer']['annotations']) if s['viewer'] else None
+
+prepare()
+open_pdf('mixed');record('Fresh mixed orientation PDF')
+print('NATIVE_RASTER_STRESS',json.dumps(api('/thumbnails',{'count':36})),flush=True)
+open_pdf('mixed');api('/add',{'count':100});time.sleep(.5)
+s=record('100 live annotations');assert count(s)==100
+label('Annotation Tools','tooltip');label('Highlight Text','text')
+for i in range(10):label('Undo','tooltip')
+s=record('Native undo ten of 100 annotations');assert count(s)==90
+for i in range(10):label('Redo','tooltip')
+s=record('Native redo ten restores 100 annotations');assert count(s)==100
+label('Done','text');label('Save Annotations','tooltip');time.sleep(2)
+s=record('100 annotation save');label('Back','tooltip');time.sleep(.6);open_pdf('mixed');s=record('100 annotations encrypted save and reopen');assert count(s)==100
+screenshot('native-100-annotations.png')
+menu('Revert to Original Document');label('Revert','text');time.sleep(1.5);s=record('Native revert 100 annotations to clean original');assert count(s)==0
+label('Back','tooltip');open_pdf('mixed');s=record('Reopen after revert preserves clean original');assert count(s)==0
+
+
+for i in range(4):
+    open_pdf('small' if i%2==0 else 'mixed');label('Back','tooltip')
+record('Four native repeated open and close cycles')
+open_pdf('small')
+for i in range(6):label('Zoom in','tooltip')
+s=record('Native zoom clamp at 500 percent');assert s['viewer']['zoom']==5
+for i in range(6):label('Zoom out','tooltip')
+s=record('Native zoom clamp at 100 percent');assert s['viewer']['zoom']==1
+for i in range(3):
+    label('Hide thumbnails','tooltip');label('Show thumbnails','tooltip')
+record('Six native thumbnail sidebar toggles')
+search('notpresentaudit');record('Absent query in small PDF');label('Close search','tooltip')
+open_pdf('large');label('Hide thumbnails','tooltip');record('250 page PDF sidebar closed control')
+for page in [125,200,50,249,1]:
+    watch=time.monotonic();api('/jump',{'page':page});time.sleep(.4);s=record('250 page no-sidebar jump '+str(page))
+    print('NO_SIDEBAR_JUMP_SECONDS',page,round(time.monotonic()-watch,3),flush=True)
+search('needle');s=record('250 page search finds needle on every page');assert any(x.get('text')=='1 of 250' for x in s['labels'])
+for i in range(8):label('Next match','tooltip')
+record('250 page search eight native next-match clicks');label('Close search','tooltip')
+for i in range(2):menu('Switch to Single Page View');menu('Switch to Continuous Scroll')
+record('Four native layout switches on 250 page PDF with sidebar closed')
+screenshot('native-stress-final.png')

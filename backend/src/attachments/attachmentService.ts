@@ -22,9 +22,9 @@ export async function authorizeAttachmentUpload(
   if (!parseRes.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid upload auth request: ${parseRes.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid upload auth request: ${parseRes.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parseRes.error.errors
+      parseRes.error.issues
     );
   }
 
@@ -65,9 +65,9 @@ export async function confirmAttachmentUpload(
   if (!parseRes.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid confirmation payload: ${parseRes.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid confirmation payload: ${parseRes.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parseRes.error.errors
+      parseRes.error.issues
     );
   }
 

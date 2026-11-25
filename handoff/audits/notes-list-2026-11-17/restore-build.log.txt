@@ -1,0 +1,6 @@
+$ flutter build linux --profile --no-pub -t lib/main.dart
+Building Linux application...
+✓ Built build/linux/x64/profile/bundle/quitepaper
+Verified: bundle/lib/libapp.so equals the normal lib/main.dart AOT artifact.
+Verified: NOTES_AUDIT_COMPLETE sentinel is absent from the restored bundle.
+SHA-256: bef4e6c7b5eeb4ed611519965bd0978940587053f5f1d3956edb283d0f5c9404

@@ -1,3 +1,4 @@
+import '../../../tasks/presentation/task_text_field_actions.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +36,7 @@ class MarkdownEditor extends StatefulWidget {
   const MarkdownEditor({
     super.key,
     required this.controller,
+    this.allowRemoteLinkPreviews = true,
     required this.focusNode,
     this.editingStyle = EditorEditingStyle.markdown,
     this.stripFrontmatter = false,
@@ -56,6 +58,7 @@ class MarkdownEditor extends StatefulWidget {
   });
 
   final MarkdownEditingController controller;
+  final bool allowRemoteLinkPreviews;
   final FocusNode focusNode;
   final EditorEditingStyle editingStyle;
   final bool stripFrontmatter;
@@ -84,10 +87,10 @@ class MarkdownEditor extends StatefulWidget {
   final String? noteId;
 
   @override
-  State<MarkdownEditor> createState() => _MarkdownEditorState();
+  State<MarkdownEditor> createState() => MarkdownEditorState();
 }
 
-class _MarkdownEditorState extends State<MarkdownEditor> {
+class MarkdownEditorState extends State<MarkdownEditor> {
   static const _tableParser = MarkdownTableParser();
 
   MarkdownTable? _activeTable;
@@ -148,6 +151,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     if (_isSyncing) return;
     _autosaveDebouncer.run(_flushRichContent);
   }
+
+  /// Publish pending visual edits through the same canonical autosave path.
+  void flushPendingChanges() => _flushRichContent();
 
   void _flushRichContent() {
     _autosaveDebouncer.cancel();
@@ -496,7 +502,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   Widget build(BuildContext context) {
     if (widget.editingStyle == EditorEditingStyle.superEditor) {
       return QuietSuperEditor(
-        controller: widget.superController,
+          allowRemoteLinkPreviews: widget.allowRemoteLinkPreviews,        controller: widget.superController,
         initialMarkdown: widget.controller.text,
         focusNode: widget.focusNode,
         readOnly: widget.readOnly,
@@ -774,6 +780,17 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       }
       return item;
     }).toList();
+    if (!widget.readOnly && taskAtCaret(widget.controller) != null) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: 'Due date',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            editTaskDateAtCaret(context, widget.controller, widget.onChanged);
+          },
+        ),
+      );
+    }
     final isSelectionActive = !editableTextState.textEditingValue.selection.isCollapsed;
     final val = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(val);
@@ -1127,6 +1144,17 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       }
       return item;
     }).toList();
+    if (!widget.readOnly && taskAtCaret(_sourceController) != null) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: 'Due date',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            editTaskDateAtCaret(context, _sourceController, widget.onChanged);
+          },
+        ),
+      );
+    }
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: buttonItems,

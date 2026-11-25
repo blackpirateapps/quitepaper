@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'note_entity_mapper.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/crypto/key_manager.dart';
 import '../../../core/database/app_database.dart';
@@ -100,6 +101,7 @@ abstract class NotesRepository {
   });
   Stream<List<Note>> watchNotesForDates(List<String> dateStrings);
   Future<int?> getEarliestJournalYear();
+  Stream<int?> watchEarliestJournalYear();
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
   Future<List<String>> validateJournalIntegrity();
 }
@@ -117,24 +119,8 @@ class DriftNotesRepository implements NotesRepository {
     return _queryExecutor.execute(query);
   }
 
-  Note _mapToDomain(NoteWithTags entity) {
-    return Note(
-      id: entity.note.id,
-      title: entity.note.title,
-      content: entity.note.content,
-      createdAt: entity.note.createdAt,
-      updatedAt: entity.note.updatedAt,
-      isPinned: entity.note.isPinned,
-      isArchived: entity.note.isArchived,
-      isTrashed: entity.note.isTrashed,
-      deletedAt: entity.note.deletedAt,
-      tags: entity.tagNames,
-      pinnedTags: decodePinnedTagsJson(entity.note.pinnedTags),
-      journalDate: entity.note.journalDate,
-      shareId: entity.note.shareId,
-      shareUrl: entity.note.shareUrl,
-    );
-  }
+  Note _mapToDomain(NoteWithTags entity) =>
+      mapNoteEntity(entity.note, tags: entity.tagNames);
 
   @override
   Stream<List<Note>> watchNotes({
@@ -261,6 +247,7 @@ class DriftNotesRepository implements NotesRepository {
       isTrashed: note.isTrashed,
       deletedAt: note.deletedAt,
       tags: note.tags,
+      importSources: note.importSources,
       journalDate: note.journalDate,
       preserveEmptyTags: preserveEmptyTags,
     );
@@ -639,6 +626,9 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
+  Stream<int?> watchEarliestJournalYear() => _db.watchEarliestJournalYear();
+
+  @override
   Future<Note> getOrCreateJournalEntry(DateTime localDate) async {
     final dateStr = JournalDateHelper.toDateString(localDate);
     final existing = await _db.getJournalEntry(dateStr);
@@ -672,16 +662,10 @@ class DriftNotesRepository implements NotesRepository {
       // Catch concurrent creation race and query existing record
       final raced = await _db.getJournalEntry(dateStr);
       if (raced != null) return _mapToDomain(raced);
+      rethrow;
     }
 
-    return Note(
-      id: newId,
-      title: defaultTitle,
-      content: initialContent,
-      createdAt: now,
-      updatedAt: now,
-      journalDate: dateStr,
-    );
+    throw StateError('Journal entry for $dateStr was not persisted.');
   }
 
   @override

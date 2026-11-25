@@ -1,5 +1,5 @@
 import { Client } from '@libsql/client';
-import admin from 'firebase-admin';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import { initFirebaseAdmin } from './firebase.js';
 
 export interface EmailSyncResult {
@@ -37,10 +37,10 @@ export async function backfillMissingUserEmails(
   let skippedCount = 0;
 
   // 1. Initialize Firebase Admin
-  let auth: admin.auth.Auth | null = null;
+  let auth: Auth | null = null;
   try {
     initFirebaseAdmin();
-    auth = admin.auth();
+    auth = getAuth();
   } catch (e: any) {
     if (process.env.NODE_ENV !== 'test') {
       throw new Error(`Failed to initialize Firebase Admin SDK for email backfill: ${e.message}`);

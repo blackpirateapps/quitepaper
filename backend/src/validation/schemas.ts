@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Preserve the v3 UUID shape contract, including legacy IDs without RFC variant bits.
+// Zod 4's uuid() additionally enforces those bits; guid() validates the same shape.
+
 export const kdfParametersSchema = z.object({
   memory: z.number().int().min(1024).max(1024 * 1024).default(19 * 1024),
   iterations: z.number().int().min(1).max(50).default(2),
@@ -23,7 +26,7 @@ export const wrappedKeySchema = z.object({
 });
 
 export const noteChangeSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   createdAt: z.string().datetime({ offset: true }).or(z.string()),
   updatedAt: z.string().datetime({ offset: true }).or(z.string()),
   archived: z.boolean().default(false),
@@ -44,7 +47,7 @@ export const noteChangeSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.too_small,
         minimum: 1,
-        type: 'string',
+        origin: 'string',
         inclusive: true,
         message: 'String must contain at least 1 character(s)',
         path: ['contentCiphertext'],
@@ -54,7 +57,7 @@ export const noteChangeSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.too_small,
         minimum: 12,
-        type: 'string',
+        origin: 'string',
         inclusive: true,
         message: 'String must contain at least 12 character(s)',
         path: ['contentNonce'],
@@ -79,7 +82,7 @@ export const pullSyncSchema = z.object({
 });
 
 export const fetchMissingNotesSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(200),
+  ids: z.array(z.guid()).min(1).max(200),
 });
 
 export const syncReferencesSchema = z.object({
@@ -87,8 +90,8 @@ export const syncReferencesSchema = z.object({
   references: z.array(
     z.object({
       resourceType: z.enum(['attachment', 'document']),
-      resourceId: z.string().uuid(),
-      noteId: z.string().uuid(),
+      resourceId: z.guid(),
+      noteId: z.guid(),
     })
   ).max(500),
 });
@@ -102,8 +105,8 @@ export const gcOptionsSchema = z.object({
 });
 
 export const uploadAuthRequestSchema = z.object({
-  attachmentId: z.string().uuid(),
-  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  attachmentId: z.guid(),
+  noteId: z.guid().optional().nullable().or(z.literal('')),
   mimeType: z.string().max(100).default('image/png'),
   byteSize: z.number().int().min(0).default(0),
   sha256: z.string().max(128).default(''),
@@ -111,8 +114,8 @@ export const uploadAuthRequestSchema = z.object({
 });
 
 export const confirmAttachmentSchema = z.object({
-  attachmentId: z.string().uuid(),
-  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  attachmentId: z.guid(),
+  noteId: z.guid().optional().nullable().or(z.literal('')),
   cloudPublicId: z.string().min(1).max(256),
   cloudUrl: z.string().url().max(1024),
   mimeType: z.string().max(100).optional(),
@@ -125,8 +128,8 @@ export const confirmAttachmentSchema = z.object({
 });
 
 export const uploadDocumentAuthRequestSchema = z.object({
-  documentId: z.string().uuid(),
-  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  documentId: z.guid(),
+  noteId: z.guid().optional().nullable().or(z.literal('')),
   title: z.string().max(256).default('Scanned Document'),
   source: z.enum(['scanner', 'imported_pdf', 'web_snapshot']).default('scanner'),
   mimeType: z.string().max(100).default('application/pdf'),
@@ -137,8 +140,8 @@ export const uploadDocumentAuthRequestSchema = z.object({
 });
 
 export const confirmDocumentSchema = z.object({
-  documentId: z.string().uuid(),
-  noteId: z.string().uuid().optional().nullable().or(z.literal('')),
+  documentId: z.guid(),
+  noteId: z.guid().optional().nullable().or(z.literal('')),
   cloudPublicId: z.string().min(1).max(256),
   cloudUrl: z.string().url().max(1024),
   title: z.string().max(256).optional(),
@@ -152,8 +155,8 @@ export const confirmDocumentSchema = z.object({
 });
 
 export const noteVersionSchema = z.object({
-  id: z.string().uuid(),
-  noteId: z.string().uuid(),
+  id: z.guid(),
+  noteId: z.guid(),
   versionNumber: z.number().int().min(1),
   contentCiphertext: z.string().max(10 * 1024 * 1024),
   contentNonce: z.string().min(12).max(256),
@@ -174,7 +177,7 @@ export const pullVersionsSchema = z.object({
 });
 
 export const tagSyncPayloadSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   contentCiphertext: z.string().max(2 * 1024 * 1024),
   contentNonce: z.string().min(12).max(256),
   contentVersion: z.number().int().min(1).default(1),
@@ -337,7 +340,7 @@ export const shareAttachmentSchema = z.object({
 });
 
 export const createShareSchema = z.object({
-  noteId: z.string().uuid(),
+  noteId: z.guid(),
   title: z.string().max(512).default(''),
   contentMarkdown: z.string().max(2 * 1024 * 1024).default(''),
   visibility: shareVisibilitySchema.default('public'),

@@ -30,7 +30,7 @@ void main() {
         databaseProvider.overrideWithValue(db),
         notesRepositoryProvider.overrideWithValue(repository),
         historicalWeekNotesStreamProvider.overrideWith((ref) => Stream.value([])),
-        earliestJournalYearFutureProvider.overrideWith((ref) => Future.value(null)),
+        earliestJournalYearStreamProvider.overrideWith((ref) => Stream.value(null)),
         ...overrides,
       ],
       child: MaterialApp(
@@ -269,7 +269,7 @@ void main() {
       await tester.pumpWidget(createTestWidget(
         overrides: [
           historicalReferenceDateProvider.overrideWithValue(refDate),
-          earliestJournalYearFutureProvider.overrideWith((ref) => Future.value(2018)), // 2018 < 2021 (older years exist)
+          earliestJournalYearStreamProvider.overrideWith((ref) => Stream.value(2018)), // 2018 < 2021 (older years exist)
           onThisDayEntriesStreamProvider.overrideWith((ref) => Stream.value([])),
           historicalWeekNotesStreamProvider.overrideWith((ref) => Stream.value(testHistoricalNotes)),
         ],

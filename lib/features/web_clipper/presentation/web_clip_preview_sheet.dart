@@ -20,20 +20,26 @@ class WebClipPreviewSheet extends ConsumerStatefulWidget {
   const WebClipPreviewSheet({
     super.key,
     required this.scanResult,
+    this.openEditorOnSave = true,
   });
 
   final WebClipScanResult scanResult;
+  final bool openEditorOnSave;
 
   static Future<Note?> show(
     BuildContext context, {
     required WebClipScanResult scanResult,
+    bool openEditorOnSave = true,
   }) {
     return QuietAdaptiveModal.show<Note?>(
       context: context,
       type: AdaptiveModalType.dialog,
       showCloseButton: false,
       maxWidth: 680,
-      builder: (_) => WebClipPreviewSheet(scanResult: scanResult),
+      builder: (_) => WebClipPreviewSheet(
+        scanResult: scanResult,
+        openEditorOnSave: openEditorOnSave,
+      ),
     );
   }
 
@@ -54,8 +60,9 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
   @override
   void initState() {
     super.initState();
-    _titleController =
-        TextEditingController(text: widget.scanResult.metadata.title);
+    _titleController = TextEditingController(
+      text: widget.scanResult.metadata.title,
+    );
     _saveHtmlSnapshot = true;
     _downloadImages = widget.scanResult.images.isNotEmpty;
     _tags = <String>[
@@ -111,7 +118,9 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
       );
 
       if (mounted) {
-        Navigator.of(context).pop(result.note); // Close sheet and return created note
+        Navigator.of(
+          context,
+        ).pop(result.note); // Close sheet and return created note
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -121,12 +130,11 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
           ),
         );
 
-        // Open note in editor
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => EditorScreen(note: result.note),
-          ),
-        );
+        if (widget.openEditorOnSave) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => EditorScreen(note: result.note)),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -179,408 +187,435 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
             // Top drag handle & Navigation Header
             if (!isDesktop) const AdaptiveSheetDragHandle(),
             Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: _isClipping
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: AppTypography.body.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Clip Webpage',
+                  style: AppTypography.headline.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 17,
+                  ),
+                ),
+                QuietButton(
+                  label: 'Clip',
+                  variant: QuietButtonVariant.primary,
+                  isLoading: _isClipping,
+                  onPressed: _isClipping ? null : _commitClip,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Live Progress Indicator (if clipping)
+            if (_isClipping && _currentProgress != null) ...[
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: colors.accent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
                   children: [
-                    TextButton(
-                      onPressed: _isClipping
-                          ? null
-                          : () => Navigator.of(context).pop(),
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.accent,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
                       child: Text(
-                        'Cancel',
+                        _currentProgress!.displayMessage,
                         style: AppTypography.body.copyWith(
-                          color: colors.textSecondary,
+                          color: colors.textPrimary,
+                          fontSize: 14,
                         ),
                       ),
-                    ),
-                    Text(
-                      'Clip Webpage',
-                      style: AppTypography.headline.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 17,
-                      ),
-                    ),
-                    QuietButton(
-                      label: 'Clip',
-                      variant: QuietButtonVariant.primary,
-                      isLoading: _isClipping,
-                      onPressed: _isClipping ? null : _commitClip,
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
+              ),
+            ],
 
-                // Live Progress Indicator (if clipping)
-                if (_isClipping && _currentProgress != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: colors.accent.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.accent,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: Text(
-                            _currentProgress!.displayMessage,
-                            style: AppTypography.body.copyWith(
-                              color: colors.textPrimary,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Section 1: Article Preview
-                _buildSectionHeader('ARTICLE PREVIEW', colors),
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: colors.divider),
-                  ),
-                  child: Column(
+            // Section 1: Article Preview
+            _buildSectionHeader('ARTICLE PREVIEW', colors),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: colors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (meta.leadImageUrl != null &&
-                              meta.leadImageUrl!.isNotEmpty) ...[
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                meta.leadImageUrl!,
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
+                      if (meta.leadImageUrl != null &&
+                          meta.leadImageUrl!.isNotEmpty) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            meta.leadImageUrl!,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
                                   width: 56,
                                   height: 56,
                                   color: colors.background,
-                                  child: Icon(Icons.language_rounded,
-                                      color: colors.textTertiary, size: 24),
+                                  child: Icon(
+                                    Icons.language_rounded,
+                                    color: colors.textTertiary,
+                                    size: 24,
+                                  ),
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                      ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _titleController,
+                              style: AppTypography.body.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                border: InputBorder.none,
+                                hintText: 'Article Title',
+                                hintStyle: TextStyle(
+                                  color: colors.textTertiary,
                                 ),
                               ),
+                              maxLines: 2,
                             ),
-                            const SizedBox(width: AppSpacing.md),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${meta.domain}${meta.author != null ? ' • By ${meta.author}' : ''}',
+                              style: AppTypography.caption.copyWith(
+                                color: colors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextField(
-                                  controller: _titleController,
-                                  style: AppTypography.body.copyWith(
-                                    color: colors.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                  ),
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    border: InputBorder.none,
-                                    hintText: 'Article Title',
-                                    hintStyle: TextStyle(color: colors.textTertiary),
-                                  ),
-                                  maxLines: 2,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${meta.domain}${meta.author != null ? ' • By ${meta.author}' : ''}',
-                                  style: AppTypography.caption.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (meta.description != null &&
-                          meta.description!.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          meta.description!,
-                          style: AppTypography.caption.copyWith(
-                            color: colors.textTertiary,
-                            height: 1.4,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
+                  if (meta.description != null &&
+                      meta.description!.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      meta.description!,
+                      style: AppTypography.caption.copyWith(
+                        color: colors.textTertiary,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
 
-                // Section 2: Storage & Ingestion Options (iOS Grouped Table)
-                _buildSectionHeader('STORAGE & INGESTION OPTIONS', colors),
-                Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: colors.divider),
+            // Section 2: Storage & Ingestion Options (iOS Grouped Table)
+            _buildSectionHeader('STORAGE & INGESTION OPTIONS', colors),
+            Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: colors.divider),
+              ),
+              child: Column(
+                children: [
+                  // Row 1: Core Markdown Body
+                  _buildOptionRow(
+                    icon: Icons.text_snippet_outlined,
+                    title: 'Markdown Note (Core Body)',
+                    subtitle: 'Distraction-free, editable note',
+                    sizeStr: _formatBytes(
+                      widget.scanResult.markdownSizeEstimate,
+                    ),
+                    trailing: Icon(
+                      Icons.check_rounded,
+                      size: 20,
+                      color: colors.accent,
+                    ),
+                    colors: colors,
                   ),
-                  child: Column(
-                    children: [
-                      // Row 1: Core Markdown Body
-                      _buildOptionRow(
-                        icon: Icons.text_snippet_outlined,
-                        title: 'Markdown Note (Core Body)',
-                        subtitle: 'Distraction-free, editable note',
-                        sizeStr: _formatBytes(
-                            widget.scanResult.markdownSizeEstimate),
-                        trailing: Icon(Icons.check_rounded,
-                            size: 20, color: colors.accent),
-                        colors: colors,
-                      ),
-                      _buildDivider(colors),
+                  _buildDivider(colors),
 
-                      // Row 2: Web Snapshot Toggle
-                      _buildOptionRow(
-                        icon: Icons.web_rounded,
-                        title: 'Save Web Snapshot',
-                        subtitle: 'Captures exact HTML layout & styles',
-                        sizeStr: _formatBytes(
-                            widget.scanResult.htmlSnapshotSizeEstimate),
-                        trailing: CupertinoSwitch(
-                          value: _saveHtmlSnapshot,
-                          activeTrackColor: colors.accent,
-                          onChanged: _isClipping
-                              ? null
-                              : (val) {
-                                  setState(() => _saveHtmlSnapshot = val);
-                                },
-                        ),
-                        colors: colors,
-                      ),
-
-                      // Row 3: Images Download Toggle (if images exist)
-                      if (widget.scanResult.images.isNotEmpty) ...[
-                        _buildDivider(colors),
-                        _buildOptionRow(
-                          icon: Icons.image_outlined,
-                          title: 'Download Images Locally',
-                          subtitle:
-                              'Save ${widget.scanResult.images.length} encrypted images & enable OCR',
-                          sizeStr: _formatBytes(
-                              widget.scanResult.totalImagesSizeEstimate),
-                          trailing: CupertinoSwitch(
-                            value: _downloadImages,
-                            activeTrackColor: colors.accent,
-                            onChanged: _isClipping
-                                ? null
-                                : (val) {
-                                    setState(() => _downloadImages = val);
-                                  },
-                          ),
-                          colors: colors,
-                        ),
-                        // Expandable Tray for Individual Images
-                        if (_downloadImages) ...[
-                          InkWell(
-                            onTap: () {
-                              setState(() {
-                                _isImagesExpanded = !_isImagesExpanded;
-                              });
+                  // Row 2: Web Snapshot Toggle
+                  _buildOptionRow(
+                    icon: Icons.web_rounded,
+                    title: 'Save Web Snapshot',
+                    subtitle: 'Captures exact HTML layout & styles',
+                    sizeStr: _formatBytes(
+                      widget.scanResult.htmlSnapshotSizeEstimate,
+                    ),
+                    trailing: CupertinoSwitch(
+                      value: _saveHtmlSnapshot,
+                      activeTrackColor: colors.accent,
+                      onChanged: _isClipping
+                          ? null
+                          : (val) {
+                              setState(() => _saveHtmlSnapshot = val);
                             },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _isImagesExpanded
-                                        ? 'Hide image list ▴'
-                                        : 'Show all ${widget.scanResult.images.length} images ▾',
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.accent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    _formatBytes(widget.scanResult
-                                        .totalImagesSizeEstimate),
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.textTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                    ),
+                    colors: colors,
+                  ),
+
+                  // Row 3: Images Download Toggle (if images exist)
+                  if (widget.scanResult.images.isNotEmpty) ...[
+                    _buildDivider(colors),
+                    _buildOptionRow(
+                      icon: Icons.image_outlined,
+                      title: 'Download Images Locally',
+                      subtitle:
+                          'Save ${widget.scanResult.images.length} encrypted images & enable OCR',
+                      sizeStr: _formatBytes(
+                        widget.scanResult.totalImagesSizeEstimate,
+                      ),
+                      trailing: CupertinoSwitch(
+                        value: _downloadImages,
+                        activeTrackColor: colors.accent,
+                        onChanged: _isClipping
+                            ? null
+                            : (val) {
+                                setState(() => _downloadImages = val);
+                              },
+                      ),
+                      colors: colors,
+                    ),
+                    // Expandable Tray for Individual Images
+                    if (_downloadImages) ...[
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isImagesExpanded = !_isImagesExpanded;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
                           ),
-                          if (_isImagesExpanded) ...[
-                            const Divider(height: 1, indent: 16),
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: widget.scanResult.images.length,
-                              separatorBuilder: (context, index) =>
-                                  const Divider(height: 1, indent: 48),
-                              itemBuilder: (context, idx) {
-                                final img = widget.scanResult.images[idx];
-                                return ListTile(
-                                  dense: true,
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      img.resolvedUrl,
-                                      width: 28,
-                                      height: 28,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) => Container(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _isImagesExpanded
+                                    ? 'Hide image list ▴'
+                                    : 'Show all ${widget.scanResult.images.length} images ▾',
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.accent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                _formatBytes(
+                                  widget.scanResult.totalImagesSizeEstimate,
+                                ),
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_isImagesExpanded) ...[
+                        const Divider(height: 1, indent: 16),
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: widget.scanResult.images.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1, indent: 48),
+                          itemBuilder: (context, idx) {
+                            final img = widget.scanResult.images[idx];
+                            return ListTile(
+                              dense: true,
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  img.resolvedUrl,
+                                  width: 28,
+                                  height: 28,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
                                         width: 28,
                                         height: 28,
                                         color: colors.background,
-                                        child: Icon(Icons.broken_image_outlined,
-                                            size: 14,
-                                            color: colors.textTertiary),
+                                        child: Icon(
+                                          Icons.broken_image_outlined,
+                                          size: 14,
+                                          color: colors.textTertiary,
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  title: Text(
-                                    img.altText.isNotEmpty
-                                        ? img.altText
-                                        : (img.isLeadImage
-                                            ? 'Lead Image'
-                                            : 'Image ${idx + 1}'),
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Text(
-                                    _formatBytes(img.estimatedSizeBytes),
-                                    style: AppTypography.caption.copyWith(
-                                      color: colors.textTertiary,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ],
+                                ),
+                              ),
+                              title: Text(
+                                img.altText.isNotEmpty
+                                    ? img.altText
+                                    : (img.isLeadImage
+                                          ? 'Lead Image'
+                                          : 'Image ${idx + 1}'),
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Text(
+                                _formatBytes(img.estimatedSizeBytes),
+                                style: AppTypography.caption.copyWith(
+                                  color: colors.textTertiary,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Section 3: Tags
-                _buildSectionHeader('TAGS', colors),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: colors.divider),
-                  ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      ..._tags.map((tag) => Chip(
-                            label: Text('#$tag'),
-                            labelStyle: AppTypography.caption.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            backgroundColor:
-                                colors.accent.withValues(alpha: 0.12),
-                            side: BorderSide(
-                                color: colors.accent.withValues(alpha: 0.25)),
-                            deleteIcon: Icon(Icons.close_rounded,
-                                size: 14, color: colors.textSecondary),
-                            onDeleted:
-                                _isClipping ? null : () => _removeTag(tag),
-                          )),
-                      ActionChip(
-                        avatar: Icon(Icons.add_rounded,
-                            size: 16, color: colors.accent),
-                        label: Text('Add Tag',
-                            style: AppTypography.caption
-                                .copyWith(color: colors.accent)),
-                        backgroundColor: colors.background,
-                        side: BorderSide(color: colors.divider),
-                        onPressed: _isClipping ? null : _showAddTagDialog,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Total Estimated Storage Badge & Commit Action Button
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.divider),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Estimated Storage Footprint',
-                        style: AppTypography.caption.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        _formatBytes(_computedTotalSize),
-                        style: AppTypography.caption.copyWith(
-                          color: colors.accent,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: QuietButton(
-                    label: 'Clip Note (${_formatBytes(_computedTotalSize)})',
-                    variant: QuietButtonVariant.primary,
-                    isLoading: _isClipping,
-                    onPressed: _isClipping ? null : _commitClip,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
+                  ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.lg),
+
+            // Section 3: Tags
+            _buildSectionHeader('TAGS', colors),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: colors.divider),
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ..._tags.map(
+                    (tag) => Chip(
+                      label: Text('#$tag'),
+                      labelStyle: AppTypography.caption.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      backgroundColor: colors.accent.withValues(alpha: 0.12),
+                      side: BorderSide(
+                        color: colors.accent.withValues(alpha: 0.25),
+                      ),
+                      deleteIcon: Icon(
+                        Icons.close_rounded,
+                        size: 14,
+                        color: colors.textSecondary,
+                      ),
+                      onDeleted: _isClipping ? null : () => _removeTag(tag),
+                    ),
+                  ),
+                  ActionChip(
+                    avatar: Icon(
+                      Icons.add_rounded,
+                      size: 16,
+                      color: colors.accent,
+                    ),
+                    label: Text(
+                      'Add Tag',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                      ),
+                    ),
+                    backgroundColor: colors.background,
+                    side: BorderSide(color: colors.divider),
+                    onPressed: _isClipping ? null : _showAddTagDialog,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            // Total Estimated Storage Badge & Commit Action Button
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.divider),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Estimated Storage Footprint',
+                    style: AppTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    _formatBytes(_computedTotalSize),
+                    style: AppTypography.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: QuietButton(
+                label: 'Clip Note (${_formatBytes(_computedTotalSize)})',
+                variant: QuietButtonVariant.primary,
+                isLoading: _isClipping,
+                onPressed: _isClipping ? null : _commitClip,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
     );
 
     if (isDesktop) {
@@ -595,10 +630,7 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: SafeArea(
-        top: false,
-        child: content,
-      ),
+      child: SafeArea(top: false, child: content),
     );
   }
 
@@ -705,7 +737,10 @@ class _WebClipPreviewSheetState extends ConsumerState<WebClipPreviewSheet> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
             ),
             QuietButton(
               label: 'Add',

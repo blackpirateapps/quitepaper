@@ -1,0 +1,136 @@
+00:00 +0: loading /home/dog/git/quitepaper/test/scanner/pdf_builder_test.dart
+00:00 +0: /home/dog/git/quitepaper/test/scanner/pdf_builder_test.dart: PdfBuilder Tests Compiles multi-page PDF preserving page sequence and dimensions
+00:00 +1: /home/dog/git/quitepaper/test/scanner/pdf_builder_test.dart: PdfBuilder Tests Throws ArgumentError when attempting to build PDF from empty pages
+00:00 +2: loading /home/dog/git/quitepaper/test/scanner/document_normalizer_test.dart
+00:00 +2: /home/dog/git/quitepaper/test/scanner/document_normalizer_test.dart: DocumentNormalizer Tests Normalizes raw image, enhances contrast, and bounds dimensions
+00:02 +3: /home/dog/git/quitepaper/test/scanner/document_normalizer_test.dart: DocumentNormalizer Tests Gracefully falls back on corrupt raw bytes without throwing
+00:02 +4: /home/dog/git/quitepaper/test/scanner/document_normalizer_test.dart: DocumentNormalizer Tests Estimates confidence heuristic for document preview frames
+00:02 +5: loading /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart
+00:03 +5: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanMode enum defaults and metadata
+00:03 +6: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanMode enum fromName round-trips and falls back
+00:03 +7: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanPipelines original is a no-op passthrough
+00:03 +8: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanPipelines blackAndWhite produces a near-binary image on uneven lighting
+00:04 +9: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanPipelines auto flattens the soft shadow (background variance drops)
+00:04 +10: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanPipelines whiteboard drives the background toward white
+00:04 +11: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: ScanPipelines every mode returns a valid same-size 3-channel image
+00:04 +12: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: DartImageProcessor mode integration renderModePreviews returns a decodable thumbnail for every mode
+00:07 +13: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: DartImageProcessor mode integration renderModePreviews never throws on undecodable bytes
+00:07 +14: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: DartImageProcessor mode integration processHighResolution composes mode + knobs + crop/rotate
+00:09 +15: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: DartImageProcessor mode integration blackAndWhite mode composes with redundant mono knobs without error
+00:10 +16: /home/dog/git/quitepaper/test/scanner/scan_pipelines_test.dart: DartImageProcessor mode integration enhanceForOcr returns a decodable binarized PNG
+00:11 +17: loading /home/dog/git/quitepaper/test/scanner/scan_geometry_test.dart
+00:12 +17: /home/dog/git/quitepaper/test/scanner/scan_geometry_test.dart: ScanGeometry.dewarp full-frame quad is an identity passthrough (same size as src)
+00:12 +18: /home/dog/git/quitepaper/test/scanner/scan_geometry_test.dart: ScanGeometry.dewarp keystone/trapezoid quad dewarps to an upright rectangle
+00:12 +19: /home/dog/git/quitepaper/test/scanner/scan_geometry_test.dart: ScanGeometry.dewarp respects maxDimension by scaling the output down
+00:12 +20: /home/dog/git/quitepaper/test/scanner/scan_geometry_test.dart: ScanGeometry.dewarp degenerate/non-convex quad returns a clone (same dims as src)
+00:12 +21: loading /home/dog/git/quitepaper/test/scanner/interactive_quad_overlay_test.dart
+00:13 +21: /home/dog/git/quitepaper/test/scanner/interactive_quad_overlay_test.dart: InteractiveQuadOverlay Widget Tests Renders the quad overlay inside a sized box
+00:14 +22: /home/dog/git/quitepaper/test/scanner/interactive_quad_overlay_test.dart: InteractiveQuadOverlay Widget Tests Dragging a corner handle inward moves only that corner and keeps the quad convex
+00:14 +23: loading /home/dog/git/quitepaper/test/scanner/document_detector_test.dart
+00:15 +23: /home/dog/git/quitepaper/test/scanner/document_detector_test.dart: DocumentDetector.detect finds a bright page inset in a dark background
+00:15 +24: /home/dog/git/quitepaper/test/scanner/document_detector_test.dart: DocumentDetector.detect finds a slightly rotated bright page
+00:16 +25: /home/dog/git/quitepaper/test/scanner/document_detector_test.dart: DocumentDetector.detect returns full frame with no confidence for a blank image
+00:16 +26: /home/dog/git/quitepaper/test/scanner/document_detector_test.dart: DocumentDetector.detect returns low confidence for pure random noise
+00:16 +27: /home/dog/git/quitepaper/test/scanner/document_detector_test.dart: DocumentDetector.detect never throws on a 1x1 image
+00:16 +28: loading /home/dog/git/quitepaper/test/scanner/document_dewarp_integration_test.dart
+00:17 +28: /home/dog/git/quitepaper/test/scanner/document_dewarp_integration_test.dart: ImageProcessor corner-detection / dewarp integration detectDocumentQuad finds the inset page with confidence
+00:17 +29: /home/dog/git/quitepaper/test/scanner/document_dewarp_integration_test.dart: ImageProcessor corner-detection / dewarp integration processHighResolution dewarps a non-full quad to its own rectangle
+00:17 +30: /home/dog/git/quitepaper/test/scanner/document_dewarp_integration_test.dart: ImageProcessor corner-detection / dewarp integration dewarp composes with a capture mode
+00:19 +31: /home/dog/git/quitepaper/test/scanner/document_dewarp_integration_test.dart: ImageProcessor corner-detection / dewarp integration full-frame quad is treated as no dewarp
+00:19 +32: loading /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart
+00:20 +32: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 1. ImageAdjustments & ColorFilter Matrix Unit Tests Default adjustments are neutral and produce 4x5 identity matrix
+00:20 +33: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 1. ImageAdjustments & ColorFilter Matrix Unit Tests Presets produce non-destructive parameter configurations
+00:20 +34: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 1. ImageAdjustments & ColorFilter Matrix Unit Tests Rotation methods cycle quarter turns smoothly in [0, 1, 2, 3]
+00:20 +35: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 1. ImageAdjustments & ColorFilter Matrix Unit Tests toColorMatrix applies grayscale, contrast, and brightness correctly
+00:20 +36: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 1. ImageAdjustments & ColorFilter Matrix Unit Tests JSON serialization & deserialization round-trip
+00:20 +37: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 2. Generation Tokens & Async Race Protection Unit Tests ScannerPerformanceTracker manages generation tokens and discards stale out-of-order jobs
+00:20 +38: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 3. ImageProcessor & Page Representation Lifecycle Unit Tests createPageRepresentations generates ~600px preview and <=200px thumbnail
+00:21 +39: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 3. ImageProcessor & Page Representation Lifecycle Unit Tests processHighResolution applies adjustments and bounds dimensions
+00:21 +40: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 4. ScannedPage Identity & State Isolation Unit Tests ScannedPage maintains stable identity, cached representations, and copyWith
+00:21 +41: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 5. InteractiveCropOverlay Widget Tests Renders crop overlay and handles drag interaction
+00:22 +42: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 6. ScannerPreviewCanvas & Before/After Comparison Widget Tests Renders preview canvas, handles pinch-to-zoom, and press-and-hold original
+00:22 +43: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 7. PageAdjustmentSheet Widget Tests Allows switching modes, adjusting sliders, and applying changes
+00:23 +44: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 8. Full DocumentScannerScreen Multi-Page & Finalization Integration Tests Renders scanner fallback canvas and top bar controls
+00:24 +45: /home/dog/git/quitepaper/test/scanner/scanner_editor_overhaul_test.dart: 8. Full DocumentScannerScreen Multi-Page & Finalization Integration Tests Tablet layout displays split view with pages sidebar and preview canvas
+00:24 +46: loading /home/dog/git/quitepaper/test/scanner/scanner_ui_test.dart
+00:25 +46: /home/dog/git/quitepaper/test/scanner/scanner_ui_test.dart: FormattingToolbar Scanner Button Placement & Actions Renders scan button immediately adjacent to image button and triggers callback
+00:27 +47: /home/dog/git/quitepaper/test/scanner/scanner_ui_test.dart: DocumentViewerScreen & QuietDocumentCard Widget Tests Renders DocumentViewerScreen with export actions and header info
+00:27 +48: /home/dog/git/quitepaper/test/scanner/scanner_ui_test.dart: DocumentViewerScreen & QuietDocumentCard Widget Tests QuietMarkdownPreview renders QuietDocumentCard for [Title](qp://document/UUID)
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_wrapped_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_master_key_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+[PdfThumbnailService] Error fetching thumbnail: MissingPluginException(No implementation found for method getApplicationSupportDirectory on channel plugins.flutter.io/path_provider)
+00:28 +49: loading /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart
+00:30 +49: /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart: ImageAdjustments Non-Destructive Editing Tests Identifies neutral state correctly
+00:30 +50: /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart: ImageAdjustments Non-Destructive Editing Tests Rotation operations rotate in 90 degree increments
+00:30 +51: /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart: ImageAdjustments Non-Destructive Editing Tests Clamps brightness, contrast, and saturation between -1.0 and 1.0
+00:30 +52: /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart: ImageAdjustments Non-Destructive Editing Tests Serializes and deserializes ImageAdjustments to and from JSON
+00:30 +53: /home/dog/git/quitepaper/test/image_processing/image_adjustments_test.dart: ImageAdjustments Non-Destructive Editing Tests DartImageProcessor enhanceForOcr enhances image bytes without error
+00:30 +54: loading /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart
+00:31 +54: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Threshold & Probing isEligibleForCompression returns false for <= 500 KB and true for > 500 KB
+00:31 +55: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Threshold & Probing probeDimensions extracts width and height from valid image bytes
+00:31 +56: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Threshold & Probing probeDimensions returns 0x0 for invalid bytes without crashing
+00:31 +57: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Compression bypasses compression when size <= 500 KB and force is false
+00:31 +58: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Compression downscales image larger than maxDimension when forced or eligible
+00:32 +59: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Compression compact preset downscales to 1280px max dimension
+00:33 +60: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Compression preserves alpha transparency for PNGs
+00:33 +61: /home/dog/git/quitepaper/test/image_processing/image_compression_service_test.dart: ImageCompressionService Compression gracefully handles corrupt bytes during compression
+Shell: _compressImageInIsolate error: RangeError (length): Invalid value: Not in inclusive range 0..4: 5
+00:33 +62: loading /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart
+00:34 +62: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Renders image, alt text title, InteractiveViewer, and status badge
+00:36 +63: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Tapping Copy All Text copies text to clipboard
+00:36 +64: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Insert into Note triggers onInsertText callback
+00:36 +65: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Live text layer is not selectable by default until toggled on
+00:37 +66: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Toggle Live Text hides/shows overlay and clears selection
+00:37 +67: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Renders CustomPainter inside RepaintBoundary with zero widget bloat
+00:37 +68: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Tapping single word selects word and displays selection callout
+00:37 +69: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Tapping Line expands selection to whole line
+00:37 +70: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Drag-to-select range selects multiple words across sweep
+00:38 +71: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Copying selected text copies only the selected words
+00:38 +72: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Inserting selected text inserts only selection into note
+00:38 +73: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Select All button selects all words on image
+00:38 +74: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Close button on callout clears selection and restores bottom bar
+00:38 +75: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests More options menu exposes Edit Image action
+00:39 +76: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Selecting Edit Image opens PageAdjustmentSheet and prompts to save on modification
+00:39 +77: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Single image does NOT show unnecessary 1 / 1 counter
+00:39 +78: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Multi-image gallery displays subtle counter and navigates between images
+00:40 +79: /home/dog/git/quitepaper/test/attachments/image_viewer_modal_test.dart: ImageViewerModal Widget Tests Renders properly in Dark Paper theme without light mode leakage
+00:40 +80: loading /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart
+00:41 +80: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Small image renders at natural size without upscaling and centers
+00:42 +81: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Wide landscape image scales proportionally to available content width
+00:42 +82: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Tall image is constrained to maxAllowedHeight preserving aspect ratio
+00:42 +83: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Renders caption centered below image when provided
+00:42 +84: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Missing asset renders calm error state with Tap to retry
+00:43 +85: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Tapping image opens fullscreen ImageViewerModal
+00:43 +86: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Renders cleanly in Dark Paper theme
+00:43 +87: /home/dog/git/quitepaper/test/attachments/quiet_asset_image_view_test.dart: QuietAssetImageView Widget Tests Renders base64 data: URI image cleanly
+00:43 +88: loading /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart
+00:44 +88: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests extracts dimensions from valid PNG header
+00:45 +89: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests extracts dimensions from valid JPEG header
+00:45 +90: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests extracts dimensions from valid GIF header
+00:45 +91: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests extracts dimensions from valid BMP header
+00:45 +92: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests extracts dimensions from valid AVIF header with ispe box
+00:45 +93: /home/dog/git/quitepaper/test/attachments/image_dimension_reader_test.dart: ImageDimensionReader Unit Tests returns null for empty or corrupted image bytes
+00:45 +94: loading /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart
+00:46 +94: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Small image (100x100 on 800px width) is NOT upscaled
+00:46 +95: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Small landscape image (300x200 on 900px width) preserves natural size
+00:46 +96: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Large landscape image (1600x600 on 720px width) scales to content width proportionally
+00:46 +97: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Full HD screenshot (1920x1080 on 600px width) scales proportionally
+00:46 +98: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Extremely tall image (1080x3000 on 400px width) is constrained by maxAllowedHeight
+00:46 +99: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Tall infographic (1000x5000 on 800px width) scales width proportionally with max height
+00:46 +100: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Extreme wide banner (3000x200 on 600px width) scales down without distortion
+00:46 +101: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Square image (4000x4000 on 500px width) scales to 500x500
+00:46 +102: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Missing / null intrinsic dimensions fallback cleanly without crashing
+00:46 +103: /home/dog/git/quitepaper/test/attachments/image_layout_calculator_test.dart: ImageLayoutCalculator Unit Tests Zero or negative content width returns minimum safe dimension
+00:46 +104: loading /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart
+00:47 +104: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping image > 500 KB with default setting (ask) triggers ImageCompressionDialog and compresses on confirm
+00:50 +105: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping image > 500 KB with "Remember my choice" updates DefaultSettings to alwaysCompress
+00:51 +106: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping image > 500 KB when setting is alwaysCompress bypasses dialog and compresses directly
+00:52 +107: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping small image <= 500 KB bypasses dialog and inserts directly
+00:53 +108: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Canceling compression dialog aborts image insertion
+00:53 +109: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping image > 500 KB with choice "Keep Original" inserts without calling compressImage
+00:54 +110: /home/dog/git/quitepaper/test/editor/editor_image_upload_compression_test.dart: Dropping image > 500 KB when setting is keepOriginal bypasses dialog and inserts without compressing
+00:55 +111: loading /home/dog/git/quitepaper/test/editor/image_compression_dialog_test.dart
+00:56 +111: /home/dog/git/quitepaper/test/editor/image_compression_dialog_test.dart: ImageCompressionDialog displays metadata and returns decision on confirm
+00:58 +112: /home/dog/git/quitepaper/test/editor/image_compression_dialog_test.dart: ImageCompressionDialog allows selecting Keep Original
+00:58 +113: /home/dog/git/quitepaper/test/editor/image_compression_dialog_test.dart: ImageCompressionDialog returns null when Cancel is pressed
+00:58 +114: All tests passed!

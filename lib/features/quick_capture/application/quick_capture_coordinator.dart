@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,11 +11,16 @@ import 'quick_capture_normalizer.dart';
 /// Android share sheets, or in-app triggers, preventing duplicate routes and safely
 /// delivering new incoming shares to active sessions.
 class QuickCaptureCoordinator {
-  static const MethodChannel _channel =
-      MethodChannel('com.blackpiratex.quietpaper/quick_capture');
+  static const MethodChannel _channel = MethodChannel(
+    'com.blackpiratex.quietpaper/quick_capture',
+  );
 
   static bool _initialized = false;
+  static Completer<void>? _idle;
+  static Future<void> get whenIdle => _idle?.future ?? Future.value();
   static bool _isRouteOpen = false;
+  static QuickCapturePayload? _activePayload;
+  static final _pendingShares = <QuickCapturePayload>[];
   static GlobalKey<NavigatorState>? _navigatorKey;
 
   /// Whether the Quick Capture route is currently active on screen.
@@ -23,7 +29,9 @@ class QuickCaptureCoordinator {
   /// Initializes native method call listener for widget taps while the app is running.
   static void initialize(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
-    if (_initialized || kIsWeb || Platform.environment.containsKey('FLUTTER_TEST')) {
+    if (_initialized ||
+        kIsWeb ||
+        Platform.environment.containsKey('FLUTTER_TEST')) {
       return;
     }
     _initialized = true;
@@ -31,9 +39,13 @@ class QuickCaptureCoordinator {
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'onQuickCaptureRequested':
-          final args = call.arguments is Map ? Map<String, dynamic>.from(call.arguments as Map) : null;
+          final args = call.arguments is Map
+              ? Map<String, dynamic>.from(call.arguments as Map)
+              : null;
           final originStr = args?['origin'] as String? ?? 'widget';
-          final origin = originStr == 'share' ? CaptureOrigin.share : CaptureOrigin.widget;
+          final origin = originStr == 'share'
+              ? CaptureOrigin.share
+              : CaptureOrigin.widget;
           final rawText = args?['text'] as String?;
           final rawUri = args?['uri'] as String?;
 
@@ -55,10 +67,14 @@ class QuickCaptureCoordinator {
 
   static Future<void> _checkInitialWidgetLaunch() async {
     try {
-      final initialData = await _channel.invokeMethod<Map<dynamic, dynamic>>('getInitialCaptureRequest');
+      final initialData = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getInitialCaptureRequest',
+      );
       if (initialData != null && initialData.isNotEmpty) {
         final originStr = initialData['origin'] as String? ?? 'widget';
-        final origin = originStr == 'share' ? CaptureOrigin.share : CaptureOrigin.widget;
+        final origin = originStr == 'share'
+            ? CaptureOrigin.share
+            : CaptureOrigin.widget;
         final rawText = initialData['text'] as String?;
         final rawUri = initialData['uri'] as String?;
 
@@ -77,27 +93,53 @@ class QuickCaptureCoordinator {
   }
 
   /// Opens Quick Capture with the provided payload. If already open, avoids pushing
-  /// duplicate routes and delivers incoming share requests directly.
+  /// duplicate routes and queues distinct incoming requests until the active session closes.
   static void openCapture(QuickCapturePayload payload) {
     final nav = _navigatorKey?.currentState;
     if (nav == null) return;
 
     if (_isRouteOpen) {
-      debugPrint('[QuickCaptureCoordinator] Route already open; ignoring duplicate push.');
+      if (!_sameRequest(_activePayload, payload) &&
+          !_pendingShares.any((pending) => _sameRequest(pending, payload))) {
+        _pendingShares.add(payload);
+      }
       return;
     }
 
+    _idle ??= Completer<void>();
     _isRouteOpen = true;
-    nav
-        .push<void>(QuickCaptureScreen.route(payload))
-        .then((_) {
+    _activePayload = payload;
+    nav.push<void>(QuickCaptureScreen.route(payload)).then((_) {
+      if (!identical(_activePayload, payload)) return;
       _isRouteOpen = false;
+      _activePayload = null;
+      if (_pendingShares.isNotEmpty) {
+        openCapture(_pendingShares.removeAt(0));
+      } else {
+        _idle?.complete();
+        _idle = null;
+      }
     });
   }
 
+  static bool _sameRequest(
+    QuickCapturePayload? first,
+    QuickCapturePayload second,
+  ) =>
+      first != null &&
+      (first.id == second.id ||
+          (first.origin == second.origin &&
+              first.sourceUrl == second.sourceUrl &&
+              first.initialContent == second.initialContent &&
+              first.titleHint == second.titleHint));
+
   static void dispose() {
+    _idle?.complete();
+    _idle = null;
     _initialized = false;
     _isRouteOpen = false;
     _navigatorKey = null;
+    _activePayload = null;
+    _pendingShares.clear();
   }
 }

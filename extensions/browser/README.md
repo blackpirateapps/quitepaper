@@ -21,17 +21,17 @@ current session are outside this capture path.
 
 ## Build and load
 
-From the repository root, using the repository's Flutter/Dart SDK:
+From the repository root, using the Rust toolchain:
 
 ```sh
-dart build cli -t bin/qp.dart -o build/browser-extension/cli
+scripts/build_rust_cli.sh
 python3 extensions/browser/manage.py build
 ```
 
 The native CLI must be compiled from this branch; an older installed `qp` does
 not have the `browser-host` command. Keep the compiled executable in a stable
-location, together with its sibling `lib/` directory of native assets, or rerun
-registration after moving the bundle. No Python packages or Node
+location, or rerun registration after moving it. The Rust executable bundles
+SQLite and does not need a Dart SDK, Flutter runtime, or companion native assets. No Python packages or Node
 dependencies are required to build/install the extension.
 
 - **Chrome family (120+):** open `chrome://extensions` (or the browser's extensions
@@ -50,7 +50,7 @@ Firefox-only setup):
 
 ```sh
 python3 extensions/browser/manage.py install \
-  --qp "$PWD/build/browser-extension/cli/bundle/bin/qp" \
+  --qp "$PWD/build/cli/bin/qp" \
   --chrome-id abcdefghijklmnopabcdefghijklmnop
 ```
 
@@ -83,8 +83,8 @@ Brave Flatpak cannot normally see an external CLI or the desktop notebook. Keep
 the extension and the complete CLI bundle inside its private app data instead:
 
 - Extension: `~/.var/app/com.brave.Browser/data/quietpaper/web-clipper/`.
-- CLI bundle: `~/.var/app/com.brave.Browser/data/quietpaper/cli/`, retaining both
-  `bin/qp` and `lib/libsqlite3.so`.
+- CLI executable: `~/.var/app/com.brave.Browser/data/quietpaper/cli/bin/qp`
+  (copy the Rust `build/cli/bin/qp`; SQLite is bundled).
 - Private executable launcher:
   `~/.var/app/com.brave.Browser/data/quietpaper/browser-host/launch`. It must run
   the bundled `qp --db /absolute/path/to/desktop/quiet_paper.sqlite browser-host`.
@@ -127,10 +127,11 @@ part of your normal local notebook and encrypted cloud sync, like any other note
 
 Shared sources live in `shared/`; browser-specific MV3 manifests live in
 `manifests/`. The browser selects and sanitizes the loaded DOM. `qp browser-host`
-validates the bounded capture and sanitizes it again, then calls the shared
-`HtmlToMarkdownConverter` and transactional `CliDatabase.createNote`. It does not
-use `scanUrl`, `scanPayload` (which probes images), or snapshot generation (which
-can acquire CSS). Native messages use a native-endian four-byte length prefix and
+validates the bounded capture, parses HTML with `html5ever`, and renders supported
+article formatting as Markdown without retaining active HTML or unsafe URLs.
+The Rust host saves through the CLI's existing transaction, tag, search, history
+and sync-queue writer. It does not fetch pages, images, styles or credentials.
+Native messages use a native-endian four-byte length prefix and
 UTF-8 JSON, following [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
 and [Firefox native messaging](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging).
 Capture frames are limited to 8 MiB; responses contain a small success/error
@@ -138,8 +139,9 @@ object, never page content. Stdout is exclusively framed JSON.
 
 ```sh
 flutter analyze
-flutter test test/cli/cli_browser_host_test.dart test/cli/cli_runner_test.dart \
-  test/web_clipper/web_clipper_service_test.dart
+cargo test --locked -p quietpaper_cli
+QP_RUST_CLI_BIN="$PWD/build/cli/bin/qp" flutter test test/cli \
+  test/web_clipper
 python3 -m unittest discover -s extensions/browser/tests -p 'test_*.py'
 node --test extensions/browser/tests/background.test.cjs
 
@@ -150,7 +152,7 @@ QP_FIREFOX_CHECK=1 python3 -m unittest discover -s extensions/browser/tests \
 
 # Optional live Firefox fixture and offline native CLI integration (isolated profile)
 QP_FIREFOX_CHECK=1 \
-QP_BROWSER_CLI="$PWD/build/browser-extension/cli/bundle/bin/qp" \
+QP_BROWSER_CLI="$PWD/build/cli/bin/qp" \
 python3 -m unittest discover -s extensions/browser/tests -p test_capture_firefox.py
 ```
 

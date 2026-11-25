@@ -1,0 +1,67 @@
+from qp_pdf_driver import *
+REPORT=pathlib.Path('handoff/audits/pdf-viewer-stress-2026-11-16/README.md')
+def finding(title,body):
+    if ('## '+title) not in REPORT.read_text():
+        with REPORT.open('a') as f:f.write('\n\n## '+title+'\n\n'+body+'\n')
+    print('FINDING',title,flush=True)
+def count(s):return len(s['viewer']['annotations']) if s['viewer'] else None
+
+api('/config',{});key('Escape');open_pdf('large')
+record('250 page PDF initial open')
+for page in [2,125,200,50,249,1,180,125]:
+    api('/jump',{'page':page});time.sleep(.5)
+    s=record('250 page random jump '+str(page))
+    assert s['viewer']['page']==page
+s=api();selected=[t for t in s['tiles'] if t.get('selected')]
+print('SELECTED_THUMBNAILS',json.dumps(selected),flush=True)
+visible=[t for t in selected if t['rect'] and 56<=t['rect'][1]<680]
+if not visible:
+    screenshot('native-sidebar-active-page-missing.png')
+    finding('PDF-06 — large-document sidebar scrolls away from the active page', '''**Open. Medium. Native Linux 250-page fixture.**
+
+Jump to page 125 in the real viewer. The PDF and header show page 125, but no
+selected page thumbnail is visible in the sidebar. The auto-scroll calculation
+assumes each tile is 195px high; actual tiles at the standard 140px sidebar width
+are about 201.25px. The accumulated offset error grows with page index, leaving
+the selected tile outside the viewport. Random jumps on the 250-page PDF
+reproduce this; source and screenshot identify the mismatch. Evidence: native
+results `250 page random jump 125`, `native-sidebar-active-page-missing.png`.
+The controller performs jumps here; thumbnail rendering/scrolling is production.''')
+
+watch=time.monotonic();result=api('/thumbnails',{'count':80})
+record('80 concurrent native thumbnail requests')
+print('NATIVE_RASTER_STRESS',json.dumps(result),flush=True)
+pathlib.Path('/tmp/qp-pdf-native-raster-stress.json').write_text(json.dumps(result))
+search('needle');s=record('250 page search finds needle on every page');assert any(x.get('text')=='1 of 250' for x in s['labels'])
+for i in range(10):label('Next match','tooltip')
+record('250 page search ten native next-match clicks');label('Close search','tooltip')
+search('notpresentaudit');record('Absent query in 250 page PDF');label('Close search','tooltip')
+for i in range(6):label('Zoom in','tooltip')
+s=record('Native zoom clamp at 500 percent');assert s['viewer']['zoom']==5
+for i in range(6):label('Zoom out','tooltip')
+s=record('Native zoom clamp at 100 percent');assert s['viewer']['zoom']==1
+for i in range(4):
+    label('Hide thumbnails','tooltip');label('Show thumbnails','tooltip')
+record('Eight native thumbnail sidebar toggles')
+for i in range(3):
+    menu('Switch to Single Page View');menu('Switch to Continuous Scroll')
+record('Six native layout toggles on 250 page PDF')
+
+open_pdf('mixed');api('/add',{'count':100});time.sleep(.5)
+s=record('100 live annotations');assert count(s)==100
+label('Annotation Tools','tooltip');label('Highlight Text','text')
+for i in range(10):label('Undo','tooltip')
+s=record('Native undo ten of 100 annotations');assert count(s)==90
+for i in range(10):label('Redo','tooltip')
+s=record('Native redo ten restores 100 annotations');assert count(s)==100
+label('Done','text');label('Save Annotations','tooltip');time.sleep(2)
+s=record('100 annotation save');label('Back','tooltip');time.sleep(.6);open_pdf('mixed');s=record('100 annotations encrypted save and reopen');assert count(s)==100
+screenshot('native-100-annotations.png')
+menu('Revert to Original Document');label('Revert','text');time.sleep(1.5);s=record('Native revert 100 annotations to clean original');assert count(s)==0
+label('Back','tooltip');open_pdf('mixed');s=record('Reopen after revert preserves clean original');assert count(s)==0
+
+for i in range(6):
+    open_pdf('small' if i%2==0 else 'mixed');label('Back','tooltip')
+record('Six native repeated open and close cycles')
+open_pdf('large');record('Final native stress healthy viewer')
+screenshot('native-stress-final.png')

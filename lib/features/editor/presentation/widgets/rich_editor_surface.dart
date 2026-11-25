@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/rich_block.dart';
+import '../../domain/rich_document.dart';
 import '../../domain/document_selection.dart';
 import '../../application/rich_document_controller.dart';
 import 'rich_attachment_block.dart';
@@ -54,6 +55,7 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
   final Map<String, FocusNode> _textTargets = {};
   late RichDocumentSelection _lastSelection;
   Type? _lastSelectionBlockType;
+  RichDocument? _lastBuiltDocument;
 
   FocusNode _focusFor(String blockId) =>
       _segmentFocusNodes.putIfAbsent(blockId, () => FocusNode());
@@ -102,12 +104,16 @@ class _RichEditorSurfaceState extends State<RichEditorSurface> {
         if (node != null && !node.hasFocus) node.requestFocus();
       });
     }
+    // Checklist rows own selection and focus. Rebuilding the entire surface on
+    // every arrow/caret change needlessly lays out hundreds of editable fields.
+    if (blockType == ChecklistItemBlock && identical(widget.controller.document, _lastBuiltDocument)) return;
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    _lastBuiltDocument = widget.controller.document;
     final blocks = widget.controller.document.blocks;
     _textTargets.clear();
 

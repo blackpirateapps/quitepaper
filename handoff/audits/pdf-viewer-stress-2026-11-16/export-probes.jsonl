@@ -1,0 +1,4 @@
+{"probe":"cancel-pdf-save","pickerCalls":1,"pickerResult":null,"fallbackCreatedAfterCancel":true}
+{"probe":"overwrite-existing-pdf","pickerCalls":2,"actualFileText":"existing unrelated bytes","expectedPdfBytes":2159,"savedSuccessVisible":false}
+{"probe":"cancel-pdf-save","pickerCalls":1,"pickerResult":null,"fallbackCreatedAfterCancel":true}
+{"probe":"overwrite-existing-pdf","pickerCalls":2,"actualFileText":"existing unrelated bytes","expectedPdfBytes":2159,"savedSuccessVisible":true}

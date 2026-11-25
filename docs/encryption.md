@@ -94,3 +94,30 @@ During account setup, a 256-bit random recovery key is generated:
 - Decrypted Master Key is held in volatile memory only while unlocked.
 - Locked / backgrounded state wipes key bytes (`fillRange(0, length, 0)`).
 - Wrapped key metadata is stored locally using `FlutterSecureStorage` (Android Keystore / iOS Keychain).
+
+## 8. Connecting a Device-Only Notebook to an Existing Cloud Vault
+
+Offline email import can create a device-protected master key before an account
+is connected. Opening import preview can create this key even when no email is
+saved. It is independent of the Firebase client API key and account identity.
+
+When the account already has a different master key, password or recovery-key
+unlock first verifies that cloud key, then `LocalVaultKeyMigration` re-encrypts
+local attachments, variants, documents, OCR, annotations and place aliases under
+it. Notes and email provenance remain intact. The cloud master key is preserved;
+local ciphertext is prepared for upload with that key. PDF thumbnails regenerate
+as needed.
+
+Before changing ciphertext, the key manager persists both keys and the target
+wrapped-key record in a secure-storage transition journal. Each file replacement
+is atomic and contains only ciphertext. Database updates commit together. A retry
+accepts both old and already migrated file envelopes; a database completion marker
+handles interruption between database commit and secure-key persistence. Startup
+resumes a pending journal, and both keys remain available until completion.
+
+Missing or damaged local source files stop migration and retain the journal.
+Migration errors are shown separately from incorrect encryption passwords. Sync
+and uploads require wrapped account key data as well as an unlocked key, so
+Firebase sign-in cannot upload data under a device-only key while unlock is
+pending. Explicit locking prevents late unlock, and vault erasure waits for key
+operations before deleting the transition journal and active key records.

@@ -18,6 +18,9 @@ import 'package:quitepaper/core/documents/presentation/quiet_document_card.dart'
 import 'package:quitepaper/core/markdown/markdown_preview.dart';
 import 'package:quitepaper/core/uri/resource_resolver.dart';
 import 'package:quitepaper/features/editor/presentation/widgets/formatting_toolbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/pump_until_found.dart';
 
 class MockKeyManager implements KeyManager {
   MockKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -89,6 +92,7 @@ void main() {
     final samplePdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 sample PDF payload'));
 
     setUp(() async {
+      SharedPreferences.setMockInitialValues({});
       database = AppDatabase.memory();
       tempDir = await Directory.systemTemp.createTemp('qp_test_viewer_');
       storage = DocumentLocalStorage(
@@ -143,13 +147,18 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await pumpUntilFound(tester, find.textContaining('3 pages'));
 
       expect(find.text('Monthly Statement'), findsWidgets);
       expect(find.textContaining('3 pages'), findsOneWidget);
       expect(find.byIcon(Icons.download_rounded), findsOneWidget);
       expect(find.byIcon(Icons.share_rounded), findsOneWidget);
+
+      // Syncfusion schedules a 500ms tile callback when the viewer mounts.
+      // Dispose the viewer before draining it so asynchronous loads cannot mount
+      // another viewer after the drain and leave a timer behind.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
 
     testWidgets('QuietMarkdownPreview renders QuietDocumentCard for [Title](qp://document/UUID)', (tester) async {
@@ -181,8 +190,7 @@ void main() {
         ),
       );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await pumpUntilFound(tester, find.textContaining('2 pages'));
 
       expect(find.byType(QuietDocumentCard), findsOneWidget);
       expect(find.text('Rental Agreement'), findsWidgets);

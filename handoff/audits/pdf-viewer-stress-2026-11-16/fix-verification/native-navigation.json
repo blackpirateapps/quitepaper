@@ -1,0 +1,183 @@
+{
+  "jumps": [
+    {
+      "page": 2,
+      "secondsIncluding450msWait": 0.532,
+      "selected": [
+        {
+          "text": "Page 2",
+          "selected": true,
+          "rect": [
+            6.0,
+            270.54,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    },
+    {
+      "page": 125,
+      "secondsIncluding450msWait": 0.683,
+      "selected": [
+        {
+          "text": "Page 125",
+          "selected": true,
+          "rect": [
+            6.0,
+            273.72999999999956,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    },
+    {
+      "page": 200,
+      "secondsIncluding450msWait": 0.759,
+      "selected": [
+        {
+          "text": "Page 200",
+          "selected": true,
+          "rect": [
+            6.0,
+            273.7300000000032,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    },
+    {
+      "page": 50,
+      "secondsIncluding450msWait": 0.725,
+      "selected": [
+        {
+          "text": "Page 50",
+          "selected": true,
+          "rect": [
+            6.0,
+            273.72999999999956,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    },
+    {
+      "page": 249,
+      "secondsIncluding450msWait": 0.749,
+      "selected": [
+        {
+          "text": "Page 249",
+          "selected": true,
+          "rect": [
+            6.0,
+            276.92000000000553,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    },
+    {
+      "page": 1,
+      "secondsIncluding450msWait": 0.466,
+      "selected": [
+        {
+          "text": "Page 1",
+          "selected": true,
+          "rect": [
+            6.0,
+            70.0,
+            127.0,
+            188.54000000000002
+          ]
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "slowFrames": [
+    {
+      "buildUs": 573657,
+      "rasterUs": 8023,
+      "totalUs": 583511
+    },
+    {
+      "buildUs": 622675,
+      "rasterUs": 22406,
+      "totalUs": 647402
+    },
+    {
+      "buildUs": 183735,
+      "rasterUs": 1699,
+      "totalUs": 307503
+    },
+    {
+      "buildUs": 615917,
+      "rasterUs": 1778,
+      "totalUs": 672371
+    },
+    {
+      "buildUs": 168016,
+      "rasterUs": 2200,
+      "totalUs": 824136
+    },
+    {
+      "buildUs": 232280,
+      "rasterUs": 2071,
+      "totalUs": 304713
+    },
+    {
+      "buildUs": 103630,
+      "rasterUs": 2024,
+      "totalUs": 161740
+    },
+    {
+      "buildUs": 19457,
+      "rasterUs": 14126,
+      "totalUs": 237593
+    },
+    {
+      "buildUs": 35586,
+      "rasterUs": 1120,
+      "totalUs": 260979
+    },
+    {
+      "buildUs": 65974,
+      "rasterUs": 1431,
+      "totalUs": 121490
+    },
+    {
+      "buildUs": 15248,
+      "rasterUs": 2725,
+      "totalUs": 298206
+    },
+    {
+      "buildUs": 11059,
+      "rasterUs": 1414,
+      "totalUs": 244613
+    },
+    {
+      "buildUs": 7341,
+      "rasterUs": 1218,
+      "totalUs": 216000
+    },
+    {
+      "buildUs": 52306,
+      "rasterUs": 1402,
+      "totalUs": 118170
+    },
+    {
+      "buildUs": 7870,
+      "rasterUs": 1183,
+      "totalUs": 184912
+    }
+  ]
+}

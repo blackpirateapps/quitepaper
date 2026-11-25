@@ -22,6 +22,8 @@ class QuickCapturePayload {
     this.initialContent = '',
     this.sourceUrl,
     this.titleHint,
+    this.sharedHtml = false,
+    this.sharedSubject,
     this.cursorPosition = 0,
     required this.createdAt,
   });
@@ -43,6 +45,8 @@ class QuickCapturePayload {
 
   /// Optional title hint (e.g. from an email/browser subject).
   final String? titleHint;
+  final bool sharedHtml;
+  final String? sharedSubject;
 
   /// Saved or initial cursor position.
   final int cursorPosition;
@@ -60,6 +64,8 @@ class QuickCapturePayload {
     String? initialContent,
     String? sourceUrl,
     String? titleHint,
+    bool? sharedHtml,
+    String? sharedSubject,
     int? cursorPosition,
     DateTime? createdAt,
   }) {
@@ -70,6 +76,8 @@ class QuickCapturePayload {
       initialContent: initialContent ?? this.initialContent,
       sourceUrl: sourceUrl ?? this.sourceUrl,
       titleHint: titleHint ?? this.titleHint,
+      sharedHtml: sharedHtml ?? this.sharedHtml,
+      sharedSubject: sharedSubject ?? this.sharedSubject,
       cursorPosition: cursorPosition ?? this.cursorPosition,
       createdAt: createdAt ?? this.createdAt,
     );

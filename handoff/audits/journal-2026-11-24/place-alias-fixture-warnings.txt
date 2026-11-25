@@ -1,0 +1,139 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart
+00:00 +0: PlaceAliasStore (§2.3, device-local) merge points every match key at the canonical key + display name
+00:00 +1: PlaceAliasStore (§2.3, device-local) rename updates display name for all entries under a canonical key
+00:00 +1: PlaceAliasStore (§2.3, device-local) merge points every match key at the canonical key + display name
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage). Checking encrypted fallback storage.
+00:00 +2: PlaceAliasStore (§2.3, device-local) unmerge removes only the given key (reversible)
+00:00 +3: PlaceAliasStore (§2.3, device-local) unmerge on an unknown key is a no-op
+00:00 +4: PlaceAliasStore (§2.3, device-local) unmergeCanonical removes every entry pointing at the canonical key
+00:00 +5: PlaceAliasStore (§2.3, device-local) unmergeCanonical on an unknown canonical key is a no-op
+00:00 +6: PlaceAliasStore (§2.3, device-local) unmergeCanonical persists and stays unmerged in a fresh store
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:quitepaper/core/database/app_database.g.dart:12300:36)
+#4      new AppDatabase (package:quitepaper/core/database/app_database.dart:96:7)
+#5      databaseProvider.<anonymous closure> (package:quitepaper/features/notes/application/notes_provider.dart:81:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     keyManagerProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:42:19)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     isKeyManagerUnlockedProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:56:18)
+#28     StateProvider._create (package:riverpod/src/state_provider/base.dart:85:54)
+#29     StateProviderElement.create (package:riverpod/src/state_provider/base.dart:140:35)
+#30     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#31     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#32     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#33     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#34     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#35     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#36     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#37     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#38     placeAliasStoreProvider.<anonymous closure> (package:quitepaper/features/journal/application/place_alias_store.dart:342:20)
+#39     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#40     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#41     Result.guard (package:riverpod/src/result.dart:21:28)
+#42     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#43     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#44     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#45     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#46     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#47     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#48     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#49     ProviderBase.read (package:riverpod/src/framework/provider_base.dart:105:26)
+#50     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#51     main.<anonymous closure>.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart:120:17)
+<asynchronous suspension>
+#52     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#53     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#54     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:00 +7: PlaceAliasStore (§2.3, device-local) persists to SharedPreferences and reloads in a fresh store
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database.
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:quitepaper/core/database/app_database.g.dart:12300:36)
+#4      new AppDatabase (package:quitepaper/core/database/app_database.dart:96:7)
+#5      databaseProvider.<anonymous closure> (package:quitepaper/features/notes/application/notes_provider.dart:81:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     keyManagerProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:42:19)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     isKeyManagerUnlockedProvider.<anonymous closure> (package:quitepaper/core/sync/sync_provider.dart:56:18)
+#28     StateProvider._create (package:riverpod/src/state_provider/base.dart:85:54)
+#29     StateProviderElement.create (package:riverpod/src/state_provider/base.dart:140:35)
+#30     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#31     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#32     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#33     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#34     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#35     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#36     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#37     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#38     placeAliasStoreProvider.<anonymous closure> (package:quitepaper/features/journal/application/place_alias_store.dart:342:20)
+#39     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#40     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#41     Result.guard (package:riverpod/src/result.dart:21:28)
+#42     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#43     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#44     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#45     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#46     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#47     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#48     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#49     ProviderBase.read (package:riverpod/src/framework/provider_base.dart:105:26)
+#50     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#51     main.<anonymous closure>.<anonymous closure> (file:///home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_alias_store_test.dart:139:27)
+<asynchronous suspension>
+#52     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#53     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#54     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:00 +8: PlaceAliasStore (§2.3, device-local) falls back to in-memory when SharedPreferences is absent
+00:00 +9: All tests passed!

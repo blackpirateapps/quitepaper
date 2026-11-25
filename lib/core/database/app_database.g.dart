@@ -189,6 +189,18 @@ class $NotesTableTable extends NotesTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _importSourcesMeta = const VerificationMeta(
+    'importSources',
+  );
+  @override
+  late final GeneratedColumn<String> importSources = GeneratedColumn<String>(
+    'import_sources',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _pinnedTagsMeta = const VerificationMeta(
     'pinnedTags',
   );
@@ -217,6 +229,7 @@ class $NotesTableTable extends NotesTable
     journalDate,
     shareId,
     shareUrl,
+    importSources,
     pinnedTags,
   ];
   @override
@@ -330,6 +343,15 @@ class $NotesTableTable extends NotesTable
         shareUrl.isAcceptableOrUnknown(data['share_url']!, _shareUrlMeta),
       );
     }
+    if (data.containsKey('import_sources')) {
+      context.handle(
+        _importSourcesMeta,
+        importSources.isAcceptableOrUnknown(
+          data['import_sources']!,
+          _importSourcesMeta,
+        ),
+      );
+    }
     if (data.containsKey('pinned_tags')) {
       context.handle(
         _pinnedTagsMeta,
@@ -405,6 +427,10 @@ class $NotesTableTable extends NotesTable
         DriftSqlType.string,
         data['${effectivePrefix}share_url'],
       ),
+      importSources: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}import_sources'],
+      )!,
       pinnedTags: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}pinned_tags'],
@@ -439,6 +465,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
   /// Null/empty means "not pinned in any tag". Distinct from [isPinned], which
   /// is the global pin (pinned everywhere). Per-tag pins ride inside the
   /// encrypted note content on sync, so the server never sees them.
+  final String importSources;
   final String? pinnedTags;
   const NoteEntity({
     required this.id,
@@ -456,6 +483,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     this.journalDate,
     this.shareId,
     this.shareUrl,
+    required this.importSources,
     this.pinnedTags,
   });
   @override
@@ -486,6 +514,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     if (!nullToAbsent || shareUrl != null) {
       map['share_url'] = Variable<String>(shareUrl);
     }
+    map['import_sources'] = Variable<String>(importSources);
     if (!nullToAbsent || pinnedTags != null) {
       map['pinned_tags'] = Variable<String>(pinnedTags);
     }
@@ -519,6 +548,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       shareUrl: shareUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(shareUrl),
+      importSources: Value(importSources),
       pinnedTags: pinnedTags == null && nullToAbsent
           ? const Value.absent()
           : Value(pinnedTags),
@@ -546,6 +576,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       journalDate: serializer.fromJson<String?>(json['journalDate']),
       shareId: serializer.fromJson<String?>(json['shareId']),
       shareUrl: serializer.fromJson<String?>(json['shareUrl']),
+      importSources: serializer.fromJson<String>(json['importSources']),
       pinnedTags: serializer.fromJson<String?>(json['pinnedTags']),
     );
   }
@@ -568,6 +599,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
       'journalDate': serializer.toJson<String?>(journalDate),
       'shareId': serializer.toJson<String?>(shareId),
       'shareUrl': serializer.toJson<String?>(shareUrl),
+      'importSources': serializer.toJson<String>(importSources),
       'pinnedTags': serializer.toJson<String?>(pinnedTags),
     };
   }
@@ -588,6 +620,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     Value<String?> journalDate = const Value.absent(),
     Value<String?> shareId = const Value.absent(),
     Value<String?> shareUrl = const Value.absent(),
+    String? importSources,
     Value<String?> pinnedTags = const Value.absent(),
   }) => NoteEntity(
     id: id ?? this.id,
@@ -605,6 +638,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     journalDate: journalDate.present ? journalDate.value : this.journalDate,
     shareId: shareId.present ? shareId.value : this.shareId,
     shareUrl: shareUrl.present ? shareUrl.value : this.shareUrl,
+    importSources: importSources ?? this.importSources,
     pinnedTags: pinnedTags.present ? pinnedTags.value : this.pinnedTags,
   );
   NoteEntity copyWithCompanion(NotesTableCompanion data) {
@@ -630,6 +664,9 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           : this.journalDate,
       shareId: data.shareId.present ? data.shareId.value : this.shareId,
       shareUrl: data.shareUrl.present ? data.shareUrl.value : this.shareUrl,
+      importSources: data.importSources.present
+          ? data.importSources.value
+          : this.importSources,
       pinnedTags: data.pinnedTags.present
           ? data.pinnedTags.value
           : this.pinnedTags,
@@ -654,6 +691,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           ..write('journalDate: $journalDate, ')
           ..write('shareId: $shareId, ')
           ..write('shareUrl: $shareUrl, ')
+          ..write('importSources: $importSources, ')
           ..write('pinnedTags: $pinnedTags')
           ..write(')'))
         .toString();
@@ -676,6 +714,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
     journalDate,
     shareId,
     shareUrl,
+    importSources,
     pinnedTags,
   );
   @override
@@ -697,6 +736,7 @@ class NoteEntity extends DataClass implements Insertable<NoteEntity> {
           other.journalDate == this.journalDate &&
           other.shareId == this.shareId &&
           other.shareUrl == this.shareUrl &&
+          other.importSources == this.importSources &&
           other.pinnedTags == this.pinnedTags);
 }
 
@@ -716,6 +756,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
   final Value<String?> journalDate;
   final Value<String?> shareId;
   final Value<String?> shareUrl;
+  final Value<String> importSources;
   final Value<String?> pinnedTags;
   final Value<int> rowid;
   const NotesTableCompanion({
@@ -734,6 +775,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.journalDate = const Value.absent(),
     this.shareId = const Value.absent(),
     this.shareUrl = const Value.absent(),
+    this.importSources = const Value.absent(),
     this.pinnedTags = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -753,6 +795,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     this.journalDate = const Value.absent(),
     this.shareId = const Value.absent(),
     this.shareUrl = const Value.absent(),
+    this.importSources = const Value.absent(),
     this.pinnedTags = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -774,6 +817,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Expression<String>? journalDate,
     Expression<String>? shareId,
     Expression<String>? shareUrl,
+    Expression<String>? importSources,
     Expression<String>? pinnedTags,
     Expression<int>? rowid,
   }) {
@@ -793,6 +837,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       if (journalDate != null) 'journal_date': journalDate,
       if (shareId != null) 'share_id': shareId,
       if (shareUrl != null) 'share_url': shareUrl,
+      if (importSources != null) 'import_sources': importSources,
       if (pinnedTags != null) 'pinned_tags': pinnedTags,
       if (rowid != null) 'rowid': rowid,
     });
@@ -814,6 +859,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     Value<String?>? journalDate,
     Value<String?>? shareId,
     Value<String?>? shareUrl,
+    Value<String>? importSources,
     Value<String?>? pinnedTags,
     Value<int>? rowid,
   }) {
@@ -833,6 +879,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
       journalDate: journalDate ?? this.journalDate,
       shareId: shareId ?? this.shareId,
       shareUrl: shareUrl ?? this.shareUrl,
+      importSources: importSources ?? this.importSources,
       pinnedTags: pinnedTags ?? this.pinnedTags,
       rowid: rowid ?? this.rowid,
     );
@@ -886,6 +933,9 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
     if (shareUrl.present) {
       map['share_url'] = Variable<String>(shareUrl.value);
     }
+    if (importSources.present) {
+      map['import_sources'] = Variable<String>(importSources.value);
+    }
     if (pinnedTags.present) {
       map['pinned_tags'] = Variable<String>(pinnedTags.value);
     }
@@ -913,6 +963,7 @@ class NotesTableCompanion extends UpdateCompanion<NoteEntity> {
           ..write('journalDate: $journalDate, ')
           ..write('shareId: $shareId, ')
           ..write('shareUrl: $shareUrl, ')
+          ..write('importSources: $importSources, ')
           ..write('pinnedTags: $pinnedTags, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -11539,6 +11590,712 @@ class QuickCaptureDraftsTableCompanion
   }
 }
 
+class $NoteTemplatesTableTable extends NoteTemplatesTable
+    with TableInfo<$NoteTemplatesTableTable, NoteTemplateEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NoteTemplatesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _storageFormatMeta = const VerificationMeta(
+    'storageFormat',
+  );
+  @override
+  late final GeneratedColumn<String> storageFormat = GeneratedColumn<String>(
+    'storage_format',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _defaultTagsJsonMeta = const VerificationMeta(
+    'defaultTagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> defaultTagsJson = GeneratedColumn<String>(
+    'default_tags_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _schemaVersionMeta = const VerificationMeta(
+    'schemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+    'schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    displayName,
+    content,
+    storageFormat,
+    defaultTagsJson,
+    createdAt,
+    updatedAt,
+    schemaVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'note_templates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NoteTemplateEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('storage_format')) {
+      context.handle(
+        _storageFormatMeta,
+        storageFormat.isAcceptableOrUnknown(
+          data['storage_format']!,
+          _storageFormatMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_storageFormatMeta);
+    }
+    if (data.containsKey('default_tags_json')) {
+      context.handle(
+        _defaultTagsJsonMeta,
+        defaultTagsJson.isAcceptableOrUnknown(
+          data['default_tags_json']!,
+          _defaultTagsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_defaultTagsJsonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+        _schemaVersionMeta,
+        schemaVersion.isAcceptableOrUnknown(
+          data['schema_version']!,
+          _schemaVersionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NoteTemplateEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NoteTemplateEntity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      storageFormat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}storage_format'],
+      )!,
+      defaultTagsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}default_tags_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      schemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schema_version'],
+      )!,
+    );
+  }
+
+  @override
+  $NoteTemplatesTableTable createAlias(String alias) {
+    return $NoteTemplatesTableTable(attachedDatabase, alias);
+  }
+}
+
+class NoteTemplateEntity extends DataClass
+    implements Insertable<NoteTemplateEntity> {
+  final String id;
+  final String displayName;
+  final String content;
+  final String storageFormat;
+  final String defaultTagsJson;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int schemaVersion;
+  const NoteTemplateEntity({
+    required this.id,
+    required this.displayName,
+    required this.content,
+    required this.storageFormat,
+    required this.defaultTagsJson,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.schemaVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['display_name'] = Variable<String>(displayName);
+    map['content'] = Variable<String>(content);
+    map['storage_format'] = Variable<String>(storageFormat);
+    map['default_tags_json'] = Variable<String>(defaultTagsJson);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    return map;
+  }
+
+  NoteTemplatesTableCompanion toCompanion(bool nullToAbsent) {
+    return NoteTemplatesTableCompanion(
+      id: Value(id),
+      displayName: Value(displayName),
+      content: Value(content),
+      storageFormat: Value(storageFormat),
+      defaultTagsJson: Value(defaultTagsJson),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      schemaVersion: Value(schemaVersion),
+    );
+  }
+
+  factory NoteTemplateEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NoteTemplateEntity(
+      id: serializer.fromJson<String>(json['id']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      content: serializer.fromJson<String>(json['content']),
+      storageFormat: serializer.fromJson<String>(json['storageFormat']),
+      defaultTagsJson: serializer.fromJson<String>(json['defaultTagsJson']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'displayName': serializer.toJson<String>(displayName),
+      'content': serializer.toJson<String>(content),
+      'storageFormat': serializer.toJson<String>(storageFormat),
+      'defaultTagsJson': serializer.toJson<String>(defaultTagsJson),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+    };
+  }
+
+  NoteTemplateEntity copyWith({
+    String? id,
+    String? displayName,
+    String? content,
+    String? storageFormat,
+    String? defaultTagsJson,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int? schemaVersion,
+  }) => NoteTemplateEntity(
+    id: id ?? this.id,
+    displayName: displayName ?? this.displayName,
+    content: content ?? this.content,
+    storageFormat: storageFormat ?? this.storageFormat,
+    defaultTagsJson: defaultTagsJson ?? this.defaultTagsJson,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    schemaVersion: schemaVersion ?? this.schemaVersion,
+  );
+  NoteTemplateEntity copyWithCompanion(NoteTemplatesTableCompanion data) {
+    return NoteTemplateEntity(
+      id: data.id.present ? data.id.value : this.id,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      content: data.content.present ? data.content.value : this.content,
+      storageFormat: data.storageFormat.present
+          ? data.storageFormat.value
+          : this.storageFormat,
+      defaultTagsJson: data.defaultTagsJson.present
+          ? data.defaultTagsJson.value
+          : this.defaultTagsJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteTemplateEntity(')
+          ..write('id: $id, ')
+          ..write('displayName: $displayName, ')
+          ..write('content: $content, ')
+          ..write('storageFormat: $storageFormat, ')
+          ..write('defaultTagsJson: $defaultTagsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('schemaVersion: $schemaVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    displayName,
+    content,
+    storageFormat,
+    defaultTagsJson,
+    createdAt,
+    updatedAt,
+    schemaVersion,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NoteTemplateEntity &&
+          other.id == this.id &&
+          other.displayName == this.displayName &&
+          other.content == this.content &&
+          other.storageFormat == this.storageFormat &&
+          other.defaultTagsJson == this.defaultTagsJson &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.schemaVersion == this.schemaVersion);
+}
+
+class NoteTemplatesTableCompanion extends UpdateCompanion<NoteTemplateEntity> {
+  final Value<String> id;
+  final Value<String> displayName;
+  final Value<String> content;
+  final Value<String> storageFormat;
+  final Value<String> defaultTagsJson;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> schemaVersion;
+  final Value<int> rowid;
+  const NoteTemplatesTableCompanion({
+    this.id = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.content = const Value.absent(),
+    this.storageFormat = const Value.absent(),
+    this.defaultTagsJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NoteTemplatesTableCompanion.insert({
+    required String id,
+    required String displayName,
+    required String content,
+    required String storageFormat,
+    required String defaultTagsJson,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       displayName = Value(displayName),
+       content = Value(content),
+       storageFormat = Value(storageFormat),
+       defaultTagsJson = Value(defaultTagsJson),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<NoteTemplateEntity> custom({
+    Expression<String>? id,
+    Expression<String>? displayName,
+    Expression<String>? content,
+    Expression<String>? storageFormat,
+    Expression<String>? defaultTagsJson,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? schemaVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (displayName != null) 'display_name': displayName,
+      if (content != null) 'content': content,
+      if (storageFormat != null) 'storage_format': storageFormat,
+      if (defaultTagsJson != null) 'default_tags_json': defaultTagsJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NoteTemplatesTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? displayName,
+    Value<String>? content,
+    Value<String>? storageFormat,
+    Value<String>? defaultTagsJson,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? schemaVersion,
+    Value<int>? rowid,
+  }) {
+    return NoteTemplatesTableCompanion(
+      id: id ?? this.id,
+      displayName: displayName ?? this.displayName,
+      content: content ?? this.content,
+      storageFormat: storageFormat ?? this.storageFormat,
+      defaultTagsJson: defaultTagsJson ?? this.defaultTagsJson,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (storageFormat.present) {
+      map['storage_format'] = Variable<String>(storageFormat.value);
+    }
+    if (defaultTagsJson.present) {
+      map['default_tags_json'] = Variable<String>(defaultTagsJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteTemplatesTableCompanion(')
+          ..write('id: $id, ')
+          ..write('displayName: $displayName, ')
+          ..write('content: $content, ')
+          ..write('storageFormat: $storageFormat, ')
+          ..write('defaultTagsJson: $defaultTagsJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TemplateFavoritesTableTable extends TemplateFavoritesTable
+    with TableInfo<$TemplateFavoritesTableTable, TemplateFavoriteEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TemplateFavoritesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _templateIdMeta = const VerificationMeta(
+    'templateId',
+  );
+  @override
+  late final GeneratedColumn<String> templateId = GeneratedColumn<String>(
+    'template_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [templateId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'template_favorites';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TemplateFavoriteEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('template_id')) {
+      context.handle(
+        _templateIdMeta,
+        templateId.isAcceptableOrUnknown(data['template_id']!, _templateIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_templateIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {templateId};
+  @override
+  TemplateFavoriteEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TemplateFavoriteEntity(
+      templateId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}template_id'],
+      )!,
+    );
+  }
+
+  @override
+  $TemplateFavoritesTableTable createAlias(String alias) {
+    return $TemplateFavoritesTableTable(attachedDatabase, alias);
+  }
+}
+
+class TemplateFavoriteEntity extends DataClass
+    implements Insertable<TemplateFavoriteEntity> {
+  final String templateId;
+  const TemplateFavoriteEntity({required this.templateId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['template_id'] = Variable<String>(templateId);
+    return map;
+  }
+
+  TemplateFavoritesTableCompanion toCompanion(bool nullToAbsent) {
+    return TemplateFavoritesTableCompanion(templateId: Value(templateId));
+  }
+
+  factory TemplateFavoriteEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TemplateFavoriteEntity(
+      templateId: serializer.fromJson<String>(json['templateId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'templateId': serializer.toJson<String>(templateId),
+    };
+  }
+
+  TemplateFavoriteEntity copyWith({String? templateId}) =>
+      TemplateFavoriteEntity(templateId: templateId ?? this.templateId);
+  TemplateFavoriteEntity copyWithCompanion(
+    TemplateFavoritesTableCompanion data,
+  ) {
+    return TemplateFavoriteEntity(
+      templateId: data.templateId.present
+          ? data.templateId.value
+          : this.templateId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateFavoriteEntity(')
+          ..write('templateId: $templateId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => templateId.hashCode;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TemplateFavoriteEntity && other.templateId == this.templateId);
+}
+
+class TemplateFavoritesTableCompanion
+    extends UpdateCompanion<TemplateFavoriteEntity> {
+  final Value<String> templateId;
+  final Value<int> rowid;
+  const TemplateFavoritesTableCompanion({
+    this.templateId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TemplateFavoritesTableCompanion.insert({
+    required String templateId,
+    this.rowid = const Value.absent(),
+  }) : templateId = Value(templateId);
+  static Insertable<TemplateFavoriteEntity> custom({
+    Expression<String>? templateId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (templateId != null) 'template_id': templateId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TemplateFavoritesTableCompanion copyWith({
+    Value<String>? templateId,
+    Value<int>? rowid,
+  }) {
+    return TemplateFavoritesTableCompanion(
+      templateId: templateId ?? this.templateId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (templateId.present) {
+      map['template_id'] = Variable<String>(templateId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateFavoritesTableCompanion(')
+          ..write('templateId: $templateId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -11569,6 +12326,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $PlaceAliasesTableTable(this);
   late final $QuickCaptureDraftsTableTable quickCaptureDraftsTable =
       $QuickCaptureDraftsTableTable(this);
+  late final $NoteTemplatesTableTable noteTemplatesTable =
+      $NoteTemplatesTableTable(this);
+  late final $TemplateFavoritesTableTable templateFavoritesTable =
+      $TemplateFavoritesTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11590,6 +12351,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     noteLinksTable,
     placeAliasesTable,
     quickCaptureDraftsTable,
+    noteTemplatesTable,
+    templateFavoritesTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -11648,6 +12411,7 @@ typedef $$NotesTableTableCreateCompanionBuilder =
       Value<String?> journalDate,
       Value<String?> shareId,
       Value<String?> shareUrl,
+      Value<String> importSources,
       Value<String?> pinnedTags,
       Value<int> rowid,
     });
@@ -11668,6 +12432,7 @@ typedef $$NotesTableTableUpdateCompanionBuilder =
       Value<String?> journalDate,
       Value<String?> shareId,
       Value<String?> shareUrl,
+      Value<String> importSources,
       Value<String?> pinnedTags,
       Value<int> rowid,
     });
@@ -11836,6 +12601,11 @@ class $$NotesTableTableFilterComposer
 
   ColumnFilters<String> get shareUrl => $composableBuilder(
     column: $table.shareUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get importSources => $composableBuilder(
+    column: $table.importSources,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12029,6 +12799,11 @@ class $$NotesTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get importSources => $composableBuilder(
+    column: $table.importSources,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get pinnedTags => $composableBuilder(
     column: $table.pinnedTags,
     builder: (column) => ColumnOrderings(column),
@@ -12094,6 +12869,11 @@ class $$NotesTableTableAnnotationComposer
 
   GeneratedColumn<String> get shareUrl =>
       $composableBuilder(column: $table.shareUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get importSources => $composableBuilder(
+    column: $table.importSources,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get pinnedTags => $composableBuilder(
     column: $table.pinnedTags,
@@ -12251,6 +13031,7 @@ class $$NotesTableTableTableManager
                 Value<String?> journalDate = const Value.absent(),
                 Value<String?> shareId = const Value.absent(),
                 Value<String?> shareUrl = const Value.absent(),
+                Value<String> importSources = const Value.absent(),
                 Value<String?> pinnedTags = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion(
@@ -12269,6 +13050,7 @@ class $$NotesTableTableTableManager
                 journalDate: journalDate,
                 shareId: shareId,
                 shareUrl: shareUrl,
+                importSources: importSources,
                 pinnedTags: pinnedTags,
                 rowid: rowid,
               ),
@@ -12289,6 +13071,7 @@ class $$NotesTableTableTableManager
                 Value<String?> journalDate = const Value.absent(),
                 Value<String?> shareId = const Value.absent(),
                 Value<String?> shareUrl = const Value.absent(),
+                Value<String> importSources = const Value.absent(),
                 Value<String?> pinnedTags = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesTableCompanion.insert(
@@ -12307,6 +13090,7 @@ class $$NotesTableTableTableManager
                 journalDate: journalDate,
                 shareId: shareId,
                 shareUrl: shareUrl,
+                importSources: importSources,
                 pinnedTags: pinnedTags,
                 rowid: rowid,
               ),
@@ -18242,6 +19026,429 @@ typedef $$QuickCaptureDraftsTableTableProcessedTableManager =
       QuickCaptureDraftEntity,
       PrefetchHooks Function()
     >;
+typedef $$NoteTemplatesTableTableCreateCompanionBuilder =
+    NoteTemplatesTableCompanion Function({
+      required String id,
+      required String displayName,
+      required String content,
+      required String storageFormat,
+      required String defaultTagsJson,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> schemaVersion,
+      Value<int> rowid,
+    });
+typedef $$NoteTemplatesTableTableUpdateCompanionBuilder =
+    NoteTemplatesTableCompanion Function({
+      Value<String> id,
+      Value<String> displayName,
+      Value<String> content,
+      Value<String> storageFormat,
+      Value<String> defaultTagsJson,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> schemaVersion,
+      Value<int> rowid,
+    });
+
+class $$NoteTemplatesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $NoteTemplatesTableTable> {
+  $$NoteTemplatesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get storageFormat => $composableBuilder(
+    column: $table.storageFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get defaultTagsJson => $composableBuilder(
+    column: $table.defaultTagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NoteTemplatesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $NoteTemplatesTableTable> {
+  $$NoteTemplatesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get storageFormat => $composableBuilder(
+    column: $table.storageFormat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get defaultTagsJson => $composableBuilder(
+    column: $table.defaultTagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NoteTemplatesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NoteTemplatesTableTable> {
+  $$NoteTemplatesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get storageFormat => $composableBuilder(
+    column: $table.storageFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get defaultTagsJson => $composableBuilder(
+    column: $table.defaultTagsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => column,
+  );
+}
+
+class $$NoteTemplatesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NoteTemplatesTableTable,
+          NoteTemplateEntity,
+          $$NoteTemplatesTableTableFilterComposer,
+          $$NoteTemplatesTableTableOrderingComposer,
+          $$NoteTemplatesTableTableAnnotationComposer,
+          $$NoteTemplatesTableTableCreateCompanionBuilder,
+          $$NoteTemplatesTableTableUpdateCompanionBuilder,
+          (
+            NoteTemplateEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $NoteTemplatesTableTable,
+              NoteTemplateEntity
+            >,
+          ),
+          NoteTemplateEntity,
+          PrefetchHooks Function()
+        > {
+  $$NoteTemplatesTableTableTableManager(
+    _$AppDatabase db,
+    $NoteTemplatesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NoteTemplatesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NoteTemplatesTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NoteTemplatesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> storageFormat = const Value.absent(),
+                Value<String> defaultTagsJson = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> schemaVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteTemplatesTableCompanion(
+                id: id,
+                displayName: displayName,
+                content: content,
+                storageFormat: storageFormat,
+                defaultTagsJson: defaultTagsJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                schemaVersion: schemaVersion,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String displayName,
+                required String content,
+                required String storageFormat,
+                required String defaultTagsJson,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> schemaVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteTemplatesTableCompanion.insert(
+                id: id,
+                displayName: displayName,
+                content: content,
+                storageFormat: storageFormat,
+                defaultTagsJson: defaultTagsJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                schemaVersion: schemaVersion,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NoteTemplatesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NoteTemplatesTableTable,
+      NoteTemplateEntity,
+      $$NoteTemplatesTableTableFilterComposer,
+      $$NoteTemplatesTableTableOrderingComposer,
+      $$NoteTemplatesTableTableAnnotationComposer,
+      $$NoteTemplatesTableTableCreateCompanionBuilder,
+      $$NoteTemplatesTableTableUpdateCompanionBuilder,
+      (
+        NoteTemplateEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $NoteTemplatesTableTable,
+          NoteTemplateEntity
+        >,
+      ),
+      NoteTemplateEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$TemplateFavoritesTableTableCreateCompanionBuilder =
+    TemplateFavoritesTableCompanion Function({
+      required String templateId,
+      Value<int> rowid,
+    });
+typedef $$TemplateFavoritesTableTableUpdateCompanionBuilder =
+    TemplateFavoritesTableCompanion Function({
+      Value<String> templateId,
+      Value<int> rowid,
+    });
+
+class $$TemplateFavoritesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $TemplateFavoritesTableTable> {
+  $$TemplateFavoritesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get templateId => $composableBuilder(
+    column: $table.templateId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TemplateFavoritesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemplateFavoritesTableTable> {
+  $$TemplateFavoritesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get templateId => $composableBuilder(
+    column: $table.templateId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TemplateFavoritesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemplateFavoritesTableTable> {
+  $$TemplateFavoritesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get templateId => $composableBuilder(
+    column: $table.templateId,
+    builder: (column) => column,
+  );
+}
+
+class $$TemplateFavoritesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TemplateFavoritesTableTable,
+          TemplateFavoriteEntity,
+          $$TemplateFavoritesTableTableFilterComposer,
+          $$TemplateFavoritesTableTableOrderingComposer,
+          $$TemplateFavoritesTableTableAnnotationComposer,
+          $$TemplateFavoritesTableTableCreateCompanionBuilder,
+          $$TemplateFavoritesTableTableUpdateCompanionBuilder,
+          (
+            TemplateFavoriteEntity,
+            BaseReferences<
+              _$AppDatabase,
+              $TemplateFavoritesTableTable,
+              TemplateFavoriteEntity
+            >,
+          ),
+          TemplateFavoriteEntity,
+          PrefetchHooks Function()
+        > {
+  $$TemplateFavoritesTableTableTableManager(
+    _$AppDatabase db,
+    $TemplateFavoritesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TemplateFavoritesTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TemplateFavoritesTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TemplateFavoritesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> templateId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemplateFavoritesTableCompanion(
+                templateId: templateId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String templateId,
+                Value<int> rowid = const Value.absent(),
+              }) => TemplateFavoritesTableCompanion.insert(
+                templateId: templateId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TemplateFavoritesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TemplateFavoritesTableTable,
+      TemplateFavoriteEntity,
+      $$TemplateFavoritesTableTableFilterComposer,
+      $$TemplateFavoritesTableTableOrderingComposer,
+      $$TemplateFavoritesTableTableAnnotationComposer,
+      $$TemplateFavoritesTableTableCreateCompanionBuilder,
+      $$TemplateFavoritesTableTableUpdateCompanionBuilder,
+      (
+        TemplateFavoriteEntity,
+        BaseReferences<
+          _$AppDatabase,
+          $TemplateFavoritesTableTable,
+          TemplateFavoriteEntity
+        >,
+      ),
+      TemplateFavoriteEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -18289,5 +19496,12 @@ class $AppDatabaseManager {
       $$QuickCaptureDraftsTableTableTableManager(
         _db,
         _db.quickCaptureDraftsTable,
+      );
+  $$NoteTemplatesTableTableTableManager get noteTemplatesTable =>
+      $$NoteTemplatesTableTableTableManager(_db, _db.noteTemplatesTable);
+  $$TemplateFavoritesTableTableTableManager get templateFavoritesTable =>
+      $$TemplateFavoritesTableTableTableManager(
+        _db,
+        _db.templateFavoritesTable,
       );
 }

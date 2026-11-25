@@ -1,0 +1,3 @@
+00:00 +0: loading /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_thumbnail_stress_test.dart
+00:00 +0: 2500 requests deduplicate 250 pages and survive encrypted disk reload
+00:00 +1: All tests passed!

@@ -69,7 +69,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.autoFocus && widget.autoFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.initialQuery.isEmpty) {
+        if (mounted && widget.autoFocus && widget.initialQuery.isEmpty) {
           _searchFocusNode.requestFocus();
         }
       });

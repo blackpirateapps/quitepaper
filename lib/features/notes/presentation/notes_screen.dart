@@ -1,3 +1,13 @@
+import '../../tasks/presentation/tasks_view.dart';
+import '../../tasks/domain/task_item.dart';
+import '../../tasks/domain/task_document.dart';
+import '../../email_import/application/email_editor_bridge.dart';
+import '../application/workspace_commands.dart';
+import 'workspace_command_palette.dart';
+import '../../email_import/presentation/email_workspace_actions.dart';
+import '../../email_import/presentation/email_import_launcher.dart';
+import '../../email_import/application/email_import_gateway.dart';
+import '../../email_import/application/email_input.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -11,7 +21,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../../export/presentation/export_note_sheet.dart';
-import '../../import/presentation/widgets/add_tag_modal.dart';
+import '../../tags/presentation/widgets/tag_picker_dialog.dart';
+import '../../tags/application/tag_suggestions.dart';
 import '../../../core/attachments/attachment_provider.dart';
 import '../../../core/cli/cli_args_provider.dart';
 import '../../../core/documents/document_provider.dart';
@@ -30,6 +41,8 @@ import '../../../core/widgets/quiet_button.dart';
 import '../../../core/widgets/quiet_fab.dart';
 import '../../../core/widgets/quiet_icon_button.dart';
 import '../../editor/presentation/editor_screen.dart';
+import '../../templates/presentation/template_picker.dart';
+import 'widgets/notes_command_palette.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../sidebar/presentation/sidebar_view.dart';
@@ -46,6 +59,7 @@ import '../application/notes_query_provider.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_group.dart';
 import '../domain/note_model.dart';
+import '../domain/notes_query.dart';
 import 'widgets/active_filter_chips.dart';
 import 'widgets/note_date_header.dart';
 import 'widgets/note_empty_state.dart';
@@ -55,18 +69,13 @@ import 'widgets/notes_loading_more_indicator.dart';
 import 'widgets/notes_sort_sheet.dart';
 import 'widgets/pull_down_search_reveal.dart';
 import 'widgets/tags_filter_bar.dart';
-import 'widgets/note_thumbnail_view.dart';
-import '../domain/note_metadata_extractor.dart';
 import '../../settings/application/default_settings_provider.dart';
 import '../../tags/domain/phosphor_icons.dart';
 import '../../onboarding/application/onboarding_provider.dart';
 import '../../onboarding/presentation/coach_marks/onboarding_coach_marks.dart';
 
 class NotesScreen extends ConsumerStatefulWidget {
-  const NotesScreen({
-    super.key,
-    this.showOnboardingTour = false,
-  });
+  const NotesScreen({super.key, this.showOnboardingTour = false});
 
   final bool showOnboardingTour;
 
@@ -75,14 +84,18 @@ class NotesScreen extends ConsumerStatefulWidget {
 }
 
 class _NotesScreenState extends ConsumerState<NotesScreen> {
+  late final WorkspaceCommands _workspaceCommands;
   String? _selectedNoteIdForTablet;
+  TaskItem? _selectedTask;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
   bool _tourDismissed = false;
   bool _tourStarted = false;
   bool _showFirstNoteTipsForTablet = false;
 
-  final _onboardingSidebarTargetKey = GlobalKey(debugLabel: 'onboarding-sidebar');
+  final _onboardingSidebarTargetKey = GlobalKey(
+    debugLabel: 'onboarding-sidebar',
+  );
   final _onboardingSearchTargetKey = GlobalKey(debugLabel: 'onboarding-search');
   final _onboardingCreateTargetKey = GlobalKey(debugLabel: 'onboarding-create');
 
@@ -104,8 +117,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   @override
   void initState() {
     super.initState();
+    _workspaceCommands = ref.read(workspaceCommandsProvider);
+    _workspaceCommands.open = _showCommands;
     if (widget.showOnboardingTour) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _startOnboardingTour(),
+      );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkInitialCliArgs();
@@ -119,7 +136,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.showOnboardingTour && widget.showOnboardingTour) {
       _tourDismissed = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startOnboardingTour());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _startOnboardingTour(),
+      );
     }
   }
 
@@ -153,6 +172,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   @override
   void dispose() {
+    if (_workspaceCommands.open == _showCommands) _workspaceCommands.open = null;
     _multiSelectFocusNode.dispose();
     super.dispose();
   }
@@ -172,6 +192,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       return;
     }
 
+    final emails = args.where((arg)=>arg.toLowerCase().endsWith('.eml')).map((arg)=>EmailInput(path:arg)).toList();
+    if(emails.isNotEmpty && mounted) {
+      await EmailImportLauncher.open(context,EmailImportRequest(inputs:emails));
+      return;
+    }
     final mdPath = CliArgsHelper.findMarkdownFile(args);
     if (mdPath != null) {
       final file = File(mdPath);
@@ -210,6 +235,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       }
     }
 
+    if (await EmailDesktopRouter.route(context, resolvedPaths.toList())) return;
     for (final path in resolvedPaths) {
       final file = File(path);
       if (!await file.exists()) continue;
@@ -540,8 +566,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final shouldPin = scopedTag != null
         ? notes.any((n) => !n.isPinnedInTag(scopedTag))
         : (destination == AppDestination.pinned
-            ? notes.any((n) => !n.isPinned && n.pinnedTags.isEmpty)
-            : notes.any((n) => !n.isPinned));
+              ? notes.any((n) => !n.isPinned && n.pinnedTags.isEmpty)
+              : notes.any((n) => !n.isPinned));
 
     for (final note in notes) {
       if (scopedTag != null) {
@@ -583,26 +609,32 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Future<void> _addTagToSelectedNotes() async {
     final notes = _selectedNotes();
     if (notes.isEmpty) return;
-    final tag = await AddTagDialog.show(
+    final commonTags = notes.first.tags.toSet();
+    for (final note in notes.skip(1)) {
+      commonTags.retainAll(note.tags);
+    }
+    final tags = await TagPickerDialog.show(
       context,
-      title: 'Add tag to selected',
-      hintText: 'e.g. project, notes',
+      title: 'Add tags to selected notes',
+      existingTags: commonTags.toList(),
     );
-    if (tag == null || tag.isEmpty || !mounted) return;
+    if (tags == null || tags.isEmpty || !mounted) return;
 
     final repository = ref.read(notesRepositoryProvider);
     final now = DateTime.now();
     var updated = 0;
     for (final note in notes) {
-      final hasTag = note.tags.any(
-        (t) => TagParser.normalizeTag(t).toLowerCase() == tag.toLowerCase(),
-      );
-      if (hasTag) continue;
+      final existing = note.tags.map(TagParser.normalizeTag).toSet();
+      final additions = tags.where((tag) => !existing.contains(tag)).toList();
+      if (additions.isEmpty) continue;
       await repository.saveNote(
-        note.copyWith(tags: [...note.tags, tag], updatedAt: now),
+        note.copyWith(tags: [...note.tags, ...additions], updatedAt: now),
       );
       updated++;
     }
+    if (!mounted) return;
+    await ref.read(recentTagNamesProvider.notifier).record(tags);
+    if (!mounted) return;
     ref.read(notesCollectionProvider.notifier).refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -610,8 +642,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       SnackBar(
         content: Text(
           updated == 0
-              ? 'All selected notes already have #$tag'
-              : 'Added #$tag to $updated notes',
+              ? 'All selected notes already have these tags'
+              : 'Added ${tags.length} ${tags.length == 1 ? 'tag' : 'tags'} to $updated notes',
         ),
         duration: const Duration(seconds: 2),
       ),
@@ -667,22 +699,26 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final encoded = ZipEncoder().encode(archive);
     final zipBytes = Uint8List.fromList(encoded);
 
-    final savedPath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Export ${archive.length} notes',
-      fileName: 'quiet-paper-notes.zip',
-      type: FileType.custom,
-      allowedExtensions: const ['zip'],
-      bytes: zipBytes,
-    );
-    if (savedPath == null) return;
-
-    if (savedPath.isNotEmpty) {
-      final f = File(savedPath);
-      if (!await f.exists() || (await f.length()) == 0) {
-        try {
-          await f.writeAsBytes(zipBytes, flush: true);
-        } catch (_) {}
+    try {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export ${archive.length} notes',
+        fileName: 'quiet-paper-notes.zip',
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+        bytes: zipBytes,
+      );
+      if (savedPath == null || savedPath.isEmpty) return;
+      // Desktop pickers select a path; mobile pickers write the supplied bytes.
+      if (PlatformLayoutHelper.isDesktopPlatform) {
+        await File(savedPath).writeAsBytes(zipBytes, flush: true);
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Couldn't export notes")));
+      return;
     }
 
     if (!mounted) return;
@@ -700,6 +736,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   String _getDestinationTitle(AppDestination destination) {
     switch (destination) {
+      case AppDestination.tasks:
+        return 'Tasks';
       case AppDestination.allNotes:
         return 'All Notes';
       case AppDestination.pinned:
@@ -780,6 +818,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTabletLayout = screenWidth >= 900.0;
 
+    ref.listen<NotesQuery>(notesQueryProvider, (prev, next) {
+      if (prev != next && _isMultiSelecting) _exitMultiSelect();
+    });
+
     ref.listen<AppDestination>(currentDestinationProvider, (prev, next) {
       if (prev != next) {
         if (_isMultiSelecting) _exitMultiSelect();
@@ -842,11 +884,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final query = ref.watch(notesQueryProvider);
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
-    _prewarmThumbnails(groups);
-
     final title = _getDestinationTitle(destination);
 
     final phoneKeyboardBindings = {
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
           _createAndOpenNote(context),
@@ -928,6 +970,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       bindings: phoneKeyboardBindings,
       child: Focus(
         focusNode: _multiSelectFocusNode,
+        autofocus: true,
         child: PopScope(
           canPop:
               !_isMultiSelecting &&
@@ -958,7 +1001,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               return SearchScreen(
                 onClose: onClose,
                 isPastThreshold: isPastThreshold,
-                autoFocus: _phonePullDownState?.isSearchActive ?? false,
+                autoFocus: _phonePullDownState?.isSearchReady ?? false,
               );
             },
             child: Scaffold(
@@ -982,6 +1025,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ),
               appBar:
                   (isTagBrowser ||
+                      destination == AppDestination.tasks ||
                       destination == AppDestination.allJournalEntries ||
                       destination == AppDestination.places)
                   ? null
@@ -1033,6 +1077,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     NotesFilterSheet.show(context),
                                 onSearchPressed: () =>
                                     _openSearchScreen(context),
+                                onCreateFromTemplatePressed: _newFromTemplate,
                                 onCreateNotePressed: () =>
                                     _createAndOpenNote(context),
                                 advancedFilterCount:
@@ -1092,7 +1137,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   ),
                                 ),
                                 onSelected: (val) {
-                                  if (val == 'select') {
+                                  if (val == 'templates') {
+                                    _newFromTemplate();
+                                  } else if (val == 'commands') {
+                                    _showCommands();
+                                  } else if (val == 'select') {
                                     _enterMultiSelect();
                                   } else if (val == 'sort') {
                                     NotesSortSheet.show(context);
@@ -1111,6 +1160,50 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   }
                                 },
                                 itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'templates',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.files,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'New from Template',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'commands',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          PhosphorIconsRegular.command,
+                                          size: 18,
+                                          color: colors.textSecondary,
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            'Command Palette',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: colors.textPrimary,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   PopupMenuItem(
                                     value: 'select',
                                     child: Row(
@@ -1282,7 +1375,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     ),
                   );
                 },
-                child: isTagBrowser
+                child: destination == AppDestination.tasks
+                    ? SafeArea(
+                        child: Builder(
+                          builder: (ctx) => TasksView(
+                            key: const ValueKey('phone_tasks'),
+                            onMenu: () => Scaffold.of(ctx).openDrawer(),
+                          ),
+                        ),
+                      )
+                    : isTagBrowser
                     ? SafeArea(
                         key: const ValueKey('phone_tag_browser'),
                         child: Builder(
@@ -1369,12 +1471,31 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             child:
                                                 CircularProgressIndicator.adaptive(),
                                           )
+                                        : collectionState.notes.isEmpty &&
+                                              collectionState.error != null
+                                        ? Center(
+                                            child: NotesLoadingMoreIndicator(
+                                              loadingMore: false,
+                                              initialLoad: true,
+                                              error: collectionState.error,
+                                              onRetry: () => ref
+                                                  .read(
+                                                    notesCollectionProvider
+                                                        .notifier,
+                                                  )
+                                                  .retry(),
+                                            ),
+                                          )
                                         : (groups.isEmpty &&
                                               collectionState.notes.isEmpty)
                                         ? SingleChildScrollView(
-                                            physics: const BouncingScrollPhysics(
-                                              parent:
-                                                  AlwaysScrollableScrollPhysics(),
+                                            physics: PullDownSearchScrollPhysics(
+                                              revealState: () =>
+                                                  _phonePullDownState,
+                                              parent: const BouncingScrollPhysics(
+                                                parent:
+                                                    AlwaysScrollableScrollPhysics(),
+                                              ),
                                             ),
                                             child: SizedBox(
                                               height: 400,
@@ -1383,13 +1504,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                     _createAndOpenNote(context),
                                                 destination: destination,
                                                 tagFilter: selectedTag,
-                                                hasActiveFilters: query
-                                                    .filter
+                                                hasActiveFilters: query.filter
                                                     .hasAdvancedFiltersExcluding(
                                                       ignorePinned:
                                                           destination ==
-                                                              AppDestination
-                                                                  .pinned,
+                                                          AppDestination.pinned,
                                                     ),
                                                 onClearFilters: () => ref
                                                     .read(
@@ -1404,27 +1523,33 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                             child: ListView.builder(
                                               scrollCacheExtent:
                                                   PlatformLayoutHelper
-                                                          .isDesktopPlatform
-                                                      ? const ScrollCacheExtent
-                                                          .pixels(500.0)
-                                                      : const ScrollCacheExtent
-                                                          .pixels(350.0),
+                                                      .isDesktopPlatform
+                                                  ? const ScrollCacheExtent.pixels(
+                                                      500.0,
+                                                    )
+                                                  : const ScrollCacheExtent.pixels(
+                                                      350.0,
+                                                    ),
                                               addRepaintBoundaries: true,
                                               addAutomaticKeepAlives: false,
                                               padding: const EdgeInsets.only(
                                                 bottom: 96,
                                               ),
-                                              physics:
-                                                  PlatformLayoutHelper
-                                                      .isDesktopPlatform
-                                                  ? const ClampingScrollPhysics(
-                                                      parent:
-                                                          AlwaysScrollableScrollPhysics(),
-                                                    )
-                                                  : const BouncingScrollPhysics(
-                                                      parent:
-                                                          AlwaysScrollableScrollPhysics(),
-                                                    ),
+                                              physics: PullDownSearchScrollPhysics(
+                                                revealState: () =>
+                                                    _phonePullDownState,
+                                                parent:
+                                                    PlatformLayoutHelper
+                                                        .isDesktopPlatform
+                                                    ? const ClampingScrollPhysics(
+                                                        parent:
+                                                            AlwaysScrollableScrollPhysics(),
+                                                      )
+                                                    : const BouncingScrollPhysics(
+                                                        parent:
+                                                            AlwaysScrollableScrollPhysics(),
+                                                      ),
+                                              ),
                                               itemCount:
                                                   _calculateTotalItemCount(
                                                     groups,
@@ -1730,7 +1855,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Add tag…',
+                    'Add tags…',
                     style: AppTypography.bodySmall.copyWith(
                       color: colors.textPrimary,
                     ),
@@ -1845,7 +1970,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final collectionState = ref.watch(notesCollectionProvider);
     final groups = ref.watch(groupedNotesCollectionProvider);
     final query = ref.watch(notesQueryProvider);
-    _prewarmThumbnails(groups);
     final title = _getDestinationTitle(destination);
 
     // Watch active note if one is selected in tablet mode
@@ -1870,6 +1994,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final defaultSettings = ref.watch(defaultSettingsProvider);
 
     final tabletKeyboardBindings = {
+      const SingleActivator(LogicalKeyboardKey.keyP, control: true): _showCommands,
+      const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _showCommands,
       // Create New Note (Ctrl+N / Cmd+N)
       const SingleActivator(LogicalKeyboardKey.keyN, control: true):
           _createAndOpenNoteTablet,
@@ -1985,6 +2111,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       bindings: tabletKeyboardBindings,
       child: Focus(
         focusNode: _multiSelectFocusNode,
+        autofocus: true,
         child: PopScope(
           canPop:
               !_isMultiSelecting &&
@@ -2104,7 +2231,28 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     );
                                   },
                                   child:
-                                      destination == AppDestination.tagBrowser
+                                      destination == AppDestination.tasks
+                                      ? TasksView(
+                                          key: const ValueKey('tablet_tasks'),
+                                          onMenu: () {
+                                            ref
+                                                    .read(
+                                                      isNavSidebarVisibleProvider
+                                                          .notifier,
+                                                    )
+                                                    .state =
+                                                !isNavSidebarVisible;
+                                          },
+                                          onNoteSelected: (note, task) {
+                                            setState(() {
+                                              _selectedNoteIdForTablet =
+                                                  note.id;
+                                              _selectedTask = task;
+                                              _shouldAutoFocusTablet = false;
+                                            });
+                                          },
+                                        )
+                                      : destination == AppDestination.tagBrowser
                                       ? TagBrowserView(
                                           key: const ValueKey(
                                             'tablet_tag_browser',
@@ -2260,6 +2408,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                         _openSearchScreen(
                                                           context,
                                                         ),
+                                                    onCreateFromTemplatePressed: _newFromTemplate,
                                                     onCreateNotePressed: () =>
                                                         _createAndOpenNoteTablet(),
                                                     advancedFilterCount: query
@@ -2321,7 +2470,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                           ),
                                                         ),
                                                         QuietIconButton(
-                                                          key: _onboardingCreateTargetKey,
+                                                          key:
+                                                              _onboardingCreateTargetKey,
                                                           icon:
                                                               PhosphorIconsRegular
                                                                   .plus,
@@ -2331,7 +2481,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                               _createAndOpenNoteTablet(),
                                                         ),
                                                         QuietIconButton(
-                                                          key: _onboardingSearchTargetKey,
+                                                          key:
+                                                              _onboardingSearchTargetKey,
                                                           icon: PhosphorIconsRegular
                                                               .magnifyingGlass,
                                                           tooltip:
@@ -2340,6 +2491,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                               _openSearchScreen(
                                                                 context,
                                                               ),
+                                                        ),
+                                                        QuietIconButton(
+                                                          icon: PhosphorIconsRegular.command,
+                                                          tooltip: 'Command Palette (Ctrl+P)',
+                                                          onPressed: _showCommands,
                                                         ),
                                                         PopupMenuButton<String>(
                                                           icon: const Icon(
@@ -2362,8 +2518,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             ),
                                                           ),
                                                           onSelected: (val) {
-                                                            if (val ==
-                                                                'select') {
+                                                            if (val == 'templates') {
+                                                              _newFromTemplate();
+                                                            } else if (val == 'commands') {
+                                                              _showCommands();
+                                                            } else if (val == 'select') {
                                                               _enterMultiSelect();
                                                             } else if (val ==
                                                                 'sort') {
@@ -2407,6 +2566,67 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             }
                                                           },
                                                           itemBuilder: (context) => [
+                                                            PopupMenuItem(
+                                                              value:
+                                                                  'templates',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .files,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'New from Template',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            PopupMenuItem(
+                                                              value: 'commands',
+                                                              child: Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    PhosphorIconsRegular
+                                                                        .command,
+                                                                    size: 18,
+                                                                    color: colors
+                                                                        .textSecondary,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width:
+                                                                        AppSpacing
+                                                                            .sm,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'Command Palette',
+                                                                      style: AppTypography
+                                                                          .bodySmall
+                                                                          .copyWith(
+                                                                            color:
+                                                                                colors.textPrimary,
+                                                                          ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
                                                             PopupMenuItem(
                                                               value: 'select',
                                                               child: Row(
@@ -2694,16 +2914,41 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             child:
                                                                 CircularProgressIndicator.adaptive(),
                                                           )
+                                                        : collectionState
+                                                                  .notes
+                                                                  .isEmpty &&
+                                                              collectionState
+                                                                      .error !=
+                                                                  null
+                                                        ? Center(
+                                                            child: NotesLoadingMoreIndicator(
+                                                              loadingMore:
+                                                                  false,
+                                                              initialLoad: true,
+                                                              error:
+                                                                  collectionState
+                                                                      .error,
+                                                              onRetry: () => ref
+                                                                  .read(
+                                                                    notesCollectionProvider
+                                                                        .notifier,
+                                                                  )
+                                                                  .retry(),
+                                                            ),
+                                                          )
                                                         : (groups.isEmpty &&
                                                               collectionState
                                                                   .notes
                                                                   .isEmpty)
                                                         ? SingleChildScrollView(
-                                                            physics:
-                                                                const BouncingScrollPhysics(
-                                                                  parent:
-                                                                      AlwaysScrollableScrollPhysics(),
-                                                                ),
+                                                            physics: PullDownSearchScrollPhysics(
+                                                              revealState: () =>
+                                                                  _tabletPullDownState,
+                                                              parent: const BouncingScrollPhysics(
+                                                                parent:
+                                                                    AlwaysScrollableScrollPhysics(),
+                                                              ),
+                                                            ),
                                                             child: SizedBox(
                                                               height: 400,
                                                               child: NoteEmptyState(
@@ -2713,15 +2958,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                                     destination,
                                                                 tagFilter:
                                                                     selectedTag,
-                                                                hasActiveFilters:
-                                                                    query
-                                                                        .filter
-                                                                        .hasAdvancedFiltersExcluding(
-                                                                          ignorePinned:
-                                                                              destination ==
-                                                                                  AppDestination
-                                                                                      .pinned,
-                                                                        ),
+                                                                hasActiveFilters: query
+                                                                    .filter
+                                                                    .hasAdvancedFiltersExcluding(
+                                                                      ignorePinned:
+                                                                          destination ==
+                                                                          AppDestination
+                                                                              .pinned,
+                                                                    ),
                                                                 onClearFilters: () => ref
                                                                     .read(
                                                                       notesQueryProvider
@@ -2735,24 +2979,32 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                                             child: ListView.builder(
                                                               scrollCacheExtent:
                                                                   PlatformLayoutHelper
-                                                                          .isDesktopPlatform
-                                                                      ? const ScrollCacheExtent
-                                                                          .pixels(500.0)
-                                                                      : const ScrollCacheExtent
-                                                                          .pixels(350.0),
-                                                              addRepaintBoundaries: true,
-                                                              addAutomaticKeepAlives: false,
-                                                              physics:
-                                                                  PlatformLayoutHelper
                                                                       .isDesktopPlatform
-                                                                  ? const ClampingScrollPhysics(
-                                                                      parent:
-                                                                          AlwaysScrollableScrollPhysics(),
+                                                                  ? const ScrollCacheExtent.pixels(
+                                                                      500.0,
                                                                     )
-                                                                  : const BouncingScrollPhysics(
-                                                                      parent:
-                                                                          AlwaysScrollableScrollPhysics(),
+                                                                  : const ScrollCacheExtent.pixels(
+                                                                      350.0,
                                                                     ),
+                                                              addRepaintBoundaries:
+                                                                  true,
+                                                              addAutomaticKeepAlives:
+                                                                  false,
+                                                              physics: PullDownSearchScrollPhysics(
+                                                                revealState: () =>
+                                                                    _tabletPullDownState,
+                                                                parent:
+                                                                    PlatformLayoutHelper
+                                                                        .isDesktopPlatform
+                                                                    ? const ClampingScrollPhysics(
+                                                                        parent:
+                                                                            AlwaysScrollableScrollPhysics(),
+                                                                      )
+                                                                    : const BouncingScrollPhysics(
+                                                                        parent:
+                                                                            AlwaysScrollableScrollPhysics(),
+                                                                      ),
+                                                              ),
                                                               itemCount:
                                                                   _calculateTotalItemCount(
                                                                     groups,
@@ -2809,6 +3061,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             key: ValueKey(activeNote.id),
                             child: EditorScreen(
                               note: activeNote,
+                              initialTask:
+                                  _selectedTask?.note.id == activeNote.id
+                                  ? _selectedTask
+                                  : null,
                               autoFocusBody:
                                   _shouldAutoFocusTablet &&
                                   _selectedNoteIdForTablet == activeNote.id,
@@ -2816,7 +3072,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                   !(_shouldAutoFocusTablet &&
                                       _selectedNoteIdForTablet ==
                                           activeNote.id),
-                              showFirstNoteTips: _showFirstNoteTipsForTablet &&
+                              showFirstNoteTips:
+                                  _showFirstNoteTipsForTablet &&
                                   _selectedNoteIdForTablet == activeNote.id,
                               onClose: () {
                                 setState(() {
@@ -2910,27 +3167,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         ),
       ),
     );
-  }
-
-  void _prewarmThumbnails(List<NoteGroup> groups) {
-    if (groups.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final thumbnails = <ThumbnailData>[];
-      for (final group in groups) {
-        for (final note in group.notes) {
-          final metadata = NoteMetadataExtractor.extract(note);
-          if (metadata.thumbnailData != null) {
-            thumbnails.add(metadata.thumbnailData!);
-            if (thumbnails.length >= 25) break;
-          }
-        }
-        if (thumbnails.length >= 25) break;
-      }
-      if (thumbnails.isNotEmpty) {
-        NoteThumbnailCache.prewarm(ref: ref, thumbnails: thumbnails);
-      }
-    });
   }
 
   int _calculateTotalItemCount(List<NoteGroup> groups) {
@@ -3154,20 +3390,19 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     if (searchState != null && searchState.mounted) {
       searchState.openSearch(animate: animate);
     } else {
-      Navigator.of(
-        context,
-      ).push(SearchPageRoute(
-        builder: (_) => const SearchScreen(),
-        animate: animate,
-      ));
+      Navigator.of(context).push(
+        SearchPageRoute(builder: (_) => const SearchScreen(), animate: animate),
+      );
     }
   }
 
   void _openWideSearch(BuildContext context) {
-    Navigator.of(context).push(SearchPageRoute(
-      builder: (_) => const SearchScreen(),
-      animate: !PlatformLayoutHelper.isDesktop(context),
-    ));
+    Navigator.of(context).push(
+      SearchPageRoute(
+        builder: (_) => const SearchScreen(),
+        animate: !PlatformLayoutHelper.isDesktop(context),
+      ),
+    );
   }
 
   void _openNote(BuildContext context, Note note) {
@@ -3215,6 +3450,111 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _newFromTemplate() async {
+    final workspace = ref.read(workspaceContextProvider);
+    final note = await showTemplatePicker(
+      context,
+      activeTag: workspace.isTag ? workspace.tagName : null,
+    );
+    if (!mounted || note == null) return;
+    if (MediaQuery.sizeOf(context).width >= 900) {
+      // A new ordinary note belongs in an active workspace, even when opened
+      // from Archive/Trash. Keep the tag context when one was supplied.
+      if (!workspace.isTag) {
+        ref.read(currentDestinationProvider.notifier).state =
+            AppDestination.allNotes;
+      }
+      setState(() {
+        _selectedNoteIdForTablet = note.id;
+        _shouldAutoFocusTablet = true;
+      });
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditorScreen(note: note, autoFocusBody: true),
+        ),
+      );
+    }
+  }
+
+  Future<bool> _revealWorkspace() async {
+    // Publish pending Visual edits before a desktop command can replace the
+    // embedded editor. Routed editors additionally run their normal exit flow.
+    await EmailEditorBridge.active?.prepare();
+    if (!mounted) return false;
+    final route = ModalRoute.of(context);
+    if (route == null) return false;
+    return ref.read(workspaceCommandsProvider).reveal(route);
+  }
+
+  Future<void> _showCommands() async {
+    final commands = ref.read(workspaceCommandsProvider);
+    if (commands.isOpen || EmailImportLauncher.isActive) return;
+    commands.isOpen = true;
+    WorkspaceCommandAction? action;
+    try {
+      action = await showWorkspaceCommandPalette(context, ref,
+        onCommand: _runCommand,
+        onSearch: () => _openSearchScreen(context),
+        onNote: (note) async {
+          if (!await _revealWorkspace() || !mounted) return;
+          if (_selectedNoteIdForTablet == note.id &&
+              MediaQuery.sizeOf(context).width >= 900) {
+            return;
+          }
+          // A result comes from the entire active notebook, independent of the
+          // list's current tag and filters. Open the canonical editor route.
+          _openNote(context, note);
+        },
+        onTag: (tag) async {
+          if (!await _revealWorkspace() || !mounted) return;
+          ref.read(notesQueryProvider.notifier).clearAllFilters();
+          ref.read(selectedTagFilterProvider.notifier).state = tag.isEmpty ? null : tag;
+          ref.read(selectedTagIdProvider.notifier).state = null;
+          ref.read(currentDestinationProvider.notifier).state = tag.isEmpty
+              ? AppDestination.tagBrowser : AppDestination.tag;
+        },
+      );
+    } finally {
+      commands.isOpen = false;
+    }
+    if (!mounted || action == null) return;
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not complete command. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _runCommand(NotesCommand action) async {
+    if (!mounted) return;
+    if (action != NotesCommand.importEmail &&
+        action != NotesCommand.importEmailAllFiles &&
+        !await _revealWorkspace()) {
+      return;
+    }
+    if (!mounted) return;
+    if (action == NotesCommand.importEmail ||
+        action == NotesCommand.importEmailAllFiles) {
+      await EmailImportLauncher.pick(
+        context,
+        allFiles: action == NotesCommand.importEmailAllFiles,
+      );
+    } else if (action == NotesCommand.newFromTemplate) {
+      await _newFromTemplate();
+    } else if (action == NotesCommand.newNote) {
+      if (MediaQuery.sizeOf(context).width >= 900) {
+        _createAndOpenNoteTablet();
+      } else {
+        _createAndOpenNote(context);
+      }
     }
   }
 
@@ -3401,13 +3741,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final newNote = Note(
       id: newId,
       title: duplicatedTitle,
-      content: note.content,
+      content: TaskDocument.rekey(note.content),
       createdAt: now,
       updatedAt: now,
       isPinned: false,
       isArchived: false,
       isTrashed: false,
       tags: List<String>.from(note.tags),
+      importSources: note.importSources,
     );
     await ref.read(notesRepositoryProvider).saveNote(newNote);
     ref.read(notesCollectionProvider.notifier).refresh();
@@ -3455,4 +3796,3 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     }
   }
 }
-

@@ -78,15 +78,40 @@ The editor supports three editing styles:
   EditableText state and the focused native input client. Read-only overlays
   retain the same layout while suppressing their interactive pills.
 
-### Checklist audit caveats (November 16, 2026)
+### Checklist audit resolutions (November 16, 2026)
 
-The [adversarial checklist audit](audits/checklist-stress-2026-11-16/README.md)
-records 12 open findings. In particular, runtime task sorting's nested-list guard
-does not guarantee that nested Markdown loads safely: Visual drops indentation,
-and Super Editor's loading path can merge child task text into the parent. Native
-rapid row creation, source-position-based paste and Home input also expose content
-integrity failures absent from the passing existing tests. Consult the report's
-reproductions and platform limits before treating these paths as verified.
+The [checklist audit](audits/checklist-stress-2026-11-16/README.md) has twelve
+resolved findings, each with regression coverage and an independent fix commit.
+
+- `ChecklistItemBlock.indent` persists hierarchy through Markdown, JSON and Enter;
+  old JSON defaults to zero. Row padding displays that hierarchy. Super Editor
+  uses `QuietTaskBlockSyntax` before CommonMark task grouping so nested tasks
+  retain separate text, depth, formatting and completion state.
+- Visual snippet insertion splices parsed blocks at the AST selection. It never
+  indexes Markdown using a plain-text document offset. Prefix/suffix spans,
+  unaffected block identities, task metadata, resulting caret and one-step Undo
+  are preserved, including forward/reverse cross-task selections.
+- Checklist Enter replaces the selected range; forward Delete joins the next
+  task. Toolbar text edits are accepted while menus own focus. Composing Enter
+  remains with the input method; committed platform newlines continue tasks or
+  exit an empty task into a paragraph in one mutation.
+- Linux printable input and hardware events can arrive through different queues.
+  Linux task splitting uses the ordered IME newline, and rebases queued updates
+  containing a consumed row prefix. Structural continuation reparents the same
+  TextField/controller/focus node into the new row to retain the native client.
+- Boundary arrows accept key repeats, publish their destination immediately and
+  exchange the active client with the destination field. Checklist selection-only
+  notifications skip full-surface reconstruction and unchanged span invalidation,
+  keeping large-list navigation responsive while retaining wrapped-line behavior.
+- `QuietLinuxHomePlugin` consumes plain/Shift Home after applying line navigation,
+  including when the caret is already at the boundary. Falling through there
+  allowed the native IME's synthetic `. ` prefix and buffer to mutate saved text.
+  Modified Home combinations keep their existing handling.
+
+[Native evidence and replay scripts](audits/checklist-stress-2026-11-16/fix-verification/README.md)
+cover the four input/persistence/navigation risks. Other fixes have parser,
+controller, widget IME and actual EditorScreen toolbar/autosave regressions.
+Physical Android/iOS/CJK sessions and release profiling were not performed.
 
 ## 2. SuperEditor Components & Smart Widgets
 
@@ -242,3 +267,37 @@ The visual design system is defined in [`lib/app/theme/`](file:///home/dog/git/q
 - Typewriter Scrolling: [Latest Logs, Section 223](latest-logs.md#223-typewriter-scrolling-ambient-cursor-vertical-centering-across-all-editor-modes-october-2026)
 - RichDocument Visual Editor AST: [Latest Logs, Section 136 & 140](latest-logs.md#136-production-grade-richdocument-visual-editor-architecture)
 - iA Writer Quattro Typography Integration: [Historical Logs v1.5, Section 32](archive/logs-v1.5.md#32-ia-writer-quattro-typography-integration--cdn-font-delivery)
+
+### Confirmed email appends
+
+`EmailEditorBridge` flushes existing edits before preview and adopts committed
+appends, canceling older debounce saves. Existing rich blocks and selection remain
+intact. Super Editor recognizes the appended Email Details section and appends
+only its parsed nodes after the current frame, retaining the original document,
+selection and history. Imported notes disable automatic remote-link preview
+baking/promotion; normal unrelated notes retain their existing behavior.
+
+
+## Template snapshots and canonical display projection
+
+Save as Template flushes `MarkdownEditorState.flushPendingChanges` and awaits
+`EditorNotifier.flushForTemplate` before reading the persisted note. Overlapping
+autosaves are serialized; edits made during a save remain dirty and reschedule.
+Source snapshots preserve Markdown/RichDocument bytes and exclude specially
+protected, journal, trash and read-only content. Opening a canonical rich note in
+Markdown Source or Super Editor uses a display projection without rewriting the
+stored JSON. Session history reads the canonical notifier content after flushing
+pending visual edits. See [templates.md](templates.md) for the complete contract.
+
+## Tasks and due-date metadata (November 25, 2026)
+
+Checklist nodes have optional version-1 durable task metadata, separate from
+editor-local block IDs. Markdown carries a strict terminal comment on the first
+physical task line. Visual and Super Editor decode recognized metadata into
+checklist nodes and serialize it back; Source retains comments. Copy paths and
+note duplication rekey identities; templates also clear deadlines. Task commands
+use the attached editor’s serialized mutation/Undo path, reject active composition
+and stale source, and flush before confirming durability. Visual joins confirm
+when a second deadline would be removed. Source context menus and rendered
+checklist date actions use the shared staged picker. See [tasks.md](tasks.md) for
+round-trip rules, compatibility limits and remaining acceptance work.

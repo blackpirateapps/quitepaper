@@ -93,7 +93,9 @@ abstract class AuthService {
 
 /// Universal Firebase Auth client using official Firebase REST Auth API with persistent secure storage
 class FirebaseAuthService implements AuthService {
-  static const String defaultFirebaseApiKey = 'AIzaSyA90jZ_gjRrMUTQoOUjsW-WG7B2o5yOMiI';
+  // Firebase client configuration comes from the backend or the build environment.
+  static const String defaultFirebaseApiKey =
+      String.fromEnvironment('FIREBASE_API_KEY');
 
   FirebaseAuthService({
     String? apiKey,
@@ -101,9 +103,7 @@ class FirebaseAuthService implements AuthService {
     FlutterSecureStorage? secureStorage,
   })  : _apiKey = (apiKey != null && apiKey.trim().isNotEmpty)
             ? apiKey.trim()
-            : (const String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '').trim().isNotEmpty
-                ? const String.fromEnvironment('FIREBASE_API_KEY').trim()
-                : defaultFirebaseApiKey),
+            : defaultFirebaseApiKey.trim(),
         _client = httpClient ?? http.Client(),
         _storage = secureStorage ??
             const QuietSecureStorage(
@@ -269,7 +269,7 @@ class FirebaseAuthService implements AuthService {
   @override
   void setApiKey(String key) {
     final trimmed = key.trim();
-    _apiKey = trimmed.isNotEmpty ? trimmed : defaultFirebaseApiKey;
+    _apiKey = trimmed.isNotEmpty ? trimmed : defaultFirebaseApiKey.trim();
   }
 
   @override
@@ -350,7 +350,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      _apiKey = defaultFirebaseApiKey;
+      throw StateError('Firebase API key is not configured.');
     }
 
     var url = Uri.parse('$_authBaseUrl:signInWithPassword?key=$_apiKey');
@@ -371,7 +371,7 @@ class FirebaseAuthService implements AuthService {
 
     var data = _safeParseJson(res.body);
 
-    // Auto-retry once with refreshed backend config or default fallback key if API key was rejected with 400/403
+    // Auto-retry once with refreshed backend config or a configured build key if rejected with 400/403
     if (res.statusCode != 200) {
       final rawError = (data is Map ? (data['error']?['message'] ?? data['error']) : null)?.toString() ?? '';
       if (rawError.toUpperCase().contains('API_KEY') ||
@@ -382,8 +382,9 @@ class FirebaseAuthService implements AuthService {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
         if (_apiKey.isEmpty || _apiKey == currentKey) {
-          if (currentKey != defaultFirebaseApiKey) {
-            _apiKey = defaultFirebaseApiKey;
+          if (defaultFirebaseApiKey.trim().isNotEmpty &&
+              currentKey != defaultFirebaseApiKey.trim()) {
+            _apiKey = defaultFirebaseApiKey.trim();
           }
         }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {
@@ -437,7 +438,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      _apiKey = defaultFirebaseApiKey;
+      throw StateError('Firebase API key is not configured.');
     }
 
     var url = Uri.parse('$_authBaseUrl:signUp?key=$_apiKey');
@@ -468,8 +469,9 @@ class FirebaseAuthService implements AuthService {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
         if (_apiKey.isEmpty || _apiKey == currentKey) {
-          if (currentKey != defaultFirebaseApiKey) {
-            _apiKey = defaultFirebaseApiKey;
+          if (defaultFirebaseApiKey.trim().isNotEmpty &&
+              currentKey != defaultFirebaseApiKey.trim()) {
+            _apiKey = defaultFirebaseApiKey.trim();
           }
         }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {
@@ -530,7 +532,7 @@ class FirebaseAuthService implements AuthService {
       await fetchConfigFromBackend();
     }
     if (_apiKey.isEmpty) {
-      _apiKey = defaultFirebaseApiKey;
+      throw StateError('Firebase API key is not configured.');
     }
 
     var url = Uri.parse('$_authBaseUrl:sendOobCode?key=$_apiKey');
@@ -560,8 +562,9 @@ class FirebaseAuthService implements AuthService {
         final currentKey = _apiKey;
         await fetchConfigFromBackend();
         if (_apiKey.isEmpty || _apiKey == currentKey) {
-          if (currentKey != defaultFirebaseApiKey) {
-            _apiKey = defaultFirebaseApiKey;
+          if (defaultFirebaseApiKey.trim().isNotEmpty &&
+              currentKey != defaultFirebaseApiKey.trim()) {
+            _apiKey = defaultFirebaseApiKey.trim();
           }
         }
         if (_apiKey.isNotEmpty && _apiKey != currentKey) {

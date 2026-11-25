@@ -43,8 +43,10 @@ class RichDocumentSerializer {
 
     if (block is ChecklistItemBlock) {
       final mark = block.isChecked ? 'x' : ' ';
-      final text = serializeInlines(block.spans);
-      return '- [$mark] $text';
+      final text = serializeInlines(block.spans,
+        escapeLiteral: block.taskMetadata != null,
+      );
+      return '${block.markdownPrefix ?? '${'  ' * block.indent}- '}[$mark] $text${block.taskMetadata?.comment ?? ''}';
     }
 
     if (block is BulletedListItemBlock) {
@@ -113,17 +115,27 @@ class RichDocumentSerializer {
   }
 
   /// Serializes a list of [RichInlineSpan] with [TextAttributes] to formatted Markdown.
-  static String serializeInlines(List<RichInlineSpan> spans) {
+  static String serializeInlines(List<RichInlineSpan> spans, {
+    bool escapeLiteral = false,
+  }) {
     final buffer = StringBuffer();
     for (final span in spans) {
-      buffer.write(_serializeSpan(span));
+      buffer.write(_serializeSpan(span, escapeLiteral: escapeLiteral));
     }
     return buffer.toString();
   }
 
-  static String _serializeSpan(RichInlineSpan span) {
+  static String _serializeSpan(RichInlineSpan span, {
+    bool escapeLiteral = false,
+  }) {
     var text = span.text;
     final attr = span.attributes;
+    if (escapeLiteral && !attr.isCode && !attr.hasNoteLink && !attr.hasLink) {
+      text = text.replaceAllMapped(
+        RegExp(r'[\\`*_{}\[\]<>|~$]'),
+        (m) => '\\${m[0]}',
+      );
+    }
 
     if (attr.isEmpty || text.isEmpty) {
       return text;

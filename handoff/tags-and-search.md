@@ -85,10 +85,32 @@ category changes through its `TabController`. There is no filled segmented track
 - Search matches highlight matching terms within note snippets in real time.
 - Clicking an OCR match jumps directly to the matching page in the PDF / Scanned Document Viewer.
 - **In-Place Pull-Down to Search**: Pulling down on the note list smoothly unveils the search input without jarring screen transitions or layout pops.
+  The notes scroll physics hold the list at its top while the reveal owns a
+  deliberate pull, preventing a second bounce underneath the sliding card.
+  Pointer release commits immediately; cancellation restores the list. Opening,
+  closing and spring-back share one interruptible animation, and search focus
+  waits until opening finishes. Inline search owns its system-Back handling.
+  See the [native animation audit](audits/swipe-search-2026-11-17/README.md).
 - **Desktop Search Opening**: Toolbar and keyboard actions open search on the
   next frame without the touch slide animation. The swipe preference gates only
   scroll gestures; explicit search actions remain available when it is disabled.
 - **In-Note Search & Replace**: In-editor search bar supporting next/previous navigation and batch text replacement.
+
+---
+
+## Notes List Preview Work
+
+Paginated and legacy grouped-note providers leave metadata extraction to mounted
+`NoteListTile` widgets. Grouped pagination watches note data and the selected sort,
+so loading flags do not regroup or parse the collection. The screen does not scan
+all loaded notes for speculative thumbnails; mounted thumbnail widgets retain
+their existing bounded cache and request deduplication.
+
+`NoteMetadataExtractor` keeps an LRU of at most 500 entries. Cache identity compares
+exact note ID, title, body, timestamp, tag values and optional snippet. The explicit
+`prewarmAll` utility fills unused capacity only, preserving demand-loaded entries
+when handed a collection larger than the cache. Large-library state changes must
+not reintroduce synchronous collection-wide parsing.
 
 ---
 
@@ -101,3 +123,73 @@ category changes through its `TabController`. There is no filled segmented track
 - Tag Sync FK Failure Resolution (`upsertSyncedTag`): [Latest Logs, Section 210](latest-logs.md#210-tag-sync-fix-sqlite-foreign-key-constraint-failure-on-duplicate-tag-merge-upsertsyncedtag-october-2026)
 - Pull-Down to Search Unveil: [Latest Logs, Section 203](latest-logs.md#203-in-place-pull-down-to-search-unveil--zero-lag-transition-october-2026)
 - Universal Fuzzy Search Engine: [Historical Logs v1.5, Section 63](archive/logs-v1.5.md#63-universal-fuzzy-search--multi-token-relevance-ranking-engine)
+
+## Imported email notes
+
+Email imports use ordinary notes and deterministic existing tag management,
+suggesting `email` without requiring it. Visible metadata, converted body and
+attachment labels enter the existing FTS/fuzzy-search paths; no separate email
+index or ranking policy was added. The source-hash/Message-ID index serves only
+duplicate detection. Fresh-device encrypted sync tests verify ordinary search
+and tag behavior. See [email import](email-import.md).
+
+## Multi-tag picker
+
+`TagPickerDialog` replaces the editor's plain overflow input and is shared by
+the tag bar, frontmatter field and selected-note tagging action. Suggestions
+appear before typing in one **Suggestions** list. The ranking algorithm orders
+by search relevance, pinned status/manual pin order, actual local recency, note
+counts and finally name for deterministic ties. There are no category chips.
+Attached tags are excluded from ranking; staged tags are filtered locally from
+the bounded 40-row results without starting another request. The default list
+stays subscribed while searching, so choosing a search result restores it
+immediately. Catalogue refreshes retain the current query's previous results
+while ranking runs; separate query providers prevent old search matches from
+appearing for new input. Late superseded requests cannot overwrite newer results.
+
+Android/iOS use the shared adaptive modal's bottom sheet, with keyboard insets
+and safe-area handling. Desktop uses its editorial dialog. Content is bounded to
+440×460 logical pixels and shrinks to the available viewport. The header, input,
+selection strip and compact result rows share a vertical scroll viewport, while
+Cancel/Apply remain in the footer. The single horizontally scrolling chip strip
+reserves its height before selection, keeping the input/list stable as tags are
+staged. Selection preserves the active focus, keyed rows and scroll offset.
+
+Tap suggestions or press Enter to stage a tag, use Tab to complete a path and
+arrow keys to navigate, or paste comma/newline-separated tags. Staged chips can
+be removed; Cancel discards all staged changes. Apply also validates and includes
+any remaining typed input, with a count including those pending tags. Invalid
+paste batches remain editable without partially accepting their valid prefixes.
+Slash queries such as `work/` stay within that parent and prefer direct children;
+leaf queries such as `project` can find `work/project`. Breadcrumb buttons and
+row browse actions fill parent paths. Trailing slashes cannot create tags.
+
+`EditorNotifier.addTags` deduplicates/normalizes a batch and saves it once.
+Frontmatter writes a combined tag list in one document update to avoid repeatedly
+replacing tags using a stale widget snapshot. Bulk note tagging excludes tags
+common to all selected notes and appends only missing tags to each note.
+
+`recently_added_tags_v1` stores at most 50 canonical names in SharedPreferences,
+newest first. Editor saves report newly added metadata/inline tags only after
+successful persistence; metadata-only edits and failed saves do not update use.
+Bulk tagging records history after successful writes. History starts empty on
+upgrade, is device-local, and does not change tag sync timestamps. Missing or
+renamed names are filtered by the current catalogue until used again. Preference
+write failure keeps in-memory history without failing an already-saved note.
+
+Pure Rust `api/tags.rs` supplies deterministic ranking via the existing Linux
+watched-import FRB library. `TagSuggestionService` uses the same ordering in Dart
+on Android/iOS/other targets or native-load failure; mobile builds gain no Rust
+toolchain prerequisite. Bridge output remains under the watched-import native
+directory to reuse the existing bundled library and initialization guard.
+`tool/tag_suggestions_native_test.dart` compares the actual shared library with
+portable results across categories, paths, Unicode, exclusions and limits.
+
+## Task search and note tags
+
+Tasks has independent search, tag, completion-tab and scroll state. Search uses
+`SearchTokenizer` normalization over rendered task text and the source display
+title, cached per projection item. Tag filters use the existing owning note’s
+slash-separated subtree, with ancestor choices included. Search and tags combine
+before Open/Completed counts. No Markdown parsing runs in list row builders.
+See [tasks.md](tasks.md).

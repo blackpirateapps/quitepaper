@@ -1,0 +1,6 @@
+00:00 +0: loading /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_export_audit_probe_test.dart
+00:00 +0: observe cancel and overwrite in PDF export
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+{"probe":"cancel-pdf-save","pickerCalls":1,"pickerResult":null,"fallbackCreatedAfterCancel":true}
+{"probe":"overwrite-existing-pdf","pickerCalls":2,"actualFileText":"existing unrelated bytes","expectedPdfBytes":2159,"savedSuccessVisible":true}
+00:02 +1: All tests passed!

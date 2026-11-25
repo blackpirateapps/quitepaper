@@ -20,9 +20,9 @@ export async function authorizeDocumentUpload(
   if (!parseRes.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid document upload auth request: ${parseRes.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid document upload auth request: ${parseRes.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parseRes.error.errors
+      parseRes.error.issues
     );
   }
 
@@ -61,9 +61,9 @@ export async function confirmDocumentUpload(
   if (!parseRes.success) {
     throw new ApiError(
       'BAD_REQUEST',
-      `Invalid document confirmation payload: ${parseRes.error.errors.map(e => e.message).join(', ')}`,
+      `Invalid document confirmation payload: ${parseRes.error.issues.map(e => e.message).join(', ')}`,
       400,
-      parseRes.error.errors
+      parseRes.error.issues
     );
   }
 

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:archive/archive.dart';
+import 'package:quitepaper/features/email_import/domain/note_import_source.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,18 +73,14 @@ void main() {
   setUp(() async {
     db = AppDatabase.memory();
     repository = DriftNotesRepository(db);
-    keyManager = MockKeyManager(masterKey: Uint8List.fromList(List.generate(32, (i) => i)));
+    keyManager = MockKeyManager(
+      masterKey: Uint8List.fromList(List.generate(32, (i) => i)),
+    );
     tempDir = await Directory.systemTemp.createTemp('export_service_test_');
 
-    attachmentService = AttachmentService(
-      database: db,
-      keyManager: keyManager,
-    );
+    attachmentService = AttachmentService(database: db, keyManager: keyManager);
 
-    documentService = DocumentService(
-      database: db,
-      keyManager: keyManager,
-    );
+    documentService = DocumentService(database: db, keyManager: keyManager);
 
     exportService = ExportService(
       database: db,
@@ -100,14 +99,16 @@ void main() {
   });
 
   group('ExportService End-to-End', () {
-    test('exports note to Markdown, PlainText, HTML, PDF, DOCX, QPNOTE, and Image', () async {
-      // 1. Create a note in database
-      final noteId = 'note-test-1';
-      final now = DateTime.utc(2026, 1, 1);
-      final note = Note(
-        id: noteId,
-        title: 'Weekly Standup Summary',
-        content: '''# Weekly Standup
+    test(
+      'exports note to Markdown, PlainText, HTML, PDF, DOCX, QPNOTE, and Image',
+      () async {
+        // 1. Create a note in database
+        final noteId = 'note-test-1';
+        final now = DateTime.utc(2026, 1, 1);
+        final note = Note(
+          id: noteId,
+          title: 'Weekly Standup Summary',
+          content: '''# Weekly Standup
 - [x] Sprint planning finished
 - [ ] Deploy release candidate
 
@@ -117,147 +118,211 @@ void main() {
 void main() => print("Ready");
 ```
 ''',
-        createdAt: now,
-        updatedAt: now,
-        isPinned: true,
-        tags: const ['meeting', 'sprint'],
-      );
-      await repository.saveNote(note);
+          createdAt: now,
+          updatedAt: now,
+          isPinned: true,
+          tags: const ['meeting', 'sprint'],
+        );
+        await repository.saveNote(note);
 
-      // 2. Test Markdown export
-      final mdResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.markdown,
-          includeMetadata: true,
-        ),
-      );
-      expect(mdResult.format, equals(ExportFormat.markdown));
-      expect(await mdResult.file.exists(), isTrue);
-      final mdContent = await mdResult.file.readAsString();
-      expect(mdContent, contains('Weekly Standup Summary'));
-      expect(mdContent, contains('# Weekly Standup'));
-
-      // 3. Test PlainText export
-      final txtResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.plainText,
-          includeMetadata: true,
-        ),
-      );
-      expect(txtResult.format, equals(ExportFormat.plainText));
-      final txtContent = await txtResult.file.readAsString();
-      expect(txtContent, contains('☑ Sprint planning finished'));
-
-      // 4. Test HTML export
-      final htmlResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.html,
-          includeMetadata: true,
-        ),
-      );
-      expect(htmlResult.format, equals(ExportFormat.html));
-      final htmlContent = await htmlResult.file.readAsString();
-      expect(htmlContent, contains('<!DOCTYPE html>'));
-
-      // 5. Test PDF export
-      final pdfResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.pdf,
-          includeMetadata: true,
-        ),
-      );
-      expect(pdfResult.format, equals(ExportFormat.pdf));
-      expect(pdfResult.byteSize, greaterThan(1000));
-
-      // 6. Test DOCX export
-      final docxResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.docx,
-          includeMetadata: true,
-        ),
-      );
-      expect(docxResult.format, equals(ExportFormat.docx));
-      expect(docxResult.byteSize, greaterThan(500));
-
-      // 7. Test QPNOTE export
-      final qpResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.qpnote,
-          includeMetadata: true,
-        ),
-      );
-      expect(qpResult.format, equals(ExportFormat.qpnote));
-      final val = await exportService.validateQpNote(qpResult.file);
-      expect(val.isValid, isTrue);
-      expect(val.noteTitle, equals('Weekly Standup Summary'));
-
-      // 8. Test Image Screenshot export
-      final imgResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.image,
-          includeMetadata: true,
-          imageOptions: const ImageExportOptions(
-            includeBranding: true,
-            includeTags: true,
+        // 2. Test Markdown export
+        final mdResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.markdown,
+            includeMetadata: true,
           ),
-        ),
-        imageRasterizer: ({required snapshot, required request}) async => Uint8List.fromList([
-          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-          0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-          0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-          0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-          0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-          0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-          0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-          0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-          0x42, 0x60, 0x82,
-        ]),
-      );
-      expect(imgResult.format, equals(ExportFormat.image));
-      expect(await imgResult.file.exists(), isTrue);
-      expect(imgResult.file.path.endsWith('.png'), isTrue);
-      expect(imgResult.byteSize, greaterThan(0));
-    });
+        );
+        expect(mdResult.format, equals(ExportFormat.markdown));
+        expect(await mdResult.file.exists(), isTrue);
+        final mdContent = await mdResult.file.readAsString();
+        expect(mdContent, contains('Weekly Standup Summary'));
+        expect(mdContent, contains('# Weekly Standup'));
 
-    test('exports rich-text note stored as RichDocument JSON to formatted Markdown without leaking JSON syntax', () async {
-      final noteId = 'rich-note-1';
-      final now = DateTime.utc(2026, 1, 1);
-      final note = Note(
-        id: noteId,
-        title: 'Interview Notes',
-        content: '{"\$schema":"quietpaper:rich_document:v1","blocks":[{"type":"paragraph","id":"p-1","spans":[{"text":"Witness reported seeing the suspect."}]},{"type":"paragraph","id":"p-2","spans":[{"text":"Status: "},{"text":"Active","attributes":{"bold":true}}]}]}',
-        createdAt: now,
-        updatedAt: now,
-      );
-      await repository.saveNote(note);
+        // 3. Test PlainText export
+        final txtResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.plainText,
+            includeMetadata: true,
+          ),
+        );
+        expect(txtResult.format, equals(ExportFormat.plainText));
+        final txtContent = await txtResult.file.readAsString();
+        expect(txtContent, contains('☑ Sprint planning finished'));
 
-      final mdResult = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.markdown,
-          includeMetadata: true,
-        ),
-      );
+        // 4. Test HTML export
+        final htmlResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.html,
+            includeMetadata: true,
+          ),
+        );
+        expect(htmlResult.format, equals(ExportFormat.html));
+        final htmlContent = await htmlResult.file.readAsString();
+        expect(htmlContent, contains('<!DOCTYPE html>'));
 
-      expect(mdResult.format, equals(ExportFormat.markdown));
-      final mdContent = await mdResult.file.readAsString();
+        // 5. Test PDF export
+        final pdfResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.pdf,
+            includeMetadata: true,
+          ),
+        );
+        expect(pdfResult.format, equals(ExportFormat.pdf));
+        expect(pdfResult.byteSize, greaterThan(1000));
 
-      // Ensure JSON keys are never leaked in export
-      expect(mdContent, isNot(contains(r'{"$schema":')));
-      expect(mdContent, isNot(contains('"blocks":')));
-      expect(mdContent, isNot(contains('"spans":')));
+        // 6. Test DOCX export
+        final docxResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.docx,
+            includeMetadata: true,
+          ),
+        );
+        expect(docxResult.format, equals(ExportFormat.docx));
+        expect(docxResult.byteSize, greaterThan(500));
 
-      // Ensure formatted markdown content is present
-      expect(mdContent, contains('Witness reported seeing the suspect.'));
-      expect(mdContent, contains('Status: **Active**'));
-    });
+        // 7. Test QPNOTE export
+        final qpResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.qpnote,
+            includeMetadata: true,
+          ),
+        );
+        expect(qpResult.format, equals(ExportFormat.qpnote));
+        final val = await exportService.validateQpNote(qpResult.file);
+        expect(val.isValid, isTrue);
+        expect(val.noteTitle, equals('Weekly Standup Summary'));
+
+        // 8. Test Image Screenshot export
+        final imgResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.image,
+            includeMetadata: true,
+            imageOptions: const ImageExportOptions(
+              includeBranding: true,
+              includeTags: true,
+            ),
+          ),
+          imageRasterizer: ({required snapshot, required request}) async =>
+              Uint8List.fromList([
+                0x89,
+                0x50,
+                0x4E,
+                0x47,
+                0x0D,
+                0x0A,
+                0x1A,
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x0D,
+                0x49,
+                0x48,
+                0x44,
+                0x52,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x08,
+                0x06,
+                0x00,
+                0x00,
+                0x00,
+                0x1F,
+                0x15,
+                0xC4,
+                0x89,
+                0x00,
+                0x00,
+                0x00,
+                0x0A,
+                0x49,
+                0x44,
+                0x41,
+                0x54,
+                0x78,
+                0x9C,
+                0x63,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x05,
+                0x00,
+                0x01,
+                0x0D,
+                0x0A,
+                0x2D,
+                0xB4,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x49,
+                0x45,
+                0x4E,
+                0x44,
+                0xAE,
+                0x42,
+                0x60,
+                0x82,
+              ]),
+        );
+        expect(imgResult.format, equals(ExportFormat.image));
+        expect(await imgResult.file.exists(), isTrue);
+        expect(imgResult.file.path.endsWith('.png'), isTrue);
+        expect(imgResult.byteSize, greaterThan(0));
+      },
+    );
+
+    test(
+      'exports rich-text note stored as RichDocument JSON to formatted Markdown without leaking JSON syntax',
+      () async {
+        final noteId = 'rich-note-1';
+        final now = DateTime.utc(2026, 1, 1);
+        final note = Note(
+          id: noteId,
+          title: 'Interview Notes',
+          content:
+              '{"\$schema":"quietpaper:rich_document:v1","blocks":[{"type":"paragraph","id":"p-1","spans":[{"text":"Witness reported seeing the suspect."}]},{"type":"paragraph","id":"p-2","spans":[{"text":"Status: "},{"text":"Active","attributes":{"bold":true}}]}]}',
+          createdAt: now,
+          updatedAt: now,
+        );
+        await repository.saveNote(note);
+
+        final mdResult = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.markdown,
+            includeMetadata: true,
+          ),
+        );
+
+        expect(mdResult.format, equals(ExportFormat.markdown));
+        final mdContent = await mdResult.file.readAsString();
+
+        // Ensure JSON keys are never leaked in export
+        expect(mdContent, isNot(contains(r'{"$schema":')));
+        expect(mdContent, isNot(contains('"blocks":')));
+        expect(mdContent, isNot(contains('"spans":')));
+
+        // Ensure formatted markdown content is present
+        expect(mdContent, contains('Witness reported seeing the suspect.'));
+        expect(mdContent, contains('Status: **Active**'));
+      },
+    );
 
     test('exports password protected note after unlocking', () async {
       final encryptedBody = await NoteSecurityService.encryptNote(
@@ -309,10 +374,7 @@ void main() => print("Ready");
       final observedPhases = <ExportPhase>[];
 
       await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.markdown,
-        ),
+        ExportRequest(noteId: noteId, format: ExportFormat.markdown),
         onProgress: (state) {
           observedPhases.add(state.phase);
         },
@@ -324,60 +386,101 @@ void main() => print("Ready");
       expect(observedPhases, contains(ExportPhase.complete));
     });
 
-    test('shares export result via QuietPaperLinuxSharePlugin without throwing UnimplementedError', () async {
-      final runner = MockExportProcessRunner();
-      QuietPaperLinuxSharePlugin.register(processRunner: runner);
+    test(
+      'shares export result via QuietPaperLinuxSharePlugin without throwing UnimplementedError',
+      () async {
+        final runner = MockExportProcessRunner();
+        QuietPaperLinuxSharePlugin.register(processRunner: runner);
 
-      final noteId = 'share-export-note-1';
-      final now = DateTime.utc(2026, 1, 1);
-      final note = Note(
-        id: noteId,
-        title: 'Share Export Test',
-        content: '# Test Share',
-        createdAt: now,
-        updatedAt: now,
-      );
-      await repository.saveNote(note);
+        final noteId = 'share-export-note-1';
+        final now = DateTime.utc(2026, 1, 1);
+        final note = Note(
+          id: noteId,
+          title: 'Share Export Test',
+          content: '# Test Share',
+          createdAt: now,
+          updatedAt: now,
+        );
+        await repository.saveNote(note);
 
-      // Export with shareAfterExport: true
-      final result = await exportService.exportNote(
-        ExportRequest(
-          noteId: noteId,
-          format: ExportFormat.markdown,
-          shareAfterExport: true,
-        ),
-      );
+        // Export with shareAfterExport: true
+        final result = await exportService.exportNote(
+          ExportRequest(
+            noteId: noteId,
+            format: ExportFormat.markdown,
+            shareAfterExport: true,
+          ),
+        );
 
-      expect(result.file.existsSync(), isTrue);
-      expect(runner.commands.isNotEmpty, isTrue);
-      expect(runner.commands.last[0], 'gdbus');
-      expect(runner.commands.last, contains('org.freedesktop.portal.Desktop'));
-    });
+        expect(result.file.existsSync(), isTrue);
+        expect(runner.commands.isNotEmpty, isTrue);
+        expect(runner.commands.last[0], 'gdbus');
+        expect(
+          runner.commands.last,
+          contains('org.freedesktop.portal.Desktop'),
+        );
+      },
+    );
   });
 
   group('ExportPreferencesNotifier', () {
-    test('persists and loads export preferences in SharedPreferences', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'persists and loads export preferences in SharedPreferences',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
 
-      final notifier = ExportPreferencesNotifier(prefs);
-      expect(notifier.state.lastFormat, equals(ExportFormat.markdown));
+        final notifier = ExportPreferencesNotifier(prefs);
+        expect(notifier.state.lastFormat, equals(ExportFormat.markdown));
 
-      await notifier.updatePreferences(
-        lastFormat: ExportFormat.pdf,
-        includeMetadata: false,
-        includeAttachments: false,
-      );
+        await notifier.updatePreferences(
+          lastFormat: ExportFormat.pdf,
+          includeMetadata: false,
+          includeAttachments: false,
+        );
 
-      expect(notifier.state.lastFormat, equals(ExportFormat.pdf));
-      expect(notifier.state.includeMetadata, isFalse);
-      expect(notifier.state.includeAttachments, isFalse);
+        expect(notifier.state.lastFormat, equals(ExportFormat.pdf));
+        expect(notifier.state.includeMetadata, isFalse);
+        expect(notifier.state.includeAttachments, isFalse);
 
-      // Verify reloaded notifier retrieves updated values
-      final reloaded = ExportPreferencesNotifier(prefs);
-      expect(reloaded.state.lastFormat, equals(ExportFormat.pdf));
-      expect(reloaded.state.includeMetadata, isFalse);
-      expect(reloaded.state.includeAttachments, isFalse);
-    });
+        // Verify reloaded notifier retrieves updated values
+        final reloaded = ExportPreferencesNotifier(prefs);
+        expect(reloaded.state.lastFormat, equals(ExportFormat.pdf));
+        expect(reloaded.state.includeMetadata, isFalse);
+        expect(reloaded.state.includeAttachments, isFalse);
+      },
+    );
   });
+  test(
+    'QPNote export through the real service includes canonical email provenance',
+    () async {
+      final source = NoteImportSource(
+        fingerprint: 'email-source',
+        importedAt: DateTime.utc(2026),
+        subject: 'Email subject',
+        sender: 'Sender',
+      );
+      final note = Note(
+        id: 'export-email',
+        title: 'Saved email',
+        content: 'Email body',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        importSources: [source],
+      );
+      await repository.saveNote(note);
+      final result = await exportService.exportNote(
+        ExportRequest(noteId: note.id, format: ExportFormat.qpnote),
+      );
+      final zip = ZipDecoder().decodeBytes(await result.file.readAsBytes());
+      final metadata =
+          jsonDecode(
+                utf8.decode(
+                  zip.findFile('metadata.json')!.content as List<int>,
+                ),
+              )
+              as Map<String, dynamic>;
+      expect(NoteImportSource.decode(metadata['importSources']), [source]);
+    },
+  );
 }

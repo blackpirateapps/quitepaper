@@ -62,6 +62,63 @@ void main() {
   }
 
   group('NotesScreen Gestures (Bear Notes Pull-Down Search & Sidebar)', () {
+    testWidgets(
+      'phone pull focuses search after the slide and system Back restores notes',
+      (tester) async {
+        setPhoneSize(tester);
+        final prefs = await SharedPreferences.getInstance();
+        await tester.pumpWidget(buildNotesApp(prefs: prefs));
+        await tester.pumpAndSettle();
+
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('No notes yet')),
+        );
+        await gesture.moveBy(const Offset(0, 25));
+        await tester.pump();
+        await gesture.moveBy(const Offset(0, 180));
+        await tester.pump();
+        final field = find.descendant(
+          of: find.byType(SearchScreen),
+          matching: find.byType(TextField),
+        );
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byType(SearchScreen), findsNothing);
+        expect(find.text('No notes yet'), findsOneWidget);
+        await finishTest(tester);
+      },
+    );
+
+    testWidgets('phone Back tap during opening closes search', (tester) async {
+      setPhoneSize(tester);
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(buildNotesApp(prefs: prefs));
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('No notes yet')),
+      );
+      await gesture.moveBy(const Offset(0, 25));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 180));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SearchScreen), findsNothing);
+      expect(find.text('No notes yet'), findsOneWidget);
+      await finishTest(tester);
+    });
+
     for (final width in [720.0, 1280.0]) {
       for (final swipeEnabled in [true, false]) {
         testWidgets(

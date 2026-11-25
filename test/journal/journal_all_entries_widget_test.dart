@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:quitepaper/features/settings/application/default_settings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/app/app.dart';
 import 'package:quitepaper/core/database/app_database.dart';
@@ -92,6 +94,33 @@ void main() {
       expect(find.text('No journal entries yet.'), findsOneWidget);
       expect(find.text('Write your first entry in Today.'), findsOneWidget);
 
+      await finishTest(tester);
+    });
+
+    testWidgets('Bengali days localize and selecting one keeps its ASCII date', (tester) async {
+      await initializeDateFormatting('bn');
+      await prefs.setBool(DefaultSettingsNotifier.bengaliDatesKey, true);
+      await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));
+      await tester.pumpWidget(buildTestWidget(overrides: [
+        calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+      ]));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byType(JournalTimelineTile),
+        matching: find.text('০১')), findsOneWidget);
+      final day = find.descendant(of: find.byType(JournalCalendarView),
+        matching: find.text('১৫'));
+      expect(day, findsOneWidget);
+      await tester.tap(day);
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(tester.element(find.byType(JournalAllEntriesView)));
+      expect(container.read(calendarSelectedDateProvider), '2026-09-15');
+      await container.read(defaultSettingsProvider.notifier).setBengaliDates(false);
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byType(JournalCalendarView),
+        matching: find.text('15')), findsOneWidget);
+      expect(find.descendant(of: find.byType(JournalTimelineTile),
+        matching: find.text('01')), findsOneWidget);
+      expect(container.read(calendarSelectedDateProvider), '2026-09-15');
       await finishTest(tester);
     });
 
@@ -391,6 +420,48 @@ void main() {
 
       await finishTest(tester);
     });
+
+    for (final trashAfterSelection in [false, true]) {
+      testWidgets('trashed preview requires restore ($trashAfterSelection)', (tester) async {
+        final note = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 15));
+        await repository.saveNote(note.copyWith(title: 'Saved reflection',
+          content: '${note.content}\nKeep this reflection.'));
+        if (!trashAfterSelection) await repository.trashNote(note.id);
+        Note? opened;
+        await tester.pumpWidget(buildTestWidget(
+          isTablet: true, onNoteSelected: (note) => opened = note,
+          overrides: [
+            calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 9)),
+            calendarSelectedDateProvider.overrideWith((ref) => '2026-09-15'),
+          ],
+        ));
+        await tester.pumpAndSettle();
+        if (trashAfterSelection) {
+          await repository.trashNote(note.id);
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('This entry is in Trash.'), findsOneWidget);
+        expect(find.text('Show in All Entries'), findsNothing);
+        await tester.tap(find.text('Saved reflection'));
+        await tester.pumpAndSettle();
+        expect(find.text('Restore & Open'), findsOneWidget);
+        expect(opened, isNull);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect((await repository.getNoteById(note.id))!.isTrashed, isTrue);
+        expect(opened, isNull);
+        await tester.tap(find.text('Restore entry'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Restore & Open'));
+        await tester.pumpAndSettle();
+        expect(opened!.id, note.id);
+        expect(opened!.isTrashed, isFalse);
+        expect(opened!.content, contains('Keep this reflection.'));
+        expect((await repository.getNoteById(note.id))!.isTrashed, isFalse);
+        expect(find.text('Show in All Entries'), findsOneWidget);
+        await finishTest(tester);
+      });
+    }
 
     testWidgets('JournalTimelineTile renders active selection highlight and semantics when selected', (tester) async {
       final note1 = await repository.getOrCreateJournalEntry(DateTime(2026, 9, 1));

@@ -1,4 +1,7 @@
+import '../features/notes/application/workspace_commands.dart';
+import '../features/watched_import/presentation/watched_import_lifecycle.dart';
 import 'dart:ui';
+import '../features/email_import/presentation/email_workspace_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/platform_layout_helper.dart';
@@ -18,11 +21,11 @@ class DesktopAppScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.invertedStylus,
-        PointerDeviceKind.trackpad,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+    PointerDeviceKind.trackpad,
+  };
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
@@ -56,12 +59,18 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
       final db = ref.read(databaseProvider);
       if (db.needsSearchIndexRebuild) {
         db.clearSearchIndexRebuildFlag();
-        debugPrint('[QuietPaper FTS] Triggering background auto-repair for search index...');
+        debugPrint(
+          '[QuietPaper FTS] Triggering background auto-repair for search index...',
+        );
         await db.rebuildSearchIndex(batchSize: 500);
-        debugPrint('[QuietPaper FTS] Background search index auto-repair complete.');
+        debugPrint(
+          '[QuietPaper FTS] Background search index auto-repair complete.',
+        );
       }
     } catch (e) {
-      debugPrint('[QuietPaper FTS] Background search index auto-repair error: $e');
+      debugPrint(
+        '[QuietPaper FTS] Background search index auto-repair error: $e',
+      );
     }
   }
 
@@ -92,6 +101,7 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
 
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
+      navigatorObservers: [ref.read(workspaceCommandsProvider)],
       title: 'Quiet Paper',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const DesktopAppScrollBehavior(),
@@ -113,7 +123,12 @@ class _QuietPaperAppState extends ConsumerState<QuietPaperApp> {
               maxScaleFactor: 1.35,
             ),
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: WatchedImportLifecycle(
+            child: EmailWorkspaceActions(
+              navigatorKey: rootNavigatorKey,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         );
       },
       home: const AppRoot(),

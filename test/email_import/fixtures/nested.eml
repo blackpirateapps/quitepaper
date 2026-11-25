@@ -1,0 +1,20 @@
+From: Alice <alice@example.test>
+To: Bob <bob@example.test>
+Subject: Example
+Date: Wed, 18 Nov 2026 10:30:00 +0530
+Message-ID: <Example@Example.Test>
+Content-Type: multipart/mixed; boundary=outer
+
+--outer
+Content-Type: multipart/alternative; boundary=inner
+
+--inner
+Content-Type: text/plain
+
+Fallback
+--inner
+Content-Type: text/html
+
+<blockquote>Reply</blockquote>
+--inner--
+--outer--

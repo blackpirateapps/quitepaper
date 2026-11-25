@@ -1,3 +1,4 @@
+import '../../features/tasks/domain/task_document.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../features/editor/domain/rich_document.dart';
@@ -68,7 +69,9 @@ class SearchIndexProjection {
         return doc.plainText;
       } catch (_) {}
     }
-    return MarkdownOffsetMapper.normalize(content).normalizedText;
+    return MarkdownOffsetMapper.normalize(
+      TaskDocument.visibleMarkdown(content),
+    ).normalizedText;
   }
 
   /// Projects tag names into searchable space-separated and prefixed tokens.

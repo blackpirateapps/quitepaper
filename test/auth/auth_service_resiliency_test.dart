@@ -218,9 +218,90 @@ void main() {
       );
     });
 
-    test('FirebaseAuthService initializes with default canonical API key when no key is supplied', () {
+    test('FirebaseAuthService uses only build configuration when no key is supplied', () {
       final auth = FirebaseAuthService();
-      expect(auth.apiKey, FirebaseAuthService.defaultFirebaseApiKey);
+      expect(auth.apiKey, const String.fromEnvironment('FIREBASE_API_KEY').trim());
+      expect(FirebaseAuthService(apiKey: ' explicit-key ').apiKey, 'explicit-key');
+    });
+
+    test('sign-in discovers public backend configuration before contacting Firebase', () async {
+      final requests = <http.BaseRequest>[];
+      final client = MockHttpClient((request) async {
+        requests.add(request);
+        if (request.url.path == '/api/v1/config') {
+          expect(request.method, 'GET');
+          return http.Response(jsonEncode({'firebaseApiKey': ' configured-key '}), 200);
+        }
+        expect(request.url.host, 'identitytoolkit.googleapis.com');
+        expect(request.url.queryParameters['key'], 'configured-key');
+        return http.Response(jsonEncode({
+          'localId': 'user-1',
+          'email': 'user@test.com',
+          'idToken': 'id-token',
+        }), 200);
+      });
+      final auth = FirebaseAuthService(httpClient: client);
+
+      final user = await auth.signInWithEmailAndPassword('user@test.com', 'password123');
+
+      expect(user.id, 'user-1');
+      expect(auth.apiKey, 'configured-key');
+      expect(requests, hasLength(2));
+    });
+
+    for (final operation in ['sign in', 'sign up', 'reset password']) {
+      test('$operation stops before sending credentials when configuration is missing', () async {
+        final client = MockHttpClient((request) async {
+          expect(request.method, 'GET');
+          expect(request.url.path, '/api/v1/config');
+          return http.Response(jsonEncode({'firebaseApiKey': ''}), 200);
+        });
+        final auth = FirebaseAuthService(httpClient: client);
+        final Future<dynamic> request;
+        switch (operation) {
+          case 'sign in':
+            request = auth.signInWithEmailAndPassword('user@test.com', 'password123');
+          case 'sign up':
+            request = auth.signUpWithEmailAndPassword('user@test.com', 'password123');
+          default:
+            request = auth.sendPasswordResetEmail('user@test.com');
+        }
+
+        await expectLater(request, throwsA(isA<StateError>().having(
+          (error) => error.message, 'message', 'Firebase API key is not configured.',
+        )));
+        expect(auth.apiKey, isEmpty);
+      });
+    }
+
+    test('rejected API key retries once using rotated backend configuration', () async {
+      final postedKeys = <String?>[];
+      final client = MockHttpClient((request) async {
+        if (request.url.path == '/api/v1/config') {
+          return http.Response(jsonEncode({'firebaseApiKey': 'rotated-key'}), 200);
+        }
+        postedKeys.add(request.url.queryParameters['key']);
+        if (postedKeys.length == 1) {
+          return http.Response(jsonEncode({'error': {'message': 'API_KEY_INVALID'}}), 400);
+        }
+        return http.Response(jsonEncode({
+          'localId': 'user-1',
+          'email': 'user@test.com',
+          'idToken': 'id-token',
+        }), 200);
+      });
+      final auth = FirebaseAuthService(apiKey: 'old-key', httpClient: client);
+
+      await auth.signInWithEmailAndPassword('user@test.com', 'password123');
+
+      expect(postedKeys, ['old-key', 'rotated-key']);
+      expect(auth.apiKey, 'rotated-key');
+    });
+
+    test('clearing an explicit API key does not restore a committed fallback', () {
+      final auth = FirebaseAuthService(apiKey: 'provided-key');
+      auth.setApiKey(' ');
+      expect(auth.apiKey, isEmpty);
     });
 
     test('signInWithEmailAndPassword maps UNREGISTERED_CALLERS error clearly', () async {

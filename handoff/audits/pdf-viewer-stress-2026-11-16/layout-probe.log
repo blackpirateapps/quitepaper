@@ -1,0 +1,8 @@
+00:00 +0: loading /home/dog/.codex/worktrees/8250/quitepaper/test/documents/pdf_viewer_layout_audit_probe_test.dart
+00:00 +0: observe PDF toolbar at narrow mobile widths
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+{"probe":"mobile-toolbar-layout","width":320.0,"titleWidth":0.0,"errors":["A RenderFlex overflowed by 16 pixels on the right."],"viewerPresent":true}
+{"probe":"mobile-toolbar-layout","width":360.0,"titleWidth":0.0,"errors":[],"viewerPresent":true}
+{"probe":"mobile-toolbar-layout","width":390.0,"titleWidth":22.0,"errors":[],"viewerPresent":true}
+{"probe":"mobile-toolbar-layout","width":600.0,"titleWidth":232.0,"errors":[],"viewerPresent":true}
+00:02 +1: All tests passed!

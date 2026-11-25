@@ -1,3 +1,4 @@
+import '../../../../domain/task_metadata.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_editor/super_editor.dart';
 
@@ -246,12 +247,60 @@ class QuietMathInlineSyntax extends md.InlineSyntax {
   }
 }
 
+/// Parse task rows before CommonMark groups nested tasks into one list element.
+/// Super Editor's stock task converter reads descendant text and skips children,
+/// which loses both nested rows and their checked states.
+class QuietTaskBlockSyntax extends md.BlockSyntax {
+  const QuietTaskBlockSyntax();
+
+  @override
+  RegExp get pattern => RegExp(
+    r'^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\][ \t]*(.*)$',
+  );
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final match = pattern.firstMatch(parser.current.content)!;
+    parser.advance();
+    return md.Element.empty('quiet-task')
+      ..attributes['prefix'] = match.group(1)!
+      ..attributes['indent'] = '${RegExp(r'^[ \t]*').firstMatch(match.group(1)!)![0]!.replaceAll('\t', '    ').length ~/ 2}'
+      ..attributes['checked'] = '${match.group(2)!.toLowerCase() == 'x'}'
+      ..attributes['source'] = match.group(3)!;
+  }
+}
+
+class QuietTaskElementToNodeConverter implements ElementToNodeConverter {
+  const QuietTaskElementToNodeConverter();
+
+  @override
+  DocumentNode? handleElement(md.Element element) {
+    if (element.tag != 'quiet-task') return null;
+    final task = TaskMetadata.parseTerminal(element.attributes['source']!);
+    return TaskNode(
+      metadata: {
+        if (task.metadata != null) 'qp-task': task.metadata!.toJson(),
+        if (!RegExp(r'^[ \t]*[-*+] $').hasMatch(element.attributes['prefix']!))
+          'qp-task-prefix': element.attributes['prefix'],
+      },
+      id: Editor.createNodeId(),
+      indent: int.parse(element.attributes['indent']!),
+      isComplete: element.attributes['checked'] == 'true',
+      text: parseInlineMarkdown(
+        task.text,
+        inlineMarkdownSyntaxes: [
+        QuietMathInlineSyntax(), ...defaultSuperEditorInlineSyntaxes,
+      ]),
+    );
+  }
+}
+
 /// The same math-aware deserializer is used by note loading and structured paste.
 MutableDocument deserializeQuietMathDocument(String normalizedMarkdown) =>
     deserializeMarkdownToDocument(
       normalizedMarkdown,
-      customBlockSyntax: const [QuietMathBlockSyntax()],
-      customElementToNodeConverters: const [QuietMathElementToNodeConverter()],
+      customBlockSyntax: const [QuietMathBlockSyntax(), QuietTaskBlockSyntax()],
+      customElementToNodeConverters: const [QuietMathElementToNodeConverter(), QuietTaskElementToNodeConverter()],
       inlineMarkdownSyntaxes: [
         QuietMathInlineSyntax(),
         ...defaultSuperEditorInlineSyntaxes,

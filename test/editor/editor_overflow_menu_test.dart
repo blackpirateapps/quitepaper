@@ -475,7 +475,7 @@ void main() {
     });
 
     testWidgets(
-        'Tapping "Add tag" from 3-dot overflow menu creates nested tag with numeric segments (e.g. journal/2026)',
+        'Tapping "Add tags" from 3-dot overflow menu creates nested tag with numeric segments (e.g. journal/2026)',
         (tester) async {
       final now = DateTime.now();
       final note = Note(
@@ -494,22 +494,19 @@ void main() {
       await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
 
-      // Tap "Add tag"
-      expect(find.text('Add tag'), findsOneWidget);
-      await tester.tap(find.text('Add tag'));
+      // Tap "Add tags"
+      expect(find.text('Add tags'), findsOneWidget);
+      await tester.tap(find.text('Add tags'));
       await tester.pumpAndSettle();
 
       // Enter nested tag "journal/2026" in the dialog
-      final dialogTextField = find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextField),
-      );
+      final dialogTextField = find.byKey(const ValueKey('tag-picker-input'));
       expect(dialogTextField, findsOneWidget);
       await tester.enterText(dialogTextField, 'journal/2026');
       await tester.pumpAndSettle();
 
-      // Tap "Add"
-      await tester.tap(find.text('Add'));
+      // Apply the typed tag.
+      await tester.tap(find.byKey(const ValueKey('tag-picker-apply')));
       await tester.pumpAndSettle();
 
       // Verify the tag chip is displayed on the editor

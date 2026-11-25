@@ -31,6 +31,9 @@ class FrontmatterPropertiesSection extends StatefulWidget {
     required this.readOnly,
     this.isJournal = false,
     this.initialExpanded = true,
+    this.documentId,
+    this.readDocument,
+    this.fetchLocation,
   });
 
   final FrontmatterDocument frontmatter;
@@ -40,6 +43,14 @@ class FrontmatterPropertiesSection extends StatefulWidget {
   final bool isJournal;
   final bool initialExpanded;
 
+  /// Identifies the active editor document across asynchronous operations.
+  final Object? documentId;
+
+  /// Reads the latest canonical buffer, publishing pending Visual edits first.
+  /// Standalone callers can rely on rebuilt [rawDocument] when this is absent.
+  final String Function()? readDocument;
+  final Future<JournalLocation> Function()? fetchLocation;
+
   @override
   State<FrontmatterPropertiesSection> createState() => _FrontmatterPropertiesSectionState();
 }
@@ -47,6 +58,7 @@ class FrontmatterPropertiesSection extends StatefulWidget {
 class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSection> {
   late bool _isExpanded;
   bool _isFetchingWeather = false;
+  int _weatherRequestGeneration = 0;
 
   late final TextEditingController _authorController;
   late final TextEditingController _createdController;
@@ -67,6 +79,10 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
   @override
   void didUpdateWidget(FrontmatterPropertiesSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentId != widget.documentId) {
+      ++_weatherRequestGeneration;
+      _isFetchingWeather = false;
+    }
     if (oldWidget.frontmatter != widget.frontmatter) {
       if (_authorController.text != (widget.frontmatter.author ?? '')) {
         _authorController.text = widget.frontmatter.author ?? '';
@@ -102,11 +118,12 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
-  void _onAddTag(String tag) {
+  void _onAddTag(String tag) => _onAddTags([tag]);
+
+  void _onAddTags(List<String> tags) {
     if (widget.readOnly) return;
-    final currentTags = List<String>.from(widget.frontmatter.tags);
-    if (!currentTags.contains(tag)) {
-      currentTags.add(tag);
+    final currentTags = {...widget.frontmatter.tags, ...tags}.toList();
+    if (currentTags.length != widget.frontmatter.tags.length) {
       final updated = FrontmatterEditorHelper.updateTags(
         documentText: widget.rawDocument,
         tags: currentTags,
@@ -148,39 +165,50 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
     widget.onDocumentChanged(updated);
   }
 
+  bool _isCurrentWeatherRequest(int generation, Object? documentId) =>
+      mounted && generation == _weatherRequestGeneration && widget.documentId == documentId;
+
   Future<void> _fetchWeather() async {
     if (widget.readOnly || _isFetchingWeather) return;
+    final generation = ++_weatherRequestGeneration;
+    final documentId = widget.documentId;
     setState(() => _isFetchingWeather = true);
     try {
-      double lat = 0.0;
-      double lng = 0.0;
-      var currentDoc = widget.rawDocument;
-      final loc = widget.frontmatter.location;
+      final initialDocument = widget.readDocument?.call() ?? widget.rawDocument;
+      final initial = FrontmatterEditorHelper.parse(initialDocument);
+      final loc = initial.location;
+      double lat;
+      double lng;
+      JournalLocation? fetchedLocation;
       if (loc != null && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
         lat = loc.latitude;
         lng = loc.longitude;
       } else {
-        final fetchedLoc = await LocationService().fetchCurrentLocation();
-        lat = fetchedLoc.latitude;
-        lng = fetchedLoc.longitude;
-        if (loc == null) {
-          currentDoc = FrontmatterEditorHelper.updateLocation(
-            documentText: currentDoc,
-            location: fetchedLoc,
-          );
-        }
+        fetchedLocation = await (widget.fetchLocation?.call() ??
+            LocationService().fetchCurrentLocation());
+        if (!_isCurrentWeatherRequest(generation, documentId) || widget.readOnly) return;
+        lat = fetchedLocation.latitude;
+        lng = fetchedLocation.longitude;
       }
 
-      final weatherService = WeatherService();
-      final weather = await weatherService.fetchWeather(lat, lng);
-      if (!mounted) return;
+      final weather = await WeatherService().fetchWeather(lat, lng);
+      if (!_isCurrentWeatherRequest(generation, documentId) || widget.readOnly) return;
+      var currentDocument = widget.readDocument?.call() ?? widget.rawDocument;
+      final current = FrontmatterEditorHelper.parse(currentDocument);
+      // A changed place or weather value supersedes this request. Body and other
+      // metadata edits are retained by applying to the latest canonical buffer.
+      if (current.location != loc || current.weather != initial.weather) return;
+      if (loc == null && fetchedLocation != null) {
+        currentDocument = FrontmatterEditorHelper.updateLocation(
+          documentText: currentDocument, location: fetchedLocation,
+        );
+      }
       final updated = FrontmatterEditorHelper.updateWeather(
-        documentText: currentDoc,
-        weather: weather,
+        documentText: currentDocument, weather: weather,
       );
       widget.onDocumentChanged(updated);
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentWeatherRequest(generation, documentId)) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -190,7 +218,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
         );
       }
     } finally {
-      if (mounted) {
+      if (_isCurrentWeatherRequest(generation, documentId)) {
         setState(() => _isFetchingWeather = false);
       }
     }
@@ -546,6 +574,7 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
                             showAddButton: !widget.readOnly,
                             padding: EdgeInsets.zero,
                             onAddTag: _onAddTag,
+                            onAddTags: _onAddTags,
                             onRemoveTag: _onRemoveTag,
                           ),
                         ),
@@ -937,11 +966,15 @@ class _FrontmatterPropertiesSectionState extends State<FrontmatterPropertiesSect
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              'Fetching current weather...',
-              style: AppTypography.caption.copyWith(
-                color: colors.textSecondary,
-                fontSize: 12,
+            Flexible(
+              child: Text(
+                'Fetching current weather...',
+                style: AppTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

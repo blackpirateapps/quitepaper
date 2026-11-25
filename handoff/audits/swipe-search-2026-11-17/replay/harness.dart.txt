@@ -1,0 +1,93 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/app/theme/app_theme.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/notes/presentation/notes_screen.dart';
+import 'package:quitepaper/features/notes/presentation/widgets/pull_down_search_reveal.dart';
+import 'package:quitepaper/features/search/presentation/search_screen.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
+
+final captureKey = GlobalKey();
+final errors = <String>[];
+final frames = <Map<String, Object?>>[];
+bool recording = false;
+final watch = Stopwatch()..start();
+
+List<double>? rect(Element e) {
+  final r = e.findRenderObject();
+  if (r is! RenderBox || !r.attached || !r.hasSize) return null;
+  final p = r.localToGlobal(Offset.zero);
+  return [p.dx, p.dy, r.size.width, r.size.height];
+}
+
+Map<String, Object?> inspect() {
+  final labels = <Object?>[], scrolls = <Object?>[], pulls = <Object?>[], fields = <Object?>[];
+  int searchCount = 0;
+  void visit(Element e) {
+    final w = e.widget;
+    if (w is Text && w.data != null) labels.add({'text': w.data, 'rect': rect(e)});
+    if (w is Tooltip) labels.add({'tooltip': w.message, 'rect': rect(e)});
+    if (w is SearchScreen) searchCount++;
+    if (w is EditableText) fields.add({'focus': w.focusNode.hasFocus, 'rect': rect(e)});
+    if (e is StatefulElement && e.state is PullDownSearchRevealState) {
+      final s = e.state as PullDownSearchRevealState;
+      pulls.add({'offset': s.pullOffset, 'active': s.isSearchActive, 'rect': rect(e)});
+    }
+    if (e is StatefulElement && e.state is ScrollableState) {
+      final s = e.state as ScrollableState;
+      if (s.position.hasPixels) scrolls.add({'pixels': s.position.pixels, 'min': s.position.minScrollExtent, 'rect': rect(e)});
+    }
+    e.visitChildren(visit);
+  }
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+  return {'time': watch.elapsedMicroseconds / 1000, 'pulls': pulls, 'scrolls': scrolls, 'searchCount': searchCount, 'fields': fields, 'labels': labels, 'errors': errors};
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  debugDefaultTargetPlatformOverride = TargetPlatform.android;
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+  final db = AppDatabase.memory();
+  final repository = DriftNotesRepository(db);
+  final now = DateTime.now();
+  for (int i = 0; i < 35; i++) {
+    await repository.saveNote(Note(id: 'swipe-$i', title: 'Swipe audit note $i', content: 'Isolated animation audit fixture.', createdAt: now.subtract(Duration(minutes:i)), updatedAt: now.subtract(Duration(minutes:i))));
+  }
+  FlutterError.onError = (d) { errors.add(d.exceptionAsString()); FlutterError.presentError(d); };
+  runApp(ProviderScope(overrides: [databaseProvider.overrideWithValue(db), notesRepositoryProvider.overrideWithValue(repository), sharedPreferencesProvider.overrideWithValue(prefs)], child: RepaintBoundary(key:captureKey, child: MaterialApp(title:'Quiet Paper Swipe Audit', theme:AppTheme.light(), scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices:{PointerDeviceKind.mouse, PointerDeviceKind.touch}), home:const NotesScreen()))));
+  WidgetsBinding.instance.addPersistentFrameCallback((_) {
+    if (recording && frames.length < 2000) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => frames.add(inspect()));
+    }
+  });
+  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 38918);
+  stdout.writeln('SWIPE_AUDIT_READY');
+  await for (final request in server) {
+    try {
+      if (request.uri.path == '/empty') { for (int i = 0; i < 35; i++) { await repository.deleteNote('swipe-$i'); } }
+      if (request.uri.path == '/record') { frames.clear(); recording = true; }
+      if (request.uri.path == '/frames') recording = false;
+      if (request.uri.path == '/screenshot') {
+        final r = captureKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final pic = await r.toImage(pixelRatio:1);
+        final data = await pic.toByteData(format:ui.ImageByteFormat.png);
+        request.response.add(data!.buffer.asUint8List()); pic.dispose();
+      } else {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(request.uri.path == '/frames' ? frames : inspect()));
+      }
+    } catch(e) { request.response.statusCode = 500; request.response.write('$e'); }
+    await request.response.close();
+  }
+}

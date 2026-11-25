@@ -1,0 +1,35 @@
+import os,signal,json,pathlib,subprocess,time,urllib.request,sys
+root=pathlib.Path('/tmp/qp-swipe-audit')
+if '--resume' not in sys.argv:
+ p=json.loads((root/'process.json').read_text())['pid']
+ try:os.killpg(p,signal.SIGTERM)
+ except ProcessLookupError:pass
+ with (root/'build-fixed-final.log').open('w') as out:
+  subprocess.run(['flutter','build','linux','--debug','--no-pub','-t','.dart_tool/swipe-audit/main.dart'],stdout=out,stderr=subprocess.STDOUT,check=True)
+ subprocess.run(['python3',str(root/'launch.py')],check=True)
+for i in range(100):
+ try:
+  state=json.load(urllib.request.urlopen('http://127.0.0.1:38918/state',timeout=1))
+  if state['pulls']:break
+ except Exception:pass
+ time.sleep(.15)
+else:raise RuntimeError('Audit window failed to start')
+subprocess.run(['python3',str(root/'driver.py'),'fixed','420'],check=True)
+subprocess.run(['python3',str(root/'driver.py'),'fixed-tablet','1024'],check=True)
+json.load(urllib.request.urlopen('http://127.0.0.1:38918/empty'))
+time.sleep(.5)
+subprocess.run(['python3',str(root/'driver.py'),'fixed-empty','420'],check=True)
+results=[]
+for prefix in ['fixed','fixed-tablet','fixed-empty']:
+ for case,expected in [('short',0),('full',1),('reverse',0),('early-back',0)]:
+  d=json.loads((root/(prefix+'-'+case+'.json')).read_text())
+  passed=d['end']['searchCount']==expected and not d['end']['errors']
+  results.append({'case':prefix+'-'+case,'pass':passed,'searchCount':d['end']['searchCount'],'expected':expected,'errors':d['end']['errors']})
+(root/'native-checks.json').write_text(json.dumps(results,indent=2))
+print('NATIVE_CHECKS',json.dumps(results),flush=True)
+assert all(r['pass'] for r in results)
+p=json.loads((root/'process.json').read_text())['pid']
+os.killpg(p,signal.SIGTERM)
+with (root/'build-normal.log').open('w') as out:
+ subprocess.run(['flutter','build','linux','--debug','--no-pub','-t','lib/main.dart'],stdout=out,stderr=subprocess.STDOUT,check=True)
+print('NORMAL_APP_BUNDLE_RESTORED',flush=True)

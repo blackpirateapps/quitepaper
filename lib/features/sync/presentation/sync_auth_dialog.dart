@@ -6,6 +6,7 @@ import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/crypto/key_manager.dart';
 import '../../../core/sync/sync_provider.dart';
 import '../../../core/widgets/form_card.dart';
 import '../../../core/widgets/quiet_button.dart';
@@ -306,6 +307,7 @@ class _SyncAuthDialogState extends ConsumerState<SyncAuthDialog> {
         } catch (_) {}
         keyManager.lock();
 
+        if (unlockError is LocalVaultMigrationException) rethrow;
         final rawMsg = unlockError.toString();
         if (rawMsg.contains('SecretBoxAuthenticationError') ||
             rawMsg.contains('MAC') ||

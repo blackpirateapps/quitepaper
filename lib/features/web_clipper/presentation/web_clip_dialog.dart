@@ -12,10 +12,7 @@ import 'web_clip_preview_sheet.dart';
 
 /// Modal dialog for entering or pasting a webpage URL to clip.
 class WebClipDialog extends ConsumerStatefulWidget {
-  const WebClipDialog({
-    super.key,
-    this.initialUrl,
-  });
+  const WebClipDialog({super.key, this.initialUrl});
 
   final String? initialUrl;
 
@@ -54,7 +51,8 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
     try {
       final clipData = await Clipboard.getData(Clipboard.kTextPlain);
       final text = clipData?.text?.trim();
-      if (text != null && (text.startsWith('http://') || text.startsWith('https://'))) {
+      if (text != null &&
+          (text.startsWith('http://') || text.startsWith('https://'))) {
         if (mounted && _urlController.text.isEmpty) {
           setState(() {
             _urlController.text = text;
@@ -71,7 +69,8 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
   Future<void> _openInBrowser([String? urlOverride]) async {
     final rawUrl = (urlOverride ?? _urlController.text).trim();
     final uri = Uri.tryParse(rawUrl);
-    final targetUrl = (uri != null && (uri.isScheme('http') || uri.isScheme('https')))
+    final targetUrl =
+        (uri != null && (uri.isScheme('http') || uri.isScheme('https')))
         ? rawUrl
         : (rawUrl.isNotEmpty ? 'https://$rawUrl' : 'https://google.com');
 
@@ -141,8 +140,11 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                       color: colors.accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.language_rounded,
-                        color: colors.accent, size: 20),
+                    child: Icon(
+                      Icons.language_rounded,
+                      color: colors.accent,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -202,8 +204,11 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                   ),
                   suffixIcon: _urlController.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(Icons.clear_rounded,
-                              size: 18, color: colors.textTertiary),
+                          icon: Icon(
+                            Icons.clear_rounded,
+                            size: 18,
+                            color: colors.textTertiary,
+                          ),
                           onPressed: () {
                             setState(() {
                               _urlController.clear();
@@ -223,7 +228,9 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.08),
                     borderRadius: AppRadii.borderMd,
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,8 +240,11 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Icon(Icons.error_outline_rounded,
-                                size: 14, color: Colors.red.shade400),
+                            child: Icon(
+                              Icons.error_outline_rounded,
+                              size: 14,
+                              color: Colors.red.shade400,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -255,8 +265,11 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                             padding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
                           ),
-                          icon: Icon(Icons.open_in_browser_rounded,
-                              size: 15, color: colors.accent),
+                          icon: Icon(
+                            Icons.open_in_browser_rounded,
+                            size: 15,
+                            color: colors.accent,
+                          ),
                           label: Text(
                             'Open in In-App Browser →',
                             style: AppTypography.caption.copyWith(
@@ -274,13 +287,18 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
               const SizedBox(height: AppSpacing.lg),
 
               // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: [
                   TextButton.icon(
                     onPressed: _isLoading ? null : () => _openInBrowser(),
-                    icon: Icon(Icons.language_rounded,
-                        size: 16, color: colors.textSecondary),
+                    icon: Icon(
+                      Icons.language_rounded,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
                     label: Text(
                       'Browser',
                       style: AppTypography.body.copyWith(
@@ -289,27 +307,22 @@ class _WebClipDialogState extends ConsumerState<WebClipDialog> {
                       ),
                     ),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(
-                        onPressed:
-                            _isLoading ? null : () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Cancel',
-                          style: AppTypography.body.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
+                  TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: AppTypography.body.copyWith(
+                        color: colors.textSecondary,
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      QuietButton(
-                        label: 'Continue',
-                        variant: QuietButtonVariant.primary,
-                        isLoading: _isLoading,
-                        onPressed: _isLoading ? null : _scanUrl,
-                      ),
-                    ],
+                    ),
+                  ),
+                  QuietButton(
+                    label: 'Continue',
+                    variant: QuietButtonVariant.primary,
+                    isLoading: _isLoading,
+                    onPressed: _isLoading ? null : _scanUrl,
                   ),
                 ],
               ),

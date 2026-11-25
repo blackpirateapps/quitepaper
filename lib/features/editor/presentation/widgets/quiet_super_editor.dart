@@ -1,4 +1,6 @@
+import '../../../tasks/domain/task_document.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
@@ -37,6 +39,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   const QuietSuperEditor({
     super.key,
     required this.initialMarkdown,
+    this.allowRemoteLinkPreviews = true,
     required this.onChanged,
     this.controller,
     this.focusNode,
@@ -50,6 +53,7 @@ class QuietSuperEditor extends ConsumerStatefulWidget {
   });
 
   final String initialMarkdown;
+  final bool allowRemoteLinkPreviews;
   final ValueChanged<String> onChanged;
   final QuietSuperEditorController? controller;
   final FocusNode? focusNode;
@@ -72,6 +76,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   late final QuietDividerPlugin _dividerPlugin;
   late final QuietMathBlockPlugin _mathBlockPlugin;
   late final QuietPastePlugin _pastePlugin;
+  final _linuxHomePlugin = QuietLinuxHomePlugin();
   late final QuietBlockquotePlugin _blockquotePlugin;
   String? _frontmatterPrefix;
   String _lastSerializedMarkdown = '';
@@ -112,7 +117,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
     // Promote baked two-line `[title](url)` + sentinel-comment pairs into
     // embedded web-link preview nodes, and promote lone unbaked web links into
     // loading preview nodes with animated skeleton loaders.
-    promoteLinkPreviewNodes(document, promoteUnbaked: true);
+    promoteLinkPreviewNodes(document, promoteUnbaked: widget.allowRemoteLinkPreviews);
 
     // Promote code block paragraphs with raw languages parsed from fences.
     promoteQuietCodeBlockNodes(document, split.body);
@@ -165,7 +170,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   // keyboard paste callback. Give it the same math parsing as controller paste.
   EditCommand? _handleMathPasteRequest(Editor editor, EditRequest request) {
     if (request is! PasteEditorRequest ||
-        !QuietMathParser.containsMathSyntax(request.content)) {
+        (!QuietMathParser.containsMathSyntax(request.content) &&
+            TaskDocument.extract(request.content).isEmpty)) {
       return null;
     }
     final target = editor.document.getNodeById(request.pastePosition.nodeId);
@@ -174,7 +180,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       return null;
     }
     final content = deserializeQuietMathDocument(
-      normalizeMarkdownForSuperEditor(request.content),
+      normalizeMarkdownForSuperEditor(TaskDocument.rekey(request.content)),
     );
     promoteQuietAttachmentNodes(content);
     promoteLinkPreviewNodes(content);
@@ -228,6 +234,29 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       if (!structuralChange && widget.stripFrontmatter && newSplit.body == oldSplit.body) {
         _frontmatterPrefix = newSplit.prefix;
         _lastSerializedMarkdown = widget.initialMarkdown;
+      } else if (newSplit.body.startsWith(oldSplit.body) &&
+          newSplit.body.substring(oldSplit.body.length).trimLeft().startsWith('---') &&
+          newSplit.body.substring(oldSplit.body.length).contains('## Email Details')) {
+        // Confirmed email append: retain original nodes, caret, composition and
+        // history. Only deserialize the appended section, once.
+        final suffix = newSplit.body.substring(oldSplit.body.length);
+        final added = deserializeQuietMathDocument(normalizeMarkdownForSuperEditor(suffix));
+        promoteQuietAttachmentNodes(added);
+        promoteQuietCodeBlockNodes(added, suffix);
+        promoteQuietMathBlockNodes(added);
+        _isInternalUpdate = true;
+        _frontmatterPrefix = newSplit.prefix;
+        _lastSerializedMarkdown = widget.initialMarkdown;
+        final targetEditor = _editor;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          try {
+            if (identical(targetEditor, _editor)) {
+              _editor.execute([for (final node in added) InsertNodeAtEndOfDocumentRequest(node)]);
+            }
+          } finally { _isInternalUpdate = false; }
+        });
+
       } else {
         widget.controller?.detach();
         _editor.document.removeListener(_onDocumentChange);
@@ -479,6 +508,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
             _dividerPlugin,
             _mathBlockPlugin,
             _pastePlugin,
+            _linuxHomePlugin,
             _blockquotePlugin,
           },
           contentTapDelegateFactories: const [
@@ -623,6 +653,34 @@ class QuietPastePlugin extends SuperEditorPlugin {
     }
 
     onPaste!();
+    return ExecutionInstruction.haltExecution;
+  }
+}
+
+/// Consume Linux Home even when the caret is already at the line boundary.
+/// Falling through sends the key to the native IME, whose placeholder-backed
+/// buffer can be echoed into the document as inserted text (e.g. `. TailTail`).
+class QuietLinuxHomePlugin extends SuperEditorPlugin {
+  @override
+  List<SuperEditorKeyboardAction> get keyboardActions => [_handleHome];
+
+  ExecutionInstruction _handleHome({
+    required SuperEditorContext editContext,
+    required KeyEvent keyEvent,
+  }) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.linux ||
+        (keyEvent is! KeyDownEvent && keyEvent is! KeyRepeatEvent) ||
+        keyEvent.logicalKey != LogicalKeyboardKey.home ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        editContext.composer.selection == null) {
+      return ExecutionInstruction.continueExecution;
+    }
+    editContext.commonOps.moveCaretUpstream(
+      expand: HardwareKeyboard.instance.isShiftPressed,
+      movementModifier: MovementModifier.line,
+    );
     return ExecutionInstruction.haltExecution;
   }
 }

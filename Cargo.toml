@@ -1,0 +1,11 @@
+[workspace]
+members = ["rust/quietpaper_watched_import", "rust/quietpaper_cli"]
+resolver = "2"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

@@ -1,0 +1,194 @@
+# Email import
+
+Email import is implemented on `feat/email-import`. It preserves selected messages
+as ordinary editable notes, using existing repositories, encrypted assets, search,
+backup and sync. It does not connect to mail accounts or fetch remote email content.
+
+## Entry points
+
+- Drop one or more `.eml` files onto the Linux workspace or editor.
+- Settings → Backup & Import → Import Email selects multiple files; the all-files
+  action supports generic extensions when content inspection identifies email.
+- Ctrl+Shift+I opens the picker; Ctrl/Cmd+Shift+P exposes searchable commands.
+- Linux desktop metadata registers email MIME types and initial `.eml` arguments.
+- Android SEND, SEND_MULTIPLE and VIEW route supported email files through the same
+  preview. Shared text opens Quick Capture with explicit Save as Email. URL-only
+  shares retain ordinary capture/web clipping.
+
+The preview offers editable title/tags, metadata, attachments, duplicate review,
+new editable note plus original, original-only archive, or explicit append target.
+Shared content has no fabricated original and cannot select archive-only mode.
+Mixed batches identify rejected filenames and permit valid items to continue.
+Cancellation preserves completed imports and rolls back incomplete preparation.
+
+## Implementation boundaries
+
+`lib/features/email_import/application/email_input.dart` normalizes paths/file URIs
+and bounded reads. `email_parser.dart` walks MIME ranges in a worker, using
+enough_mail 3.0.0 codecs for RFC headers/parameters/charsets. It supports ordinary
+mixed/alternative/related/nested messages, encoded headers/filenames, binary parts,
+attached emails and CID images. Attached messages remain assets, not extra notes.
+`email_html_converter.dart` checks complexity before DOM allocation and converts
+safe structure to Markdown without rendering HTML or loading remote resources.
+Outlook conditional-comment fallback markup is excluded from live nesting counts;
+malformed comment endings still expose subsequent live elements to the limit.
+
+`email_import_gateway.dart` supplies injectable application boundaries.
+`email_import_service.dart` handles encrypted preparation, canonical note creation,
+source identities, duplicates, append revision checks and rollback.
+`email_import_screen.dart` retains one full preview at a time and sequentially
+processes batches. Other entries retain summaries and source fingerprints.
+`email_import_launcher.dart` connects navigation, active-editor reconciliation,
+list refresh and normal encrypted sync after confirmed commits.
+
+`EmailEditorBridge` flushes existing edits before preview and adopts committed
+appends, including earlier completed items when a batch is canceled. Rich appends
+splice parsed blocks into AST JSON; Super Editor retains original nodes/caret.
+Imported notes disable automatic remote-link preview fetching when opened.
+
+## Storage, provenance and synchronization
+
+Drift schema 22 adds `notes.import_sources` with an empty-array default, a derived
+`note_import_source_index`, and `email_import_preparations`. `NoteImportSource`
+version 1 preserves hashes, canonical fingerprint, identifiers/thread references,
+original metadata, UTC import timestamp and asset IDs. The canonical collection
+travels inside encrypted NotePlaintext and through backups and QPNote exports.
+The v22 migration reconciles either earlier v21 layout (templates or email import),
+preserving existing template snapshots, favorites, notes and provenance.
+
+`saveNote` maintains the derived duplicate index transactionally. Source identities
+union during save/merge; older client envelopes cannot erase locally retained
+sources and schedule an encrypted repair push when necessary. A source-only
+backup merge preserves newer note text and timestamps. The index can be rebuilt
+from canonical source records. No email import endpoint or plaintext email fields
+were added to the backend.
+
+Fresh UUIDs are journaled before encrypted file preparation. Note/asset metadata,
+tags, FTS and journal removal commit together. Failures remove newly prepared
+ciphertext; unsuccessful deletion retains the journal for later recovery before
+the next import preview. Never run recovery concurrently with another import.
+Email assets do not preload the plaintext cache or start OCR.
+
+## Offline encryption setup
+
+Email import works without Cloud Sync or an account. Before testing the unlock
+state, the gateway awaits key initialization. For a signed-out notebook with no
+wrapped key and no existing encrypted attachment/document rows, it calls
+`KeyManager.ensureLocalKey()`. This creates one random 256-bit key and persists it
+through the existing platform secure storage before exposing it to encryption.
+Concurrent requests share creation; subsequent previews and restarts reuse the
+same key. No cloud request or account setup is required.
+
+Existing wrapped/locked vaults are not replaced or unlocked automatically. Storage
+read/write failures fail closed; preparation errors retain the selected source and
+offer Retry. A real lock/logout still clears all pending source data. Generation
+checks prevent delayed initialization from restoring a cleared preview. Key loading
+is idempotent, and locking during startup or key creation prevents a late unlock.
+Clearing keys waits for pending local persistence before deleting stored material.
+
+Creating a new cloud vault wraps the same local key. Password/recovery unlock of a
+different existing cloud vault is rejected before replacing a device-only key, to
+avoid stranding encrypted local assets. Combining differently keyed vaults requires
+an explicit migration and is not implemented. Existing auth error handling locks
+the local session on unsuccessful sign-in; restarting restores its device key.
+
+Device-only keys remain in this installation's secure storage. Existing backups
+preserve encrypted asset bytes, but do not export the vault master key; moving
+those assets to another installation requires the same key. A backup password
+protects the backup envelope and does not replace the asset key. Cross-device
+recovery of a device-only key is not supplied by this fix. Do not clear app storage
+or uninstall as a workaround for an import failure.
+
+## Android lifecycle and temporary files
+
+`IncomingShareReceiver.kt` streams ContentResolver data on a serial worker while
+URI grants are valid. Provider names never control staging paths. Copies use
+private UUID directories and owner-only access; acknowledgment removes them after
+completion/cancellation, and the next activity initialization removes interrupted
+copies. URI permissions are not persisted. Filesystem deletion is not a guarantee
+of secure erasure on SSDs or journaled filesystems.
+
+The installed sharing plugin otherwise makes an extra unbounded copy. MainActivity
+passes it sanitized Android intents while the existing Dart ShareIntentHandler
+consumes the bounded native request. Request IDs deduplicate initial/event delivery;
+serial routing waits for active drafts/previews. Secure cache clearing invalidates
+pending requests and clears preview bodies, source paths and filename errors.
+No new storage permissions or broad binary Open With filter were added.
+
+## Limits and verification boundaries
+
+- Raw message: 50 MiB; decoded attachment: 25 MiB; combined decoded attachments:
+  50 MiB; decoded UTF-8 body: 10 MiB.
+- At most 200 MIME parts, 20 MIME nesting levels and 100 emails per batch.
+- Headers are bounded to 64 KiB. HTML has token, nesting and element-size budgets.
+- Existing cloud policies remain independent of local import limits. Assets over
+  the current 10 MB cloud limit remain local/pending; the preview explains this.
+- Outlook MSG, MBOX, PST/OST and mailbox/account access are unsupported.
+- desktop_drop provides coordinates but no hover filenames, so email recognition
+  happens on drop. Existing generic editor drop feedback remains.
+- Physical Android chooser/provider/lifecycle and Linux file-manager/Flatpak replay
+  remain unverified. Packaging builders were unavailable; no sandbox grants changed.
+
+See [the engineering report](../docs/email-import/engineering-report.md),
+[implementation record](../docs/email-import/implementation.md), engineering logs
+334–342 and [focused validation script](../tool/verify_email_import.sh).
+
+## Linux watched-folder entry point (schema 24)
+
+Watched EML reuses EmailParser and EmailImportService headlessly. Optional planned
+note IDs and a transaction hook add a local watched-import receipt to the same
+canonical save; manual preview, duplicate review, attachments, metadata, editor
+append and Android sharing retain their existing behavior. Watcher callbacks never
+navigate or fetch remote email content. Device-only key setup uses the existing
+gateway. See [the watched-import report](../docs/linux-rust-watched-import.md) for
+source verification, crash recovery and outstanding release acceptance limits.
+
+Multiple folders have independent enable switches, initial review and type filters
+(Email, PDF, Markdown, text, PNG, JPEG, WebP). Schema 24 replaces the singleton-root
+index with a per-notebook canonical-root index and adds JSON `file_types`, defaulting
+to all supported types for existing folders. Rust contract 2 holds engines by
+handle; one Dart polling loop serializes canonical imports across roots. Pausing,
+filter changes and removal invalidate only that folder's in-flight commit. Account
+and security changes invalidate all folders. Recovery runs before the first engine,
+never alongside another watched import.
+
+Initial inventory records every supported type, including unselected types, and
+review counts reflect the selected groups. Filters are enforced before snapshots
+and canonical imports after acceptance. Changing filters during pending review
+does not interrupt its inventory; after acceptance it triggers reconciliation.
+Only New preserves its original content baseline across type changes. Linked
+Markdown images remain part of that note regardless of standalone image filters.
+An empty selection imports nothing. Duplicate receipts remain shared by notebook
+scope across folders; removals cancel only the chosen folder's jobs and baseline,
+preserving notes, source files, receipts and history. Folder settings stay local
+and remain excluded from sync and backups.
+
+## Android watched folders (schema 25)
+
+`AndroidWatchedEngine` implements the shared watcher interface without loading the
+Linux library. `WatchedFolderBridge` uses ACTION_OPEN_DOCUMENT_TREE, persists only
+read grants, and performs provider queries/hash/snapshot reads on bounded worker
+threads. Document IDs remain opaque, tree membership is scoped per session, and
+source bytes are bounded RAM snapshots rather than copied temporary files. SAF
+permissions are required even if unrelated legacy storage permissions already exist.
+
+Scanning runs while foregrounded, reconciles every 30 seconds and catches up on
+startup/resume/manual rescan. There is no background service or WorkManager task.
+Three stable metadata observations over at least three seconds precede hashing;
+verified snapshots reopen/recheck the source and include content hashes in their
+revision, including when provider size/mtime is missing. The existing parser,
+encryption, note/index/receipt transaction, retry and duplicate semantics remain
+canonical. Directory pages/queues/depth/entry count and Markdown lookups are bounded;
+provider loading, partial/virtual documents and incomplete scans cannot authorize
+Only New. Unsupported temporary/binary files do not block other eligible files.
+
+Schema 25 adds installation-local `display_name` for provider labels and preserves
+schema-24 folder settings. Source root/path fields store tree URIs and opaque IDs
+on Android; open/reveal routes through the Android bridge, never D-Bus or guessed
+filesystem paths. Permission failures are recoverable UI errors. Startup futures
+coalesce per folder; lifecycle rescan includes every enabled folder and suspension
+invalidates late commits. Custom app backups/sync still exclude watcher tables;
+this does not alter Android OS backup policy or restore OS URI grants.
+
+See [the Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md)
+for reproduced bugs, focused checks and the explicit unverified device/picker gate.

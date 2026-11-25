@@ -1,3 +1,4 @@
+import '../../email_import/domain/note_import_source.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../editor/application/rich_document_serializer.dart';
@@ -30,6 +31,7 @@ class Note {
     this.isTrashed = false,
     this.deletedAt,
     this.tags = const [],
+    this.importSources = const [],
     this.pinnedTags = const [],
     this.journalDate,
     this.shareId,
@@ -46,6 +48,7 @@ class Note {
   final bool isTrashed;
   final DateTime? deletedAt;
   final List<String> tags;
+  final List<NoteImportSource> importSources;
 
   /// Normalized names of the tags this note is pinned WITHIN (per-tag / "local"
   /// pins). Independent of [isPinned], which is the global pin.
@@ -97,7 +100,9 @@ class Note {
   String get plainText {
     if (isRichText) {
       try {
-        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        final doc = RichDocument.fromJson(
+          jsonDecode(content) as Map<String, dynamic>,
+        );
         return doc.plainText;
       } catch (_) {}
     }
@@ -108,7 +113,9 @@ class Note {
   String get markdownContent {
     if (isRichText) {
       try {
-        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        final doc = RichDocument.fromJson(
+          jsonDecode(content) as Map<String, dynamic>,
+        );
         return const RichDocumentSerializer().serialize(doc);
       } catch (_) {}
     }
@@ -128,7 +135,9 @@ class Note {
   static String deriveTitle(String content) {
     if (isRichTextContent(content)) {
       try {
-        final doc = RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>);
+        final doc = RichDocument.fromJson(
+          jsonDecode(content) as Map<String, dynamic>,
+        );
         return NoteMetadataExtractor.deriveTitle(doc.plainText);
       } catch (_) {}
     }
@@ -140,10 +149,10 @@ class Note {
 
   /// Returns a clean one or two line snippet of the note content (omitting headers / markers)
   String get previewSnippet => NoteMetadataExtractor.derivePreviewSnippet(
-        content,
-        title: title,
-        isPasswordProtected: isPasswordProtected,
-      );
+    content,
+    title: title,
+    isPasswordProtected: isPasswordProtected,
+  );
 
   /// Word count
   int get wordCount {
@@ -166,6 +175,7 @@ class Note {
     bool? isTrashed,
     DateTime? deletedAt,
     List<String>? tags,
+    List<NoteImportSource>? importSources,
     List<String>? pinnedTags,
     String? journalDate,
     bool clearJournalDate = false,
@@ -184,6 +194,7 @@ class Note {
       isTrashed: isTrashed ?? this.isTrashed,
       deletedAt: deletedAt ?? this.deletedAt,
       tags: tags ?? this.tags,
+      importSources: importSources ?? this.importSources,
       pinnedTags: pinnedTags ?? this.pinnedTags,
       journalDate: clearJournalDate ? null : (journalDate ?? this.journalDate),
       shareId: clearShare ? null : (shareId ?? this.shareId),
@@ -208,6 +219,7 @@ class Note {
           journalDate == other.journalDate &&
           shareId == other.shareId &&
           shareUrl == other.shareUrl &&
+          listEquals(importSources, other.importSources) &&
           listEquals(tags, other.tags) &&
           listEquals(pinnedTags, other.pinnedTags);
 
@@ -225,6 +237,7 @@ class Note {
       journalDate.hashCode ^
       shareId.hashCode ^
       shareUrl.hashCode ^
+      Object.hashAll(importSources) ^
       tags.hashCode ^
       pinnedTags.hashCode;
 }

@@ -1,0 +1,33 @@
+name: Linux Rust CLI
+on:
+  push:
+    branches: [main, 'feat/linux-cli-rust-rewrite*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: flutter pub get
+      - name: Rust checks and focused CLI compatibility tests
+        run: bash scripts/test_rust_cli.sh
+      - name: Browser extension packaging and message handoff
+        run: |
+          python3 -m unittest discover -s extensions/browser/tests -p 'test_*.py'
+          node --test extensions/browser/tests/background.test.cjs
+      - name: Release CLI and headless relocation smoke
+        run: |
+          bash scripts/build_rust_cli.sh
+          bash scripts/smoke_rust_cli.sh build/cli/bin/qp

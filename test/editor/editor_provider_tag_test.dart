@@ -18,6 +18,85 @@ void main() {
   });
 
   group('EditorNotifier Tag Deletion & Persistence', () {
+    test(
+      'batch additions normalize, deduplicate and persist together once',
+      () async {
+        final now = DateTime.now();
+        final note = Note(
+          id: 'batch-tags',
+          title: 'Batch',
+          content: '',
+          createdAt: now,
+          updatedAt: now,
+          tags: ['existing'],
+        );
+        await repository.saveNote(note);
+        final counting = CountingTagRepository(db);
+        final additions = <List<String>>[];
+        final notifier = EditorNotifier(
+          initialNote: note,
+          repository: counting,
+          onTagsAdded: additions.add,
+        );
+        addTearDown(notifier.dispose);
+
+        notifier.addTags([
+          '#Work/Project',
+          'ideas',
+          'work/project',
+          'existing',
+          '???',
+        ]);
+        await notifier.saveNow();
+        expect(counting.saves, 1);
+        expect(
+          (await repository.getNoteById(note.id))!.tags,
+          unorderedEquals(['existing', 'work/project', 'ideas']),
+        );
+        expect(additions, [
+          ['work/project', 'ideas'],
+        ]);
+        notifier.addTags(['ideas', '#EXISTING']);
+        await notifier.saveNow();
+        expect(counting.saves, 1);
+        expect(additions, hasLength(1));
+      },
+    );
+
+    test(
+      'inline additions report use only after successful persistence',
+      () async {
+        final now = DateTime.now();
+        final note = Note(
+          id: 'inline-recency',
+          title: 'Inline',
+          content: '',
+          createdAt: now,
+          updatedAt: now,
+        );
+        await repository.saveNote(note);
+        final counting = CountingTagRepository(db)..failSaves = true;
+        final additions = <List<String>>[];
+        final notifier = EditorNotifier(
+          initialNote: note,
+          repository: counting,
+          onTagsAdded: additions.add,
+        );
+        addTearDown(notifier.dispose);
+        notifier.updateContent('Working on #work/project ');
+        await notifier.saveNow();
+        expect(additions, isEmpty);
+        counting.failSaves = false;
+        await notifier.saveNow();
+        expect(additions, [
+          ['work/project'],
+        ]);
+        notifier.updateTitle('Renamed title');
+        await notifier.saveNow();
+        expect(additions, hasLength(1));
+      },
+    );
+
     test('removing tag updates state, removes hashtag from content, and does not resurrect on saveNow()', () async {
       final now = DateTime.now();
       final initialNote = Note(
@@ -227,4 +306,17 @@ void main() {
       expect(notifier.state.note.tags, equals(['ideas']));
     });
   });
+}
+
+class CountingTagRepository extends DriftNotesRepository {
+  CountingTagRepository(super.db);
+  int saves = 0;
+  bool failSaves = false;
+
+  @override
+  Future<void> saveNote(Note note, {bool preserveEmptyTags = false}) async {
+    saves++;
+    if (failSaves) throw StateError('test save failure');
+    await super.saveNote(note, preserveEmptyTags: preserveEmptyTags);
+  }
 }

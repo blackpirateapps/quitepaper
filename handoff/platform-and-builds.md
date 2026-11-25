@@ -22,7 +22,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 - **GStreamer Dependencies**: Audio playback and voice recording depend on `gstreamer1.0-plugins-base` and `gstreamer1.0-plugins-good`.
 - **Headless & Keyring Resiliency**: If SecretService / KDE Wallet is unavailable or headless, [`LinuxSecureStorageFallback`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart) provides an encrypted local key vault without crashing.
 - **Native File Sharing (`shareXFiles`)**: Resolves upstream `share_plus` Linux limitation (`UnimplementedError`) via [`QuietPaperLinuxSharePlugin`](file:///home/dog/git/quitepaper/lib/core/sharing/quiet_paper_linux_share.dart), using XDG Desktop Portal `OpenURI` (`ask: true`), `gio open`, `xdg-open`, `FileManager1.ShowItems`, `xdg-email`, and `mailto:` fallbacks.
-- **Native Command-Line Interface (`qp`)**: Standalone, AOT-compiled native CLI binary (`bin/qp.dart` $\rightarrow$ `/usr/bin/qp`) providing sub-15ms terminal interaction for note listing, creation, and modification with external editors (`nvim`, `vim`, `nano`, `$EDITOR`), full-text search, and SQLite WAL concurrent access. Installed alongside the desktop GUI in DEB, RPM, and AppImage packages (under `/opt/quitepaper/bin/qp` with stripping disabled to protect the Dart AOT snapshot payload).
+- **Native Command-Line Interface (`qp`)**: Standalone Rust executable in `rust/quietpaper_cli`, built with `scripts/build_rust_cli.sh`. All nine note/image/sync command families run without Dart, Flutter or GTK. It shares SQLite/WAL and desktop credentials, supports external editors and encrypted image imports, and initializes complete desktop-compatible notebooks for `new`. Tarball/DEB/RPM/AppImage/Flatpak require the Rust artifact; DEB/RPM install it at `/opt/quitepaper/bin/qp` with `/usr/bin/qp` and `/usr/bin/quietpaper-cli` aliases. See [the completed rewrite and validation](../docs/linux-cli-rust-rewrite.md).
 
 ### Desktop Adaptive UI
 - **Spotlight Command Palette**: `Cmd/Ctrl + K` triggers an adaptive modal palette for jumping between notes, tags, and commands.
@@ -32,7 +32,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 
 ## 2. CI/CD Workflows & Release Pipelines
 
-All seven `subosito/flutter-action` setup steps across the six workflows pin
+All `subosito/flutter-action` setup steps in the Flutter workflows pin
 **Flutter 3.47.2** (Dart 3.13.2), matching local analysis and test validation.
 Keep these `flutter-version` values aligned when upgrading. An SDK upgrade must
 pass analysis, code generation and the full test suite before changing the pins.
@@ -49,7 +49,7 @@ Workflows are defined in [`.github/workflows/`](file:///home/dog/git/quitepaper/
 
 ## 3. App Version Bump Checklist
 
-Current release: **1.6.3+21**. When bumping the app release version:
+Current release: **1.6.4+22**. When bumping the app release version:
 
 1. Update `pubspec.yaml` (`version: X.Y.Z+BUILD`) and increment the build suffix.
    Android's `android/app/build.gradle.kts`, iOS/macOS bundle metadata, and normal
@@ -59,7 +59,9 @@ Current release: **1.6.3+21**. When bumping the app release version:
    `lib/core/version/app_version_provider.dart`, the backup, device and location
    services, weather HTTP user agent, update service/dialog defaults, and
    `qpnote_exporter.dart`. Update
-   `lib/core/cli/cli_runner.dart` and version-format test examples as well.
+   the Rust CLI package version in `rust/quietpaper_cli/Cargo.toml`
+   (refresh `Cargo.lock`), and version-format
+   test examples as well.
 3. Update `linux/packaging/quietpaper.spec`, add a release to
    `linux/com.blackpiratex.quietpaper.metainfo.xml`, and synchronize the fallback
    numeric/string versions in `windows/runner/Runner.rc`.
@@ -101,8 +103,8 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 For browser captures that connect directly to the CLI, see
 [Linux browser extension](../extensions/browser/README.md). The extension uses
 Manifest V3 variants for Chrome-family and Firefox-family browsers. Build the
-CLI with `dart build cli -t bin/qp.dart -o build/browser-extension/cli`, retain its
-complete `bundle/` (including native SQLite assets), build extension bundles with
+Rust CLI with `scripts/build_rust_cli.sh` (staged at `build/cli/bin/qp`, with
+SQLite bundled), build extension bundles with
 `python3 extensions/browser/manage.py build`, and register that CLI using the
 installer's `install --qp ...` command. Chrome origins are explicitly allowlisted
 using repeatable `--chrome-id`; Firefox has a fixed add-on ID. Registration is
@@ -112,12 +114,18 @@ is distributed. Native Linux browser packages are the supported installation
 target; sandboxed browser packaging may prevent host access.
 
 `qp browser-host` is a stdio protocol endpoint, not an interactive command. It
-receives bounded native messages and saves clips through `CliDatabase.createNote`.
+receives bounded native messages and saves clips through the Rust CLI's existing
+transactional note writer, including tags, search, history and the sync queue.
 It never prompts for passwords, opens an editor, probes images, acquires webpage
 content or performs cloud sync. The desktop app uploads the queued note when it
-runs; `qp sync` is the explicit CLI alternative. See engineering log 299.
+runs; `qp sync` is the explicit CLI alternative. See engineering logs 362 and 365.
 
 ## Linux CLI image attachments
+
+The installed CLI is Rust. All five rewrite batches are complete; see
+[the migration batches and validation](../docs/linux-cli-rust-rewrite.md).
+Only the GUI launch-argument provider remains under `lib/core/cli`; historical
+Dart database parsing is retained exclusively as a test compatibility oracle.
 
 `qp` can import images without launching Flutter or GTK:
 
@@ -174,3 +182,116 @@ clipboard of the machine running `qp`. Keyring access requires `secret-tool`
 (`libsecret-tools` on Debian/Ubuntu). Opening an image uses `xdg-open`, requires a
 locally downloaded image and an interactive terminal, and removes its private
 temporary plaintext copy when you press Enter after closing the viewer.
+
+## Email import entry points
+
+Settings → Backup & Import → Import Email selects multiple `.eml` files; the
+all-files action handles generic extensions. Desktop Ctrl+Shift+I opens the picker;
+Ctrl/Cmd+Shift+P opens searchable import commands. Linux file associations and
+workspace/editor drops route into the same confirmation screen. No extra Flatpak
+filesystem grants were added: portal paths are kept intact, and denied drops
+report an error with picker fallback. desktop_drop exposes no hover file metadata,
+so email-specific recognition happens on drop rather than assuming every drag is
+email. Native debug compilation is verified; distro package installation and
+physical file-manager/sandbox replay require the packaging tools and test hosts.
+
+Android incoming email uses `IncomingShareReceiver` to normalize SEND/MULTIPLE/VIEW
+into the existing Dart ShareIntentHandler. It streams ContentResolver data with
+bounds while grants are live, stages private temporary copies and removes them
+on acknowledgment or next-start recovery. The plugin receives sanitized Android
+intents to avoid its extra unbounded copy. No broad binary VIEW handler or new
+storage permission was added. Request IDs and serial routing prevent duplicate
+previews and protect active capture drafts. Shared text exposes Save as Email;
+URL-only shares retain clipping. The GitHub debug APK compiles; physical chooser,
+provider permission and Activity lifecycle replay remains unverified without a
+device. Existing NDK/KGP warnings are documented in engineering log 339.
+
+The consolidated [email guide](email-import.md) and
+[engineering report](../docs/email-import/engineering-report.md) separate compiled
+Linux/Android/CLI evidence from outstanding device and installed-package checks.
+Local compilation completed before the user's instruction to stop builds; no
+subsequent build was run for the final documentation commit.
+
+## Linux Rust watched-folder engine
+
+Ordinary Linux Flutter builds automatically run the Linux-only Cargokit plugin
+and install `lib/libquietpaper_watched_import.so` alongside existing libraries.
+Rust 1.97.1 and FRB 2.12.0 are pinned independently of the unchanged Flutter 3.47.2
+baseline. Other platform build jobs do not acquire a Rust dependency. Checked-in
+glue is regenerated with the pinned code generator, never edited by hand.
+
+The watched-import workflow runs native lint/tests, focused Flutter gates,
+binding/Drift coherence, security/license checks and an actual FRB load smoke.
+Linux build and release workflows load the produced bundle before packaging.
+DEB/RPM/AppImage/Flatpak carry the relocatable bundle library; source/package
+checks refuse a missing native engine. Release publishing is limited to main or
+version tags. See [build commands and acceptance status](../docs/linux-rust-watched-import.md).
+
+The watched-import packaging follow-up uses GNOME **50** for Flatpak (replacing
+end-of-life 47) and verifies the actual installed native engine in disposable account
+state. AppImage tool **1.9.1** and runtime **20251108** have independent SHA256 pins.
+`verify_linux_package.sh` checks extracted tarball/DEB/RPM/AppImage bundles;
+`verify_flatpak_bundle.sh` isolates its installation, home and app data. Neither
+requires or opens a real notebook. See the report for exact verified formats and
+interactive permission/device limitations.
+
+The Rust CLI no longer has an appended Dart snapshot or native asset directory.
+Its independent release builder stages `build/cli/bin/qp` atomically. Packagers
+require it and extracted-package checks relocate it and create/edit/delete a
+temporary notebook without Flutter. The isolated Flatpak check also exercises
+headless CLI-first creation. Bootstrap DDL is generated from Drift and checked by
+`test/cli/schema_contract_test.dart`; regenerate it deliberately on schema changes.
+
+
+## Android watched-folder SAF bridge (November 21, 2026)
+
+Watched Folders is exposed in both settings entry points on Android and Linux.
+Android selects `AndroidWatchedEngine`, uses the system tree picker and persisted
+read grants, and scans only in the foreground (30-second reconciliation plus
+startup/resume/manual catch-up). No Linux Rust `.so`, new storage declaration,
+background service, foreground notification or scheduling permission is required.
+Use a selectable subfolder, such as `Downloads/Quiet Paper`; Android 11+ restricts
+Downloads/root and Android/data/obb selection. Original files remain untouched.
+
+`MainActivity` attaches `WatchedFolderBridge`, routes its picker result and cancels
+provider reads on stop/destroy. Provider I/O runs off the UI thread. Kotlin's
+portable `WatchedDocumentReaderTest` is a focused JVM test; `WatchedFolderSafTest`
+is the separate real-provider/picker instrumented test. Test-only AndroidX runner
+1.7.0 and JUnit extension 1.3.0 dependencies do not ship in the normal APK.
+
+```sh
+flutter build apk --debug --flavor github --no-pub
+cd android
+./gradlew :app:testGithubDebugUnitTest   --tests 'com.blackpiratex.quietpaper.watched.WatchedDocumentReaderTest'   --max-workers=2
+# On a working disposable emulator/device only:
+./gradlew :app:connectedGithubDebugAndroidTest   -Pandroid.testInstrumentationRunnerArguments.class=com.blackpiratex.quietpaper.watched.WatchedFolderSafTest   --max-workers=2
+```
+
+If this checkout has not generated a Gradle wrapper yet, the Flutter build prepares
+it; an installed Gradle 9.1.0 runtime can also run these tasks with `-p android`.
+The app and instrumented APKs build, and the focused JVM tests pass locally.
+The local emulator repeatedly exited 139 before stable boot, so system-picker and
+physical-device/provider acceptance remain unverified. Full details and findings:
+[Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md).
+
+## Tasks native validation
+
+Tasks adds no Rust/FRB API or Android native toolchain requirement. Schema 26 uses
+the repository’s existing raw local-index migration convention; Drift codegen
+remains `dart run build_runner build --delete-conflicting-outputs`. The benchmark
+and native integration target use synthetic in-memory data.
+
+```sh
+flutter test test/tasks
+flutter build apk --debug --flavor github
+flutter build linux --release
+scripts/smoke_linux_rust_bundle.sh "$PWD/build/linux/x64/release/bundle"
+dbus-run-session -- flutter drive --driver=test_driver/tasks_driver.dart --target=integration_test/tasks_workspace_test.dart -d linux --profile
+```
+
+The repository has `github`/`play` Android flavors; an unflavored build may produce
+both APKs while Flutter reports that the expected unflavored filename is absent.
+The integration-test SDK dependency is development-only. A separate D-Bus session
+prevents the Linux single-instance runner from forwarding the synthetic test to
+a real app instance. [tasks.md](tasks.md) records compatibility/release gates and
+exact device/build limits; native compilation is not a physical-device pass.

@@ -1,3 +1,11 @@
+import 'dart:async';
+import '../domain/document_selection.dart';
+import '../../tasks/application/task_editor_bridge.dart';
+import '../../tasks/domain/task_document.dart';
+import '../../tasks/domain/task_item.dart';
+import '../../notes/application/workspace_commands.dart';
+import '../../email_import/application/email_editor_bridge.dart';
+import '../../email_import/presentation/email_workspace_actions.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -34,6 +42,9 @@ import '../../notes/application/notes_provider.dart';
 import '../../notes/domain/note_model.dart';
 import '../../notes/domain/note_version_model.dart';
 import '../../onboarding/presentation/widgets/first_note_tips_card.dart';
+import '../../templates/application/template_providers.dart';
+import '../../templates/application/template_service.dart';
+import '../../templates/presentation/widgets/template_dialogs.dart';
 import '../application/editor_provider.dart';
 import '../application/markdown_editing_controller.dart';
 import '../application/markdown_table_formatter.dart';
@@ -118,7 +129,10 @@ class EditorScreen extends ConsumerStatefulWidget {
     this.showFirstNoteTips = false,
     this.onClose,
     this.onOpenLinkedNote,
+    this.initialTask,
   });
+
+  final TaskItem? initialTask;
 
   final Note note;
   final bool autoFocusBody;
@@ -163,9 +177,177 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   TextEditingController? _activeTargetController;
   FocusNode? _activeTargetFocusNode;
   RichDocumentController? _richDocumentController;
+  final _bodyEditorKey = GlobalKey<MarkdownEditorState>();
   final _superEditorController = QuietSuperEditorController();
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
+  late final EmailEditorBridge _emailBridge;
+  late final TaskEditorBridge _taskBridge;
+  Timer? _taskHighlightTimer;
+  Route<dynamic>? _commandRoute;
+  late final WorkspaceCommands _workspaceCommands;
+  Future<Note?> _prepareEmailPreview() async {
+    if (!mounted) return null;
+    _bodyEditorKey.currentState?.flushPendingChanges();
+    final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
+    if (_richDocumentController != null && _isWysiwyg &&
+        _richDocumentController!.isDirty) {
+      notifier.updateContent(
+        _richDocumentController!.hasFrontmatter
+            ? _richDocumentController!.toMarkdown()
+            : _richDocumentController!.toJsonString(),
+      );
+    }
+    await notifier.flushPendingChanges();
+    if (!mounted) return null;
+    final state = ref.read(editorProviderFamily(_editorParams));
+    if (state.isDirty || state.isSaving) throw StateError('Editor save pending');
+    return state.note;
+  }
+
+  Future<Note> _prepareTask() async {
+    final state = ref.read(editorProviderFamily(_editorParams));
+    if (state.isReadOnly ||
+        !state.isUnlocked ||
+        state.activePassword != null ||
+        state.note.isPasswordProtected) {
+      throw const StaleTask('This note cannot be changed from Tasks.');
+    }
+    if (!_contentController.value.composing.isCollapsed ||
+        !(_activeTargetController?.value.composing.isCollapsed ?? true) ||
+        _superEditorController.hasComposition) {
+      throw const StaleTask('Finish composing text in the editor, then retry.');
+    }
+    final note = await _prepareEmailPreview();
+    if (note == null) throw const StaleTask();
+    return note;
+  }
+
+  Future<Note> _mutateTask(String Function(Note) transform) async {
+    final note = await _prepareTask();
+    return ref.read(databaseProvider).transaction(() async {
+      final latest = await ref
+          .read(notesRepositoryProvider)
+          .getNoteById(note.id);
+      if (latest == null ||
+          !latest.isActive ||
+          latest.isPasswordProtected ||
+          latest.content != note.content || latest.title != note.title ||
+          latest.isPinned != note.isPinned || latest.journalDate != note.journalDate ||
+          latest.tags.toSet().difference(note.tags.toSet()).isNotEmpty ||
+          note.tags.toSet().difference(latest.tags.toSet()).isNotEmpty) {
+        throw const StaleTask();
+      }
+      final content = transform(note);
+      if (content == note.content) return note;
+      if (_isWysiwyg && _richDocumentController != null) {
+        final selection = _richDocumentController!.selection;
+        _richDocumentController!.setContent(content);
+        _richDocumentController!.updateSelection(selection);
+      } else if (_superEditorController.isAttached) {
+        _superEditorController.applyTaskContent(note.markdownContent, content);
+      } else {
+        final selection = _contentController.selection;
+        final projected = note.copyWith(content: content).markdownContent;
+        _contentController.value = TextEditingValue(
+          text: projected,
+          selection: selection.isValid
+              ? TextSelection(
+                  baseOffset: selection.baseOffset.clamp(0, projected.length),
+                  extentOffset: selection.extentOffset.clamp(
+                    0,
+                    projected.length,
+                  ),
+                )
+              : const TextSelection.collapsed(offset: 0),
+        );
+      }
+      final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
+      // The Super Editor callback publishes its actual serialization, preserving
+      // its current nodes and undo entry. Other modes already use canonical data.
+      if (!_superEditorController.isAttached) notifier.updateContent(content);
+      await notifier.flushPendingChanges();
+      final saved = ref.read(editorProviderFamily(_editorParams));
+      if (saved.isDirty || saved.isSaving) {
+        throw const StaleTask(
+          'Task could not be saved. Your editor changes are retained; retry saving.',
+        );
+      }
+      return saved.note;
+    });
+  }
+
+  void _revealTask(TaskItem item) {
+    if (!mounted || item.note.id != widget.note.id) return;
+    try {
+      final state = ref.read(editorProviderFamily(_editorParams));
+      if(state.isPreviewMode) {
+        ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
+        WidgetsBinding.instance.addPostFrameCallback((_) {if(mounted) _revealTask(item);});
+        return;
+      }
+      _taskHighlightTimer?.cancel();
+      final content = state.note.content;
+      final target = TaskDocument.resolve(
+        content,
+        expectedVersion: item.version,
+        ordinal: item.occurrence.ordinal,
+        taskId: item.occurrence.metadata?.id,
+      );
+      if (_isWysiwyg && _richDocumentController != null) {
+        final controller = _richDocumentController!;
+        final liveTasks = TaskDocument.extract(controller.toJsonString());
+        final richTarget = target.metadata == null
+            ? liveTasks[target.ordinal]
+            : liveTasks.singleWhere(
+                (t) => t.metadata?.id == target.metadata!.id,
+              );
+        final block = controller.document.blocks[richTarget.start];
+        final selection = RichDocumentSelection(base:RichDocumentPosition(blockIndex:richTarget.start,blockId:block.id,offset:0),extent:RichDocumentPosition(blockIndex:richTarget.start,blockId:block.id,offset:block.plainText.length));
+        controller.updateSelection(selection);
+        _taskHighlightTimer=Timer(const Duration(seconds:2),(){if(mounted && controller.selection==selection) controller.updateSelection(RichDocumentSelection.collapsed(selection.base));});
+      } else if (_superEditorController.isAttached) {
+        _superEditorController.revealTask(target.ordinal);
+        _contentFocusNode.requestFocus();
+      } else {
+        final projected = TaskDocument.extract(_contentController.text);
+        final sourceTarget = projected[target.ordinal];
+        _contentController.selection = TextSelection(
+          baseOffset: sourceTarget.checkOffset - 1,
+          extentOffset: sourceTarget.checkOffset + 2,
+        );
+        _contentFocusNode.requestFocus();
+        final selection=_contentController.selection;
+        _taskHighlightTimer=Timer(const Duration(seconds:2),(){if(mounted && _contentController.selection==selection) _contentController.selection=TextSelection.collapsed(offset:selection.baseOffset);});
+      }
+      final sourceTask = TaskDocument.extract(state.note.markdownContent);
+      if (target.ordinal < sourceTask.length) {
+        _scrollToMatch(
+          TextRange(
+            start: sourceTask[target.ordinal].start,
+            end: sourceTask[target.ordinal].end,
+          ),
+        );
+      }
+    } on StaleTask catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  void _acceptEmailAppend(Note note) {
+    if(!mounted || note.id != widget.note.id) return;
+    final selection = _contentController.selection;
+    final richSelection = _richDocumentController?.selection;
+    _contentController.removeListener(_onContentChanged);
+    _lastContentText=note.content;
+    _contentController.value=TextEditingValue(text:note.content,selection:selection.isValid ? selection : const TextSelection.collapsed(offset:0));
+    _contentController.addListener(_onContentChanged);
+    if(richSelection!=null) _richDocumentController?.updateSelection(richSelection);
+    ref.read(editorProviderFamily(_editorParams).notifier).acceptImportedNote(note);
+    setState(() {});
+  }
   bool _isDraggingOver = false;
   bool _isDeactivated = false;
   final _overflowButtonKey = GlobalKey();
@@ -179,6 +361,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
+    _workspaceCommands = ref.read(workspaceCommandsProvider);
+    _emailBridge=EmailEditorBridge(prepare:_prepareEmailPreview,accept:_acceptEmailAppend);
+    _emailBridge.attach();
+    _taskBridge = TaskEditorBridge(
+      noteId: widget.note.id,
+      prepare: _prepareTask,
+      apply: _mutateTask,
+      reveal: _revealTask,
+    );
+    _taskBridge.attach();
+    if (widget.initialTask != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealTask(widget.initialTask!);
+      });
+    }
     WidgetsBinding.instance.addObserver(this);
 
     final frontmatterDoc = FrontmatterEditorHelper.parse(widget.note.content);
@@ -196,8 +393,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             : _lastAutoDerivedTitle);
 
     _titleController = TextEditingController(text: initialTitle);
-    _contentController = MarkdownEditingController(text: widget.note.content);
-    _lastContentText = widget.note.content;
+    final initialBody = _editorBodyProjection(widget.note);
+    _contentController = MarkdownEditingController(text: initialBody);
+    _lastContentText = initialBody;
     _titleFocusNode = FocusNode(onKeyEvent: _handleTitleKeyEvent);
     _contentFocusNode = FocusNode();
     _activeTargetController = _contentController;
@@ -280,6 +478,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void didUpdateWidget(EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialTask != null &&
+        widget.initialTask != oldWidget.initialTask) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealTask(widget.initialTask!);
+      });
+    }
     if (oldWidget.note.id != widget.note.id) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -295,8 +499,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           : _lastAutoDerivedTitle;
 
       _titleController.text = newTitle;
-      _contentController.text = widget.note.content;
-      _lastContentText = widget.note.content;
+      _lastContentText = _editorBodyProjection(widget.note);
+      _contentController.text = _lastContentText;
       // Re-bake link previews for the newly opened note (Smart web links ON).
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _maybeBakeLinkPreviews());
@@ -317,7 +521,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       if (oldWidget.note.content != widget.note.content &&
           !_contentFocusNode.hasFocus) {
-        _contentController.text = widget.note.content;
+        _lastContentText = _editorBodyProjection(widget.note);
+        _contentController.text = _lastContentText;
         if (!_isTitleManuallySet && widget.note.title.isEmpty) {
           final autoTitle = Note.deriveTitle(widget.note.content);
           _lastAutoDerivedTitle = autoTitle;
@@ -332,6 +537,71 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  // Source and Super Editor consume Markdown. Project canonical rich JSON for
+  // display without publishing a content mutation merely by opening a note.
+  // The notifier retains the original bytes until an actual document edit.
+  String _editorBodyProjection(Note note) {
+    final style = ref
+        .read(editorProviderFamily(_editorParams))
+        .effectiveEditingStyle(ref.read(editorEditingStyleProvider));
+    return note.isRichText && style != EditorEditingStyle.wysiwyg
+        ? note.markdownContent
+        : note.content;
+  }
+
+  bool _exitInProgress = false;
+  bool _allowExit = false;
+
+  Future<void> _requestExit() async {
+    if (_exitInProgress) return;
+    _exitInProgress = true;
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await _commitSessionVersionIfNeeded();
+      if (!mounted) return;
+      await ref.read(editorProviderFamily(_editorParams).notifier).handleExitCleanup();
+      if (!mounted) return;
+      setState(() => _allowExit = true);
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save this note. Please try closing it again.'),
+        ));
+      }
+    } finally {
+      _exitInProgress = false;
+    }
+  }
+
+  Future<void> _runNoteProtectionChange(
+    Future<void> Function() operation, {
+    String? successMessage,
+  }) async {
+    try {
+      _bodyEditorKey.currentState?.flushPendingChanges();
+      await operation();
+      if (mounted && successMessage != null) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(successMessage),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save note protection. Keep this note open and try again.'),
+        ));
+      }
+    }
+  }
+
   EditorParams get _editorParams => EditorParams(
         widget.note,
         initialPreviewMode: widget.initialPreviewMode,
@@ -342,6 +612,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
+      _bodyEditorKey.currentState?.flushPendingChanges();
       ref.read(editorProviderFamily(_editorParams).notifier).saveNow();
       _commitSessionVersionIfNeeded();
     }
@@ -490,9 +761,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _commitSessionVersionIfNeeded() async {
+    _bodyEditorKey.currentState?.flushPendingChanges();
     final finalTitle = _titleController.text;
-    final finalContent = _contentController.text;
     final currentNote = ref.read(editorProviderFamily(_editorParams)).note;
+    final finalContent = currentNote.content;
     final finalTags = currentNote.tags;
 
     if (_sessionTracker.isMeaningfulSession(
@@ -657,6 +929,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Future<void> _maybeBakeLinkPreviews() async {
     if (!mounted || _isDeactivated) return;
     if (!ref.read(smartWebLinksProvider)) return;
+    if (ref.read(editorProviderFamily(_editorParams)).note.importSources.isNotEmpty) return;
     // Super Editor promotes unbaked lone links into LinkPreviewNodes with
     // live skeleton loading animations and failure diagnostics in-situ.
     if (_isSuperEditor) return;
@@ -1635,6 +1908,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
+    _workspaceCommands.routeExits.remove(_commandRoute);
+    _emailBridge.detach();
+    _taskBridge.detach();
+    _taskHighlightTimer?.cancel();
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
       ref.read(audioPlaybackServiceProvider).stop();
@@ -1673,8 +1950,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final route = ModalRoute.of(context);
+    if (widget.onClose == null) {
+      _commandRoute = route;
+      if (_commandRoute != null) {
+        _workspaceCommands.routeExits[_commandRoute!] = _requestExit;
+      }
+    }
+
     ref.watch(allTagsProvider);
     final editorState = ref.watch(editorProviderFamily(_editorParams));
+    ref.listen(editorProviderFamily(_editorParams),(previous,next) => _taskBridge.setReadOnly(next.isReadOnly || !next.isUnlocked || next.activePassword != null));
     final editorNotifier =
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
@@ -1699,7 +1985,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       typography: typography,
     );
 
-    final canPop = Navigator.of(context).canPop();
+    // A popup above the editor must not make the editor itself gain a Back
+    // button when route-dependent command registration triggers a rebuild.
+    final canPop = route?.canPop ?? false;
     final isTablet = MediaQuery.of(context).size.width >= 768;
     final isDesktop = PlatformLayoutHelper.isDesktopEditor(context);
     final isNavSidebarVisible = ref.watch(isNavSidebarVisibleProvider);
@@ -1856,12 +2144,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         const SingleActivator(LogicalKeyboardKey.keyV, meta: true): _handlePaste,
       },
       child: PopScope(
-        canPop: true,
+        canPop: _allowExit,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop) {
-            _commitSessionVersionIfNeeded();
-            editorNotifier.handleExitCleanup();
-          }
+          if (!didPop) _requestExit();
         },
         child: DropTarget(
           onDragEntered: (_) {
@@ -1907,11 +2192,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                       QuietIconButton(
                         icon: Icons.close_rounded,
                         tooltip: 'Close note',
-                        onPressed: () {
-                          _commitSessionVersionIfNeeded();
-                          editorNotifier.handleExitCleanup();
-                          widget.onClose?.call();
-                        },
+                        onPressed: _requestExit,
                       ),
                     ],
                   )
@@ -1919,9 +2200,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     ? QuietIconButton(
                         icon: Icons.arrow_back_rounded,
                         tooltip: 'Back',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
+                        onPressed: _requestExit,
                       )
                     : null),
             actions: [
@@ -2186,6 +2465,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                      TagEditorBar(
                                        tags: note.tags,
                                        onAddTag: editorNotifier.addTag,
+                                       onAddTags: editorNotifier.addTags,
                                        onRemoveTag: _onRemoveTag,
                                      ),
                                      const SizedBox(height: 12.0),
@@ -2196,6 +2476,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                      FrontmatterPropertiesSection(
                                        frontmatter: frontmatterDoc,
                                        rawDocument: contentText,
+                                       documentId: note.id,
+                                       readDocument: () {
+                                         _bodyEditorKey.currentState?.flushPendingChanges();
+                                         return _contentController.text;
+                                       },
                                        readOnly: editorState.isReadOnly,
                                        isJournal: note.isJournal || frontmatterDoc.isJournal,
                                        onDocumentChanged: (updated) {
@@ -2234,9 +2519,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
                                   // Body markdown editor
                                   MarkdownEditor(
+                                    key: _bodyEditorKey,
                                     controller: _contentController,
                                     focusNode: _contentFocusNode,
                                     editingStyle: effectiveEditingStyle,
+                                    allowRemoteLinkPreviews: note.importSources.isEmpty,
                                     stripFrontmatter: showsPropertiesSection && frontmatterDoc.hasFrontmatter,
                                     readOnly: editorState.isReadOnly,
                                     onNoteLinkPrompt: _handleNoteLinkPrompt,
@@ -3415,6 +3702,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _handleDroppedFiles(DropDoneDetails details) async {
+    if(await EmailDesktopRouter.route(context,EmailDesktopRouter.paths(details))) return;
     final editorState = ref.read(editorProviderFamily(_editorParams));
     if (editorState.isReadOnly || !editorState.isUnlocked) return;
 
@@ -3577,10 +3865,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         }
       }
 
-      final currentMd = rc.toMarkdown();
-      final insertOffset = rc.globalCaretOffset.clamp(0, currentMd.length);
-      final newMarkdown = currentMd.replaceRange(insertOffset, insertOffset, snippet);
-      rc.setMarkdown(newMarkdown);
+      rc.insertMarkdownSnippet(snippet);
       final newJson = rc.toJsonString();
       _contentController.value = TextEditingValue(
         text: newJson,
@@ -3591,6 +3876,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     }
 
+    snippet = TaskDocument.rekey(snippet);
     final targetCtrl = _activeTargetController ?? _contentController;
     final val = targetCtrl.value;
     final text = val.text;
@@ -4018,19 +4304,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   Navigator.of(sheetCtx).pop();
                   final res = await SetNotePasswordDialog.show(context);
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password protection enabled',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password protection enabled'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4053,19 +4333,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     isChangingPassword: true,
                   );
                   if (res != null) {
-                    await notifier.setPasswordProtection(
-                      password: res.password,
-                      hint: res.hint,
+                    await _runNoteProtectionChange(
+                      () => notifier.setPasswordProtection(
+                        password: res.password,
+                        hint: res.hint,
+                      ),
+                      successMessage: 'Note password updated',
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Note password updated'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
                   }
                 },
               ),
@@ -4082,16 +4356,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
                 onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  await notifier.removePasswordProtection();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note password protection removed'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
+                  await _runNoteProtectionChange(
+                    notifier.removePasswordProtection,
+                    successMessage: 'Note password protection removed',
+                  );
                 },
               ),
               ListTile(
@@ -4105,9 +4373,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     color: colors.textPrimary,
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  notifier.lockNow();
+                  await _runNoteProtectionChange(notifier.lockNow);
                 },
               ),
             ],
@@ -4409,6 +4677,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             ),
             Divider(height: 16, color: colors.divider),
             if (!note.isTrashed) ...[
+              if (TemplateService.eligible(note,
+                  readOnly: isReadOnly,
+                  locked: !ref.read(editorProviderFamily(_editorParams)).isUnlocked ||
+                      ref.read(editorProviderFamily(_editorParams)).activePassword != null))
+                FutureBuilder<Note?>(
+                  future: ref.read(notesRepositoryProvider).getNoteById(note.id),
+                  builder: (context, snapshot) => snapshot.data == null
+                      ? const SizedBox.shrink()
+                      : ListTile(
+                          leading: Icon(Icons.description_outlined, color: colors.textSecondary),
+                          title: const Text('Save as Template'),
+                          onTap: () {
+                            Navigator.of(sheetCtx).pop();
+                            _saveAsTemplate();
+                          },
+                        ),
+                ),
               if (!isPreview && !isReadOnly) ...[
                 ListTile(
                   leading: Icon(
@@ -4451,14 +4736,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   color: colors.textSecondary,
                 ),
                 title: Text(
-                  'Add tag',
+                  'Add tags',
                   style: AppTypography.bodyMedium.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
                 onTap: () {
                   Navigator.of(sheetCtx).pop();
-                  TagEditorBar.showAddTagDialog(context, notifier.addTag);
+                  TagEditorBar.showAddTagDialog(
+                    context, notifier.addTag,
+                    existingTags: ref.read(editorProviderFamily(_editorParams)).note.tags,
+                    onAddTags: notifier.addTags,
+                  );
                 },
               ),
               ListTile(
@@ -4655,6 +4944,32 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         );
     }
+  }
+
+  Future<void> _saveAsTemplate() async {
+    // The menu checks source persistence; the service revalidates the newest
+    // persisted note after flushing, including deletion while the dialog opens.
+    final service = ref.read(templateServiceProvider);
+    await showTemplateNameDialog(
+      context: context,
+      initialName: _titleController.text.trim().isEmpty
+          ? 'Untitled Template' : _titleController.text,
+      onSave: (name) async {
+        final current = ref.read(editorProviderFamily(_editorParams));
+        await service.saveNoteAsTemplate(
+          noteId: current.note.id,
+          name: name,
+          readOnly: current.isReadOnly,
+          locked: !current.isUnlocked || current.activePassword != null,
+          flush: () async {
+            _bodyEditorKey.currentState?.flushPendingChanges();
+            await ref
+                .read(editorProviderFamily(_editorParams).notifier)
+                .flushForTemplate();
+          },
+        );
+      },
+    );
   }
 
   void _switchEditingStyle(

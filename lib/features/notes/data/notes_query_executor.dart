@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'note_entity_mapper.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/utils/tag_parser.dart';
 import '../domain/note_model.dart';
@@ -113,12 +114,14 @@ class NotesQueryExecutor {
     // 3. Build ordered query
     final selectQuery = _db.select(_db.notesTable)
       ..where((_) => fullPredicate)
-      ..orderBy(_buildOrderingTerms(
-        query.sort,
-        query.context,
-        contextTag,
-        isPinnedOnly: query.filter.pinnedOnly,
-      ))
+      ..orderBy(
+        _buildOrderingTerms(
+          query.sort,
+          query.context,
+          contextTag,
+          isPinnedOnly: query.filter.pinnedOnly,
+        ),
+      )
       ..limit(query.limit);
 
     final noteEntities = await selectQuery.get();
@@ -139,19 +142,7 @@ class NotesQueryExecutor {
 
     final notes = noteEntities.map((e) {
       final tagEntities = tagsMap[e.id] ?? const [];
-      return Note(
-        id: e.id,
-        title: e.title,
-        content: e.content,
-        createdAt: e.createdAt,
-        updatedAt: e.updatedAt,
-        isPinned: e.isPinned,
-        isArchived: e.isArchived,
-        isTrashed: e.isTrashed,
-        deletedAt: e.deletedAt,
-        tags: tagEntities.map((t) => t.name).toList(),
-        pinnedTags: decodePinnedTagsJson(e.pinnedTags),
-      );
+      return mapNoteEntity(e, tags: tagEntities.map((t) => t.name).toList());
     }).toList();
 
     final hasMore = noteEntities.length == query.limit;

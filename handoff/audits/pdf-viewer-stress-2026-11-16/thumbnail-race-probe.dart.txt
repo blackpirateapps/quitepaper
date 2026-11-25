@@ -1,0 +1,72 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:quitepaper/core/crypto/key_manager.dart';
+import 'package:quitepaper/core/documents/pdf_thumbnail_service.dart';
+import 'package:quitepaper/core/pdf/pdf_page_renderer.dart';
+
+class Keys implements KeyManager {
+  @override
+  Uint8List getMasterKey() => Uint8List(32);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+class GateRenderer implements PdfPageRenderer {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  int calls = 0;
+  @override
+  Future<RenderedPage?> renderSinglePage(Uint8List pdfBytes, int pageIndex, {double dpi = 150}) async {
+    calls++;
+    if (!entered.isCompleted) entered.complete();
+    await release.future;
+    return RenderedPage(pageNumber: pageIndex + 1, imageBytes: Uint8List.fromList([137, 80, 78, 71, pdfBytes.first]), width: 1, height: 1);
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test('observe deletion while rendering and replacement source', () async {
+    final dir = await Directory.systemTemp.createTemp('qp-pdf-race-');
+    addTearDown(() => dir.delete(recursive: true));
+    final renderer = GateRenderer();
+    final service = PdfThumbnailService(keyManager: Keys(), renderer: renderer, customDirectory: dir);
+    final old = service.getPageThumbnail(documentId: 'race', pageIndex: 0, pdfBytes: Uint8List.fromList([1]));
+    await renderer.entered.future;
+    await service.deleteThumbnails('race');
+    final replacement = service.getPageThumbnail(documentId: 'race', pageIndex: 0, pdfBytes: Uint8List.fromList([2]));
+    renderer.release.complete();
+    final oldResult = await old;
+    final replacementResult = await replacement;
+    await service.flushPendingWrites();
+    final exists = await service.hasDiskThumbnail(documentId: 'race', pageIndex: 0);
+    final result = {'probe': 'delete-inflight-source-replacement', 'expectedReplacementLastByte': 2,
+      'actualReplacementLastByte': replacementResult?.last, 'oldLastByte': oldResult?.last,
+      'renderCalls': renderer.calls, 'diskRecreatedAfterDeletion': exists};
+    File('/tmp/qp-pdf-thumbnail-probes.jsonl').writeAsStringSync('${jsonEncode(result)}\n', mode: FileMode.append);
+    print(jsonEncode(result));
+    if (replacementResult?.last != 2 && exists) {
+      File('handoff/audits/pdf-viewer-stress-2026-11-16/README.md').writeAsStringSync('''
+
+## PDF-01 — deleting thumbnails does not cancel in-flight generation
+
+**Open. Medium. Deterministic service-level race probe.**
+
+Start rendering a thumbnail for source A and hold the renderer before completion.
+Call `deleteThumbnails(documentId)`, then request the same page for replacement
+source B. Release A. The replacement receives A's image (last byte 1, expected 2),
+only one render runs, and the deleted encrypted cache directory is recreated.
+`deleteThumbnails` removes memory/disk entries but retains `_inFlightJobs`;
+the old completion repopulates memory and persists the stale image. This can
+undo annotation-save/revert invalidation or recreate deleted-document thumbnails.
+Native timing of this race remains unmeasured; the injected gate makes its
+ordering deterministic. Evidence: `thumbnail-probes.jsonl`, probe source.
+''', mode: FileMode.append);
+    }
+    expect(oldResult, isNotNull);
+    expect(replacementResult, isNotNull);
+  });
+}

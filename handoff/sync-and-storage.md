@@ -27,14 +27,33 @@ Quiet Paper is built around a zero-knowledge, end-to-end encrypted architecture.
 
 ---
 
+### Device-only email vault keys
+
+Email import can initialize a fresh signed-out vault with `ensureLocalKey()`.
+The master key is durably stored through the existing secure-storage abstraction
+before any encryption and is reused across previews/restarts. This path never
+rotates existing keys, bypasses an explicit lock, or initializes over an encrypted
+library whose key is missing. New cloud setup wraps the same key; an existing
+cloud vault with another key cannot overwrite it. Device-only key portability is
+not part of the backup payload. See [email import](email-import.md#offline-encryption-setup)
+and engineering log 342 for lifecycle guards, failure behavior and recovery limits.
+
 ## 2. Local Database & Persistence
 
 The local persistence layer is powered by **SQLite** using **Drift** in offline-first mode.
 
+### Note snapshots
+
+Full repository reads and paginated queries share `mapNoteEntity` in
+`lib/features/notes/data/note_entity_mapper.dart`. Every persisted Note field,
+including journal date and public share metadata, crosses the same mapping
+boundary. Paginated queries still hydrate tags in one batch rather than querying
+per note; adding a persisted domain field requires updating this shared mapper.
+
 ### Schema & Tables (`lib/core/database/tables/`)
 - [`NotesTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/notes_table.dart):
-  - Primary store for notes (`id`, `title`, `body`, `folder`, `is_pinned`, `is_archived`, `is_trashed`, `created_at`, `updated_at`, `synced_at`, `revision`, `dirty`).
-  - Contains format indicator (`storage_format`: markdown vs. rich_ast).
+  - Primary store for notes (`id`, `title`, `content`, lifecycle flags, timestamps, `server_revision`, `is_dirty`, journal/share metadata and per-tag pins).
+  - Content is Markdown or self-identifying RichDocument JSON; ordinary notes have no `storage_format` column. Template snapshots store an explicit format separately.
 - [`TagsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/tags_table.dart) & [`NoteTagsTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/note_tags_table.dart):
   - Normalised tag relations with deterministic IDs for cross-device tag synchronization.
 - [`SyncQueueTable`](file:///home/dog/git/quitepaper/lib/core/database/tables/sync_queue_table.dart):
@@ -47,6 +66,17 @@ The local persistence layer is powered by **SQLite** using **Drift** in offline-
 - Migrations are defensive and idempotent (e.g. `duplicate column name: source` defensive alter queries).
 - Startup analysis of local attachments is deferred to avoid freezing application launch.
 
+`beforeOpen` also repairs legacy `task_note_insert` / `task_note_update` triggers
+left by experimental Tasks builds in a shared notebook. Queue deduplication must
+use `INSERT ... ON CONFLICT(note_id) DO NOTHING`: `INSERT OR IGNORE` inside a
+trigger can inherit the outer note UPSERT's conflict policy and abort the entire
+save when `task_dirty` already contains the note. The repair replaces only that
+legacy statement, atomically retains the rest of each trigger and leaves existing
+notes, Tasks tables/queue and schema version unchanged. It is idempotent and
+creates no Tasks objects on ordinary databases. Keep future task-trigger creation
+on the explicit UPSERT form. See engineering log 359 and
+`test/database/legacy_task_trigger_repair_test.dart`.
+
 ---
 
 ## 3. Cloud Backend & Sync Protocol
@@ -55,6 +85,16 @@ The local persistence layer is powered by **SQLite** using **Drift** in offline-
 - **Runtime**: TypeScript on Vercel Serverless Functions.
 - **Database**: Turso (distributed libSQL / SQLite edge database).
 - **Auth Verification**: Firebase Admin SDK (`requireFirebaseAuth` middleware).
+- **Backend dependency baseline**: Node 22 LTS 22.12+, Firebase Admin 14.5.1
+  (modular `firebase-admin/app` and `firebase-admin/auth` imports) and Zod 4.6.7.
+  Validation uses `error.issues`; `z.guid()` preserves the existing UUID-shaped
+  identifier contract without imposing new RFC variant-bit requirements.
+- **Firebase client configuration**: Flutter has no committed fallback key.
+  Configure `FIREBASE_API_KEY` (or `FIREBASE_WEB_API_KEY`) on the backend so
+  `/api/v1/config` can provide the public client key, or supply an explicit client
+  key / `--dart-define=FIREBASE_API_KEY=...`. Missing configuration stops
+  authentication before sending credentials. Client keys must be restricted to
+  Firebase APIs; Admin credentials stay server-side.
 - **Crypto-Blind Guarantee**: The backend database schema contains only opaque binary payloads (`ciphertext`, `nonce`, `salt`, `revision`, `device_id`). The backend has zero decryption keys, zero plaintext inspection logic, and no access to note contents.
 
 ### Synchronization Engine (`lib/core/sync/`)
@@ -86,3 +126,69 @@ The local persistence layer is powered by **SQLite** using **Drift** in offline-
 - 3-Way merge engine specification: [Historical Logs v1.5, Section 59](archive/logs-v1.5.md#59-production-grade-conflict-aware-cloud-sync--3-way-merge-engine)
 - Fresh device sync recovery: [Latest Logs, Section 237](latest-logs.md#237-note-reconciliation--pruned-sync-log-recovery-on-fresh-devices-october-2026)
 - Foreign key sync race fix: [Latest Logs, Section 235](latest-logs.md#235-fix-zero-knowledge-ocr-sync-foreign-key-constraint-failure-and-defensive-note-pull-pagination-october-2026)
+
+## Email import provenance (schema 22)
+
+`Note.importSources` is a versioned list in `notes.import_sources`, encoded inside
+`NotePlaintext` for cloud sync and included in backups/QPNote metadata. Ordinary
+saves union sources to preserve metadata from prior editor snapshots; sync merges
+union stable identities. Schema 22 defaults old notes to `[]`. The local
+`note_import_source_index` stores derived hashes/fingerprints/Message-IDs with
+indexed lookups and note-delete cascading. `saveNote` maintains it atomically;
+`rebuildImportSourceIndex` reconstructs it from canonical notes.
+
+`email_import_preparations` journals newly allocated asset UUIDs before encrypted
+file writes. Note/asset metadata, tags, FTS and journal deletion commit together.
+Rollback cleans ciphertext even without an attachment row; next-session recovery
+retries interrupted preparation. Never run recovery concurrently with an import.
+Email-specific local asset budgets exceed the existing cloud upload/account limit;
+larger local assets remain subject to normal explicit sync failure/retry behavior.
+
+The final [email import guide](email-import.md) documents preparation recovery and
+older-client repair pushes. `mergeImportSources` preserves newer local content
+when restoring source records; real encrypted two-device coverage checks source
+retention and reconstruction of duplicate/search indexes. Cleanup journals remain
+when ciphertext deletion fails and retry before the next import preview.
+
+
+## Local-only note templates (schema 21)
+
+`note_templates` and `template_favorites` are independent local collections with
+no dirty/revision columns and no cloud-sync pathway. Only explicitly instantiated
+ordinary notes use normal repository indexing and client-encrypted sync.
+`.qpbackup` v1 optionally includes snapshots and favorite IDs inside its existing
+encrypted payload; restore writes participate in the existing transaction and
+legacy backups remain supported. Explicit unencrypted backups retain that choice.
+Full local erasure removes both tables' data. See [templates.md](templates.md).
+
+## Linux watched import (schema 23)
+
+The installation-local `watched_*` tables track enrollment, jobs, exact-byte
+receipts, initial baselines, bounded history and encrypted staging cleanup. They
+are excluded from cloud note envelopes and `.qpbackup` payload v1. Restoring a
+backup therefore never activates a source path on another machine; watcher setup
+and dedup receipts must be re-established there. Existing receipts on the same
+installation survive ordinary note deletion and folder removal, and only full
+vault erasure removes them. See [the implementation report](../docs/linux-rust-watched-import.md).
+
+Canonical note/tag/search/dirty-sync updates and the unique automatic receipt
+commit in one Drift transaction. Ciphertext files use write-ahead stage journals
+and compensation; filesystem/SQLite atomicity is not claimed. Ordinary local note
+text remains unencrypted SQLite. Rust has no key, token, vault-encryption or
+network responsibilities.
+
+## Tasks projection and note revision preservation (schema 26)
+
+`task_index`, `task_dirty` and `task_index_failures` are derived installation-local
+state. Canonical `saveNote` updates the projection in its transaction. SQL triggers
+leave direct writes durably dirty; 32-note repair batches resume after interruption.
+Queries join live eligibility, and erasure/delete cascades remove derived state.
+Protected note content is not duplicated. The current local database remains the
+single-vault boundary; presentation gates locked sessions and open read-only notes.
+
+An omitted `saveNote.serverRevision` now preserves the existing note revision,
+instead of resetting it to zero. Explicit sync/restore revisions still win. Real
+encrypted two-client regressions cover independent completion/deadline changes in
+Markdown and rich JSON. The existing diff3 boundary merges unique durable task
+fields or retains a recoverable conflict. No cloud schema/envelope field or task
+replication endpoint was introduced. See [tasks.md](tasks.md).

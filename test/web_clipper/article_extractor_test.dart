@@ -5,6 +5,35 @@ void main() {
   group('ArticleExtractor', () {
     const extractor = ArticleExtractor();
 
+    for (final wrap in [false, true]) {
+      test('preserves sibling technical sections with wrappers=$wrap', () {
+        String section(String id, int paragraphs) {
+          final content =
+              '<section id="$id"><h2 id="name-$id">$id</h2>'
+              '${List.generate(paragraphs, (i) => '<p>$id paragraph $i: ${'Specification prose, ' * 20}</p>').join()}'
+              '<pre><code>$id example</code></pre></section>';
+          return wrap ? '<div>$content</div>' : content;
+        }
+
+        final result = extractor.extract(
+          sourceUrl: 'https://example.com/spec',
+          htmlContent:
+              '<body><nav>Navigation noise</nav>${section('Introduction', 2)}'
+              '${section('Comments', 3)}${section('Index', 25)}</body>',
+        );
+        expect(result.cleanedElement.querySelectorAll('h2'), hasLength(3));
+        expect(result.cleanedElement.querySelectorAll('pre'), hasLength(3));
+        expect(result.cleanedElement.text, contains('Comments example'));
+        expect(result.cleanedElement.text, contains('Introduction example'));
+        expect(result.cleanedElement.text, isNot(contains('Navigation noise')));
+        expect(
+          result.isArticleRootFound,
+          isFalse,
+          reason: 'whole-body fallback is explicit',
+        );
+      });
+    }
+
     test('extracts OpenGraph metadata and article content', () {
       const sampleHtml = '''
 <!DOCTYPE html>
@@ -49,8 +78,14 @@ void main() {
 
       expect(result.metadata.title, 'Calm Technology in Modern Era');
       expect(result.metadata.author, 'Jane Doe');
-      expect(result.metadata.description, 'Why distraction-free software is the future.');
-      expect(result.metadata.leadImageUrl, 'https://example.com/images/hero.jpg');
+      expect(
+        result.metadata.description,
+        'Why distraction-free software is the future.',
+      );
+      expect(
+        result.metadata.leadImageUrl,
+        'https://example.com/images/hero.jpg',
+      );
       expect(result.metadata.domain, 'example.com');
       expect(result.metadata.publishedDate, isNotNull);
 
@@ -62,7 +97,10 @@ void main() {
       // Verify image discovery
       expect(result.images.length, 2);
       expect(result.images.first.isLeadImage, isTrue);
-      expect(result.images.first.resolvedUrl, 'https://example.com/images/hero.jpg');
+      expect(
+        result.images.first.resolvedUrl,
+        'https://example.com/images/hero.jpg',
+      );
 
       final bodyImg = result.images.last;
       expect(bodyImg.isLeadImage, isFalse);
@@ -96,7 +134,10 @@ void main() {
       expect(result.metadata.title, 'Essential Principles of Typography');
       expect(result.metadata.author, 'Alex Smith');
       expect(result.metadata.domain, 'designdaily.org');
-      expect(result.cleanedElement.text, contains('Good typography is invisible'));
+      expect(
+        result.cleanedElement.text,
+        contains('Good typography is invisible'),
+      );
     });
 
     test('extracts lazy loaded images with data-src', () {
@@ -118,7 +159,10 @@ void main() {
       );
 
       expect(result.images.length, 1);
-      expect(result.images.first.resolvedUrl, 'https://cdn.example.com/photo.webp');
+      expect(
+        result.images.first.resolvedUrl,
+        'https://cdn.example.com/photo.webp',
+      );
       expect(result.images.first.altText, 'Landscape');
     });
   });

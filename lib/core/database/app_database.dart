@@ -1,3 +1,6 @@
+import '../../features/tasks/domain/task_document.dart';
+import 'watched_import_schema.dart';
+import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -19,6 +22,7 @@ import 'tables/note_links_table.dart';
 import 'tables/note_tags_table.dart';
 import 'tables/note_versions_table.dart';
 import 'tables/notes_table.dart';
+import 'tables/note_templates_table.dart';
 import 'tables/place_aliases_table.dart';
 import 'tables/quick_capture_drafts_table.dart';
 import 'tables/sync_conflicts_table.dart';
@@ -35,6 +39,7 @@ import '../ocr/ocr_models.dart';
 import '../storage/cloud_storage_models.dart';
 
 part 'app_database.g.dart';
+part 'task_index.dart';
 
 class NoteWithTags {
   const NoteWithTags({required this.note, required this.tags});
@@ -84,6 +89,8 @@ class TagWithCount {
     NoteLinksTable,
     PlaceAliasesTable,
     QuickCaptureDraftsTable,
+    NoteTemplatesTable,
+    TemplateFavoritesTable,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -93,12 +100,114 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 26;
+
+  Future<void> _createEmailImportTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS note_import_source_index (note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE, identity TEXT NOT NULL, raw_hash TEXT, fingerprint TEXT NOT NULL, message_id TEXT, PRIMARY KEY(note_id, identity))',
+    );
+    for (final key in ['raw_hash', 'fingerprint', 'message_id']) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS email_source_${key}_idx ON note_import_source_index ($key)',
+      );
+    }
+    // Durable write-ahead list of *new* asset IDs; contains no email content.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS email_import_preparations (asset_id TEXT PRIMARY KEY)',
+    );
+  }
+
+  Future<void> _indexImportSources(
+    String noteId,
+    List<NoteImportSource> sources,
+  ) async {
+    await customStatement(
+      'DELETE FROM note_import_source_index WHERE note_id = ?',
+      [noteId],
+    );
+    for (final source in sources) {
+      await customStatement(
+        'INSERT INTO note_import_source_index (note_id, identity, raw_hash, fingerprint, message_id) VALUES (?, ?, ?, ?, ?)',
+        [
+          noteId,
+          source.identity,
+          source.rawHash,
+          source.fingerprint,
+          source.messageId,
+        ],
+      );
+    }
+  }
+
+  Future<void> mergeImportSources(
+    String noteId,
+    List<NoteImportSource> incoming,
+  ) => transaction(() async {
+    final row = (await getNoteWithTags(noteId))?.note;
+    if (row == null) return;
+    final sources = NoteImportSource.union([
+      ...NoteImportSource.decode(row.importSources),
+      ...incoming,
+    ]);
+    final encoded = jsonEncode(sources.map((s) => s.toJson()).toList());
+    if (encoded == row.importSources) return;
+    await (update(notesTable)..where((n) => n.id.equals(noteId))).write(
+      NotesTableCompanion(
+        importSources: Value(encoded),
+        isDirty: const Value(true),
+      ),
+    );
+    await _indexImportSources(noteId, sources);
+  });
+
+  Future<void> rebuildImportSourceIndex() => transaction(() async {
+    await customStatement('DELETE FROM note_import_source_index');
+    final rows = await (select(
+      notesTable,
+    )..where((n) => n.importSources.isNotValue('[]'))).get();
+    for (final row in rows) {
+      await _indexImportSources(
+        row.id,
+        NoteImportSource.decode(row.importSources),
+      );
+    }
+  });
+
+  Future<List<({String noteId, bool exact})>> findEmailDuplicates({
+    String? rawHash,
+    required String fingerprint,
+    String? messageId,
+  }) async {
+    final rows = await customSelect(
+      'SELECT s.note_id, s.raw_hash, s.fingerprint FROM note_import_source_index s JOIN notes n ON n.id=s.note_id WHERE n.is_trashed=0 AND n.deleted_at IS NULL AND (s.raw_hash=? OR s.fingerprint=? OR s.message_id=?)',
+      variables: [
+        Variable<String>(rawHash ?? ''),
+        Variable<String>(fingerprint),
+        Variable<String>(messageId ?? ''),
+      ],
+    ).get();
+    return rows
+        .map(
+          (r) => (
+            noteId: r.read<String>('note_id'),
+            exact:
+                (rawHash != null &&
+                    r.readNullable<String>('raw_hash') == rawHash) ||
+                r.read<String>('fingerprint') == fingerprint,
+          ),
+        )
+        .toList();
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await _createEmailImportTables();
+      await createTaskIndex();
+      for (final sql in watchedImportSchema) {
+        await customStatement(sql);
+      }
       await _createFts5TablesAndTriggers();
     },
     onUpgrade: (m, from, to) async {
@@ -288,11 +397,68 @@ class AppDatabase extends _$AppDatabase {
           'UPDATE attachment_ocr_pages SET updated_at = processed_at WHERE updated_at IS NULL;',
         );
       }
+      // Both feature branches used v21. Reconcile either v21 layout at v22.
+      if (from < 22) {
+        await _addColumnSafely(m, notesTable, notesTable.importSources);
+        await _createEmailImportTables();
+        await transaction(() async {
+          await _createTableSafely(m, noteTemplatesTable);
+          await _createTableSafely(m, templateFavoritesTable);
+        });
+      }
+      if (from < 23) {
+        for (final sql in watchedImportSchema) {
+          await customStatement(sql);
+        }
+      }
+      if (from < 24) {
+        final columns = await customSelect(
+          'PRAGMA table_info(watched_folders)',
+        ).get();
+        if (!columns.any((row) => row.read<String>('name') == 'file_types')) {
+          await customStatement(
+            """ALTER TABLE watched_folders ADD COLUMN file_types TEXT NOT NULL
+            DEFAULT '["email","pdf","markdown","text","png","jpeg","webp"]'""",
+          );
+        }
+        await customStatement('DROP INDEX IF EXISTS watched_single_root');
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS watched_folder_root ON watched_folders (vault_scope,canonical_root)',
+        );
+      }
+      if (from < 25) {
+        final columns = await customSelect(
+          'PRAGMA table_info(watched_folders)',
+        ).get();
+        if (!columns.any((row) => row.read<String>('name') == 'display_name')) {
+          await customStatement(
+            "ALTER TABLE watched_folders ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
+          );
+        }
+      }
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
       }
+      if (from < 26) await createTaskIndex();
     },
     beforeOpen: (details) async {
+      await _repairLegacyTaskQueueTriggers();
+      // Defensive evolution of the unreleased schema-23 watcher tables.
+      for (final table in ['watched_import_jobs', 'watched_import_receipts']) {
+        final columns = await customSelect('PRAGMA table_info($table)').get();
+        final names = columns.map((r) => r.read<String>('name')).toSet();
+        if (!names.contains('source_root')) {
+          await customStatement(
+            "ALTER TABLE $table ADD COLUMN source_root TEXT NOT NULL DEFAULT ''",
+          );
+        }
+        if (table == 'watched_import_receipts' &&
+            !names.contains('source_path')) {
+          await customStatement(
+            "ALTER TABLE $table ADD COLUMN source_path BLOB NOT NULL DEFAULT X''",
+          );
+        }
+      }
       await customStatement('PRAGMA foreign_keys = ON;');
       try {
         await customStatement('PRAGMA journal_mode = WAL;');
@@ -466,6 +632,34 @@ class AppDatabase extends _$AppDatabase {
 
   /// Resets the background rebuild flag after an auto-repair pass has been triggered.
   void clearSearchIndexRebuildFlag() => _needsSearchIndexRebuild = false;
+
+  /// Experimental Tasks builds can leave these triggers in the shared notebook
+  /// even when the installed build has no Tasks indexer. During a note UPSERT,
+  /// SQLite's outer conflict policy overrides a trigger's INSERT OR IGNORE and
+  /// a second queue entry aborts the whole save. An explicit UPSERT clause keeps
+  /// deduplication local to the queue insert instead.
+  Future<void> _repairLegacyTaskQueueTriggers() async {
+    const legacyInsert =
+        'INSERT OR IGNORE INTO task_dirty(note_id) VALUES(new.id)';
+    const safeInsert =
+        'INSERT INTO task_dirty(note_id) VALUES(new.id) '
+        'ON CONFLICT(note_id) DO NOTHING';
+
+    await transaction(() async {
+      final triggers = await customSelect(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' "
+        "AND name IN ('task_note_insert', 'task_note_update')",
+      ).get();
+      for (final trigger in triggers) {
+        final sql = trigger.read<String>('sql');
+        if (!sql.contains(legacyInsert)) continue;
+        final name = trigger.read<String>('name');
+        await customStatement('DROP TRIGGER "$name"');
+        // Preserve the rest of the trigger, including task-index cleanup.
+        await customStatement(sql.replaceAll(legacyInsert, safeInsert));
+      }
+    });
+  }
 
   /// Local, idempotent backfill for pre-hierarchy databases.
   ///
@@ -1190,6 +1384,18 @@ class AppDatabase extends _$AppDatabase {
 
   /// Returns the earliest calendar year of active journal entries in the database,
   /// or null if no active journal entries exist.
+  /// Watches the oldest active journal day, including backfill, sync and Trash changes.
+  Stream<int?> watchEarliestJournalYear() {
+    final query = select(notesTable)
+      ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
+      ..orderBy([(n) => OrderingTerm.asc(n.journalDate)])
+      ..limit(1);
+    return query.watchSingleOrNull().map((first) {
+      final date = first?.journalDate;
+      return date == null ? null : int.tryParse(date.split('-').first);
+    }).distinct();
+  }
+
   Future<int?> getEarliestJournalYear() async {
     final query = select(notesTable)
       ..where((n) => n.journalDate.isNotNull() & n.isTrashed.equals(false))
@@ -1298,8 +1504,9 @@ class AppDatabase extends _$AppDatabase {
     DateTime? deletedAt,
     List<String>? tags,
     List<String>? pinnedTags,
+    List<NoteImportSource>? importSources,
     String? journalDate,
-    int serverRevision = 0,
+    int? serverRevision,
     bool isDirty = true,
     DateTime? syncedAt,
     bool preserveEmptyTags = false,
@@ -1309,13 +1516,31 @@ class AppDatabase extends _$AppDatabase {
         JournalMetadataService.extractJournalMetadata(content).journalDate;
 
     await transaction(() async {
+      final priorSourceRow = await (select(
+        notesTable,
+      )..where((n) => n.id.equals(id))).getSingleOrNull();
+      final sources = NoteImportSource.union([
+        ...NoteImportSource.decode(priorSourceRow?.importSources),
+        ...?importSources,
+      ]);
+      final encodedSources = jsonEncode(
+        sources.map((s) => s.toJson()).toList(),
+      );
+      final incomingSources = jsonEncode(
+        NoteImportSource.union(
+          importSources ?? [],
+        ).map((s) => s.toJson()).toList(),
+      );
+      final effectiveDirty =
+          isDirty ||
+          (importSources != null && encodedSources != incomingSources);
       // Resolve the note's current tag set first so per-tag pins can be pruned
       // to tags the note still carries.
       final extractedTags = (preserveEmptyTags && tags != null)
           ? tags
           : ((tags != null && tags.isNotEmpty)
-              ? tags
-              : TagParser.extractTags('$title\n$content'));
+                ? tags
+                : TagParser.extractTags('$title\n$content'));
       final normalizedTagSet = extractedTags
           .map(TagParser.normalizeTag)
           .where(TagParser.isValidTag)
@@ -1349,14 +1574,18 @@ class AppDatabase extends _$AppDatabase {
           isArchived: Value(isArchived),
           isTrashed: Value(isTrashed),
           deletedAt: Value(deletedAt),
-          serverRevision: Value(serverRevision),
-          isDirty: Value(isDirty),
+          serverRevision: Value(serverRevision ?? priorSourceRow?.serverRevision ?? 0),
+          isDirty: Value(effectiveDirty),
           syncedAt: Value(syncedAt),
           journalDate: Value(effectiveJournalDate),
           pinnedTags: Value(_encodePinnedTags(effectivePinned)),
+          importSources: Value(
+            jsonEncode(sources.map((s) => s.toJson()).toList()),
+          ),
         ),
       );
 
+      await _indexImportSources(id, sources);
       await _syncNoteTags(
         id,
         extractedTags,
@@ -1407,6 +1636,12 @@ class AppDatabase extends _$AppDatabase {
           );
         }
       }
+
+      await indexNoteTasks(
+        id,
+        content,
+        eligible: !isArchived && !isTrashed && deletedAt == null,
+      );
 
       // Sync derived note links
       await _syncNoteLinks(id, content);
@@ -1738,9 +1973,9 @@ class AppDatabase extends _$AppDatabase {
   /// Returns a lightweight mapping of Note ID to Note Title without reading or
   /// deserializing large note content bodies.
   Future<Map<String, String>> getNoteTitlesMap() async {
-    final rows = await (selectOnly(notesTable)
-          ..addColumns([notesTable.id, notesTable.title]))
-        .get();
+    final rows = await (selectOnly(
+      notesTable,
+    )..addColumns([notesTable.id, notesTable.title])).get();
     return {
       for (final r in rows)
         r.read(notesTable.id)!: r.read(notesTable.title) ?? '',
@@ -1750,19 +1985,21 @@ class AppDatabase extends _$AppDatabase {
   /// Calculates storage breakdown by resource category directly from SQLite
   /// using lightweight projected columns instead of hydrating all class entities.
   Future<StorageBreakdown> getStorageBreakdownMetrics() async {
-    final attRows = await (selectOnly(attachmentsTable)
-          ..addColumns([
-            attachmentsTable.kind,
-            attachmentsTable.mimeType,
-            attachmentsTable.byteSize,
-          ])
-          ..where(attachmentsTable.isDeleted.equals(false)))
-        .get();
+    final attRows =
+        await (selectOnly(attachmentsTable)
+              ..addColumns([
+                attachmentsTable.kind,
+                attachmentsTable.mimeType,
+                attachmentsTable.byteSize,
+              ])
+              ..where(attachmentsTable.isDeleted.equals(false)))
+            .get();
 
-    final docRows = await (selectOnly(documentsTable)
-          ..addColumns([documentsTable.byteSize])
-          ..where(documentsTable.isDeleted.equals(false)))
-        .get();
+    final docRows =
+        await (selectOnly(documentsTable)
+              ..addColumns([documentsTable.byteSize])
+              ..where(documentsTable.isDeleted.equals(false)))
+            .get();
 
     var imgBytes = 0;
     var imgCount = 0;
@@ -1802,6 +2039,7 @@ class AppDatabase extends _$AppDatabase {
       otherCount: otherCount,
     );
   }
+
   Future<List<AttachmentEntity>> getAllAttachmentsRaw() async =>
       select(attachmentsTable).get();
   Future<List<DocumentEntity>> getAllDocumentsRaw() async =>
@@ -1909,6 +2147,9 @@ class AppDatabase extends _$AppDatabase {
   /// Used exclusively by "Sign Out & Erase Local Data".
   Future<void> eraseAllLocalVaultData() async {
     await transaction(() async {
+      for (final table in watchedImportTables) {
+        await customStatement('DELETE FROM $table');
+      }
       await delete(noteLinksTable).go();
       await delete(syncConflictsTable).go();
       await delete(documentOcrPagesTable).go();
@@ -1923,6 +2164,9 @@ class AppDatabase extends _$AppDatabase {
       await delete(tagsTable).go();
       await delete(placeAliasesTable).go();
       await delete(quickCaptureDraftsTable).go();
+      await customStatement('DELETE FROM email_import_preparations');
+      await delete(templateFavoritesTable).go();
+      await delete(noteTemplatesTable).go();
       await delete(notesTable).go();
       try {
         await customStatement('DELETE FROM note_search_prefix;');

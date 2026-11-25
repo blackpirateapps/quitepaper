@@ -1,0 +1,9 @@
+import os, subprocess, pathlib, json, tempfile
+root=pathlib.Path(tempfile.mkdtemp(prefix='qp-pdf-window-'))
+env=os.environ.copy()
+for key,part in [('XDG_CONFIG_HOME','config'),('XDG_DATA_HOME','data'),('XDG_CACHE_HOME','cache')]:
+    target=root/part;target.mkdir();env[key]=str(target)
+log=open('/tmp/qp-pdf-runtime.log','w')
+process=subprocess.Popen(['dbus-run-session','--',str(pathlib.Path.cwd()/'build/linux/x64/debug/bundle/quitepaper')],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+pathlib.Path('/tmp/qp-pdf-process.json').write_text(json.dumps({'pid':process.pid,'isolationRoot':str(root)}))
+print(json.dumps({'pid':process.pid,'isolationRoot':str(root)}))

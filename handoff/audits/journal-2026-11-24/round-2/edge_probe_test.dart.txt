@@ -1,0 +1,186 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quitepaper/core/crypto/crypto_service.dart';
+import 'package:quitepaper/core/crypto/key_manager.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/journal/application/place_grouping_service.dart';
+import 'package:quitepaper/core/journal/application/weather_service.dart';
+import 'package:quitepaper/core/location/location_models.dart';
+import 'package:quitepaper/features/journal/application/place_alias_store.dart';
+import 'package:quitepaper/features/journal/application/journal_providers.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
+
+class AuditKeyManager implements KeyManager {
+  @override
+  bool get isUnlocked => true;
+  @override
+  Uint8List getMasterKey() => Uint8List.fromList(List.generate(32, (i) => i));
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class DelayedDecodeRepository extends PlaceAliasRepository {
+  DelayedDecodeRepository(AppDatabase db) : super(database: db,
+    cryptoService: DefaultCryptoService(), keyManager: AuditKeyManager());
+  final rows = StreamController<List<PlaceAliasEntity>>.broadcast();
+  final decodes = <Completer<Map<String, PlaceAlias>>>[];
+  @override
+  Future<void> migrateFromPrefs(Map<String, PlaceAlias> legacy) async {}
+  @override
+  Stream<List<PlaceAliasEntity>> watchRows() => rows.stream;
+  @override
+  Future<Map<String, PlaceAlias>> decodeRows(List<PlaceAliasEntity> rows) {
+    final completion = Completer<Map<String, PlaceAlias>>();
+    decodes.add(completion);
+    return completion.future;
+  }
+}
+
+PlaceEntryInput entry(String id, String address, {double lat = 1, double lng = 2}) =>
+  PlaceEntryInput(noteId: id, location: JournalLocation(address: address, latitude: lat, longitude: lng),
+    date: DateTime(2026, 11, 24));
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late AppDatabase db;
+  var ownsDefaultDatabase = true;
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    db = AppDatabase.memory();
+    ownsDefaultDatabase = true;
+  });
+  tearDown(() async { if (ownsDefaultDatabase) await db.close(); });
+
+  test('merging an already merged place retains every constituent', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final store = PlaceAliasStore(prefs: prefs);
+    addTearDown(store.dispose);
+    store.merge(['alpha', 'beta'], canonicalKey: 'trip', displayName: 'Trip');
+    store.merge(['trip', 'gamma'], canonicalKey: 'journey', displayName: 'Journey');
+    final groups = const PlaceGroupingService().group([
+      entry('a', 'Alpha, India'), entry('b', 'Beta, India'), entry('c', 'Gamma, India'),
+    ], aliases: store.state);
+    expect(groups, hasLength(1));
+    expect(groups.single.noteIds.toSet(), {'a', 'b', 'c'});
+  });
+
+  test('encrypted alias snapshots cannot roll back after newer decode completes', () async {
+    final repo = DelayedDecodeRepository(db);
+    final store = PlaceAliasStore(repository: repo);
+    addTearDown(() async { store.dispose(); await repo.rows.close(); });
+    await pumpEventQueue();
+    repo.rows.add([]); await pumpEventQueue();
+    repo.rows.add([]); await pumpEventQueue();
+    expect(repo.decodes, hasLength(2));
+    repo.decodes[1].complete({'city': const PlaceAlias(canonicalKey: 'city', displayName: 'New name')});
+    await pumpEventQueue();
+    expect(store.state['city']!.displayName, 'New name');
+    repo.decodes[0].complete({'city': const PlaceAlias(canonicalKey: 'city', displayName: 'Old name')});
+    await pumpEventQueue();
+    expect(store.state['city']!.displayName, 'New name');
+  });
+
+  test('failed alias write must retry after database recovers', () async {
+    final repo = PlaceAliasRepository(database: db, cryptoService: DefaultCryptoService(), keyManager: AuditKeyManager());
+    final store = PlaceAliasStore(repository: repo);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await db.customStatement("CREATE TRIGGER audit_fail_alias BEFORE INSERT ON place_aliases BEGIN SELECT RAISE(ABORT, 'audit alias write failure'); END");
+    store.rename(canonicalKey: 'city', displayName: 'Home');
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await db.customStatement('DROP TRIGGER audit_fail_alias');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    store.dispose();
+    final reopened = PlaceAliasStore(repository: repo);
+    addTearDown(reopened.dispose);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(reopened.state['city']?.displayName, 'Home');
+  });
+
+  test('canonically equivalent Unicode place names must group together', () {
+    final groups = const PlaceGroupingService().group([
+      entry('nfc', 'São Paulo, Brazil'), entry('nfd', 'Sa\u0303o Paulo, Brazil'),
+    ]);
+    expect(groups, hasLength(1));
+  });
+
+  test('coordinate cluster centroid stays near the antimeridian', () {
+    final group = const PlaceGroupingService().group([
+      entry('east', '', lat: 10, lng: 179.999), entry('west', '', lat: 10, lng: -179.999),
+    ]).single;
+    final numbers = RegExp(r'(-?\d+\.\d+), (-?\d+\.\d+)').firstMatch(group.displayName)!;
+    final latitude = double.parse(numbers[1]!); final longitude = double.parse(numbers[2]!);
+    final distance = PlaceGroupingService.haversineMeters(10, 179.999, latitude, longitude);
+    expect(distance, lessThan(1500), reason: 'Displayed centroid must stay within the cluster radius');
+  });
+
+  test('rounded coordinate keys must not join clusters beyond the radius', () {
+    final distance = PlaceGroupingService.haversineMeters(1.0051, 103.0051, 1.0149, 103.0149);
+    expect(distance, greaterThan(PlaceGroupingService.defaultNeighborhoodRadiusMeters));
+    final groups = const PlaceGroupingService().group([
+      entry('a', '', lat: 1.0051, lng: 103.0051), entry('b', '', lat: 1.0149, lng: 103.0149),
+    ]);
+    expect(groups, hasLength(2));
+  });
+
+  test('incomplete current weather must not invent sunny zero Celsius', () async {
+    final client = MockClient((request) async => http.Response('{"current":{}}', 200));
+    addTearDown(client.close);
+    await expectLater(WeatherService(httpClient: client).fetchWeather(22.57, 88.36), throwsA(isA<WeatherFetchException>()));
+  });
+
+  test('valid weather persists measured temperature and WMO condition', () async {
+    final client = MockClient((request) async => http.Response('{"current":{"temperature_2m":28.5,"weather_code":3}}', 200));
+    addTearDown(client.close);
+    final weather = await WeatherService(httpClient: client).fetchWeather(22.57, 88.36);
+    expect(weather.temperature, 28.5); expect(weather.code, 3);
+  });
+
+  test('older backfill must enable loading older memories without restart', () async {
+    final repo = DriftNotesRepository(db);
+    await repo.getOrCreateJournalEntry(DateTime(2025, 11, 24));
+    final container = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(db), notesRepositoryProvider.overrideWithValue(repo),
+      historicalReferenceDateProvider.overrideWithValue(DateTime(2026, 11, 24)),
+    ]);
+    addTearDown(container.dispose);
+    await container.read(earliestJournalYearFutureProvider.future);
+    await container.read(historicalWeekNotesStreamProvider.future);
+    expect(container.read(historicalWeekProvider).hasMoreOlderYears, isFalse);
+    await repo.getOrCreateJournalEntry(DateTime(2010, 11, 23));
+    await pumpEventQueue();
+    expect(await repo.getEarliestJournalYear(), 2010);
+    expect(container.read(historicalWeekProvider).hasMoreOlderYears, isTrue);
+  });
+
+  test('HTTP weather failure is surfaced', () async {
+    final client = MockClient((request) async => http.Response('Unavailable', 503));
+    addTearDown(client.close);
+    await expectLater(WeatherService(httpClient: client).fetchWeather(22.57, 88.36), throwsA(isA<WeatherFetchException>()));
+  });
+
+  test('journal survives closing and reopening a real SQLite file', () async {
+    await db.close();
+    ownsDefaultDatabase = false;
+    final directory = await Directory.systemTemp.createTemp('qp-journal-round-two-');
+    final file = File('${directory.path}/journal.sqlite');
+    final writer = AppDatabase(NativeDatabase(file));
+    final repo = DriftNotesRepository(writer);
+    final original = await repo.getOrCreateJournalEntry(DateTime(2026, 2, 28));
+    await repo.saveNote(original.copyWith(content: '${original.content}\nDurable reflection'));
+    await writer.close();
+    final reader = AppDatabase(NativeDatabase(file));
+    try {
+      final reopened = await DriftNotesRepository(reader).getJournalEntry('2026-02-28');
+      expect(reopened!.id, original.id); expect(reopened.content, contains('Durable reflection'));
+    } finally { await reader.close(); await directory.delete(recursive: true); }
+  });
+}

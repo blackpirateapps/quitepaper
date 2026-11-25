@@ -173,9 +173,9 @@ class _JournalTimelineTileState extends ConsumerState<JournalTimelineTile>
         ? JournalDateHelper.tryParseDateString(dateStr)
         : JournalDateHelper.toLocalDate(widget.note.createdAt);
 
-    final dayNumber = parsedDate != null ? JournalDateHelper.formatDayTwoDigits(parsedDate.day) : '--';
+    final dayNumber = parsedDate != null ? JournalDateHelper.formatDayTwoDigits(parsedDate.day, localeTag: localeTag) : '--';
     final weekdayShort = parsedDate != null ? JournalDateHelper.formatWeekdayShort(parsedDate, localeTag: localeTag) : '';
-    final isToday = dateStr == JournalDateHelper.todayString();
+    final isToday = dateStr == ref.watch(todayJournalDateProvider);
     final fullDateDisplay = parsedDate != null
         ? JournalDateHelper.formatDisplayDate(parsedDate, localeTag: localeTag)
         : JournalDateHelper.formatDisplayDate(widget.note.createdAt, localeTag: localeTag);

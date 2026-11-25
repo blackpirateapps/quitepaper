@@ -6,6 +6,7 @@ import 'package:quitepaper/core/pdf/syncfusion_pdf_page_renderer.dart';
 import 'package:syncfusion_pdfviewer_platform_interface/pdfviewer_platform_interface.dart';
 
 class FakePdfViewerPlatform extends PdfViewerPlatform {
+  int loadCalls = 0;
   String? lastLoadedPath;
   String? lastLoadedDocId;
   String? lastClosedDocId;
@@ -13,7 +14,7 @@ class FakePdfViewerPlatform extends PdfViewerPlatform {
   List<double> heightsToReturn = [842.0, 842.0];
   List<double> widthsToReturn = [595.0, 595.0];
   final List<({int pageNumber, int width, int height, String docId})>
-      getPageCalls = [];
+  getPageCalls = [];
   bool shouldThrowOnLoad = false;
 
   @override
@@ -22,6 +23,7 @@ class FakePdfViewerPlatform extends PdfViewerPlatform {
     String documentID, [
     String? password,
   ]) async {
+    loadCalls++;
     if (shouldThrowOnLoad) {
       throw Exception('Simulated load error');
     }
@@ -85,7 +87,12 @@ void main() {
         customTempDirectory: tempTestDir,
       );
 
-      final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]); // %PDF
+      final dummyPdfBytes = Uint8List.fromList([
+        0x25,
+        0x50,
+        0x44,
+        0x46,
+      ]); // %PDF
       final results = await renderer.renderPages(dummyPdfBytes, dpi: 72.0);
 
       expect(results.length, equals(2));
@@ -93,34 +100,99 @@ void main() {
       expect(results[0].width, equals(595));
       expect(results[0].height, equals(842));
       // First 8 bytes of PNG header: 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
-      expect(results[0].imageBytes.sublist(0, 4), equals([0x89, 0x50, 0x4E, 0x47]));
+      expect(
+        results[0].imageBytes.sublist(0, 4),
+        equals([0x89, 0x50, 0x4E, 0x47]),
+      );
 
       expect(results[1].pageNumber, equals(2));
       expect(results[1].imageBytes.isNotEmpty, isTrue);
 
       // Verify closeDocument was called
       expect(fakePlatform.lastClosedDocId, isNotNull);
-      expect(fakePlatform.lastClosedDocId, equals(fakePlatform.lastLoadedDocId));
+      expect(
+        fakePlatform.lastClosedDocId,
+        equals(fakePlatform.lastLoadedDocId),
+      );
 
       // Verify temp files were deleted
       final remainingFiles = await tempTestDir.list().toList();
       expect(remainingFiles.isEmpty, isTrue);
     });
 
-    test('renders specific single page using 1-based page index to platform', () async {
-      final renderer = SyncfusionPdfPageRenderer(
-        platform: fakePlatform,
-        customTempDirectory: tempTestDir,
-      );
+    test(
+      'renders specific single page using 1-based page index to platform',
+      () async {
+        final renderer = SyncfusionPdfPageRenderer(
+          platform: fakePlatform,
+          customTempDirectory: tempTestDir,
+        );
 
-      final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
-      final page = await renderer.renderSinglePage(dummyPdfBytes, 1, dpi: 72.0);
+        final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
+        final page = await renderer.renderSinglePage(
+          dummyPdfBytes,
+          1,
+          dpi: 72.0,
+        );
 
-      expect(page, isNotNull);
-      expect(page!.pageNumber, equals(2));
-      expect(fakePlatform.getPageCalls.length, equals(1));
-      expect(fakePlatform.getPageCalls.first.pageNumber, equals(2));
-    });
+        expect(page, isNotNull);
+        expect(page!.pageNumber, equals(2));
+        expect(fakePlatform.getPageCalls.length, equals(1));
+        expect(fakePlatform.getPageCalls.first.pageNumber, equals(2));
+      },
+    );
+
+    test(
+      'native oversized dimensions stay within the raster pixel budget',
+      () async {
+        fakePlatform.pageCountToReturn = 1;
+        fakePlatform.widthsToReturn = [10000];
+        fakePlatform.heightsToReturn = [10000];
+        final renderer = SyncfusionPdfPageRenderer(
+          platform: fakePlatform,
+          customTempDirectory: tempTestDir,
+        );
+        // Even PDFs without a readable MediaBox in their raw bytes are bounded.
+        final page = await renderer.renderSinglePage(
+          Uint8List.fromList([37, 80, 68, 70]),
+          0,
+          dpi: 36,
+        );
+        expect(page, isNotNull);
+        expect(
+          page!.width * page.height,
+          lessThanOrEqualTo(PdfRasterPolicy.maxPixelsPerPage),
+        );
+      },
+    );
+
+    test(
+      'concurrent page renders share one document and release it after all complete',
+      () async {
+        final renderer = SyncfusionPdfPageRenderer(
+          platform: fakePlatform,
+          customTempDirectory: tempTestDir,
+        );
+        final bytes = Uint8List.fromList([37, 80, 68, 70]);
+        final pages = await Future.wait(
+          List.generate(
+            6,
+            (i) => renderer.renderSinglePage(bytes, i % 2, dpi: 36),
+          ),
+        );
+        expect(pages.whereType<RenderedPage>(), hasLength(6));
+        expect(fakePlatform.loadCalls, 1);
+        expect(
+          fakePlatform.getPageCalls.map((call) => call.docId).toSet(),
+          hasLength(1),
+        );
+        expect(fakePlatform.lastClosedDocId, fakePlatform.lastLoadedDocId);
+        expect(await tempTestDir.list().toList(), isEmpty);
+        // A later call opens a new session; no native handle or temp file leaks.
+        await renderer.renderSinglePage(bytes, 0, dpi: 36);
+        expect(fakePlatform.loadCalls, 2);
+      },
+    );
 
     test('returns empty list for empty pdfBytes without error', () async {
       final renderer = SyncfusionPdfPageRenderer(
@@ -133,39 +205,45 @@ void main() {
       expect(fakePlatform.lastLoadedPath, isNull);
     });
 
-    test('cleans up resources and returns empty list on platform load error', () async {
-      fakePlatform.shouldThrowOnLoad = true;
+    test(
+      'cleans up resources and returns empty list on platform load error',
+      () async {
+        fakePlatform.shouldThrowOnLoad = true;
 
-      final renderer = SyncfusionPdfPageRenderer(
-        platform: fakePlatform,
-        customTempDirectory: tempTestDir,
-      );
+        final renderer = SyncfusionPdfPageRenderer(
+          platform: fakePlatform,
+          customTempDirectory: tempTestDir,
+        );
 
-      final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
-      final results = await renderer.renderPages(dummyPdfBytes);
+        final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
+        final results = await renderer.renderPages(dummyPdfBytes);
 
-      expect(results, isEmpty);
-      expect(fakePlatform.lastClosedDocId, isNotNull);
-      final remainingFiles = await tempTestDir.list().toList();
-      expect(remainingFiles.isEmpty, isTrue);
-    });
+        expect(results, isEmpty);
+        expect(fakePlatform.lastClosedDocId, isNotNull);
+        final remainingFiles = await tempTestDir.list().toList();
+        expect(remainingFiles.isEmpty, isTrue);
+      },
+    );
 
-    test('DefaultPdfPageRenderer delegates to desktopRenderer on desktop platforms', () async {
-      final desktopRenderer = SyncfusionPdfPageRenderer(
-        platform: fakePlatform,
-        customTempDirectory: tempTestDir,
-      );
-      final defaultRenderer = DefaultPdfPageRenderer(
-        desktopRenderer: desktopRenderer,
-      );
+    test(
+      'DefaultPdfPageRenderer delegates to desktopRenderer on desktop platforms',
+      () async {
+        final desktopRenderer = SyncfusionPdfPageRenderer(
+          platform: fakePlatform,
+          customTempDirectory: tempTestDir,
+        );
+        final defaultRenderer = DefaultPdfPageRenderer(
+          desktopRenderer: desktopRenderer,
+        );
 
-      final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
-      final single = await defaultRenderer.renderSinglePage(dummyPdfBytes, 0);
+        final dummyPdfBytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46]);
+        final single = await defaultRenderer.renderSinglePage(dummyPdfBytes, 0);
 
-      if (Platform.isLinux || Platform.isWindows) {
-        expect(single, isNotNull);
-        expect(fakePlatform.getPageCalls.isNotEmpty, isTrue);
-      }
-    });
+        if (Platform.isLinux || Platform.isWindows) {
+          expect(single, isNotNull);
+          expect(fakePlatform.getPageCalls.isNotEmpty, isTrue);
+        }
+      },
+    );
   });
 }

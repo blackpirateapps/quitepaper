@@ -3,10 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:quitepaper/app/theme/app_theme.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/crypto/key_manager.dart';
 import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/documents/document_provider.dart';
+import 'package:quitepaper/core/documents/document_service.dart';
 import 'package:quitepaper/core/documents/presentation/document_viewer_screen.dart';
 import 'package:quitepaper/core/ocr/document_processing_service.dart';
 import 'package:quitepaper/core/ocr/ocr_crypto.dart';
@@ -15,6 +18,11 @@ import 'package:quitepaper/core/ocr/ocr_provider.dart';
 import 'package:quitepaper/core/ocr/presentation/ocr_text_viewer_screen.dart';
 import 'package:quitepaper/core/uri/quiet_paper_uri.dart';
 import 'package:quitepaper/core/uri/resource_resolver.dart';
+
+class FakeOcrViewerDocumentService extends Fake implements DocumentService {
+  @override
+  Future<Uint8List?> resolveAnnotatedBytes(String documentId) async => null;
+}
 
 class MockTestKeyManager implements KeyManager {
   MockTestKeyManager({required this.masterKey, this.isUnlocked = true});
@@ -42,9 +50,12 @@ void main() {
     late CryptoService cryptoService;
 
     const testDocId = 'doc-viewer-test-uuid';
-    final samplePdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 mock pdf'));
+    late Uint8List samplePdfBytes;
 
     setUp(() async {
+      final pdf = pw.Document()
+        ..addPage(pw.Page(build: (_) => pw.Text('Sample PDF Content')));
+      samplePdfBytes = await pdf.save();
       database = AppDatabase.memory();
       cryptoService = DefaultCryptoService();
       final masterKey = cryptoService.generateRandomBytes(32);
@@ -110,6 +121,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            documentServiceProvider.overrideWithValue(
+              FakeOcrViewerDocumentService(),
+            ),
             documentProcessingServiceProvider.overrideWithValue(processingService),
           ],
           child: MaterialApp(
@@ -124,7 +138,7 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('Scanned Receipt'), findsOneWidget);
       expect(find.text('Searchable (OCR)'), findsOneWidget);
@@ -133,7 +147,7 @@ void main() {
       // Open overflow menu
       await tester.tap(find.byIcon(Icons.more_vert_rounded));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('Rename Document'), findsOneWidget);
       expect(find.text('View OCR Text'), findsOneWidget);
@@ -159,6 +173,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            documentServiceProvider.overrideWithValue(
+              FakeOcrViewerDocumentService(),
+            ),
             documentProcessingServiceProvider.overrideWithValue(processingService),
           ],
           child: MaterialApp(
@@ -173,7 +190,7 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       // Tap the View OCR Text icon button in AppBar
       await tester.tap(find.byIcon(Icons.article_outlined));
@@ -201,6 +218,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            documentServiceProvider.overrideWithValue(
+              FakeOcrViewerDocumentService(),
+            ),
             documentProcessingServiceProvider.overrideWithValue(processingService),
           ],
           child: MaterialApp(
@@ -215,14 +235,14 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('OCR unavailable'), findsOneWidget);
 
       // Open overflow menu
       await tester.tap(find.byIcon(Icons.more_vert_rounded));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('Run / Regenerate OCR'), findsOneWidget);
     });
@@ -245,6 +265,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            documentServiceProvider.overrideWithValue(
+              FakeOcrViewerDocumentService(),
+            ),
             documentProcessingServiceProvider.overrideWithValue(processingService),
           ],
           child: MaterialApp(
@@ -259,7 +282,7 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('OCR skipped (large PDF)'), findsOneWidget);
 

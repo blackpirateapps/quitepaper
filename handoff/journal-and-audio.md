@@ -51,11 +51,12 @@ Quiet Paper includes voice memo capabilities for ambient thoughts and audio jour
 The [browser extension](../extensions/browser/README.md) adds a separate acquisition
 path for Chrome-family and Firefox-family browsers: a user action captures the
 already loaded top-level DOM, including authenticated/dynamically rendered text,
-and sends sanitized HTML to `qp browser-host` through native messaging. Article,
+and sends sanitized HTML to the Rust `qp browser-host` through native messaging. Article,
 whole-page and selected-text modes are available with title/tag editing. An
 inactive document holds cloned DOM nodes to avoid resource loads during capture.
 Forms, hidden elements, scripts and unsafe URLs are removed in the browser; the
-CLI validates and sanitizes again before calling `HtmlToMarkdownConverter`.
+Rust CLI validates again and renders safe Markdown from the parsed DOM before
+saving through its existing transactional note writer.
 
 The native host deliberately bypasses URL scanning, image probing/downloading and
 snapshot generation: none of these may fetch a logged-in page or its resources
@@ -94,3 +95,11 @@ The web clipper ([`lib/features/web_clipper/`](file:///home/dog/git/quitepaper/l
 - Journal Frontmatter & Paper Calendar: [Latest Logs, Section 149 & 164](latest-logs.md#149-journal-frontmatter-properties-mood-activities-weather--moment-october-2026)
 - Web Clipper Dual-Fidelity & Inlined Assets: [Historical Logs v1.5, Section 67–70](archive/logs-v1.5.md#67-web-clipping-feature-with-dual-fidelity-snapshots--local-encrypted-image-vault)
 - Note Screenshot Sharing: [Latest Logs, Section 143](latest-logs.md#143-note-export-share-note-as-screenshot-with-branding--full-colorization-october-2026)
+
+## Task capture into Today’s Journal
+
+The Tasks capture dialog resolves Today through the existing daily-note service
+using the current local date. It does not inherit a selected historical journal
+date. Picking a historical note explicitly remains possible. Closed destination
+creation/append is transactional; an already-open destination uses its editor
+bridge and existing undo/save barrier. See [tasks.md](tasks.md).

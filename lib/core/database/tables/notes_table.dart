@@ -25,6 +25,8 @@ class NotesTable extends Table {
   /// Null/empty means "not pinned in any tag". Distinct from [isPinned], which
   /// is the global pin (pinned everywhere). Per-tag pins ride inside the
   /// encrypted note content on sync, so the server never sees them.
+  TextColumn get importSources => text().withDefault(const Constant('[]'))();
+
   TextColumn get pinnedTags => text().nullable()();
 
   @override

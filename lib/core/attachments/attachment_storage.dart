@@ -1,4 +1,5 @@
 import 'dart:collection';
+import '../security/sensitive_preview_registry.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
@@ -7,9 +8,7 @@ import '../storage/app_storage_path_resolver.dart';
 /// Manages local storage of encrypted attachment payloads in app-private directories
 /// and provides an ephemeral, in-memory plaintext cache for UI rendering.
 class AttachmentLocalStorage {
-  AttachmentLocalStorage({
-    this.customBaseDirectory,
-  });
+  AttachmentLocalStorage({this.customBaseDirectory});
 
   final Directory? customBaseDirectory;
   Directory? _cachedAttachmentsDir;
@@ -27,7 +26,8 @@ class AttachmentLocalStorage {
       return customBaseDirectory!;
     }
 
-    if (_cachedAttachmentsDir != null && await _cachedAttachmentsDir!.exists()) {
+    if (_cachedAttachmentsDir != null &&
+        await _cachedAttachmentsDir!.exists()) {
       return _cachedAttachmentsDir!;
     }
 
@@ -131,7 +131,10 @@ class AttachmentLocalStorage {
   // ==========================================
 
   /// Retrieves temporary decrypted plaintext bytes from RAM cache.
-  Uint8List? getDecryptedCache(String attachmentId, {String variant = 'original'}) {
+  Uint8List? getDecryptedCache(
+    String attachmentId, {
+    String variant = 'original',
+  }) {
     return _memoryCache.get('$attachmentId:$variant');
   }
 
@@ -145,12 +148,16 @@ class AttachmentLocalStorage {
   }
 
   /// Invalidates RAM cache for a specific attachment.
-  void invalidateDecryptedCache(String attachmentId, {String variant = 'original'}) {
+  void invalidateDecryptedCache(
+    String attachmentId, {
+    String variant = 'original',
+  }) {
     _memoryCache.remove('$attachmentId:$variant');
   }
 
   /// Purges all in-memory plaintext caches (invoked on user logout / key lock).
   static void purgeAllMemoryCache() {
+    SensitivePreviewRegistry.invalidate();
     _memoryCache.clear();
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -20,13 +21,18 @@ import 'pdf_page_renderer.dart';
 /// repository (`documentRepo`) and only destroys the PDFium library if zero
 /// documents remain open across the entire application.
 class SyncfusionPdfPageRenderer implements PdfPageRenderer {
-  const SyncfusionPdfPageRenderer({
-    this.platform,
-    this.customTempDirectory,
-  });
+  const SyncfusionPdfPageRenderer({this.platform, this.customTempDirectory});
 
   final PdfViewerPlatform? platform;
   final Directory? customTempDirectory;
+
+  // Concurrent thumbnails for the same source share one native document and
+  // one page-size lookup. The final user closes it and removes its temp file.
+  static final _sessions =
+      <
+        ({PdfViewerPlatform platform, Uint8List bytes, Directory? directory}),
+        _NativeRasterSession
+      >{};
 
   PdfViewerPlatform get effectivePlatform =>
       platform ?? PdfViewerPlatform.instance;
@@ -39,30 +45,29 @@ class SyncfusionPdfPageRenderer implements PdfPageRenderer {
   }) async {
     if (pdfBytes.isEmpty) return const [];
 
-    final docId = const Uuid().v4();
-    final parentDir = customTempDirectory ?? Directory.systemTemp;
-    final tempDir = await parentDir.createTemp('qp_syncfusion_renderer_');
-    final tempFile = File(p.join(tempDir.path, '$docId.pdf'));
-    await tempFile.writeAsBytes(pdfBytes, flush: true);
-
+    final native = effectivePlatform;
+    final key = (
+      platform: native,
+      bytes: pdfBytes,
+      directory: customTempDirectory,
+    );
+    final session = _sessions.putIfAbsent(
+      key,
+      () => _NativeRasterSession(native, pdfBytes, customTempDirectory),
+    );
+    session.users++;
     final results = <RenderedPage>[];
-
     try {
-      final pageCountStr =
-          await effectivePlatform.loadPdfFromFile(tempFile.path, docId);
-      final totalPages = int.tryParse(pageCountStr ?? '') ?? 0;
+      await session.ready;
+      final docId = session.docId;
+      final totalPages = session.pageCount;
       if (totalPages <= 0) return const [];
-
-      final rawHeights =
-          await effectivePlatform.getPagesHeight(docId) ?? const [];
-      final rawWidths =
-          await effectivePlatform.getPagesWidth(docId) ?? const [];
+      final rawHeights = session.heights;
+      final rawWidths = session.widths;
 
       final targetIndices = (pageIndices != null)
           ? pageIndices.where((idx) => idx >= 0 && idx < totalPages).toList()
           : List.generate(totalPages, (i) => i);
-
-      final safeDpi = PdfRasterPolicy.safeDpi(pdfBytes, dpi);
 
       for (final idx in targetIndices) {
         final widthPt = (idx < rawWidths.length && rawWidths[idx] is num)
@@ -72,14 +77,24 @@ class SyncfusionPdfPageRenderer implements PdfPageRenderer {
             ? (rawHeights[idx] as num).toDouble()
             : 842.0;
 
-        final pixelWidth =
-            ((widthPt * safeDpi) / 72.0).round().clamp(1, 10000);
-        final pixelHeight =
-            ((heightPt * safeDpi) / 72.0).round().clamp(1, 10000);
+        // Native dimensions are already available, including compressed page
+        // dictionaries. Avoid rescanning the entire PDF for every thumbnail.
+        final safeDpi = math.min(
+          dpi,
+          72 *
+              math.sqrt(
+                PdfRasterPolicy.maxPixelsPerPage / (widthPt * heightPt),
+              ),
+        );
+        final pixelWidth = ((widthPt * safeDpi) / 72.0).round().clamp(1, 10000);
+        final pixelHeight = ((heightPt * safeDpi) / 72.0).round().clamp(
+          1,
+          10000,
+        );
 
         // syncfusion_pdfviewer_platform uses 1-based page numbers
         final pageNumber = idx + 1;
-        final rawRgba = await effectivePlatform.getPage(
+        final rawRgba = await native.getPage(
           pageNumber,
           pixelWidth,
           pixelHeight,
@@ -88,15 +103,13 @@ class SyncfusionPdfPageRenderer implements PdfPageRenderer {
 
         if (rawRgba == null || rawRgba.isEmpty) continue;
 
-        final image = img.Image.fromBytes(
+        // PNG compression is CPU-heavy in debug builds. Keep it off the UI
+        // isolate so sidebar work cannot block document navigation and input.
+        final pngBytes = await compute(_encodePagePng, (
+          bytes: rawRgba,
           width: pixelWidth,
           height: pixelHeight,
-          bytes: rawRgba.buffer,
-          order: img.ChannelOrder.rgba,
-          numChannels: 4,
-        );
-
-        final pngBytes = Uint8List.fromList(img.encodePng(image));
+        ));
 
         results.add(
           RenderedPage(
@@ -115,24 +128,28 @@ class SyncfusionPdfPageRenderer implements PdfPageRenderer {
     } catch (e) {
       debugPrint('[SyncfusionPdfPageRenderer] Error rendering pages: $e');
     } finally {
-      try {
-        await effectivePlatform.closeDocument(docId);
-      } catch (e) {
-        debugPrint(
-          '[SyncfusionPdfPageRenderer] Error closing native document: $e',
-        );
+      session.users--;
+      if (session.users == 0) {
+        _sessions.remove(key);
+        await session.close();
       }
-      try {
-        if (await tempFile.exists()) {
-          await tempFile.delete();
-        }
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      } catch (_) {}
     }
 
     return results;
+  }
+
+  static Uint8List _encodePagePng(
+    ({Uint8List bytes, int width, int height}) page,
+  ) {
+    final image = img.Image.fromBytes(
+      width: page.width,
+      height: page.height,
+      bytes: page.bytes.buffer,
+      bytesOffset: page.bytes.offsetInBytes,
+      order: img.ChannelOrder.rgba,
+      numChannels: 4,
+    );
+    return Uint8List.fromList(img.encodePng(image));
   }
 
   @override
@@ -147,5 +164,52 @@ class SyncfusionPdfPageRenderer implements PdfPageRenderer {
       dpi: dpi,
     );
     return list.isNotEmpty ? list.first : null;
+  }
+}
+
+class _NativeRasterSession {
+  _NativeRasterSession(this.platform, Uint8List bytes, Directory? directory) {
+    ready = _open(bytes, directory);
+  }
+
+  final PdfViewerPlatform platform;
+  final String docId = const Uuid().v4();
+  late final Future<void> ready;
+  Directory? _directory;
+  int users = 0;
+  int pageCount = 0;
+  List<dynamic> heights = const [];
+  List<dynamic> widths = const [];
+
+  Future<void> _open(Uint8List bytes, Directory? directory) async {
+    final tempDir = await (directory ?? Directory.systemTemp).createTemp(
+      'qp_syncfusion_renderer_',
+    );
+    _directory = tempDir;
+    final file = File(p.join(tempDir.path, '$docId.pdf'));
+    await file.writeAsBytes(bytes, flush: true);
+    pageCount =
+        int.tryParse(await platform.loadPdfFromFile(file.path, docId) ?? '') ??
+        0;
+    if (pageCount > 0) {
+      heights = await platform.getPagesHeight(docId) ?? const [];
+      widths = await platform.getPagesWidth(docId) ?? const [];
+    }
+  }
+
+  Future<void> close() async {
+    try {
+      await platform.closeDocument(docId);
+    } catch (e) {
+      debugPrint(
+        '[SyncfusionPdfPageRenderer] Error closing native document: $e',
+      );
+    }
+    try {
+      final directory = _directory;
+      if (directory != null && await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    } catch (_) {}
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getDbClient, resetGlobalClient } from '../src/db/client.js';
 import { runMigrations } from '../src/db/migrate.js';
 import { handleApiRequest } from '../src/api/handler.js';
@@ -8,8 +8,14 @@ import {
 } from '../src/auth/emailSyncService.js';
 import { ADMIN_COOKIE_NAME, parseCookies } from '../src/admin/adminAuth.js';
 
+const firebaseAuth = vi.hoisted(() => ({ getUsers: vi.fn(), getUser: vi.fn() }));
+vi.mock('firebase-admin/auth', () => ({ getAuth: () => firebaseAuth }));
+
 describe('Firebase Auth Email Backfill & Synchronization Engine Tests', () => {
   beforeEach(async () => {
+    // Keep fallback tests offline instead of probing Google application credentials.
+    firebaseAuth.getUsers.mockReset().mockRejectedValue(new Error('Offline batch lookup'));
+    firebaseAuth.getUser.mockReset().mockRejectedValue(new Error('Offline user lookup'));
     resetGlobalClient();
     process.env.NODE_ENV = 'test';
     process.env.TURSO_DATABASE_URL = 'file::memory:';
@@ -17,6 +23,26 @@ describe('Firebase Auth Email Backfill & Synchronization Engine Tests', () => {
 
     const db = getDbClient();
     await runMigrations(db);
+  });
+
+  it('Uses Firebase batch user records through the modular Auth API', async () => {
+    const db = getDbClient();
+    const now = new Date().toISOString();
+    await db.execute({
+      sql: "INSERT INTO users (id, firebase_uid, email, created_at, updated_at) VALUES ('u-batch', 'fb-batch', NULL, ?, ?)",
+      args: [now, now],
+    });
+    firebaseAuth.getUsers.mockResolvedValue({
+      users: [{ uid: 'fb-batch', email: 'verified@example.com' }], notFound: [],
+    });
+
+    const result = await backfillMissingUserEmails(db);
+
+    expect(result.updated).toBe(1);
+    expect(firebaseAuth.getUsers).toHaveBeenCalledWith([{ uid: 'fb-batch' }]);
+    expect(firebaseAuth.getUser).not.toHaveBeenCalled();
+    expect((await db.execute("SELECT email FROM users WHERE id = 'u-batch'")).rows[0].email)
+      .toBe('verified@example.com');
   });
 
   it('Previews updates in dry-run mode without modifying Turso database records', async () => {

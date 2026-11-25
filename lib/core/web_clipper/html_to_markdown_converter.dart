@@ -58,11 +58,7 @@ class HtmlToMarkdownConverter {
       );
     }
 
-    final allTags = <String>{
-      'clipped',
-      if (metadata.domain.isNotEmpty) metadata.domain,
-      ...tags,
-    };
+    final allTags = tags.toSet();
     if (allTags.isNotEmpty) {
       buffer.writeln('tags:');
       for (final tag in allTags) {
@@ -252,13 +248,11 @@ class HtmlToMarkdownConverter {
         return '\n\n![$alt]($src)\n\n';
 
       case 'figure':
-        final img = el.querySelector('img');
-        final figcaption = el.querySelector('figcaption')?.text.trim();
-        final imgMarkdown = img != null ? _convertNode(img) : '';
-        if (figcaption != null && figcaption.isNotEmpty) {
-          return '$imgMarkdown\n*$figcaption*\n\n';
-        }
-        return imgMarkdown;
+        return _childrenToText(el, listDepth: listDepth);
+
+      case 'figcaption':
+        final caption = _childrenToText(el).trim();
+        return caption.isEmpty ? '' : '\n*$caption*\n\n';
 
       case 'table':
         return _convertTable(el);
@@ -295,12 +289,22 @@ class HtmlToMarkdownConverter {
   }
 
   String _convertTable(dom.Element tableEl) {
+    // Nested/layout tables contain document flow rather than a flat grid.
+    if (tableEl.querySelector('table') != null ||
+        tableEl.attributes['role'] == 'presentation' ||
+        (tableEl.querySelector('th') == null &&
+            tableEl.querySelector('p, h1, h2, h3, h4, h5, h6, pre, article') !=
+                null)) {
+      return _childrenToText(tableEl);
+    }
     final rows = tableEl.querySelectorAll('tr');
     if (rows.isEmpty) return '';
 
     final tableData = <List<String>>[];
     for (final row in rows) {
-      final cells = row.querySelectorAll('th, td');
+      final cells = row.children
+          .where((cell) => cell.localName == 'th' || cell.localName == 'td')
+          .toList();
       if (cells.isEmpty) continue;
       tableData.add(
         cells

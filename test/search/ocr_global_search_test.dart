@@ -55,6 +55,9 @@ class _FakeKeyManager implements KeyManager {
   Future<void> initialize() async {}
 
   @override
+  Future<void> ensureLocalKey() async {}
+
+  @override
   Future<WrappedMasterKeyData?> getStoredWrappedKeyData() async => null;
 
   @override

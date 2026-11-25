@@ -63,6 +63,8 @@ class DocumentService implements DocumentResolver {
     OcrLanguage language = OcrLanguage.english,
     String? thumbnailPath,
     bool? autoRunOcr,
+    String? preparedId,
+    bool cachePlaintext = true,
   }) async {
     if (pdfBytes.length > maxFileSizeBytes) {
       throw FileTooLargeException(
@@ -79,7 +81,7 @@ class DocumentService implements DocumentResolver {
       );
     }
 
-    final documentId = _uuid.v4();
+    final documentId = preparedId ?? _uuid.v4();
     final now = DateTime.now();
     final sha256Hash = DocumentCrypto.computeSha256(pdfBytes);
     final masterKey = keyManager.getMasterKey();
@@ -99,7 +101,7 @@ class DocumentService implements DocumentResolver {
     );
 
     // 3. Cache decrypted plaintext in memory for instant local viewing
-    _storage.putDecryptedCache(documentId, pdfBytes);
+    if (cachePlaintext) _storage.putDecryptedCache(documentId, pdfBytes);
 
     // 4. Save metadata to Drift database
     final cleanTitle = title.trim().isNotEmpty
@@ -627,15 +629,15 @@ class DocumentService implements DocumentResolver {
   /// Permanently removes all local traces of a document without enqueuing a
   /// sync tombstone. Used by Storage & Assets when purging orphaned files.
   Future<void> purgeLocalDocument(String documentId) async {
-    final entity = await database.getDocument(documentId);
-    if (entity == null) return;
-
     _storage.invalidateDecryptedCache(documentId);
     _storage.invalidateDecryptedAnnotatedCache(documentId);
     await thumbnailService?.deleteThumbnails(documentId);
 
     await _storage.deleteEncryptedFile(documentId: documentId);
     await _storage.deleteEncryptedAnnotatedFile(documentId: documentId);
+    if (await _storage.hasEncryptedFile(documentId: documentId)) {
+      throw StateError('Document cleanup is pending file access.');
+    }
     await database.deleteDocumentOcrPages(documentId);
     await database.deleteDocumentAnnotations(documentId);
     await database.removeSyncQueueEntriesForEntity(documentId);
@@ -687,7 +689,9 @@ class DocumentService implements DocumentResolver {
     required Uint8List annotatedPdfBytes,
   }) async {
     if (!keyManager.isUnlocked) {
-      throw StateError('Cannot save annotated document: encryption keys are locked.');
+      throw StateError(
+        'Cannot save annotated document: encryption keys are locked.',
+      );
     }
     final masterKey = keyManager.getMasterKey();
 

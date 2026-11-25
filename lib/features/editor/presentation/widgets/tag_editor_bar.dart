@@ -4,9 +4,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
-import '../../../../core/utils/tag_parser.dart';
-import '../../../../core/widgets/quiet_button.dart';
 import '../../../../core/widgets/quiet_tag_chip.dart';
+import '../../../tags/presentation/widgets/tag_picker_dialog.dart';
 
 class TagEditorBar extends StatelessWidget {
   const TagEditorBar({
@@ -14,6 +13,7 @@ class TagEditorBar extends StatelessWidget {
     required this.tags,
     required this.onAddTag,
     required this.onRemoveTag,
+    this.onAddTags,
     this.showAddButton = false,
     this.showFullPath = true,
     this.padding,
@@ -22,6 +22,7 @@ class TagEditorBar extends StatelessWidget {
   final List<String> tags;
   final ValueChanged<String> onAddTag;
   final ValueChanged<String> onRemoveTag;
+  final ValueChanged<List<String>>? onAddTags;
   final bool showAddButton;
   final bool showFullPath;
   final EdgeInsetsGeometry? padding;
@@ -56,7 +57,12 @@ class TagEditorBar extends StatelessWidget {
                 side: BorderSide(color: colors.divider, width: 0.8),
               ),
               child: InkWell(
-                onTap: () => showAddTagDialog(context, onAddTag),
+                onTap: () => showAddTagDialog(
+                  context,
+                  onAddTag,
+                  existingTags: tags,
+                  onAddTags: onAddTags,
+                ),
                 borderRadius: AppRadii.borderSm,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -88,103 +94,23 @@ class TagEditorBar extends StatelessWidget {
     );
   }
 
-  static void showAddTagDialog(BuildContext context, ValueChanged<String> onAddTag) {
-    final textController = TextEditingController();
-    final colors = context.appColors;
-    String? errorText;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (dialogCtx, setDialogState) {
-            void submit() {
-              final raw = textController.text.trim();
-              if (raw.isEmpty) {
-                Navigator.of(ctx).pop();
-                return;
-              }
-
-              final normalized = TagParser.normalizeTag(raw);
-              if (!TagParser.isValidTag(normalized)) {
-                setDialogState(() {
-                  errorText = 'Invalid tag format. Use letters, numbers, and hyphens.';
-                });
-                return;
-              }
-
-              onAddTag(normalized);
-              Navigator.of(ctx).pop();
-            }
-
-            return AlertDialog(
-              backgroundColor: colors.surface,
-              shape: const RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
-              title: Text(
-                'Add Tag',
-                style: AppTypography.headline.copyWith(color: colors.textPrimary),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: textController,
-                    autofocus: true,
-                    style: AppTypography.body.copyWith(color: colors.textPrimary),
-                    onChanged: (_) {
-                      if (errorText != null) {
-                        setDialogState(() => errorText = null);
-                      }
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'e.g. ideas, journal/2026',
-                      hintStyle: AppTypography.body.copyWith(
-                        color: colors.textTertiary.withValues(alpha: 0.5),
-                      ),
-                      prefixText: '#',
-                      prefixStyle: AppTypography.body.copyWith(
-                        color: colors.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      filled: true,
-                      fillColor: colors.background,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.compact,
-                      ),
-                      border: const OutlineInputBorder(
-                        borderRadius: AppRadii.borderSm,
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onSubmitted: (_) => submit(),
-                  ),
-                  if (errorText != null) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      errorText!,
-                      style: AppTypography.caption.copyWith(color: colors.error),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                QuietButton(
-                  label: 'Cancel',
-                  variant: QuietButtonVariant.ghost,
-                  onPressed: () => Navigator.of(ctx).pop(),
-                ),
-                QuietButton(
-                  label: 'Add',
-                  variant: QuietButtonVariant.primary,
-                  onPressed: submit,
-                ),
-              ],
-            );
-          },
-        );
-      },
+  static Future<void> showAddTagDialog(
+    BuildContext context,
+    ValueChanged<String> onAddTag, {
+    List<String> existingTags = const [],
+    ValueChanged<List<String>>? onAddTags,
+  }) async {
+    final selected = await TagPickerDialog.show(
+      context,
+      existingTags: existingTags,
     );
+    if (selected == null || selected.isEmpty || !context.mounted) return;
+    if (onAddTags != null) {
+      onAddTags(selected);
+    } else {
+      for (final tag in selected) {
+        onAddTag(tag);
+      }
+    }
   }
 }

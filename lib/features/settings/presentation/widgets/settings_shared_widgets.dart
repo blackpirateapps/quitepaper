@@ -1,3 +1,4 @@
+import 'settings_target.dart';
 import 'package:flutter/material.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/app/theme/app_spacing.dart';
@@ -176,6 +177,7 @@ class SettingsRow extends StatelessWidget {
                 : (isPrimaryAction ? colors.accent : colors.textPrimary)));
 
     return Material(
+      key: SettingsTarget.keyFor(context, title),
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,

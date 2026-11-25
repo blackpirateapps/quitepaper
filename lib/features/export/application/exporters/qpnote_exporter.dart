@@ -9,7 +9,7 @@ import '../export_security_guard.dart';
 
 /// Exporter for compiling notes into versioned full-fidelity Quiet Paper Note Packages (.qpnote).
 class QpNotePackageExporter {
-  QpNotePackageExporter({CryptoService? cryptoService, this._appVersion = '1.6.3'})
+  QpNotePackageExporter({CryptoService? cryptoService, this._appVersion = '1.6.4'})
       : _cryptoService = cryptoService ?? DefaultCryptoService();
 
   final CryptoService _cryptoService;
@@ -53,6 +53,7 @@ class QpNotePackageExporter {
           ? snapshot.deletedAt?.toUtc().toIso8601String()
           : null,
       'tags': snapshot.tags,
+      'importSources': snapshot.importSources.map((s) => s.toJson()).toList(),
       'isPasswordProtected': snapshot.isPasswordProtected,
       if (snapshot.passwordHint != null) 'passwordHint': snapshot.passwordHint,
     };

@@ -47,6 +47,20 @@ Just a normal note with a date
 ''';
       final meta = JournalMetadataService.extractJournalMetadata(markdown);
       expect(meta.isJournal, isFalse);
+      expect(meta.journalDate, isNull);
+    });
+
+    test('extraction ignores nested dates, flags and block scalar contents', () {
+      final meta = JournalMetadataService.extractJournalMetadata(
+        '---\njournal: true\ndate: 2026-01-15\nsource:\n  date: 2020-02-20\n  journal: false\nsummary: |\n  date: 1990-01-01\n---\nBody',
+      );
+      expect(meta.isJournal, isTrue);
+      expect(meta.journalDate, '2026-01-15');
+      final nestedOnly = JournalMetadataService.extractJournalMetadata(
+        '---\nsource:\n  journal: true\n  date: 2020-02-20\n---\nBody',
+      );
+      expect(nestedOnly.isJournal, isFalse);
+      expect(nestedOnly.journalDate, isNull);
     });
 
     test('ensureJournalFrontmatter is idempotent and does not duplicate headers', () {
@@ -90,6 +104,19 @@ Body text
       expect(updated, contains('journal: true'));
       expect(updated, contains('date: 2026-09-01'));
       expect(updated, contains('Body text'));
+    });
+
+    test('rewrites preserve nested keys, comments and scalar whitespace', () {
+      const custom = 'source:\n  date: 2020-02-20\n  journal: false\n  title: Source\nsummary: |\n  journal: a line of prose\n\n  date: another line\n# retained comment';
+      final ensured = JournalMetadataService.ensureJournalFrontmatter(
+        content: '---\n$custom\n---\nBody', journalDate: '2026-01-15',
+      );
+      expect(ensured, '---\njournal: true\ndate: 2026-01-15\n$custom\n---\nBody');
+      expect(JournalMetadataService.ensureJournalFrontmatter(
+        content: ensured, journalDate: '2026-01-15',
+      ), ensured);
+      expect(JournalMetadataService.removeJournalFrontmatter(ensured),
+        '---\n$custom\n---\nBody');
     });
 
     test('removeJournalFrontmatter strips journal keys from conflict copies', () {

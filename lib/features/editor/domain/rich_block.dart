@@ -1,3 +1,4 @@
+import 'task_metadata.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
@@ -51,7 +52,12 @@ abstract class RichBlock {
         );
       case 'checklist_item':
         return ChecklistItemBlock(
+          markdownPrefix: json['markdownPrefix'] as String?,
+          taskData: json['task'] is Map<String, dynamic>
+              ? json['task'] as Map<String, dynamic>
+              : null,
           id: id,
+          indent: (json['indent'] as num?)?.toInt() ?? 0,
           isChecked: json['isChecked'] == true,
           spans: _parseSpansJson(json['spans']),
         );
@@ -280,22 +286,34 @@ class ChecklistItemBlock extends RichBlock {
   const ChecklistItemBlock({
     required super.id,
     required this.isChecked,
+    this.indent = 0,
     this.spans = const [],
+    this.taskData,
+    this.markdownPrefix,
   });
 
   factory ChecklistItemBlock.fromText(
     String text, {
     bool isChecked = false,
+    int indent = 0,
     String? id,
   }) =>
       ChecklistItemBlock(
         id: id ?? _uuid.v4(),
         isChecked: isChecked,
+        indent: indent,
         spans: [RichInlineSpan(text: text)],
       );
 
+  final String? markdownPrefix;
+  final Map<String, dynamic>? taskData;
+  TaskMetadata? get taskMetadata => TaskMetadata.fromJson(taskData);
+
   /// Whether the task is checked / completed.
   final bool isChecked;
+
+  /// Nesting level, serialized as two spaces per level.
+  final int indent;
 
   @override
   final List<RichInlineSpan> spans;
@@ -309,12 +327,19 @@ class ChecklistItemBlock extends RichBlock {
   ChecklistItemBlock copyWith({
     String? id,
     bool? isChecked,
+    int? indent,
     List<RichInlineSpan>? spans,
+    Map<String, dynamic>? taskData,
+    bool clearTaskData = false,
+    String? markdownPrefix,
   }) {
     return ChecklistItemBlock(
       id: id ?? this.id,
       isChecked: isChecked ?? this.isChecked,
+      indent: indent ?? this.indent,
       spans: spans ?? this.spans,
+      markdownPrefix: markdownPrefix ?? this.markdownPrefix,
+      taskData: clearTaskData ? null : taskData ?? this.taskData,
     );
   }
 
@@ -324,8 +349,11 @@ class ChecklistItemBlock extends RichBlock {
   @override
   Map<String, dynamic> toJson() => {
         'type': 'checklist_item',
-        'id': id,
+    if (taskData != null) 'task': taskData,
+    if (markdownPrefix != null) 'markdownPrefix': markdownPrefix,
+    'id': id,
         'isChecked': isChecked,
+        'indent': indent,
         'spans': spans.map((s) => s.toJson()).toList(),
       };
 
@@ -336,10 +364,13 @@ class ChecklistItemBlock extends RichBlock {
           runtimeType == other.runtimeType &&
           id == other.id &&
           isChecked == other.isChecked &&
+          indent == other.indent &&
+          markdownPrefix == other.markdownPrefix &&
+          mapEquals(taskData, other.taskData) &&
           listEquals(spans, other.spans);
 
   @override
-  int get hashCode => Object.hash(id, isChecked, Object.hashAll(spans));
+  int get hashCode => Object.hash(id, isChecked, indent, taskMetadata, Object.hashAll(spans));
 
   @override
   String toString() =>

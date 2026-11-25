@@ -679,7 +679,7 @@ graph TD
 
 ### 2. Root Cause Analysis & Architectural Solutions
 1. **Canonical Default Firebase Web API Key in `FirebaseAuthService`**:
-   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Bundled `defaultFirebaseApiKey = 'AIzaSyA90jZ_gjRrMUTQoOUjsW-WG7B2o5yOMiI'` as the built-in fallback constant.
+   - In [`FirebaseAuthService`](file:///home/dog/git/quitepaper/lib/core/auth/auth_service.dart): Bundled `defaultFirebaseApiKey = '[REDACTED_FIREBASE_CLIENT_API_KEY]'` as the built-in fallback constant.
    - Initialized `_apiKey` with `defaultFirebaseApiKey` whenever `--dart-define=FIREBASE_API_KEY` is not provided, guaranteeing immediate key availability without waiting for network discovery.
    - In `signInWithEmailAndPassword()`, `signUpWithEmailAndPassword()`, and `sendPasswordResetEmail()`: Ensured requests fallback to `defaultFirebaseApiKey` if `_apiKey` is empty or rejected by transient network errors.
    - Mapped `Method doesn't allow unregistered callers` / `UNREGISTERED_CALLERS` explicitly to `'Firebase API key is missing or not configured.'`.

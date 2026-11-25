@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.blackpiratex.quietpaper.widget.QuickCaptureWidgetProvider
+import com.blackpiratex.quietpaper.watched.WatchedFolderBridge
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,18 +17,48 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL_UPDATER = "com.blackpiratex.quietpaper/updater"
     private val CHANNEL_QUICK_CAPTURE = "com.blackpiratex.quietpaper/quick_capture"
 
+    private val incomingShares by lazy { IncomingShareReceiver(this) }
+    private val watchedFolders by lazy { WatchedFolderBridge(this) }
+
     private var initialCaptureData: Map<String, Any?>? = null
     private var quickCaptureChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val original = intent
+        setIntent(IncomingShareReceiver.pluginIntent(original))
         super.onCreate(savedInstanceState)
-        handleCaptureIntent(intent, isInitial = true)
+        runCatching { handleCaptureIntent(original, isInitial = true) }
+        if (savedInstanceState == null) incomingShares.receive(original)
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleCaptureIntent(intent, isInitial = false)
+        val normalized = IncomingShareReceiver.pluginIntent(intent)
+        super.onNewIntent(normalized)
+        setIntent(normalized)
+        runCatching { handleCaptureIntent(intent, isInitial = false) }
+        incomingShares.receive(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        watchedFolders.setForeground(true)
+    }
+
+    override fun onStop() {
+        watchedFolders.setForeground(false)
+        super.onStop()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!watchedFolders.onActivityResult(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
+    override fun onDestroy() {
+        watchedFolders.close()
+        incomingShares.close()
+        super.onDestroy()
     }
 
     private fun handleCaptureIntent(intent: Intent?, isInitial: Boolean) {
@@ -49,6 +80,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        incomingShares.attach(flutterEngine.dartExecutor.binaryMessenger)
+        watchedFolders.attach(flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_UPDATER).setMethodCallHandler { call, result ->
             when (call.method) {

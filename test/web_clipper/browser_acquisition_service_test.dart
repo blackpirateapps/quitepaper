@@ -55,6 +55,8 @@ class FakeAttachmentService implements AttachmentService {
     String kind = 'image',
     bool skipOcr = false,
     bool deferOcr = false,
+    String? preparedId,
+    bool cachePlaintext = true,
   }) async {
     _importCounter++;
     final assetId = '00000000-0000-0000-0000-00000000000$_importCounter';
@@ -211,8 +213,7 @@ void main() {
 
       final note = clipResult.note;
       expect(note.title, 'Browser Captured Article');
-      expect(note.tags, contains('clipped'));
-      expect(note.tags, contains('browser-test.com'));
+      expect(note.tags, ['research', 'web']);
       expect(note.tags, contains('research'));
       expect(note.tags, contains('web'));
       expect(note.content, contains('qp://asset/'));

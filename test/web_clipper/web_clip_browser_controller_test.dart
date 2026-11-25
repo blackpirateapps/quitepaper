@@ -5,8 +5,31 @@ import 'package:quitepaper/features/web_clipper/presentation/browser/web_clip_br
 
 void main() {
   group('WebClipBrowserController', () {
+    test(
+      'copyWith distinguishes omitted messages from explicit null clearing',
+      () {
+        const state = WebClipBrowserState(
+          currentUrl: 'https://example.com',
+          errorMessage: 'Old error',
+          statusMessage: 'Old status',
+        );
+        expect(state.copyWith().errorMessage, 'Old error');
+        expect(state.copyWith().statusMessage, 'Old status');
+        final cleared = state.copyWith(errorMessage: null, statusMessage: null);
+        expect(cleared.errorMessage, isNull);
+        expect(cleared.statusMessage, isNull);
+        expect(
+          state.copyWith(errorMessage: 'New error').errorMessage,
+          'New error',
+        );
+        expect(state.copyWith(statusMessage: null).errorMessage, 'Old error');
+      },
+    );
+
     test('initializes with normalized URL and default state', () {
-      final controller = WebClipBrowserController(initialUrl: 'example.com/tech-article');
+      final controller = WebClipBrowserController(
+        initialUrl: 'example.com/tech-article',
+      );
 
       expect(controller.state.currentUrl, 'https://example.com/tech-article');
       expect(controller.state.domain, 'example.com');
@@ -23,18 +46,25 @@ void main() {
       controller.dispose();
     });
 
-    test('normalizes http vs https URLs and strips www prefix from domain display', () {
-      final controller = WebClipBrowserController(initialUrl: 'http://www.sub.blog.org/path');
+    test(
+      'normalizes http vs https URLs and strips www prefix from domain display',
+      () {
+        final controller = WebClipBrowserController(
+          initialUrl: 'http://www.sub.blog.org/path',
+        );
 
-      expect(controller.state.currentUrl, 'http://www.sub.blog.org/path');
-      expect(controller.state.domain, 'sub.blog.org');
-      expect(controller.state.isSecure, isFalse);
+        expect(controller.state.currentUrl, 'http://www.sub.blog.org/path');
+        expect(controller.state.domain, 'sub.blog.org');
+        expect(controller.state.isSecure, isFalse);
 
-      controller.dispose();
-    });
+        controller.dispose();
+      },
+    );
 
     test('resetToReady restores ready state and clears transient messages', () {
-      final controller = WebClipBrowserController(initialUrl: 'https://example.com');
+      final controller = WebClipBrowserController(
+        initialUrl: 'https://example.com',
+      );
 
       controller.resetToReady();
 
@@ -45,17 +75,22 @@ void main() {
       controller.dispose();
     });
 
-    test('captureCurrentPage rejects when browser engine is not available', () async {
-      final controller = WebClipBrowserController(initialUrl: 'https://example.com');
+    test(
+      'captureCurrentPage rejects when browser engine is not available',
+      () async {
+        final controller = WebClipBrowserController(
+          initialUrl: 'https://example.com',
+        );
 
-      final result = await controller.captureCurrentPage();
+        final result = await controller.captureCurrentPage();
 
-      expect(result.isSuccess, isFalse);
-      expect(result.error, isNotNull);
-      expect(result.error!.kind, WebAcquisitionErrorKind.captureFailed);
+        expect(result.isSuccess, isFalse);
+        expect(result.error, isNotNull);
+        expect(result.error!.kind, WebAcquisitionErrorKind.captureFailed);
 
-      controller.dispose();
-    });
+        controller.dispose();
+      },
+    );
 
     test('WebClipBrowserState computed properties', () {
       const stateLoading = WebClipBrowserState(
@@ -101,7 +136,7 @@ void main() {
         publishedAt: DateTime(2026, 8, 30),
       );
 
-      expect(payload.effectiveUrl, 'https://example.com/canonical-url');
+      expect(payload.effectiveUrl, payload.finalUrl);
       expect(payload.htmlByteSize, greaterThan(0));
       expect(payload.acquisitionMethod, WebAcquisitionMethod.inAppBrowser);
 

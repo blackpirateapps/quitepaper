@@ -1,3 +1,4 @@
+import '../domain/task_metadata.dart';
 import 'dart:math';
 import 'package:flutter/services.dart';
 
@@ -14,12 +15,12 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
   const MarkdownTextInputFormatter();
 
   static final _emptyChecklistRegex =
-      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])\s*$');
+      RegExp(r'^([ \t]*(?:>[ \t]*)*)(?:([-*+])|(\d+)([.\)]))[ \t]+\[[ xX]\][ \t]*$');
   static final _emptyUnorderedRegex = RegExp(r'^(\s*)([-*+])\s*$');
   static final _emptyOrderedRegex = RegExp(r'^(\s*)(\d+)[\.\)]\s*$');
   static final _emptyQuoteRegex = RegExp(r'^(\s*)>\s*$');
   static final _checklistRegex =
-      RegExp(r'^(\s*)([-*+]\s*\[[ xX]\])(\s+)');
+      RegExp(r'^([ \t]*(?:>[ \t]*)*)(?:([-*+])|(\d+)([.\)]))[ \t]+\[[ xX]\][ \t]*');
   static final _unorderedRegex = RegExp(r'^(\s*)([-*+])\s+');
   static final _orderedRegex = RegExp(r'^(\s*)(\d+)([\.\)])\s+');
   static final _quoteRegex = RegExp(r'^(\s*)>\s*');
@@ -173,13 +174,14 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
       }
     }
 
-    // 4. Smart Enter behavior (only single-character newline insertion with collapsed selection)
-    if (newValue.text.length != oldValue.text.length + 1) {
+    // A newline replaces the selected range just as it inserts at a caret.
+    final removedLength = oldValue.selection.isValid ? oldValue.selection.end - oldValue.selection.start : 0;
+    if (newValue.text.length != oldValue.text.length - removedLength + 1) {
       return newValue;
     }
 
     final selection = oldValue.selection;
-    if (!selection.isValid || !selection.isCollapsed) {
+    if (!selection.isValid) {
       return newValue;
     }
 
@@ -267,13 +269,33 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     final checklistMatch = _checklistRegex.firstMatch(currentLine);
     if (checklistMatch != null) {
       final indent = checklistMatch.group(1) ?? '';
-      final continuation = '$indent- [ ] ';
-      final newText = oldValue.text.replaceRange(
-        insertedOffset,
-        insertedOffset,
-        '\n$continuation',
+      final number = checklistMatch.group(3);
+      final marker = number == null ? '-' : '${int.parse(number) + 1}${checklistMatch.group(4)}';
+      final continuation = '$indent$marker [ ] ';
+      var source = newValue.text;
+      var metadataShift = 0;
+      final lineEnd = oldValue.text.indexOf('\n', insertedOffset);
+      final fullLine = oldValue.text.substring(
+        lineStart,
+        lineEnd < 0 ? oldValue.text.length : lineEnd,
       );
-      final newCursor = insertedOffset + 1 + continuation.length;
+      final parsed = TaskMetadata.parseTerminal(fullLine);
+      if (parsed.metadata != null &&
+          insertedOffset <= lineStart + parsed.text.length) {
+        final markerStart = lineStart + parsed.text.length - removedLength + 1;
+        final markerEnd = lineStart + fullLine.length - removedLength + 1;
+        if (markerStart >= insertedOffset + 1 && markerEnd <= source.length) {
+          final marker = source.substring(markerStart, markerEnd);
+          source = source
+              .replaceRange(markerStart, markerEnd, '')
+              .replaceRange(insertedOffset, insertedOffset, marker);
+          metadataShift = marker.length;
+        }
+      }
+      final insertion = insertedOffset + metadataShift + 1;
+      final newText = source.replaceRange(insertion, insertion, continuation,
+      );
+      final newCursor = insertion + continuation.length;
       return TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newCursor),
@@ -286,10 +308,10 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
       final indent = unorderedMatch.group(1) ?? '';
       final marker = unorderedMatch.group(2) ?? '-';
       final continuation = '$indent$marker ';
-      final newText = oldValue.text.replaceRange(
-        insertedOffset,
-        insertedOffset,
-        '\n$continuation',
+      final newText = newValue.text.replaceRange(
+        insertedOffset + 1,
+        insertedOffset + 1,
+        continuation,
       );
       final newCursor = insertedOffset + 1 + continuation.length;
       return TextEditingValue(
@@ -306,10 +328,10 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
       final delimiter = orderedMatch.group(3) ?? '.';
       final nextNumber = (int.tryParse(numberStr) ?? 1) + 1;
       final continuation = '$indent$nextNumber$delimiter ';
-      final newText = oldValue.text.replaceRange(
-        insertedOffset,
-        insertedOffset,
-        '\n$continuation',
+      final newText = newValue.text.replaceRange(
+        insertedOffset + 1,
+        insertedOffset + 1,
+        continuation,
       );
       final newCursor = insertedOffset + 1 + continuation.length;
       return TextEditingValue(
@@ -323,10 +345,10 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
     if (quoteMatch != null) {
       final indent = quoteMatch.group(1) ?? '';
       final continuation = '$indent> ';
-      final newText = oldValue.text.replaceRange(
-        insertedOffset,
-        insertedOffset,
-        '\n$continuation',
+      final newText = newValue.text.replaceRange(
+        insertedOffset + 1,
+        insertedOffset + 1,
+        continuation,
       );
       final newCursor = insertedOffset + 1 + continuation.length;
       return TextEditingValue(

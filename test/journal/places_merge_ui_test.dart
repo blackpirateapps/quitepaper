@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quitepaper/app/theme/app_colors.dart';
 import 'package:quitepaper/core/widgets/quiet_button.dart';
+import 'package:quitepaper/features/journal/application/place_alias_store.dart';
 import 'package:quitepaper/features/journal/application/journal_providers.dart';
 import 'package:quitepaper/features/journal/presentation/journal_places_view.dart';
 import 'package:quitepaper/features/journal/presentation/widgets/place_card.dart';
@@ -11,10 +12,23 @@ import 'package:quitepaper/features/notes/domain/note_metadata_extractor.dart';
 import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:quitepaper/features/settings/application/settings_provider.dart';
 
+class _FailingStore extends PlaceAliasStore {
+  var fail = true;
+  @override
+  Future<void> rename({
+    required String canonicalKey,
+    required String displayName,
+  }) async {
+    if (fail) throw StateError('simulated storage failure');
+    await super.rename(canonicalKey: canonicalKey, displayName: displayName);
+  }
+}
+
 /// Builds a located journal note.
 Note _note(String id, String date, String address) {
   final dt = DateTime.parse(date);
-  final content = '''---
+  final content =
+      '''---
 journal: true
 date: $date
 location:
@@ -34,12 +48,15 @@ Entry $id for $date.''';
   );
 }
 
-Future<Widget> _harness(List<Note> notes) async {
+Future<Widget> _harness(List<Note> notes, {PlaceAliasStore? store}) async {
   final prefs = await SharedPreferences.getInstance();
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
-      allJournalEntriesStreamProvider.overrideWith((ref) => Stream.value(notes)),
+      if (store != null) placeAliasStoreProvider.overrideWith((ref) => store),
+      allJournalEntriesStreamProvider.overrideWith(
+        (ref) => Stream.value(notes),
+      ),
     ],
     child: MaterialApp(
       theme: ThemeData(extensions: const [AppColors.light]),
@@ -50,9 +67,9 @@ Future<Widget> _harness(List<Note> notes) async {
 
 /// Two located entries → two place cards (Kolkata, Mumbai).
 List<Note> _twoCities() => [
-      _note('k1', '2026-09-10', 'Kolkata, West Bengal, India'),
-      _note('m1', '2026-09-20', 'Mumbai, Maharashtra, India'),
-    ];
+  _note('k1', '2026-09-10', 'Kolkata, West Bengal, India'),
+  _note('m1', '2026-09-20', 'Mumbai, Maharashtra, India'),
+];
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -62,44 +79,43 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Finder dialogText(String text) => find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text(text),
-      );
+  Finder dialogText(String text) =>
+      find.descendant(of: find.byType(AlertDialog), matching: find.text(text));
 
   testWidgets(
-      'selection mode: select two cards and merge into one chosen canonical',
-      (tester) async {
-    await tester.pumpWidget(await _harness(_twoCities()));
-    await tester.pumpAndSettle();
-    expect(find.byType(PlaceCard), findsNWidgets(2));
+    'selection mode: select two cards and merge into one chosen canonical',
+    (tester) async {
+      await tester.pumpWidget(await _harness(_twoCities()));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlaceCard), findsNWidgets(2));
 
-    // Enter selection mode via the quiet "Select" header action.
-    await tester.tap(find.text('Select'));
-    await tester.pumpAndSettle();
-    expect(find.text('Tap places to merge'), findsOneWidget);
+      // Enter selection mode via the quiet "Select" header action.
+      await tester.tap(find.text('Select'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tap places to merge'), findsOneWidget);
 
-    // Tap both cards; the Merge action appears once ≥2 are selected.
-    await tester.tap(find.text('Kolkata'));
-    await tester.tap(find.text('Mumbai'));
-    await tester.pumpAndSettle();
-    expect(find.text('2 selected'), findsOneWidget);
+      // Tap both cards; the Merge action appears once ≥2 are selected.
+      await tester.tap(find.text('Kolkata'));
+      await tester.tap(find.text('Mumbai'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 selected'), findsOneWidget);
 
-    await tester.tap(find.text('Merge'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Merge'));
+      await tester.pumpAndSettle();
 
-    // Choose "Mumbai" as the canonical name inside the dialog, then confirm.
-    await tester.tap(dialogText('Mumbai'));
-    await tester.pumpAndSettle();
-    await tester.tap(dialogText('Merge'));
-    await tester.pumpAndSettle();
+      // Choose "Mumbai" as the canonical name inside the dialog, then confirm.
+      await tester.tap(dialogText('Mumbai'));
+      await tester.pumpAndSettle();
+      await tester.tap(dialogText('Merge'));
+      await tester.pumpAndSettle();
 
-    // Collapsed to a single card with the chosen name; selection mode exited.
-    expect(find.byType(PlaceCard), findsOneWidget);
-    expect(find.text('Mumbai'), findsOneWidget);
-    expect(find.text('Kolkata'), findsNothing);
-    expect(find.text('Select'), findsNothing); // only one place now
-  });
+      // Collapsed to a single card with the chosen name; selection mode exited.
+      expect(find.byType(PlaceCard), findsOneWidget);
+      expect(find.text('Mumbai'), findsOneWidget);
+      expect(find.text('Kolkata'), findsNothing);
+      expect(find.text('Select'), findsNothing); // only one place now
+    },
+  );
 
   testWidgets('merge with a custom canonical name', (tester) async {
     await tester.pumpWidget(await _harness(_twoCities()));
@@ -153,6 +169,38 @@ void main() {
     expect(find.text('Mumbai'), findsOneWidget); // the other card is untouched
   });
 
+  testWidgets('failed rename keeps its card and offers a working Retry', (
+    tester,
+  ) async {
+    final store = _FailingStore();
+    await tester.pumpWidget(await _harness(_twoCities(), store: store));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('Kolkata'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      ),
+      'Home',
+    );
+    await tester.tap(find.widgetWithText(QuietButton, 'Rename'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Could not save place changes. Please try again.'),
+      findsOneWidget,
+    );
+    expect(find.text('Kolkata'), findsOneWidget);
+    expect(find.text('Home'), findsNothing);
+    store.fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Kolkata'), findsNothing);
+  });
+
   testWidgets('unmerge restores the separate cards', (tester) async {
     await tester.pumpWidget(await _harness(_twoCities()));
     await tester.pumpAndSettle();
@@ -191,8 +239,9 @@ void main() {
     expect(find.text('Unmerge'), findsNothing);
   });
 
-  testWidgets('merged state persists across a fresh view (device-local)',
-      (tester) async {
+  testWidgets('merged state persists across a fresh view (device-local)', (
+    tester,
+  ) async {
     final notes = _twoCities();
     await tester.pumpWidget(await _harness(notes));
     await tester.pumpAndSettle();

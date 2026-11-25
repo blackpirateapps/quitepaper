@@ -1,4 +1,4 @@
-%{!?app_version: %define app_version 1.6.3}
+%{!?app_version: %define app_version 1.6.4}
 
 Name:           quitepaper
 Version:        %{app_version}
@@ -12,9 +12,7 @@ BuildArch:      x86_64
 # Turn off debuginfo generation since Flutter binaries are stripped
 %global debug_package %{nil}
 
-# Disable binary stripping so Dart AOT snapshot appended to ELF executable is preserved.
-# Dart AOT standalone executables concatenate serialized snapshot data after the ELF header;
-# standard brp-strip truncates this payload and causes "not an AOT snapshot" runtime errors.
+# Preserve bundled Flutter/vendor native artifacts; qp is an ordinary Rust ELF.
 %global __strip /bin/true
 %global __brp_strip %{nil}
 %global __brp_strip_comment_note %{nil}
@@ -61,29 +59,20 @@ fi
 # Symlink executable
 ln -sf /opt/quitepaper/quitepaper %{buildroot}%{_bindir}/quitepaper
 
-# Install CLI binary if present (or build on demand from bin/qp.dart)
-# Note: qp is installed to /opt/quitepaper/bin/qp because Dart native code assets resolve
-# dynamic libraries (e.g. libsqlite3.so) relative to the binary path ('../lib/libsqlite3.so').
-if [ -f "%{_sourcedir}/build/cli/bundle/bin/qp" ]; then
-  mkdir -p %{buildroot}/opt/quitepaper/bin
-  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/bin/qp
-  if [ -d "%{_sourcedir}/build/cli/bundle/lib" ]; then
-    cp -a %{_sourcedir}/build/cli/bundle/lib/* %{buildroot}/opt/quitepaper/lib/ 2>/dev/null || :
-  fi
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}/opt/quitepaper/qp
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/qp
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/quietpaper-cli
-elif [ -f "%{_sourcedir}/bin/qp.dart" ]; then
-  dart build cli -t "%{_sourcedir}/bin/qp.dart" -o "%{_sourcedir}/build/cli"
-  mkdir -p %{buildroot}/opt/quitepaper/bin
-  install -m 0755 %{_sourcedir}/build/cli/bundle/bin/qp %{buildroot}/opt/quitepaper/bin/qp
-  if [ -d "%{_sourcedir}/build/cli/bundle/lib" ]; then
-    cp -a %{_sourcedir}/build/cli/bundle/lib/* %{buildroot}/opt/quitepaper/lib/ 2>/dev/null || :
-  fi
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}/opt/quitepaper/qp
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/qp
-  ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/quietpaper-cli
+# Require both native components; never silently omit the CLI.
+test -f %{buildroot}/opt/quitepaper/lib/libquietpaper_watched_import.so
+chmod 0755 %{buildroot}/opt/quitepaper/lib/libquietpaper_watched_import.so
+if [ -f "%{_sourcedir}/rust/quietpaper_cli/Cargo.toml" ]; then
+  bash "%{_sourcedir}/scripts/build_rust_cli.sh"
 fi
+test -x "%{_sourcedir}/build/cli/bin/qp"
+mkdir -p %{buildroot}/opt/quitepaper/bin
+install -m 0755 %{_sourcedir}/build/cli/bin/qp %{buildroot}/opt/quitepaper/bin/qp
+%{buildroot}/opt/quitepaper/bin/qp --version | grep -F '(Rust)'
+ln -sf bin/qp %{buildroot}/opt/quitepaper/qp
+ln -sf bin/qp %{buildroot}/opt/quitepaper/quietpaper-cli
+ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/qp
+ln -sf /opt/quitepaper/bin/qp %{buildroot}%{_bindir}/quietpaper-cli
 
 # Desktop & metainfo files
 install -m 0644 %{_sourcedir}/linux/com.blackpiratex.quietpaper.desktop %{buildroot}%{_datadir}/applications/com.blackpiratex.quietpaper.desktop

@@ -1,13 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../../../core/utils/date_formatter.dart';
 import 'note_model.dart';
+import 'notes_sort.dart';
 
 @immutable
 class NoteGroup {
-  const NoteGroup({
-    required this.header,
-    required this.notes,
-  });
+  const NoteGroup({required this.header, required this.notes});
 
   final String header;
   final List<Note> notes;
@@ -22,10 +20,9 @@ class NoteGroup {
     DateTime? now,
     bool separatePinned = true,
     String? contextTag,
+    NotesSort sort = NotesSort.defaultSort,
   }) {
     if (allNotes.isEmpty) return const [];
-
-    final groups = <String, List<Note>>{};
 
     final pinnedNotes = <Note>[];
     final unpinnedNotes = <Note>[];
@@ -44,13 +41,19 @@ class NoteGroup {
       result.add(NoteGroup(header: 'Pinned', notes: pinnedNotes));
     }
 
+    // Consume the query order as-is. Contiguous buckets also avoid merging
+    // distinct chronological runs that happen to have the same display label.
     for (final note in unpinnedNotes) {
-      final bucket = DateFormatter.getGroupBucket(note.updatedAt, now: now);
-      groups.putIfAbsent(bucket, () => []).add(note);
-    }
-
-    for (final entry in groups.entries) {
-      result.add(NoteGroup(header: entry.key, notes: entry.value));
+      final bucket = sort.field == SortField.title
+          ? 'Notes'
+          : DateFormatter.getGroupBucket(
+              sort.field == SortField.created ? note.createdAt : note.updatedAt,
+              now: now,
+            );
+      if (result.isEmpty || result.last.header != bucket) {
+        result.add(NoteGroup(header: bucket, notes: []));
+      }
+      result.last.notes.add(note);
     }
 
     return result;
