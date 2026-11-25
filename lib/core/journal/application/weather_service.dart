@@ -37,15 +37,20 @@ class WeatherService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final current = data['current'] as Map<String, dynamic>?;
-
-      if (current == null) {
+      final data = jsonDecode(response.body);
+      final current = data is Map<String, dynamic> ? data['current'] : null;
+      if (current is! Map<String, dynamic>) {
         throw const WeatherFetchException('Malformed weather data received');
       }
-
-      final temp = (current['temperature_2m'] as num?)?.toDouble() ?? 0.0;
-      final code = (current['weather_code'] as num?)?.toInt() ?? 0;
+      final temperature = current['temperature_2m'];
+      final weatherCode = current['weather_code'];
+      if (temperature is! num || !temperature.isFinite ||
+          weatherCode is! num || !weatherCode.isFinite ||
+          weatherCode < 0 || weatherCode != weatherCode.roundToDouble()) {
+        throw const WeatherFetchException('Incomplete or invalid weather measurements');
+      }
+      final temp = temperature.toDouble();
+      final code = weatherCode.toInt();
       final condition = JournalWeather.conditionForWmoCode(code);
 
       return JournalWeather(
@@ -55,6 +60,9 @@ class WeatherService {
       );
     } catch (e) {
       if (e is WeatherFetchException) rethrow;
+      if (e is FormatException) {
+        throw const WeatherFetchException('Malformed weather data received');
+      }
       debugPrint('[WeatherService] Error fetching weather: $e');
       throw WeatherFetchException('Could not connect to weather service: $e');
     }

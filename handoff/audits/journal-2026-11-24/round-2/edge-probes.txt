@@ -1,0 +1,104 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_round_two_probe_test.dart
+00:00 +0: merging an already merged place retains every constituent
+00:00 +0 -1: merging an already merged place retains every constituent [E]
+  Expected: an object with length of <1>
+    Actual: [
+              JournalPlace:JournalPlace(Trip [trip], city, count: 2),
+              JournalPlace:JournalPlace(Journey [journey], city, count: 1)
+            ]
+     Which: has length of <2>
+
+  package:matcher                                      expect
+  package:flutter_test/src/widget_tester.dart 473:18   expect
+  test/journal/journal_round_two_probe_test.dart 72:5  main.<fn>
+
+00:00 +0 -1: encrypted alias snapshots cannot roll back after newer decode completes
+00:00 +0 -2: encrypted alias snapshots cannot roll back after newer decode completes [E]
+  Expected: 'New name'
+    Actual: 'Old name'
+     Which: is different.
+            Expected: New name
+              Actual: Old name
+                      ^
+             Differ at offset 0
+
+  package:matcher                                      expect
+  package:flutter_test/src/widget_tester.dart 473:18   expect
+  test/journal/journal_round_two_probe_test.dart 89:5  main.<fn>
+
+00:00 +0 -2: failed alias write must retry after database recovers
+00:00 +0 -3: failed alias write must retry after database recovers [E]
+  Expected: 'Home'
+    Actual: <null>
+     Which: not an <Instance of 'String'>
+
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/journal/journal_round_two_probe_test.dart 105:5  main.<fn>
+
+00:00 +0 -3: canonically equivalent Unicode place names must group together
+00:00 +0 -4: canonically equivalent Unicode place names must group together [E]
+  Expected: an object with length of <1>
+    Actual: [
+              JournalPlace:JournalPlace(São Paulo [sao paulo], city, count: 1),
+              JournalPlace:JournalPlace(São Paulo [são paulo], city, count: 1)
+            ]
+     Which: has length of <2>
+
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/journal/journal_round_two_probe_test.dart 112:5  main.<fn>
+
+00:00 +0 -4: coordinate cluster centroid stays near the antimeridian
+00:00 +0 -5: coordinate cluster centroid stays near the antimeridian [E]
+  Expected: a value less than <1500>
+    Actual: <17791188.260377806>
+     Which: is not a value less than <1500>
+  Displayed centroid must stay within the cluster radius
+
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/journal/journal_round_two_probe_test.dart 122:5  main.<fn>
+
+00:00 +0 -5: rounded coordinate keys must not join clusters beyond the radius
+00:00 +0 -6: rounded coordinate keys must not join clusters beyond the radius [E]
+  Expected: an object with length of <2>
+    Actual: [
+              JournalPlace:JournalPlace(Unnamed place near 1.01, 103.01 [~coord:1.01,103.01], city, count: 2)
+            ]
+     Which: has length of <1>
+
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/journal/journal_round_two_probe_test.dart 131:5  main.<fn>
+
+00:00 +0 -6: incomplete current weather must not invent sunny zero Celsius
+00:00 +0 -7: incomplete current weather must not invent sunny zero Celsius [E]
+  Expected: throws <Instance of 'WeatherFetchException'>
+    Actual: <Instance of 'Future<JournalWeather>'>
+     Which: emitted JournalWeather:<JournalWeather(0.0°C, Clear sky, code: 0)>
+
+  package:matcher                                        expectLater
+  package:flutter_test/src/widget_tester.dart 507:8      expectLater
+  test/journal/journal_round_two_probe_test.dart 137:11  main.<fn>
+
+00:00 +0 -7: valid weather persists measured temperature and WMO condition
+00:00 +1 -7: older backfill must enable loading older memories without restart
+00:00 +1 -8: older backfill must enable loading older memories without restart [E]
+  Expected: true
+    Actual: <false>
+
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/journal/journal_round_two_probe_test.dart 161:5  main.<fn>
+
+00:00 +1 -8: HTTP weather failure is surfaced
+00:00 +2 -8: journal survives closing and reopening a real SQLite file
+00:01 +3 -8: Some tests failed.
+
+Failing tests:
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_round_two_probe_test.dart: canonically equivalent Unicode place names must group together
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_round_two_probe_test.dart: coordinate cluster centroid stays near the antimeridian
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_round_two_probe_test.dart: encrypted alias snapshots cannot roll back after newer decode completes
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_round_two_probe_test.dart: failed alias write must retry after database recovers
+  ... and 4 more

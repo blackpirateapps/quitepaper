@@ -105,6 +105,26 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
         .any((e) => e.value.canonicalKey == matchKey && e.key != matchKey);
   }
 
+  Future<void> _savePlaceChange(
+    Future<void> Function() save, {
+    VoidCallback? onSaved,
+  }) async {
+    if (!mounted) return;
+    try {
+      await save();
+      if (mounted) onSaved?.call();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Could not save place changes. Please try again.'),
+        action: SnackBarAction(
+          label: 'Retry',
+          onPressed: () => _savePlaceChange(save, onSaved: onSaved),
+        ),
+      ));
+    }
+  }
+
   Future<void> _startMerge(List<JournalPlace> places) async {
     final selected = places
         .where((p) => _selectedKeys.contains(p.matchKey))
@@ -115,12 +135,13 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
     if (chosenName == null || !mounted) return;
 
     final canonicalKey = PlaceGroupingService.normalizeKey(chosenName);
-    ref.read(placeAliasStoreProvider.notifier).merge(
-          selected.map((p) => p.matchKey).toList(growable: false),
-          canonicalKey: canonicalKey,
-          displayName: chosenName,
-        );
-    _exitSelection();
+    await _savePlaceChange(
+      () => ref.read(placeAliasStoreProvider.notifier).merge(
+        selected.map((p) => p.matchKey).toList(growable: false),
+        canonicalKey: canonicalKey, displayName: chosenName,
+      ),
+      onSaved: _exitSelection,
+    );
   }
 
   Future<void> _showPlaceActions(JournalPlace place) async {
@@ -137,11 +158,12 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
         await _renamePlace(place);
         break;
       case PlaceAction.unmerge:
-        ref
-            .read(placeAliasStoreProvider.notifier)
-            .unmergeCanonical(place.matchKey);
-        // The regrouped constituents replace this place; leave any drill-in.
-        if (_openMatchKey == place.matchKey) _closePlace();
+        await _savePlaceChange(
+          () => ref.read(placeAliasStoreProvider.notifier).unmergeCanonical(place.matchKey),
+          onSaved: () {
+            if (_openMatchKey == place.matchKey) _closePlace();
+          },
+        );
         break;
     }
   }
@@ -152,10 +174,9 @@ class _JournalPlacesViewState extends ConsumerState<JournalPlacesView> {
       initialName: place.displayName,
     );
     if (newName == null || !mounted) return;
-    ref.read(placeAliasStoreProvider.notifier).rename(
-          canonicalKey: place.matchKey,
-          displayName: newName,
-        );
+    await _savePlaceChange(() => ref.read(placeAliasStoreProvider.notifier).rename(
+      canonicalKey: place.matchKey, displayName: newName,
+    ));
   }
 
   void _handleNoteTap(Note note) {

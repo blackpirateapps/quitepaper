@@ -101,6 +101,7 @@ abstract class NotesRepository {
   });
   Stream<List<Note>> watchNotesForDates(List<String> dateStrings);
   Future<int?> getEarliestJournalYear();
+  Stream<int?> watchEarliestJournalYear();
   Future<Note> getOrCreateJournalEntry(DateTime localDate);
   Future<List<String>> validateJournalIntegrity();
 }
@@ -625,6 +626,9 @@ class DriftNotesRepository implements NotesRepository {
   }
 
   @override
+  Stream<int?> watchEarliestJournalYear() => _db.watchEarliestJournalYear();
+
+  @override
   Future<Note> getOrCreateJournalEntry(DateTime localDate) async {
     final dateStr = JournalDateHelper.toDateString(localDate);
     final existing = await _db.getJournalEntry(dateStr);
@@ -658,16 +662,10 @@ class DriftNotesRepository implements NotesRepository {
       // Catch concurrent creation race and query existing record
       final raced = await _db.getJournalEntry(dateStr);
       if (raced != null) return _mapToDomain(raced);
+      rethrow;
     }
 
-    return Note(
-      id: newId,
-      title: defaultTitle,
-      content: initialContent,
-      createdAt: now,
-      updatedAt: now,
-      journalDate: dateStr,
-    );
+    throw StateError('Journal entry for $dateStr was not persisted.');
   }
 
   @override

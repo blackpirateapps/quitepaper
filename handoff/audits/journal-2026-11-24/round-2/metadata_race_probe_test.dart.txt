@@ -1,0 +1,56 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:quitepaper/app/theme/app_colors.dart';
+import 'package:quitepaper/features/editor/application/frontmatter_editor_helper.dart';
+import 'package:quitepaper/features/editor/presentation/widgets/frontmatter_properties_section.dart';
+
+void main() {
+  testWidgets('weather completion must retain edits made during the fetch', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var liveDocument = '---\njournal: true\ndate: 2026-11-24\nlocation:\n  address: "Kolkata, India"\n  latitude: 22.57\n  longitude: 88.36\n---\n\nOriginal reflection.';
+    late StateSetter refresh;
+    String? submitted;
+    var requests = 0;
+    final response = Completer<http.Response>();
+    final client = MockClient((request) {
+      requests++;
+      return response.future;
+    });
+    addTearDown(client.close);
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.light().copyWith(extensions: [AppColors.light]),
+      home: Scaffold(body: SingleChildScrollView(child: StatefulBuilder(
+        builder: (context, setState) {
+          refresh = setState;
+          return FrontmatterPropertiesSection(
+            key: const ValueKey('live-properties'),
+            frontmatter: FrontmatterEditorHelper.parse(liveDocument),
+            rawDocument: liveDocument, readOnly: false, isJournal: true,
+            onDocumentChanged: (value) => submitted = value,
+          );
+        },
+      ))),
+    ));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Fetch Weather'));
+    await http.runWithClient(() async {
+      await tester.tap(find.text('Fetch Weather'));
+      await tester.pump();
+    }, () => client);
+    expect(requests, 1, reason: 'The real Properties action must reach the delayed HTTP client');
+    refresh(() => liveDocument += '\nAdded while weather was fetching.');
+    await tester.pump();
+    response.complete(http.Response('{"current":{"temperature_2m":25,"weather_code":3}}', 200));
+    await tester.pumpAndSettle();
+    expect(submitted, contains('temperature: 25.0'));
+    expect(submitted, contains('Added while weather was fetching.'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+}

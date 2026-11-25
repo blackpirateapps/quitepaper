@@ -39,7 +39,7 @@ class JournalCalendarView extends ConsumerWidget {
     final travelDates = ref.watch(travelDatesForMonthProvider(visibleMonth));
     final selectedEntryAsync = ref.watch(selectedDateJournalEntryProvider);
 
-    final now = DateTime.now();
+    final now = JournalDateHelper.tryParseDateString(ref.watch(todayJournalDateProvider))!;
     final isCurrentMonth = visibleMonth.year == now.year && visibleMonth.month == now.month;
     final localeTag = ref.watch(journalLocaleTagProvider);
     final monthDisplayTitle = JournalDateHelper.formatMonthYear(
@@ -291,7 +291,12 @@ class JournalCalendarView extends ConsumerWidget {
             localeTag: ref.watch(journalLocaleTagProvider),
             onOpenEntry: () {
               if (selectedEntry != null) {
-                onOpenEntry(selectedEntry);
+                if (selectedEntry.isTrashed) {
+                  final date = JournalDateHelper.tryParseDateString(selectedDate);
+                  if (date != null) onCreateEntry(date);
+                } else {
+                  onOpenEntry(selectedEntry);
+                }
               }
             },
             onShowInTimeline: () {
@@ -387,7 +392,7 @@ class JournalCalendarView extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '$dayNumber',
+                            JournalDateHelper.formatDayNumber(dayNumber, localeTag: ref.watch(journalLocaleTagProvider)),
                             style: AppTypography.bodySmall.copyWith(
                               color: isSelected
                                   ? colors.accent
@@ -654,31 +659,42 @@ class _SelectedDatePreview extends StatelessWidget {
                 ),
               ],
 
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: onShowInTimeline,
-                  icon: Text(
-                    'Show in All Entries',
-                    style: AppTypography.caption.copyWith(
+              if (entry!.isTrashed) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text('This entry is in Trash.',
+                  style: AppTypography.bodySmall.copyWith(color: colors.textSecondary)),
+                TextButton(
+                  onPressed: onOpenEntry,
+                  child: const Text('Restore entry'),
+                ),
+              ],
+              if (!entry!.isTrashed) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onShowInTimeline,
+                    icon: Text(
+                      'Show in All Entries',
+                      style: AppTypography.caption.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    label: Icon(
+                      PhosphorIconsRegular.arrowRight,
+                      size: 14,
                       color: colors.accent,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
                     ),
                   ),
-                  label: Icon(
-                    PhosphorIconsRegular.arrowRight,
-                    size: 14,
-                    color: colors.accent,
-                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

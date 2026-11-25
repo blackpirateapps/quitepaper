@@ -1,0 +1,80 @@
+Launching tool/journal_audit_native.dart on Linux in debug mode...
+Building Linux application...
+✓ Built build/linux/x64/debug/bundle/quitepaper
+[IMPORTANT:flutter/shell/platform/embedder/embedder_surface_gl_impeller.cc(126)] Using the Impeller rendering backend (OpenGLESSDF).
+Gdk-Message: 15:51:52.406: Unable to load  from the cursor theme
+Syncing files to device Linux...                                   333ms
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on Linux is available at: http://127.0.0.1:38919/VM_SESSION/
+The Flutter DevTools debugger and profiler on Linux is available at: http://127.0.0.1:38919/VM_SESSION/devtools/?uri=ws://127.0.0.1:38919/VM_SESSION/ws
+
+** (com.blackpiratex.quietpaper:42156): WARNING **: 15:51:55.190: libsecret_error: Failed to unlock the keyring
+
+** (com.blackpiratex.quietpaper:42156): WARNING **: 15:51:55.192: libsecret_error: Failed to unlock the keyring
+
+══╡ EXCEPTION CAUGHT BY SERVICES LIBRARY ╞══════════════════════════════════════════════════════════
+The following MissingPluginException was thrown while activating platform stream on channel
+receive_sharing_intent/events-media:
+MissingPluginException(No implementation found for method listen on channel
+receive_sharing_intent/events-media)
+
+When the exception was thrown, this was the stack:
+#0      MethodChannel._invokeMethod (package:flutter/src/services/platform_channel.dart:364:7)
+<asynchronous suspension>
+#1      EventChannel.receiveBroadcastStream.<anonymous closure> (package:flutter/src/services/platform_channel.dart:711:11)
+<asynchronous suspension>
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Initial share intent unavailable.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_auth_session_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+[QuietSecureStorage] Platform secure storage read failed for key "quietpaper_local_key_transition_v1": PlatformException(Libsecret error, Failed to unlock the keyring, null, null). Checking encrypted fallback storage.
+
+Performing hot reload...
+Reloaded 1 of 4730 libraries in 2,626ms (compile: 233 ms, reload: 875 ms, reassemble: 1311 ms).
+
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 141 pixels on the bottom.
+
+The relevant error-causing widget was:
+  Column
+  Column:file:///home/dog/.codex/worktrees/dc6d/quitepaper/lib/features/journal/presentation/widgets/journal_month_year_picker.dart:90:18
+
+To inspect this widget in Flutter DevTools, visit:
+http://127.0.0.1:38919/VM_SESSION/devtools//#/inspector?uri=http%3A%2F%2F127.0.0.1%3A38919%2FVM_SESSION%2F&inspectorRef=inspector-4
+
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#acebb relayoutBoundary=up7 OVERFLOWING:
+  needs compositing
+  creator: Column ← Padding ← ConstrainedBox ← DefaultTextStyle ← AnimatedDefaultTextStyle ←
+    _InkFeatures-[GlobalKey#0ee96 ink renderer] ← NotificationListener<LayoutChangedNotification> ←
+    CustomPaint ← _ShapeBorderPaint ← PhysicalShape ← _MaterialInterior ← Material ← ⋯
+  parentData: offset=Offset(16.0, 16.0) (can use size)
+  constraints: BoxConstraints(248.0<=w<=328.0, 0.0<=h<=224.0)
+  size: Size(328.0, 224.0)
+  direction: vertical
+  mainAxisAlignment: start
+  mainAxisSize: min
+  crossAxisAlignment: center
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Lost connection to device.
