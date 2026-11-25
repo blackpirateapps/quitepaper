@@ -176,3 +176,19 @@ commit in one Drift transaction. Ciphertext files use write-ahead stage journals
 and compensation; filesystem/SQLite atomicity is not claimed. Ordinary local note
 text remains unencrypted SQLite. Rust has no key, token, vault-encryption or
 network responsibilities.
+
+## Tasks projection and note revision preservation (schema 26)
+
+`task_index`, `task_dirty` and `task_index_failures` are derived installation-local
+state. Canonical `saveNote` updates the projection in its transaction. SQL triggers
+leave direct writes durably dirty; 32-note repair batches resume after interruption.
+Queries join live eligibility, and erasure/delete cascades remove derived state.
+Protected note content is not duplicated. The current local database remains the
+single-vault boundary; presentation gates locked sessions and open read-only notes.
+
+An omitted `saveNote.serverRevision` now preserves the existing note revision,
+instead of resetting it to zero. Explicit sync/restore revisions still win. Real
+encrypted two-client regressions cover independent completion/deadline changes in
+Markdown and rich JSON. The existing diff3 boundary merges unique durable task
+fields or retains a recoverable conflict. No cloud schema/envelope field or task
+replication endpoint was introduced. See [tasks.md](tasks.md).

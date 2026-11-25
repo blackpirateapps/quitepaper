@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:quitepaper/features/editor/application/rich_document_parser.dart';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -186,6 +188,19 @@ void main() {
     expect(repo.savedShareId, 'slug123');
     expect(repo.savedShareUrl, contains('/note/slug123'));
   });
+
+  for(final rich in [false,true]) {
+    test('published payload omits task identities and hidden deadlines rich=$rich',() async {
+      service=build();
+      const markdown='- [ ] **Visible task** <!-- qp-task:v1 id=03fe77cf-8000-4d05-ba80-d365fd69b17c due=2026-11-27 -->';
+      final content=rich ? jsonEncode(const RichDocumentParser().parse(markdown).toJson()) : markdown;
+      await service.createShare(note:_note(content:content),decryptedContent:content,visibility:ShareVisibility.public);
+      expect(api.capturedMarkdown,'- [ ] **Visible task**');
+      expect(api.capturedMarkdown,isNot(contains('03fe77cf')));
+      expect(api.capturedMarkdown,isNot(contains('2026-11-27')));
+      expect(api.capturedMarkdown,isNot(contains('quietpaper:rich_document')));
+    });
+  }
 
   test('strips leading YAML frontmatter from the published content', () async {
     service = build();

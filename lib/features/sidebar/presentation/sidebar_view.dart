@@ -339,6 +339,17 @@ class SidebarView extends ConsumerWidget {
                       ),
 
                       SidebarItem(
+                        icon: PhosphorIconsRegular.checkSquare,
+                        label: 'Tasks',
+                        isSelected: currentDestination == AppDestination.tasks,
+                        onTap: () {
+                          ref.read(currentDestinationProvider.notifier).state =
+                              AppDestination.tasks;
+                          onItemSelected?.call();
+                        },
+                      ),
+
+                      SidebarItem(
                         icon: currentDestination == AppDestination.pinned
                             ? PhosphorIconsFill.pushPin
                             : PhosphorIconsRegular.pushPin,

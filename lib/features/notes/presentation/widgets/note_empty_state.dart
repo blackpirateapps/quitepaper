@@ -63,6 +63,7 @@ class NoteEmptyState extends StatelessWidget {
           title = 'No notes';
           subtitle = 'No notes use this tag yet.';
           break;
+        case AppDestination.tasks:
         case AppDestination.tagBrowser:
           title = 'No tags';
           subtitle = 'Add tags to your notes to organize them here.';

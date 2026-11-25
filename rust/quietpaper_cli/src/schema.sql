@@ -54,6 +54,17 @@ CREATE TABLE "sync_queue" ("id" TEXT NOT NULL, "note_id" TEXT NOT NULL, "operati
 
 CREATE TABLE "tags" ("id" TEXT NOT NULL, "name" TEXT NOT NULL UNIQUE, "icon" TEXT NULL, "color" TEXT NULL, "is_pinned" INTEGER NOT NULL DEFAULT 0 CHECK ("is_pinned" IN (0, 1)), "pinned_order" INTEGER NOT NULL DEFAULT 0, "created_at" INTEGER NULL, "updated_at" INTEGER NULL, "is_dirty" INTEGER NOT NULL DEFAULT 1 CHECK ("is_dirty" IN (0, 1)), "server_revision" INTEGER NOT NULL DEFAULT 0, "synced_at" INTEGER NULL, "is_deleted" INTEGER NOT NULL DEFAULT 0 CHECK ("is_deleted" IN (0, 1)), "deleted_at" INTEGER NULL, PRIMARY KEY ("id"));
 
+CREATE TABLE task_dirty (note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE);
+
+CREATE TABLE task_index (
+    note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL, task_id TEXT, version TEXT NOT NULL,
+    text TEXT NOT NULL, heading TEXT, note_title TEXT NOT NULL, completed INTEGER NOT NULL,
+    due TEXT, search_text TEXT NOT NULL,
+    PRIMARY KEY(note_id,ordinal));
+
+CREATE TABLE task_index_failures (note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE);
+
 CREATE TABLE "template_favorites" ("template_id" TEXT NOT NULL, PRIMARY KEY ("template_id"));
 
 CREATE TABLE watched_folders (
@@ -169,6 +180,10 @@ CREATE INDEX tags_name_idx ON tags (name);
 
 CREATE INDEX tags_pinned_idx ON tags (is_pinned, pinned_order);
 
+CREATE INDEX task_identity ON task_index(note_id,task_id);
+
+CREATE INDEX task_status_date ON task_index(completed,due,note_id,ordinal);
+
 CREATE INDEX watched_active_jobs ON watched_import_jobs (vault_scope,status,next_retry);
 
 CREATE INDEX watched_baseline_content ON watched_import_baseline(folder_id,sha256,size);
@@ -177,10 +192,23 @@ CREATE UNIQUE INDEX watched_folder_root ON watched_folders (vault_scope,canonica
 
 CREATE INDEX watched_message_ids ON watched_import_receipts(vault_scope,message_id);
 
+CREATE TRIGGER task_note_delete AFTER DELETE ON notes BEGIN
+    DELETE FROM task_index WHERE note_id=old.id;
+    DELETE FROM task_dirty WHERE note_id=old.id;
+    DELETE FROM task_index_failures WHERE note_id=old.id; END;
+
+CREATE TRIGGER task_note_insert AFTER INSERT ON notes BEGIN
+    INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING; END;
+
+CREATE TRIGGER task_note_update AFTER UPDATE OF content,is_archived,is_trashed,deleted_at ON notes BEGIN
+    INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING;
+    DELETE FROM task_index WHERE note_id=new.id AND
+      (new.is_archived=1 OR new.is_trashed=1 OR new.deleted_at IS NOT NULL OR ltrim(new.content) LIKE '<!-- quiet-paper-encrypted-note-v1:%'); END;
+
 CREATE TRIGGER trg_notes_fts_delete AFTER DELETE ON notes
         BEGIN
           DELETE FROM note_search_prefix WHERE note_id = old.id;
           DELETE FROM note_search_trigram WHERE note_id = old.id;
         END;
 
-PRAGMA user_version = 25;
+PRAGMA user_version = 26;

@@ -15,8 +15,9 @@ Welcome to **Quiet Paper**! This folder contains the modularized engineering han
 | **[journal-and-audio.md](journal-and-audio.md)** | Daily journaling, paper calendar archive, YAML frontmatter, voice memos, on-device audio transcription & web clipper. | Subsystem Guide |
 | **[tags-and-search.md](tags-and-search.md)** | Nested tag hierarchy (`#parent/child`), tag sync idempotency, universal fuzzy search & category filters. | Subsystem Guide |
 | **[platform-and-builds.md](platform-and-builds.md)** | Multi-platform targets (Android, Linux, iOS, Desktop), automated CI build numbers, Linux packages (DEB, RPM, AppImage, Flatpak) & onboarding. | Subsystem Guide |
+| **[tasks.md](tasks.md)** | Tasks workspace, due dates, canonical identity, schema 26, recovery, compatibility gate and performance evidence. | Subsystem Guide |
 | **[email-import.md](email-import.md)** | Local MIME email import, Linux/Android entry points, preview, encrypted assets/provenance, recovery and verification limits. | Subsystem Guide |
-| **[latest-logs.md](latest-logs.md)** | Active engineering logs, feature implementations, and bugfixes for **v1.6.0+ (October 2026 – Present)**. | Sections 165–342 (Active) |
+| **[latest-logs.md](latest-logs.md)** | Active engineering logs, feature implementations, and bugfixes for **v1.6.0+ (October 2026 – Present)**. | Sections 165–361 (Active) |
 
 | **[templates.md](templates.md)** | Local note templates: schema 21, snapshots, picker/management, editor formats, favorites, encrypted backup and privacy. | Subsystem Guide |
 | **[archive/logs-v1.5.md](archive/logs-v1.5.md)** | Historical engineering logs for Quiet Paper **v1.5.0 through v1.5.9**. | Sections 46–164 (Archive) |

@@ -1,3 +1,8 @@
+import 'dart:convert';
+import '../domain/rich_document.dart';
+import 'rich_document_serializer.dart';
+import 'frontmatter_editor_helper.dart';
+import '../../tasks/domain/task_document.dart';
 import 'dart:ui' show TextAffinity;
 
 import 'package:flutter/foundation.dart';
@@ -37,8 +42,132 @@ class QuietSuperEditorController extends ChangeNotifier {
   @visibleForTesting
   MutableDocumentComposer? get composer => _composer;
 
+  bool get hasComposition => _composer?.composingRegion.value != null;
+
   /// Current selected node ID, if any.
   String? get selectedNodeId => _composer?.selection?.extent.nodeId;
+
+  /// Apply only task fields through Super Editor's ordinary undo transaction.
+  void applyTaskContent(String before, String after) {
+    if (_editor == null) throw const StaleTask();
+    final oldTasks = TaskDocument.extract(before);
+    final newTasks = TaskDocument.extract(after);
+    final nodes = _editor!.document.whereType<TaskNode>().toList();
+    if (nodes.length != oldTasks.length) throw const StaleTask();
+    final requests = <EditRequest>[];
+    if (newTasks.length == oldTasks.length) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (oldTasks[i].completed == newTasks[i].completed &&
+            oldTasks[i].metadata == newTasks[i].metadata &&
+            oldTasks[i].text == newTasks[i].text) {
+          continue;
+        }
+        final metadata = {...nodes[i].metadata};
+        if (newTasks[i].metadata == null) {
+          metadata.remove('qp-task');
+        } else {
+          metadata['qp-task'] = newTasks[i].metadata!.toJson();
+        }
+        requests.add(
+          ReplaceNodeRequest(
+            existingNodeId: nodes[i].id,
+            newNode: nodes[i].copyTaskWith(
+              text: oldTasks[i].text == newTasks[i].text
+                  ? nodes[i].text
+                  : AttributedText(newTasks[i].text),
+              isComplete: newTasks[i].completed,
+              metadata: metadata,
+            ),
+          ),
+        );
+      }
+    } else {
+      _replaceTaskStructure(after);
+      return;
+    }
+    _editor!.execute(requests);
+  }
+
+  /// Reconcile only the changed node range, keeping unaffected live node IDs.
+  /// Structural commands and restoration use the same undoable edit transaction.
+  void _replaceTaskStructure(String content) {
+    final markdown = RichDocument.isJson(content)
+        ? const RichDocumentSerializer().serialize(
+            RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>),
+          )
+        : content;
+    final body = markdown.substring(
+      FrontmatterEditorHelper.parse(markdown).bodyStartOffset,
+    );
+    final next = deserializeQuietMathDocument(
+      normalizeMarkdownForSuperEditor(body),
+    );
+    promoteQuietAttachmentNodes(next);
+    promoteLinkPreviewNodes(next);
+    promoteQuietCodeBlockNodes(next, body);
+    promoteQuietMathBlockNodes(next);
+    if (next.isEmpty) {
+      next.insertNodeAt(
+        0,
+        ParagraphNode(id: Editor.createNodeId(), text: AttributedText()),
+      );
+    }
+    final current = _editor!.document.toList();
+    final replacement = next.toList();
+    bool same(DocumentNode a, DocumentNode b) {
+      if (a.runtimeType != b.runtimeType || !a.hasEquivalentContent(b)) {
+        return false;
+      }
+      if (a is TaskNode && b is TaskNode) {
+        return a.indent == b.indent &&
+            TaskMetadata.fromJson(a.metadata['qp-task']) ==
+                TaskMetadata.fromJson(b.metadata['qp-task']);
+      }
+      return true;
+    }
+
+    var start = 0;
+    while (start < current.length &&
+        start < replacement.length &&
+        same(current[start], replacement[start])) {
+      start++;
+    }
+    var oldEnd = current.length;
+    var newEnd = replacement.length;
+    while (oldEnd > start &&
+        newEnd > start &&
+        same(current[oldEnd - 1], replacement[newEnd - 1])) {
+      oldEnd--;
+      newEnd--;
+    }
+    final requests = <EditRequest>[
+      for (var i = oldEnd - 1; i >= start; i--)
+        DeleteNodeRequest(nodeId: current[i].id),
+      for (var i = start; i < newEnd; i++)
+        InsertNodeAtIndexRequest(nodeIndex: i, newNode: replacement[i]),
+    ];
+    if (requests.isNotEmpty) {
+      _editor!.execute(requests);
+    }
+  }
+
+  void revealTask(int ordinal) {
+    final nodes = _editor?.document.whereType<TaskNode>().toList();
+    if (nodes == null || ordinal >= nodes.length) return;
+    final node = nodes[ordinal];
+    _editor!.execute([
+      ChangeSelectionRequest(
+        DocumentSelection.collapsed(
+          position: DocumentPosition(
+            nodeId: node.id,
+            nodePosition: const TextNodePosition(offset: 0),
+          ),
+        ),
+        SelectionChangeType.placeCaret,
+        SelectionReason.userInteraction,
+      ),
+    ]);
+  }
 
   /// Places the caret at the beginning of the body when leaving the title.
   void moveCaretToStart() {
@@ -1075,6 +1204,7 @@ class QuietSuperEditorController extends ChangeNotifier {
   /// and pasted as structured document content.
   void insertSnippet(String snippet) {
     if (_editor == null) return;
+    snippet = TaskDocument.rekey(snippet);
 
     final selectedNode = _editor!.document.getNodeById(
       _composer?.selection?.extent.nodeId ?? '',

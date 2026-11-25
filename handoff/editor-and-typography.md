@@ -288,3 +288,16 @@ protected, journal, trash and read-only content. Opening a canonical rich note i
 Markdown Source or Super Editor uses a display projection without rewriting the
 stored JSON. Session history reads the canonical notifier content after flushing
 pending visual edits. See [templates.md](templates.md) for the complete contract.
+
+## Tasks and due-date metadata (November 25, 2026)
+
+Checklist nodes have optional version-1 durable task metadata, separate from
+editor-local block IDs. Markdown carries a strict terminal comment on the first
+physical task line. Visual and Super Editor decode recognized metadata into
+checklist nodes and serialize it back; Source retains comments. Copy paths and
+note duplication rekey identities; templates also clear deadlines. Task commands
+use the attached editor’s serialized mutation/Undo path, reject active composition
+and stale source, and flush before confirming durability. Visual joins confirm
+when a second deadline would be removed. Source context menus and rendered
+checklist date actions use the shared staged picker. See [tasks.md](tasks.md) for
+round-trip rules, compatibility limits and remaining acceptance work.

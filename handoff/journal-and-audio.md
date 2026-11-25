@@ -74,3 +74,11 @@ The web clipper ([`lib/features/web_clipper/`](file:///home/dog/git/quitepaper/l
 - Journal Frontmatter & Paper Calendar: [Latest Logs, Section 149 & 164](latest-logs.md#149-journal-frontmatter-properties-mood-activities-weather--moment-october-2026)
 - Web Clipper Dual-Fidelity & Inlined Assets: [Historical Logs v1.5, Section 67–70](archive/logs-v1.5.md#67-web-clipping-feature-with-dual-fidelity-snapshots--local-encrypted-image-vault)
 - Note Screenshot Sharing: [Latest Logs, Section 143](latest-logs.md#143-note-export-share-note-as-screenshot-with-branding--full-colorization-october-2026)
+
+## Task capture into Today’s Journal
+
+The Tasks capture dialog resolves Today through the existing daily-note service
+using the current local date. It does not inherit a selected historical journal
+date. Picking a historical note explicitly remains possible. Closed destination
+creation/append is transactional; an already-open destination uses its editor
+bridge and existing undo/save barrier. See [tasks.md](tasks.md).

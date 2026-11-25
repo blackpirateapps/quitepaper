@@ -1,3 +1,4 @@
+import '../../features/tasks/domain/task_document.dart';
 import 'watched_import_schema.dart';
 import '../../features/email_import/domain/note_import_source.dart';
 import 'dart:convert';
@@ -38,6 +39,7 @@ import '../ocr/ocr_models.dart';
 import '../storage/cloud_storage_models.dart';
 
 part 'app_database.g.dart';
+part 'task_index.dart';
 
 class NoteWithTags {
   const NoteWithTags({required this.note, required this.tags});
@@ -98,7 +100,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(conn.openInMemoryConnection());
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   Future<void> _createEmailImportTables() async {
     await customStatement(
@@ -202,6 +204,7 @@ class AppDatabase extends _$AppDatabase {
     onCreate: (m) async {
       await m.createAll();
       await _createEmailImportTables();
+      await createTaskIndex();
       for (final sql in watchedImportSchema) {
         await customStatement(sql);
       }
@@ -436,6 +439,7 @@ class AppDatabase extends _$AppDatabase {
       if (from < 20) {
         await _createTableSafely(m, quickCaptureDraftsTable);
       }
+      if (from < 26) await createTaskIndex();
     },
     beforeOpen: (details) async {
       await _repairLegacyTaskQueueTriggers();
@@ -1502,7 +1506,7 @@ class AppDatabase extends _$AppDatabase {
     List<String>? pinnedTags,
     List<NoteImportSource>? importSources,
     String? journalDate,
-    int serverRevision = 0,
+    int? serverRevision,
     bool isDirty = true,
     DateTime? syncedAt,
     bool preserveEmptyTags = false,
@@ -1570,7 +1574,7 @@ class AppDatabase extends _$AppDatabase {
           isArchived: Value(isArchived),
           isTrashed: Value(isTrashed),
           deletedAt: Value(deletedAt),
-          serverRevision: Value(serverRevision),
+          serverRevision: Value(serverRevision ?? priorSourceRow?.serverRevision ?? 0),
           isDirty: Value(effectiveDirty),
           syncedAt: Value(syncedAt),
           journalDate: Value(effectiveJournalDate),
@@ -1632,6 +1636,12 @@ class AppDatabase extends _$AppDatabase {
           );
         }
       }
+
+      await indexNoteTasks(
+        id,
+        content,
+        eligible: !isArchived && !isTrashed && deletedAt == null,
+      );
 
       // Sync derived note links
       await _syncNoteLinks(id, content);

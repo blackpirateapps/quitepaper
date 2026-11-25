@@ -1,3 +1,6 @@
+import '../../../tasks/presentation/task_date_picker.dart';
+import '../../domain/task_metadata.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -349,6 +352,44 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     }
   }
 
+  Future<void> _editDate(String blockId) async {
+    if (widget.readOnly) return;
+    final block = widget.controller.document.findBlockById(blockId);
+    if (block is! ChecklistItemBlock) return;
+    if (block.taskData != null && block.taskMetadata == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unsupported task metadata. Repair it in Source mode before changing the date.',
+          ),
+        ),
+      );
+      return;
+    }
+    final picked = await showTaskDatePicker(
+      context,
+      today: TaskDate.local(DateTime.now()),
+      current: block.taskMetadata?.due,
+    );
+    if (picked == null || !mounted) return;
+    final live = widget.controller.document.findBlockById(blockId);
+    if (live is! ChecklistItemBlock || live.taskMetadata != block.taskMetadata) {
+      return;
+    }
+    final blocks = [...widget.controller.document.blocks];
+    final index = widget.controller.document.findBlockIndexById(blockId);
+    blocks[index] = live.copyWith(
+      taskData: TaskMetadata(
+        id: live.taskMetadata?.id ?? const Uuid().v4(),
+        due: picked.value,
+      ).toJson(),
+    );
+    widget.controller.setDocument(
+      widget.controller.document.copyWith(blocks: blocks),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
+  }
+
   void _toggleChecked(int blockIndex) {
     if (widget.readOnly) return;
     widget.controller.toggleChecklistItemChecked(blockIndex);
@@ -495,6 +536,10 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     if (blockIndex + 1 >= doc.blocks.length) return KeyEventResult.ignored;
     final next = doc.blocks[blockIndex + 1];
     if (next is! ChecklistItemBlock) return KeyEventResult.ignored;
+    if (next.taskMetadata?.due != null) {
+      _confirmDatedJoin(block, next, ctrl.text.length);
+      return KeyEventResult.handled;
+    }
     final blocks = List<RichBlock>.from(doc.blocks);
     blocks[blockIndex] = block.copyWith(spans: [...block.spans, ...next.spans].normalized());
     blocks.removeAt(blockIndex + 1);
@@ -505,6 +550,61 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
     );
     widget.onChanged?.call(widget.controller.toMarkdown());
     return KeyEventResult.handled;
+  }
+
+  bool _joining = false;
+  Future<void> _confirmDatedJoin(
+    ChecklistItemBlock first,
+    ChecklistItemBlock second,
+    int offset,
+  ) async {
+    if (_joining) return;
+    _joining = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Join tasks?'),
+        content: const Text(
+          'The first task keeps its date. The second task’s date will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+    _joining = false;
+    if (confirmed != true || !mounted) return;
+    final document = widget.controller.document;
+    final index = document.findBlockIndexById(first.id);
+    if (index < 0 ||
+        index + 1 >= document.blocks.length ||
+        document.blocks[index] != first ||
+        document.blocks[index + 1] != second) {
+      return;
+    }
+    final blocks = [...document.blocks];
+    blocks[index] = first.copyWith(
+      spans: [...first.spans, ...second.spans].normalized(),
+    );
+    blocks.removeAt(index + 1);
+    widget.controller.setDocument(
+      document.copyWith(blocks: blocks),
+      newSelection: RichDocumentSelection.collapsed(
+        RichDocumentPosition(
+          blockIndex: index,
+          blockId: first.id,
+          offset: offset,
+        ),
+      ),
+    );
+    widget.onChanged?.call(widget.controller.toMarkdown());
   }
 
   bool _atVerticalBoundary(int position, {required bool up}) {
@@ -681,6 +781,17 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                           }
                           return item;
                         }).toList();
+                        if (!widget.readOnly) {
+                          buttonItems.add(
+                            ContextMenuButtonItem(
+                              label: 'Due date',
+                              onPressed: () {
+                                ContextMenuController.removeAny();
+                                _editDate(block.id);
+                              },
+                            ),
+                          );
+                        }
                         return AdaptiveTextSelectionToolbar.buttonItems(
                           anchors: editableTextState.contextMenuAnchors,
                           buttonItems: buttonItems,
@@ -711,6 +822,16 @@ class _RichChecklistEditorState extends State<RichChecklistEditor> {
                       },
                     ),
                   ),
+                  if (!widget.readOnly || block.taskMetadata?.due != null)
+                    IconButton(
+                      onPressed: widget.readOnly
+                          ? null
+                          : () => _editDate(block.id),
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      tooltip: block.taskMetadata?.due == null
+                          ? 'Add due date'
+                          : 'Due ${block.taskMetadata!.due}',
+                    ),
                 ],
               ),
             ),

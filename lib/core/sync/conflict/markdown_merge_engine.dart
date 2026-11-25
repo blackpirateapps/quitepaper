@@ -1,3 +1,4 @@
+import '../../../features/tasks/domain/task_content_merge.dart';
 import 'dart:math' as math;
 import 'conflict_region.dart';
 import 'merge_result.dart';
@@ -55,6 +56,8 @@ class MarkdownMergeEngine {
       return MergeResult.clean(local);
     }
 
+    final taskRichMerge = TaskContentMerge.rich(effectiveBase, local, remote);
+    if (taskRichMerge != null) return MergeResult.clean(taskRichMerge);
     final baseLines = _splitLines(effectiveBase);
     final localLines = _splitLines(local);
     final remoteLines = _splitLines(remote);
@@ -270,6 +273,12 @@ class MarkdownMergeEngine {
 
       if (l == r) {
         result.add(l);
+        continue;
+      }
+
+      final taskMerge = TaskContentMerge.line(b, l, r);
+      if (taskMerge != null) {
+        result.add(taskMerge);
         continue;
       }
 

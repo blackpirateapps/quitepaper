@@ -130,7 +130,7 @@ void main() {
       root.deleteSync(recursive: true);
     });
 
-    test('list JSON and filters match Dart on schema 25', () async {
+    test('list JSON and filters match Dart on the current schema', () async {
       expect(await jsonResult(['list']), [active.toJson()]);
       expect(await jsonResult(['list', '--tag', '#WORK']), [active.toJson()]);
       expect(await jsonResult(['list', '--search', 'Body']), [active.toJson()]);
@@ -220,7 +220,7 @@ void main() {
         try {
           expect(
             verifier.select('PRAGMA user_version').single['user_version'],
-            25,
+            desktop.schemaVersion,
           );
         } finally {
           verifier.close();
@@ -275,7 +275,7 @@ void main() {
           dartCli.connection
               .select('PRAGMA user_version')
               .single['user_version'],
-          25,
+          desktop.schemaVersion,
         );
       },
     );
@@ -704,7 +704,7 @@ sys.exit(os.waitstatus_to_exitcode(status))
         expect(
           (await desktop.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          25,
+          desktop.schemaVersion,
         );
         expect(
           await desktop.customSelect('SELECT * FROM watched_folders').get(),

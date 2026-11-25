@@ -255,3 +255,11 @@ Versioned records, explicit format tags, stable source namespaces, separate
 favorites and a single instantiation service allow future variable/schema,
 sharing, sync or asset-cloning work without reclassifying ordinary notes.
 Those capabilities are intentionally not implemented in Phase 1.
+
+## Task metadata in template instances
+
+Task-aware template instantiation rekeys durable checklist UUIDs and clears copied
+absolute deadlines in both Markdown and rich JSON. Snapshots retain canonical
+content; only the new instance is changed. Note duplication and structured paste
+rekey UUIDs while retaining deadlines. See [tasks.md](tasks.md) for conversion
+compatibility and the older-client release gate.

@@ -8748,3 +8748,147 @@ archive/deletion, retained timestamps/data, idempotence and notebooks without
 Tasks. Disabling the startup repair reproduces the new autosave regression;
 restoring it passes. No full suite, app rebuild, live cloud request or GUI input
 automation was run. The unrelated pre-existing prompt file remains uncommitted.
+
+
+## 360. Tasks workspace, due dates and canonical task commands (November 25, 2026)
+
+### Scope and integration
+
+Implemented on `feat/tasks-workspace`: sidebar and command-palette navigation,
+desktop middle-pane/phone list UI, Open/Completed counts after search and owning
+note-tag subtree filters, local-date groups, source navigation, staged date picker
+and single-task capture. Capture resolves a vault-scoped UUIDv5 Task Inbox identity
+independently of its title, Today’s Journal through the daily-note service, or an
+eligible existing note. Drafts survive failures and pending writes reject duplicate
+submits/unfinished IME composition. Inbox Trash recovery uses the existing restore
+path. Successful capture provides destination navigation and guarded Undo.
+
+Canonical rich checklist nodes and strict terminal Markdown comments own optional
+UUID/date metadata. Legacy checkboxes use version hashes and ordinals; unique
+durable IDs resolve later revisions only with expected-field checks. Copies rekey,
+template instances clear deadlines, and personal Markdown export retains comments
+while preview/search/public sharing suppress recognized metadata.
+
+Schema **26** adds a local task projection, indexed status/date/identity paths,
+durable dirty triggers, generic parse-failure recovery and 32-note repair batches.
+Canonical saves maintain the projection atomically, including normal sync/import
+paths. Queries join live note eligibility; protected/archive/trash notes are gated,
+read-only editor sessions are excluded, and locked/session-invalidated providers
+prevent late results. No task payloads are logged and derived tables are excluded
+from sync/backups.
+
+Attached editors serialize mutations, preserve dirty text/composition boundaries
+and use their own histories. Closed commands re-read/save in one transaction.
+Field-aware Undo preserves independent durable-task edits and refuses unsafe
+capture removal or double-Undo. The existing client diff3 boundary now handles
+independent completion/date changes in Markdown and rich JSON. A real encrypted
+two-device regression found that ordinary repository saves reset server revisions;
+`saveNote` now preserves the prior revision when callers omit one. Explicit sync
+revisions continue to apply. No backend task columns or endpoint were added.
+
+### Performance and Rust decision
+
+Kept Dart/SQLite and the existing Rust bridge unchanged. The initial synthetic
+6,000-task, 120-note Linux release run measured 271 ms for repair, 33 ms for a full
+projection read, and 4,235 µs median / 5,187 µs p95 for 30 search/sort samples. That
+first corpus had completion/Unicode/mixed-format/fenced examples; the final probe
+also includes overdue/today/upcoming/undated metadata and legacy items. Final
+aggregate evidence is recorded below. There is no measured need for a task-native
+matching/ranking function, so no new toolchain or competing parser was introduced.
+
+### Validation and release status
+
+The first full Flutter run completed with **3,219 passing tests and two stale
+schema-25 assertions** in email migration fixtures. Those assertions were updated
+to 26; the subsequent focused sync/crypto/account/attachment/task run passed all
+**218 tests**, including the two real encrypted task merge regressions. The later
+expanded task-only run passed **39 tests**, including hardware Enter, IME staging,
+read-only session exclusion, Visual dirty-edit flush and shared Undo. Backend
+contract validation passed **144 tests in 21 files** after `npm ci --ignore-scripts`.
+Drift generation completed without a generated database diff. Final full-suite,
+analysis, build and native-probe results are recorded below.
+
+**Production release acceptance is incomplete.** Older rewriting clients can drop
+unknown rich task fields; supported-client rollout/version enforcement remains a
+release gate. Key-transition inbox identity, every conversion/join/clipboard path,
+assistive technology, exact folded-jump geometry and physical Android acceptance
+are explicitly tracked in [the Tasks subsystem guide](tasks.md). Do not infer
+production acceptance from compilation or synthetic native runs.
+
+#### Final benchmark and platform gates
+
+The final dated/legacy release corpus measured **2,094 ms** for data generation,
+canonical writes and candidate extraction; **708 ms** for four repair batches;
+**65 ms** to read 6,000 projections; and **8,854 µs median / 12,981 µs p95** for
+30 normalized search-and-sort samples. Replacing ISO-string allocation in date
+comparisons reduced the dated-corpus median from 39,431 µs. Timings were collected
+on this development host during other validation work and are not a production
+SLA. Dart/SQLite remains sufficient; no Rust task extension was added. Aggregate
+commands/results are in [the evidence file](../docs/tasks-workspace-evidence.json).
+
+Final `flutter analyze --no-pub` reports no issues. The final task/sharing run passes
+**47 tests**; the overlapping task/sharing/export run passes **51**. The payload
+regressions verify that public shares convert canonical rich JSON to Markdown
+before stripping task identity/date comments, preventing raw JSON metadata from
+being published. A full run caught this regression while the correction was being
+made; a clean full-suite rerun follows the fix.
+
+`flutter build linux --release --no-pub` passes, and the existing bundled-library
+smoke verifies ELF x86-64 loading and **FRB contract 2**. The isolated real Linux
+profile integration target passes its scenario and teardown. This is synthetic
+UI/service acceptance, not a personal-vault or physical-device test.
+`flutter build apk --debug --flavor github --no-pub` passes and produces
+`build/app/outputs/flutter-apk/app-github-debug.apk`. Android runtime testing was
+unavailable because no emulator/physical device was connected. Existing plugin
+Kotlin/NDK warnings and host accessibility-bus warnings remain; Flutter static
+analysis is clean. DEB/RPM/AppImage/Flatpak installation and physical Android
+acceptance are not claimed.
+
+#### Completed final verification
+
+The clean final `flutter test --no-pub --concurrency=2` run completed with
+**3,229 passing tests, zero failures** in 12m 08s. This completed before the user
+requested no further full-suite runs; no further full suite was started. Final
+analysis has zero issues, the focused task/sharing gate passes 47 tests, and
+`git diff --check` passes. The final Linux release bundle and bundled FRB smoke
+pass, and the final GitHub-flavor Android debug APK compiles successfully. The
+remaining changes after verification record documentation/evidence outcomes.
+
+Delivery remains a feature branch for review, with the production release gates
+in [tasks.md](tasks.md) explicitly open. No release deployment or physical Android
+validation is claimed.
+
+## 361. PR #20 integration with note-save recovery and Rust CLI (November 25, 2026)
+
+Merged current `main` into the Tasks workspace branch before PR integration.
+Resolved only the overlapping HANDOFF/log additions by retaining both histories;
+the original Tasks implementation entry is now 360. Source merges retain the
+journal fixes, canonical revision preservation, Rust CLI and startup repair.
+
+The Tasks creation DDL now uses explicit `ON CONFLICT(note_id) DO NOTHING` in
+both queue triggers, so fresh notebooks cannot reintroduce the duplicate-queue
+save error. Legacy trigger repair remains active. File-backed regressions now
+use the actual Tasks schema and check canonical index consumption, preserved
+legacy rows on open, repeated editor/new-note saves, archive/deletion cleanup,
+schema-25 upgrade/idempotence and repeated direct UPSERTs without an indexer.
+
+Regenerated the Rust CLI bootstrap snapshot from the actual Drift schema 26,
+including task tables/indexes and safe triggers. CLI interoperability checks use
+the current desktop schema version; intentional old-schema Rust fixtures remain
+unchanged. Fresh CLI notebooks can be opened by Tasks builds without migration.
+
+Validation: clean `flutter analyze --no-pub`; Rust CLI builds; all 26 focused
+Flutter CLI/schema tests pass using the rebuilt native binary. All 199 focused
+Tasks/persistence/editor/share/template/email/watched-import tests pass with:
+
+```sh
+flutter test --no-pub --concurrency=2 test/tasks test/database \
+  test/editor/smart_task_super_editor_test.dart test/share/share_service_test.dart \
+  test/templates/template_database_test.dart test/email_import/email_persistence_test.dart \
+  test/watched_import/watched_import_storage_test.dart
+QP_RUST_CLI_BIN=/path/to/rebuilt/qp flutter test --no-pub --concurrency=1 test/cli
+```
+
+`git diff --check origin/main` passes. No full suite, app/package build or personal-database
+migration was run for this integration. Existing manual/device/older-client
+rollout limits remain documented in [the Tasks guide](tasks.md).

@@ -1,3 +1,6 @@
+import '../../tasks/presentation/tasks_view.dart';
+import '../../tasks/domain/task_item.dart';
+import '../../tasks/domain/task_document.dart';
 import '../../email_import/application/email_editor_bridge.dart';
 import '../application/workspace_commands.dart';
 import 'workspace_command_palette.dart';
@@ -83,6 +86,7 @@ class NotesScreen extends ConsumerStatefulWidget {
 class _NotesScreenState extends ConsumerState<NotesScreen> {
   late final WorkspaceCommands _workspaceCommands;
   String? _selectedNoteIdForTablet;
+  TaskItem? _selectedTask;
   final Set<String> _selectedNoteIds = {};
   bool _isMultiSelecting = false;
   bool _tourDismissed = false;
@@ -732,6 +736,8 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   String _getDestinationTitle(AppDestination destination) {
     switch (destination) {
+      case AppDestination.tasks:
+        return 'Tasks';
       case AppDestination.allNotes:
         return 'All Notes';
       case AppDestination.pinned:
@@ -1019,6 +1025,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ),
               appBar:
                   (isTagBrowser ||
+                      destination == AppDestination.tasks ||
                       destination == AppDestination.allJournalEntries ||
                       destination == AppDestination.places)
                   ? null
@@ -1368,7 +1375,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     ),
                   );
                 },
-                child: isTagBrowser
+                child: destination == AppDestination.tasks
+                    ? SafeArea(
+                        child: Builder(
+                          builder: (ctx) => TasksView(
+                            key: const ValueKey('phone_tasks'),
+                            onMenu: () => Scaffold.of(ctx).openDrawer(),
+                          ),
+                        ),
+                      )
+                    : isTagBrowser
                     ? SafeArea(
                         key: const ValueKey('phone_tag_browser'),
                         child: Builder(
@@ -2215,7 +2231,28 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     );
                                   },
                                   child:
-                                      destination == AppDestination.tagBrowser
+                                      destination == AppDestination.tasks
+                                      ? TasksView(
+                                          key: const ValueKey('tablet_tasks'),
+                                          onMenu: () {
+                                            ref
+                                                    .read(
+                                                      isNavSidebarVisibleProvider
+                                                          .notifier,
+                                                    )
+                                                    .state =
+                                                !isNavSidebarVisible;
+                                          },
+                                          onNoteSelected: (note, task) {
+                                            setState(() {
+                                              _selectedNoteIdForTablet =
+                                                  note.id;
+                                              _selectedTask = task;
+                                              _shouldAutoFocusTablet = false;
+                                            });
+                                          },
+                                        )
+                                      : destination == AppDestination.tagBrowser
                                       ? TagBrowserView(
                                           key: const ValueKey(
                                             'tablet_tag_browser',
@@ -3024,6 +3061,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             key: ValueKey(activeNote.id),
                             child: EditorScreen(
                               note: activeNote,
+                              initialTask:
+                                  _selectedTask?.note.id == activeNote.id
+                                  ? _selectedTask
+                                  : null,
                               autoFocusBody:
                                   _shouldAutoFocusTablet &&
                                   _selectedNoteIdForTablet == activeNote.id,
@@ -3700,7 +3741,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final newNote = Note(
       id: newId,
       title: duplicatedTitle,
-      content: note.content,
+      content: TaskDocument.rekey(note.content),
       createdAt: now,
       updatedAt: now,
       isPinned: false,

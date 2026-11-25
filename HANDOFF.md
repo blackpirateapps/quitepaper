@@ -8,6 +8,92 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## PR #20 integration — November 25, 2026
+
+Integrated Tasks with current `main`, preserving journal fixes, the Rust CLI and
+note-save recovery. Fresh task queue triggers now use explicit
+`ON CONFLICT(note_id) DO NOTHING`; startup repair still upgrades old definitions.
+The Rust CLI bootstrap snapshot now matches Tasks schema 26. Existing note-save
+regressions exercise the real Tasks tables/indexer and schema-25 upgrades;
+CLI compatibility assertions follow the desktop schema version. Both sides of
+the documentation conflicts are retained, with Tasks implementation log 360 and
+integration log 361. See [the active logs](handoff/latest-logs.md) for validation.
+
+## Task editing, note links and multi-tag filtering (November 25, 2026)
+
+Expanded tasks now offer Phosphor Rename and Delete actions. Rename opens a
+keyboard-aware sheet, validates a single-line name and retains the draft after
+save errors. Delete confirms removal of the task and nested items. Both commands
+save through the existing note/editor transaction and derived index, preserve
+dates/completion, and offer guarded Undo. Deletion checks the original note
+version before removing descendants; rename/delete Undo refuses later source
+content changes. Markdown rename preserves checklist prefixes, metadata and
+continuation bytes, while replacing the name with literal text. No-op rename
+retains inline formatting. Super Editor handles task text, deletion/restoration
+and capture with ordinary undoable node requests and retains unaffected node IDs.
+
+Source-note headings and task subtitles now include a Phosphor arrow and open
+their exact source note directly. All tags opens a searchable multi-select picker:
+selecting several tags matches any selected tag and its descendants, combined
+with task search and the Open/Completed tab. The picker uses tags from eligible
+task notes, retains selected tags while searching, and stages Apply/Clear changes;
+dismissal preserves the current filter. Mobile uses the shared paper bottom
+sheet; desktop uses a compact dialog. No schema or sync format changed. See
+[the current Tasks guide](handoff/tasks.md).
+
+Validation: `flutter analyze` reports no issues. **102 focused tests** pass with
+`flutter test --no-pub test/tasks test/editor/smart_task_super_editor_test.dart`
+(using an isolated temporary directory after Flutter lost its first run's temp
+compiler files). Coverage includes canonical Markdown/rich rename/delete/Undo,
+stale-edit protection, attached Visual and Super Editor history, mobile
+search/multi-select/cancel/clear, exact note navigation, empty tags, desktop
+dialogs, large text and keyboard insets. Light/dark phone widget previews were
+visually inspected. `git diff --check` passes. **No full suite, app build or
+physical-device run was performed.**
+
+## Tasks phone layout correction (November 25, 2026)
+
+The Tasks workspace now follows the supplied smartphone references: one serif
+Tasks header with Phosphor navigation/search/add icons, an inline Open/Completed
+count strip with an accent underline and compact All tags filter, circular
+completion controls, and shared source-note headings for adjacent tasks. Search
+opens from the toolbar. Tapping a task expands its due-date and Open note actions;
+only one task expands at a time. The phone notes shell no longer adds a second
+app bar above Tasks. Wide labels and large text move the tag filter beneath the
+tabs without overflowing.
+
+Phones use a themed Due date bottom sheet with the task title, direct
+Today/Tomorrow/In a week selection, a calendar picker, and explicit Clear date.
+Dismissing the sheet or calendar does not write a date; existing canonical commands
+and Undo handle selections. Desktop retains its staged Cancel/Save dialog. First
+load shows “Finding tasks in your notes…” and three skeleton rows, with counts
+omitted until the index emits results; cached results remain during refresh.
+No database, indexing, or sync format changed. See [the Tasks guide](handoff/tasks.md).
+
+Validation: `flutter analyze` reports no issues. All **44 task tests** pass with
+`flutter test --no-pub test/tasks`; the final overlapping **9-test UI run** also
+passes after checking search hide/reopen with an active query. The targeted
+`test/widget_test.dart` phone Tasks toolbar/navigation test passes. Light/dark
+widget previews were visually inspected at 390 × 844 logical pixels.
+`git diff --check` passes. No full suite, app build, or physical-device run was
+performed for this UI correction.
+
+## Tasks workspace implementation (November 25, 2026)
+
+`feat/tasks-workspace` adds a sidebar/command-palette Tasks workspace, local-date
+groups, note-tag search/filtering, staged due dates, capture into a stable Task
+Inbox/Today’s Journal/existing notes, source navigation and guarded Undo. Canonical
+notes own task identity/completion/dates; schema **26** adds a derived local index
+and durable repair markers. Local saves now preserve an existing server revision,
+which is necessary for independent encrypted task edits to merge correctly.
+No task cloud columns, endpoint or new Rust API were added.
+
+See [the Tasks guide](handoff/tasks.md) and engineering log 360 for integration,
+round trips, measured performance and validation. **Production acceptance remains
+blocked** on older-client compatibility/rollout and the explicit device/manual
+checks in that guide; compilation and native synthetic tests do not establish a
+physical Android pass.
+
 ## Note-save recovery — November 25, 2026
 
 Fixed repeated note saves failing with `UNIQUE constraint failed:
@@ -212,7 +298,7 @@ All five rewrite batches are implemented: `rust/quietpaper_cli` owns every note,
 editor, image and sync command, and Linux tarball/DEB/RPM/AppImage/Flatpak builders
 require its release binary. The standalone Dart client is removed; the GUI launch
 argument provider stays, with historical database parsing retained only in test
-fixtures. `qp new` bootstraps a complete schema-25 notebook using Drift-generated,
+fixtures. `qp new` bootstraps a complete schema-26 notebook using Drift-generated,
 coherence-checked DDL. Existing notebooks are never migrated by the CLI.
 Encrypted journals, snapshot checks and a notebook sync lock preserve pending
 changes across failures and concurrent edits. See

@@ -1,3 +1,4 @@
+import '../../../../domain/task_metadata.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_editor/super_editor.dart';
 
@@ -253,14 +254,17 @@ class QuietTaskBlockSyntax extends md.BlockSyntax {
   const QuietTaskBlockSyntax();
 
   @override
-  RegExp get pattern => RegExp(r'^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]*(.*)$');
+  RegExp get pattern => RegExp(
+    r'^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\][ \t]*(.*)$',
+  );
 
   @override
   md.Node parse(md.BlockParser parser) {
     final match = pattern.firstMatch(parser.current.content)!;
     parser.advance();
     return md.Element.empty('quiet-task')
-      ..attributes['indent'] = '${match.group(1)!.replaceAll('\t', '    ').length ~/ 2}'
+      ..attributes['prefix'] = match.group(1)!
+      ..attributes['indent'] = '${RegExp(r'^[ \t]*').firstMatch(match.group(1)!)![0]!.replaceAll('\t', '    ').length ~/ 2}'
       ..attributes['checked'] = '${match.group(2)!.toLowerCase() == 'x'}'
       ..attributes['source'] = match.group(3)!;
   }
@@ -272,11 +276,19 @@ class QuietTaskElementToNodeConverter implements ElementToNodeConverter {
   @override
   DocumentNode? handleElement(md.Element element) {
     if (element.tag != 'quiet-task') return null;
+    final task = TaskMetadata.parseTerminal(element.attributes['source']!);
     return TaskNode(
+      metadata: {
+        if (task.metadata != null) 'qp-task': task.metadata!.toJson(),
+        if (!RegExp(r'^[ \t]*[-*+] $').hasMatch(element.attributes['prefix']!))
+          'qp-task-prefix': element.attributes['prefix'],
+      },
       id: Editor.createNodeId(),
       indent: int.parse(element.attributes['indent']!),
       isComplete: element.attributes['checked'] == 'true',
-      text: parseInlineMarkdown(element.attributes['source']!, inlineMarkdownSyntaxes: [
+      text: parseInlineMarkdown(
+        task.text,
+        inlineMarkdownSyntaxes: [
         QuietMathInlineSyntax(), ...defaultSuperEditorInlineSyntaxes,
       ]),
     );

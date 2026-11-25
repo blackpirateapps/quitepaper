@@ -22,7 +22,7 @@ void main() {
   test(
     'fresh schema, CRUD, favorite streams, deletion cleanup, no note/sync rows',
     () async {
-      expect(db.schemaVersion, 25);
+      expect(db.schemaVersion, 26);
       final rows = <List<NoteTemplate>>[];
       final favorites = <Set<String>>[];
       final sub = repo.watchUserTemplates().listen(rows.add);
@@ -176,7 +176,7 @@ void main() {
         final schema = await upgraded
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(schema.data['user_version'], 25);
+        expect(schema.data['user_version'], 26);
         final ordinary = (await upgraded.getNoteWithTags('ordinary'))!;
         expect(ordinary.note.title, 'Original');
         expect(ordinary.note.content, 'Body');

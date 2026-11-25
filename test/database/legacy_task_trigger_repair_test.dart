@@ -9,18 +9,11 @@ import 'package:quitepaper/features/notes/domain/note_model.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 // Reproduce the schema left behind by the experimental Tasks build. The
-// ordinary installed app neither creates these tables nor drains task_dirty.
+// regression keeps the current tables but restores the unsafe queue triggers.
 const legacyTaskSchema = '''
-CREATE TABLE task_dirty (
-  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE
-);
-CREATE TABLE task_index (
-  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
-  text TEXT NOT NULL
-);
-CREATE TABLE task_index_failures (
-  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE
-);
+DROP TRIGGER task_note_insert;
+DROP TRIGGER task_note_update;
+DROP TRIGGER task_note_delete;
 CREATE TRIGGER task_note_insert AFTER INSERT ON notes BEGIN
   INSERT OR IGNORE INTO task_dirty(note_id) VALUES(new.id); END;
 CREATE TRIGGER task_note_update
@@ -34,7 +27,8 @@ CREATE TRIGGER task_note_delete AFTER DELETE ON notes BEGIN
   DELETE FROM task_dirty WHERE note_id=old.id;
   DELETE FROM task_index_failures WHERE note_id=old.id; END;
 INSERT INTO task_dirty VALUES('existing');
-INSERT INTO task_index VALUES('existing', 'Keep this derived task');
+INSERT INTO task_index (note_id,ordinal,version,text,note_title,completed,search_text)
+VALUES('existing',0,'legacy','Keep this derived task','Saved title',0,'keep');
 INSERT INTO task_index_failures VALUES('existing');
 ''';
 
@@ -83,6 +77,11 @@ void main() {
         repository: repository,
       );
       try {
+        expect(
+          (await db.customSelect('SELECT text FROM task_index').getSingle())
+              .read<String>('text'),
+          'Keep this derived task',
+        );
         editor.updateContent('First edit #repair ');
         await editor.flushPendingChanges();
         editor.updateContent('Second edit #repair ');
@@ -103,12 +102,11 @@ void main() {
         );
         expect(
           await db.customSelect('SELECT * FROM task_dirty').get(),
-          hasLength(2),
+          isEmpty,
         );
         expect(
-          (await db.customSelect('SELECT text FROM task_index').getSingle())
-              .read<String>('text'),
-          'Keep this derived task',
+          await db.customSelect('SELECT * FROM task_index').get(),
+          isEmpty,
         );
         final matches = await repository
             .watchNotes(searchQuery: 'Second')
@@ -121,46 +119,44 @@ void main() {
     },
   );
 
-  test(
-    'repair preserves archive cleanup and delete trigger behavior',
-    () async {
-      installLegacyTriggers();
-      final db = AppDatabase(NativeDatabase(file));
-      final repository = DriftNotesRepository(db);
-      try {
-        await repository.saveNote(note('existing'));
-        await repository.archiveNote('existing');
-        expect(
-          await db.customSelect('SELECT * FROM task_index').get(),
-          isEmpty,
-        );
-        expect(
-          await db.customSelect('SELECT * FROM task_dirty').get(),
-          hasLength(1),
-        );
-        await repository.deletePermanently('existing');
-        expect(
-          await db.customSelect('SELECT * FROM task_dirty').get(),
-          isEmpty,
-        );
-        expect(
-          await db.customSelect('SELECT * FROM task_index_failures').get(),
-          isEmpty,
-        );
-        expect(
-          await db.customSelect('PRAGMA foreign_key_check').get(),
-          isEmpty,
-        );
-      } finally {
-        await db.close();
-      }
-    },
-  );
+  test('repair preserves archive cleanup and delete trigger behavior', () async {
+    installLegacyTriggers();
+    final db = AppDatabase(NativeDatabase(file));
+    final repository = DriftNotesRepository(db);
+    try {
+      await repository.saveNote(note('existing'));
+      await db.customStatement(
+        "INSERT INTO task_index (note_id,ordinal,version,text,note_title,completed,search_text) "
+        "VALUES('existing',0,'stale','Old task','Saved title',0,'old')",
+      );
+      await repository.archiveNote('existing');
+      expect(await db.customSelect('SELECT * FROM task_index').get(), isEmpty);
+      expect(
+        await db.customSelect('SELECT * FROM task_dirty').get(),
+        hasLength(1),
+      );
+      await repository.deletePermanently('existing');
+      expect(await db.customSelect('SELECT * FROM task_dirty').get(), isEmpty);
+      expect(
+        await db.customSelect('SELECT * FROM task_index_failures').get(),
+        isEmpty,
+      );
+      expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+    } finally {
+      await db.close();
+    }
+  });
 
   test(
-    'repair is idempotent without changing notes, queue or schema version',
+    'schema 25 upgrade repairs legacy triggers and subsequent opens are idempotent',
     () async {
       installLegacyTriggers();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('PRAGMA user_version = 25');
+      } finally {
+        raw.close();
+      }
       List<String>? repairedSql;
       for (var pass = 0; pass < 2; pass++) {
         final db = AppDatabase(NativeDatabase(file));
@@ -202,20 +198,44 @@ void main() {
     },
   );
 
-  test('ordinary notebooks do not acquire Tasks tables or triggers', () async {
-    final db = AppDatabase(NativeDatabase(file));
-    try {
-      await DriftNotesRepository(db).saveNote(note('existing'));
-      expect(
-        await db
+  test(
+    'fresh task triggers allow repeated UPSERTs without an indexer',
+    () async {
+      final db = AppDatabase(NativeDatabase(file));
+      try {
+        for (var i = 0; i < 3; i++) {
+          await db.customStatement(
+            "INSERT INTO notes(id,title,content,created_at,updated_at) "
+            "VALUES('direct','Direct','Repeated edit',0,0) "
+            "ON CONFLICT(id) DO UPDATE SET content=excluded.content",
+          );
+        }
+        expect(
+          (await DriftNotesRepository(db).getNoteById('direct'))!.content,
+          'Repeated edit',
+        );
+        expect(
+          await db
+              .customSelect("SELECT * FROM task_dirty WHERE note_id='direct'")
+              .get(),
+          hasLength(1),
+        );
+        final triggers = await db
             .customSelect(
-              "SELECT name FROM sqlite_master WHERE name LIKE 'task_%'",
+              "SELECT sql FROM sqlite_master WHERE type='trigger' "
+              "AND name IN ('task_note_insert','task_note_update')",
             )
-            .get(),
-        isEmpty,
-      );
-    } finally {
-      await db.close();
-    }
-  });
+            .get();
+        expect(triggers, hasLength(2));
+        for (final trigger in triggers) {
+          expect(
+            trigger.read<String>('sql'),
+            contains('ON CONFLICT(note_id) DO NOTHING'),
+          );
+        }
+      } finally {
+        await db.close();
+      }
+    },
+  );
 }

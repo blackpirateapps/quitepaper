@@ -184,3 +184,12 @@ toolchain prerequisite. Bridge output remains under the watched-import native
 directory to reuse the existing bundled library and initialization guard.
 `tool/tag_suggestions_native_test.dart` compares the actual shared library with
 portable results across categories, paths, Unicode, exclusions and limits.
+
+## Task search and note tags
+
+Tasks has independent search, tag, completion-tab and scroll state. Search uses
+`SearchTokenizer` normalization over rendered task text and the source display
+title, cached per projection item. Tag filters use the existing owning note’s
+slash-separated subtree, with ancestor choices included. Search and tags combine
+before Open/Completed counts. No Markdown parsing runs in list row builders.
+See [tasks.md](tasks.md).
