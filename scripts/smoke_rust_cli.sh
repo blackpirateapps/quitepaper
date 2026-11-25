@@ -36,7 +36,7 @@ PY
 python3 - "$database" <<'PY'
 import sqlite3, sys
 db=sqlite3.connect(sys.argv[1])
-assert db.execute('PRAGMA user_version').fetchone()[0]==25
+assert db.execute('PRAGMA user_version').fetchone()[0]==26
 assert db.execute('SELECT COUNT(*) FROM notes').fetchone()[0]==0
 assert db.execute("SELECT COUNT(*) FROM sync_queue WHERE operation='delete'").fetchone()[0]==1
 PY

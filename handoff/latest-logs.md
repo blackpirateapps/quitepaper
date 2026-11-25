@@ -9070,6 +9070,10 @@ of handoff entries are preserved, with branch logs renumbered 362–364 to follo
 existing main logs through 361. The untracked prompt in the primary checkout is
 untouched.
 
+The packaged CLI smoke assertion now expects schema 26, matching the Tasks
+bootstrap already merged into `main`; its old schema-25 assertion would reject
+a correctly initialized notebook during the release gate.
+
 Validation of the integrated source:
 
 - `flutter analyze`: no issues.
@@ -9082,5 +9086,7 @@ Validation of the integrated source:
 - **5 Python tests**, including both real headless Firefox checks, and **5
   JavaScript background tests** pass. Authenticated live DOM capture saves through
   the Rust host after its fixture server closes; ping replies before stdin EOF.
+- The release Rust CLI builds successfully, passes the relocated/headless
+  notebook smoke check with schema 26, and both browser extension bundles build.
 - No full Flutter suite, physical Android device run, real extension popup
   handshake, store publication or installed host replacement was performed.
