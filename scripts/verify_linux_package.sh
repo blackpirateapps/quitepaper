@@ -28,8 +28,8 @@ esac
 scripts/smoke_linux_rust_bundle.sh "$bundle"
 test -f "$bundle/data/flutter_assets/AssetManifest.bin"
 if [ -x "$bundle/bin/qp" ]; then
-  "$bundle/bin/qp" --version
+  scripts/smoke_rust_cli.sh "$bundle/bin/qp"
 else
-  "$bundle/qp" --version
+  scripts/smoke_rust_cli.sh "$bundle/qp"
 fi
 echo "PASS: $format package includes the Flutter app, CLI and loadable Rust engine"

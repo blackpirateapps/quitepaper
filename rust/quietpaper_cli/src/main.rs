@@ -128,6 +128,9 @@ fn run(cli: Cli) -> Result<()> {
         Some(path) => path,
         None => database::default_path()?,
     };
+    if matches!(&cli.command, Command::New(_)) && !path.exists() {
+        database::Database::initialize(&path)?;
+    }
     let path = std::fs::canonicalize(&path).unwrap_or(path);
     if matches!(
         &cli.command,

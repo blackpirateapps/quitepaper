@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:quitepaper/core/cli/cli_database.dart';
+import 'support/desktop_notebook_fixture.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:crypto/crypto.dart';
@@ -22,10 +22,10 @@ void main() {
   group('Rust CLI with the actual desktop Drift schema', () {
     late Directory root;
     late String path;
-    late CliDatabase dartCli;
+    late DesktopNotebookFixture dartCli;
     late AppDatabase desktop;
-    late CliNote active;
-    late CliNote archived;
+    late FixtureNote active;
+    late FixtureNote archived;
 
     Future<ProcessResult> run(List<String> arguments) =>
         Process.run(binary!, ['--db', path, ...arguments]);
@@ -97,7 +97,7 @@ void main() {
       await initial.customSelect('SELECT COUNT(*) FROM notes').get();
       await initial.close();
 
-      dartCli = CliDatabase.open(path);
+      dartCli = DesktopNotebookFixture.open(path);
       active = dartCli.createNote(
         title: 'বাংলা Journal',
         content:
@@ -670,6 +670,68 @@ sys.exit(os.waitstatus_to_exitcode(status))
         ]);
         expect(open.exitCode, 1);
         expect(open.stderr, contains('interactive terminal'));
+      },
+    );
+    test(
+      'Rust new bootstraps a private notebook that the desktop opens without migration',
+      () async {
+        final fresh = '${root.path}/fresh/notebook.sqlite';
+        Future<void> write(String title) async {
+          final process = await Process.start(binary!, ['--db', fresh, 'new']);
+          final output = process.stdout.transform(utf8.decoder).join();
+          final errors = process.stderr.transform(utf8.decoder).join();
+          process.stdin.write('# $title\n\n#fresh');
+          await process.stdin.close();
+          expect(
+            await process.exitCode,
+            0,
+            reason: '${await output}\n${await errors}',
+          );
+        }
+
+        await Future.wait([
+          write('First CLI notebook'),
+          write('Second CLI notebook'),
+        ]);
+        expect(File(fresh).statSync().mode & 0x1ff, 0x180);
+        await desktop.close();
+        desktop = AppDatabase(NativeDatabase(File(fresh)));
+        final rows = await desktop.customSelect('SELECT * FROM notes').get();
+        expect(rows.map((row) => row.read<String>('title')).toSet(), {
+          'First CLI notebook',
+          'Second CLI notebook',
+        });
+        expect(
+          (await desktop.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          25,
+        );
+        expect(
+          await desktop.customSelect('SELECT * FROM watched_folders').get(),
+          isEmpty,
+        );
+      },
+    );
+    test(
+      'pin-only changes retain stored titles and manual desktop tags',
+      () async {
+        dartCli.connection.execute(
+          'UPDATE notes SET title=?,content=? WHERE id=?',
+          ['GUI-selected title', '# Different heading\n#shared', active.id],
+        );
+        final result = await run([
+          'edit',
+          active.id,
+          '--editor',
+          'true',
+          '--no-pinned',
+        ]);
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+        final current = dartCli.getNoteByIdOrPrefix(active.id)!;
+        expect(current.title, 'GUI-selected title');
+        expect(current.content, '# Different heading\n#shared');
+        expect(current.tags, ['shared', 'work/cli']);
+        expect(current.isPinned, false);
       },
     );
   }, skip: binary == null ? 'Enable with scripts/test_rust_cli.sh' : false);

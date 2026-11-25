@@ -257,7 +257,24 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
         return Ok(());
     }
     let content = text.as_deref().unwrap_or(&note.content);
-    let title = markdown::title(content, Some(&note.title));
+    let title = if text.is_none() {
+        snapshot["row"]["title"]
+            .as_str()
+            .unwrap_or(&note.title)
+            .to_owned()
+    } else {
+        markdown::title(content, Some(&note.title))
+    };
+    let tags = if text.is_none() {
+        note.tags.clone()
+    } else {
+        let derived = markdown::tags(&note.title, &note.content, &[]);
+        note.tags
+            .iter()
+            .filter(|t| !derived.contains(t))
+            .cloned()
+            .collect()
+    };
     let result = crate::attachments::save(
         db,
         path,
@@ -265,7 +282,7 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
             id: &note.id,
             title: &title,
             content,
-            tags: &[],
+            tags: &tags,
             pinned,
             expected: Some(&snapshot),
         },

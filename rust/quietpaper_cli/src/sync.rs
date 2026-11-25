@@ -589,6 +589,7 @@ pub fn run(db: &Database, path: &Path, queries: &[String]) -> Result<()> {
         println!("No pending notes.");
         return Ok(());
     }
+    let _lock = lock(path)?;
     let mut credentials = Credentials::read(path)?;
     let mut sync = Sync::new(
         db,
@@ -613,6 +614,7 @@ pub fn run(db: &Database, path: &Path, queries: &[String]) -> Result<()> {
 }
 pub fn after_save(db: &Database, path: &Path, id: &str) {
     let result = (|| {
+        let _lock = lock(path)?;
         let mut credentials = Credentials::read(path)?;
         if !credentials
             .entries
@@ -632,6 +634,29 @@ pub fn after_save(db: &Database, path: &Path, id: &str) {
         Ok(()) => eprintln!("Synced note and attachments."),
         Err(error) => eprintln!("Saved locally; sync pending: {error:#}"),
     }
+}
+
+fn lock(database: &Path) -> Result<std::fs::File> {
+    use std::{fs::OpenOptions, os::unix::fs::OpenOptionsExt};
+    let mut name = std::ffi::OsString::from(".");
+    name.push(
+        database
+            .file_name()
+            .unwrap_or(std::ffi::OsStr::new("notebook")),
+    );
+    name.push(".cli-sync.lock");
+    let path = database.parent().unwrap_or(Path::new(".")).join(name);
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(path)?;
+    file.try_lock().map_err(|_| {
+        anyhow::anyhow!("Another CLI sync is running; local changes remain pending")
+    })?;
+    Ok(file)
 }
 
 #[cfg(test)]

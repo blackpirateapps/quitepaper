@@ -163,16 +163,17 @@ complete. These changes address the recent Linux workflow test failures; see
 ## Latest Linux CLI Work
 
 The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
-Batch 4 completes all nine command families in the independent
-`rust/quietpaper_cli` executable, including encrypted note/image upload retries,
-account/key checks, authentication refresh, reference projection and permanent
-deletion tombstones. Encrypted idempotency journals and snapshot checks preserve
-pending changes across failures and concurrent GUI edits. Linux packaging cutover
-and removal of the superseded Dart CLI remain in the final batch.
-The packaged CLI still uses
-Dart. See [the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
+All five rewrite batches are implemented: `rust/quietpaper_cli` owns every note,
+editor, image and sync command, and Linux tarball/DEB/RPM/AppImage/Flatpak builders
+require its release binary. The standalone Dart client is removed; the GUI launch
+argument provider stays, with historical database parsing retained only in test
+fixtures. `qp new` bootstraps a complete schema-25 notebook using Drift-generated,
+coherence-checked DDL. Existing notebooks are never migrated by the CLI.
+Encrypted journals, snapshot checks and a notebook sync lock preserve pending
+changes across failures and concurrent edits. See
+[the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
 scope, behavior differences, validation and next-batch acceptance, and
-engineering logs 352–355 in [the active logs](handoff/latest-logs.md).
+engineering logs 352–356 in [the active logs](handoff/latest-logs.md).
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image

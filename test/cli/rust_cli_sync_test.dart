@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:quitepaper/core/cli/cli_database.dart';
+import 'support/desktop_notebook_fixture.dart';
 import 'package:quitepaper/core/attachments/attachment_crypto.dart';
 import 'package:quitepaper/core/crypto/crypto_service.dart';
 import 'package:quitepaper/core/database/app_database.dart';
@@ -17,8 +17,8 @@ void main() {
   group('Rust encrypted upload sync', () {
     late Directory root;
     late String path;
-    late CliDatabase db;
-    late CliNote note;
+    late DesktopNotebookFixture db;
+    late FixtureNote note;
     HttpServer? server;
     final key = Uint8List.fromList(List<int>.filled(32, 31));
     final errors = <Object>[];
@@ -112,7 +112,7 @@ void main() {
       final desktop = AppDatabase(NativeDatabase(File(path)));
       await desktop.customSelect('SELECT COUNT(*) FROM notes').get();
       await desktop.close();
-      db = CliDatabase.open(path);
+      db = DesktopNotebookFixture.open(path);
       note = db.createNote(
         title: 'Private title',
         content: 'Private body #tag',
@@ -403,6 +403,34 @@ void main() {
               .single['is_dirty'],
           1,
         );
+      },
+    );
+    test(
+      'concurrent CLI sync fails promptly without racing the push journal',
+      () async {
+        ProcessResult? second;
+        await serve((request, body) async {
+          expect(request.uri.path, '/api/v1/sync/push');
+          second = await run(['sync', note.id]);
+          return (
+            200,
+            {
+              'results': [
+                {'id': note.id, 'revision': 1},
+              ],
+              'conflicts': [],
+            },
+          );
+        });
+        final first = await run(['sync', note.id]);
+        expect(first.exitCode, 0, reason: first.stderr.toString());
+        expect(second!.exitCode, 1);
+        expect(second!.stderr, contains('Another CLI sync'));
+        expect(
+          db.connection.select('SELECT is_dirty FROM notes').single['is_dirty'],
+          0,
+        );
+        expect(db.connection.select('SELECT * FROM sync_queue'), isEmpty);
       },
     );
   }, skip: binary == null ? 'Enable with scripts/test_rust_cli.sh' : false);

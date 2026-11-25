@@ -23,3 +23,7 @@ jobs:
       - run: flutter pub get
       - name: Rust checks and focused CLI compatibility tests
         run: bash scripts/test_rust_cli.sh
+      - name: Release CLI and headless relocation smoke
+        run: |
+          bash scripts/build_rust_cli.sh
+          bash scripts/smoke_rust_cli.sh build/cli/bin/qp

@@ -1,13 +1,16 @@
+// Test-only compatibility oracle copied from the former Dart database adapter.
+// Builds disposable fixtures and independently reads the historical JSON contract.
+// Never imported by the app or Rust executable.
 import 'dart:convert';
 import 'dart:io';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:uuid/uuid.dart';
-import '../utils/tag_parser.dart';
-import 'cli_frontmatter.dart';
+import 'package:quitepaper/core/utils/tag_parser.dart';
+import 'fixture_frontmatter.dart';
 
 /// Lightweight representation of a note for CLI operations.
-class CliNote {
-  const CliNote({
+class FixtureNote {
+  const FixtureNote({
     required this.id,
     required this.title,
     required this.content,
@@ -60,7 +63,7 @@ class CliNote {
   /// Derives title from Markdown content (e.g. YAML frontmatter title, first # Heading or first non-empty line).
   static String deriveTitle(String content) {
     if (content.trim().isEmpty) return '';
-    final parsed = CliFrontmatter.parse(content);
+    final parsed = FixtureFrontmatter.parse(content);
     if (parsed.hasFrontmatter &&
         parsed.title != null &&
         parsed.title!.trim().isNotEmpty) {
@@ -86,7 +89,7 @@ class CliNote {
 
   /// Extracts a 1-line preview snippet from note body (ignoring YAML frontmatter).
   String get previewSnippet {
-    final parsed = CliFrontmatter.parse(content);
+    final parsed = FixtureFrontmatter.parse(content);
     final body = parsed.hasFrontmatter ? parsed.contentBody : content;
     final lines = const LineSplitter().convert(body);
     for (final line in lines) {
@@ -114,8 +117,8 @@ class CliNote {
 }
 
 /// Tag with note count for CLI display.
-class CliTag {
-  const CliTag({
+class FixtureTag {
+  const FixtureTag({
     required this.id,
     required this.name,
     required this.noteCount,
@@ -146,8 +149,8 @@ class CliTag {
 /// Connects directly to `quiet_paper.sqlite` in WAL mode, ensuring zero interference
 /// with the running Flutter desktop GUI while maintaining tags, version history,
 /// FTS5 search indexes, and cloud sync queue mutations.
-class CliDatabase {
-  CliDatabase(this._db);
+class DesktopNotebookFixture {
+  DesktopNotebookFixture(this._db);
 
   final Database _db;
 
@@ -202,14 +205,14 @@ class CliDatabase {
   }
 
   /// Opens the database from a given file path (or default Linux path).
-  static CliDatabase open([String? customPath]) {
+  static DesktopNotebookFixture open([String? customPath]) {
     final path = customPath ?? resolveDefaultDbPath();
     final file = File(path);
     if (!file.parent.existsSync()) {
       file.parent.createSync(recursive: true);
     }
     final db = sqlite3.open(path);
-    final cliDb = CliDatabase(db);
+    final cliDb = DesktopNotebookFixture(db);
     cliDb._configurePragmas();
     cliDb.ensureTables();
     cliDb.autoRepairCorruptedTitles();
@@ -217,9 +220,9 @@ class CliDatabase {
   }
 
   /// Opens an in-memory database (primarily for automated unit testing).
-  static CliDatabase openInMemory() {
+  static DesktopNotebookFixture openInMemory() {
     final db = sqlite3.openInMemory();
-    final cliDb = CliDatabase(db);
+    final cliDb = DesktopNotebookFixture(db);
     cliDb._configurePragmas();
     cliDb.ensureTables();
     cliDb.autoRepairCorruptedTitles();
@@ -348,7 +351,7 @@ class CliDatabase {
   }
 
   /// Lists notes according to filter parameters.
-  List<CliNote> listNotes({
+  List<FixtureNote> listNotes({
     String? tag,
     String? query,
     bool? pinnedOnly,
@@ -411,12 +414,12 @@ class CliDatabase {
     final stmt = _db.prepare(sql);
     try {
       final rows = stmt.select(params);
-      final notes = <CliNote>[];
+      final notes = <FixtureNote>[];
       for (final row in rows) {
         final noteId = row['id'] as String;
         final tags = _getTagsForNote(noteId);
         notes.add(
-          CliNote(
+          FixtureNote(
             id: noteId,
             title: (row['title'] as String?) ?? '',
             content: (row['content'] as String?) ?? '',
@@ -441,7 +444,7 @@ class CliDatabase {
   }
 
   /// Fetches a note by its exact ID or an 8+ character hexadecimal prefix.
-  CliNote? getNoteByIdOrPrefix(String idOrPrefix) {
+  FixtureNote? getNoteByIdOrPrefix(String idOrPrefix) {
     final clean = idOrPrefix.trim().toLowerCase();
     if (clean.isEmpty) return null;
 
@@ -459,7 +462,7 @@ class CliDatabase {
       final row = rows.first;
       final noteId = row['id'] as String;
       final tags = _getTagsForNote(noteId);
-      return CliNote(
+      return FixtureNote(
         id: noteId,
         title: (row['title'] as String?) ?? '',
         content: (row['content'] as String?) ?? '',
@@ -481,14 +484,14 @@ class CliDatabase {
   }
 
   /// Finds notes matching a title substring query.
-  List<CliNote> findNotesByTitle(String titleQuery) {
+  List<FixtureNote> findNotesByTitle(String titleQuery) {
     final clean = titleQuery.trim();
     if (clean.isEmpty) return const [];
     return listNotes(query: clean, limit: 10);
   }
 
   /// Creates a new note, extracting tags, updating FTS, and registering a sync mutation.
-  CliNote createNote({
+  FixtureNote createNote({
     String? noteId,
     required String title,
     required String content,
@@ -500,12 +503,12 @@ class CliDatabase {
     final now = DateTime.now();
     final nowEpoch = (now.millisecondsSinceEpoch / 1000).round();
 
-    final clean = CliNote.cleanTitle(title);
+    final clean = FixtureNote.cleanTitle(title);
     final effectiveTitle = clean.isNotEmpty
         ? clean
-        : CliNote.deriveTitle(content);
+        : FixtureNote.deriveTitle(content);
 
-    final parsedFm = CliFrontmatter.parse(content);
+    final parsedFm = FixtureFrontmatter.parse(content);
 
     // Auto-extract tags from content + title + explicit tags + frontmatter
     final extractedTags = <String>{};
@@ -560,7 +563,7 @@ class CliDatabase {
 
       _db.execute('RELEASE cli_write;');
 
-      return CliNote(
+      return FixtureNote(
         id: id,
         title: effectiveTitle,
         content: content,
@@ -578,7 +581,7 @@ class CliDatabase {
   }
 
   /// Modifies an existing note, updates version history, FTS index, and registers a sync mutation.
-  CliNote updateNote({
+  FixtureNote updateNote({
     required String id,
     required String title,
     required String content,
@@ -593,12 +596,12 @@ class CliDatabase {
     final now = DateTime.now();
     final nowEpoch = (now.millisecondsSinceEpoch / 1000).round();
 
-    final clean = CliNote.cleanTitle(title);
+    final clean = FixtureNote.cleanTitle(title);
     final effectiveTitle = clean.isNotEmpty
         ? clean
-        : CliNote.deriveTitle(content);
+        : FixtureNote.deriveTitle(content);
 
-    final parsedFm = CliFrontmatter.parse(content);
+    final parsedFm = FixtureFrontmatter.parse(content);
 
     final extractedTags = <String>{};
     if (tags != null) {
@@ -656,7 +659,7 @@ class CliDatabase {
 
       _db.execute('RELEASE cli_write;');
 
-      return CliNote(
+      return FixtureNote(
         id: existing.id,
         title: effectiveTitle,
         content: content,
@@ -744,7 +747,7 @@ class CliDatabase {
   }
 
   /// Lists all tags with active note counts.
-  List<CliTag> listTags() {
+  List<FixtureTag> listTags() {
     final rows = _db.select('''
       SELECT t.id, t.name, t.color, t.icon, t.is_pinned, COUNT(nt.note_id) AS note_count
       FROM tags t
@@ -757,7 +760,7 @@ class CliDatabase {
 
     return rows
         .map(
-          (r) => CliTag(
+          (r) => FixtureTag(
             id: r['id'] as String,
             name: r['name'] as String,
             noteCount: (r['note_count'] as int?) ?? 0,

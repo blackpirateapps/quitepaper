@@ -47,6 +47,37 @@ pub fn resolve_path(
 pub struct Database(pub(crate) Connection);
 
 impl Database {
+    /// Bootstrap only a new notebook. Existing files are never migrated here.
+    pub fn initialize(path: &Path) -> Result<()> {
+        use std::{fs::DirBuilder, os::unix::fs::DirBuilderExt};
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(parent)?;
+        let temporary = tempfile::Builder::new()
+            .prefix(".qp-init-")
+            .tempfile_in(parent)?;
+        let db = Connection::open_with_flags(temporary.path(), OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        db.execute_batch("PRAGMA foreign_keys=ON; BEGIN IMMEDIATE;")?;
+        db.execute_batch(include_str!("schema.sql"))?;
+        db.execute_batch("COMMIT;")?;
+        drop(db);
+        match temporary.persist_noclobber(path) {
+            Ok(file) => {
+                file.sync_all()?;
+                let db = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+                db.busy_timeout(Duration::from_secs(5))?;
+                db.execute_batch("PRAGMA journal_mode=WAL;")?;
+            }
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error.error).context("Could not publish new notebook"),
+        }
+        Ok(())
+    }
     pub fn open(path: &Path) -> Result<Self> {
         Self::open_mode(path, false)
     }

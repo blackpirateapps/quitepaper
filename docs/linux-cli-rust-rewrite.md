@@ -4,6 +4,11 @@ Branch: `feat/linux-cli-rust-rewrite`
 Starting commit: `12c49b3`  
 Started: November 25, 2026
 
+Current implementation: all nine command families are Rust. Linux builders now
+require the Rust executable; the standalone Dart client is removed. All five batches have passed
+the final package/test gate. Earlier sections preserve the scope and validation
+at each individual batch commit.
+
 ## Progress and batch boundaries
 
 This is a staged rewrite of the standalone Linux `qp` CLI. The Flutter desktop
@@ -17,12 +22,11 @@ be committed and pushed on this branch before the next batch starts.
 | 2 | Local `new` / `edit` / `delete` / restore, external editors and interactive picker, frontmatter/tag parsing, transactional history/search/sync-queue updates, concurrent-edit recovery | Complete and verified |
 | 3 | Desktop credential-store compatibility, account/device keys, QPA1 image encryption, Markdown/clipboard imports, attachment listing/opening and draft recovery | Complete and verified |
 | 4 | Encrypted note/image upload retries, auth refresh, attachment reference updates, conflict/offline recovery and `sync` | Complete and verified |
-| 5 | Switch Linux builds and DEB/RPM/AppImage/Flatpak packaging to Rust, installed-package smoke checks, remove superseded Dart-only CLI code after parity verification | Pending |
+| 5 | Switch Linux builds and DEB/RPM/AppImage/Flatpak packaging to Rust, installed-package smoke checks, remove superseded Dart-only CLI code after parity verification | Complete and verified |
 
 Batch 1 implements **3 of the 9 existing top-level command families**. That is a
-command inventory, not a percentage of engineering completion: encryption,
-attachments, sync and packaging remain substantial work. Do not switch the
-installed CLI until their acceptance gates pass. The follow-up request authorizes
+command inventory, not a percentage of engineering completion: later batches
+cover encryption, attachments, sync and packaging. The follow-up request authorizes
 continuing through all remaining batches, with a separate commit and push each.
 
 ## Batch 1 implementation
@@ -63,7 +67,7 @@ millisecond precision, sorted tag names and display-title cleanup/derivation.
 Raw display preserves Markdown bytes, including CRLF, and retains the Dart
 behavior of appending a newline when missing. TSV flattens title newlines/tabs.
 
-### Deliberate behavior differences and remaining parity
+### Batch 1 differences (historical; later batches supersede pending items)
 
 - `show` currently requires an explicit identifier; interactive selection belongs
   to batch 2. Multiple ID-prefix/title matches fail with candidate full IDs.
@@ -102,10 +106,10 @@ bash scripts/test_rust_cli.sh
 
 The gate runs Rust formatting, Clippy with warnings denied, package-specific
 Rust tests, a debug binary build, `flutter analyze`, and only `test/cli` Flutter
-tests. `QP_RUST_CLI_BIN` enables three cross-language tests against a notebook
+tests. `QP_RUST_CLI_BIN` enables cross-language tests against notebooks
 created by the actual `AppDatabase` Drift migration. Those compare Dart/Rust JSON,
 test a live desktop write and CRLF, and check that notes/schema/sync queues remain
-unchanged by reads. Flutter-only runs skip those three tests with an explicit
+unchanged by reads. Flutter-only runs skip binary-dependent tests with an explicit
 reason; the dedicated `.github/workflows/linux_cli_rust.yml` always enables them.
 
 Rust tests use disposable SQLite fixtures, not the user's notebook, and cover
@@ -167,11 +171,10 @@ Rust/Drift cases. New checks cover desktop-readable writes, per-tag pins, histor
 FTS, trash/restore/cascades, injected history failure rollback, private recovery
 and a real concurrent SQLite edit during an external editor session. No full suite.
 
-## Next batch acceptance
+## Final acceptance
 
-Batch 5 must switch all Linux artifact builders to the Rust executable, fail on
-missing CLI artifacts, verify relocatable installed layouts, remove the shipped
-Dart implementation, and run the final relevant gates without the full suite.
+Batch 5 switches every Linux artifact builder, verifies all five package formats,
+removes the shipped Dart implementation and completes the focused final gate.
 
 ## Batch 3 implementation and verification
 
@@ -257,3 +260,79 @@ key across processes. Rust transport tests verify encrypted multipart data and
 header isolation, attachment races, one authentication refresh and account
 mismatch refusal. Cargo deny advisory/license/source/ban checks pass. No full
 suite or live account/cloud access ran.
+
+## Batch 5 implementation and final acceptance
+
+The standalone client is now entirely Rust. `bin/qp.dart`, the Dart runner,
+commands, editors, credential/image services and upload client are removed.
+`lib/core/cli/cli_args_provider.dart` remains because it handles GUI launch
+arguments. The former database/frontmatter reader lives only under
+`test/cli/support` as an independent historical JSON/fixture oracle; it has no
+runtime entry point. The 50 tests of the removed Dart client are replaced by
+Rust process/unit tests and tests that invoke the actual Rust binary. The direct
+Dart `args` dependency is removed (other development tools still use it transitively).
+
+`scripts/build_rust_cli.sh` builds and atomically stages `build/cli/bin/qp`.
+`install_rust_cli.sh` supplies one required `bin/qp` layout with `qp` and
+`quietpaper-cli` aliases. Linux build/release workflows and DEB/RPM/AppImage/
+Flatpak builders use these artifacts and fail if they are missing. There is no
+Dart native-asset copying or Dart fallback. The dedicated CLI workflow also
+builds the release executable and runs a headless relocation smoke.
+
+`qp new` can initialize a fresh notebook without Flutter or GTK. Complete schema
+25 DDL is generated from the actual desktop migration into
+`rust/quietpaper_cli/src/schema.sql`; `schema_contract_test.dart` checks exact
+coherence and documents deliberate regeneration. Initialization prepares a
+private temporary database and publishes it without clobbering another creator.
+Concurrent CLI-first creation is tested with two processes, followed by opening
+the resulting notebook in Drift. Existing databases are never bootstrapped or
+migrated by the CLI; older layouts requiring migration must be opened in the GUI.
+
+Final review also adds a private per-notebook advisory sync lock, preventing
+concurrent CLI requests from racing the retry journal. The kernel releases the
+lock when a process exits; the GUI continues to use normal SQLite concurrency.
+Pin-only/unchanged-editor saves preserve the exact stored title and manual tags;
+edited Markdown retains manually attached tags while still updating derived tags.
+
+Final local verification:
+
+| Gate | Result |
+| --- | --- |
+| Rust fmt and Clippy with warnings denied | Pass |
+| `cargo test --locked -p quietpaper_cli` | 18 tests pass (7 unit/transport, 11 process/database) |
+| `QP_RUST_CLI_BIN="$PWD/target/debug/qp" flutter test --no-pub test/cli test/storage/app_storage_path_resolver_test.dart` | 29 tests pass (26 CLI/schema, 3 GUI launch/storage), no warnings |
+| `flutter analyze` | No issues |
+| `cargo audit` and Cargo deny advisory/license/source/ban checks | Pass; existing duplicate-version warning policy retained |
+| `flutter build linux --release` | Pass; existing third-party Whisper C++ literal-operator deprecation warnings only |
+| Standalone release CLI, relocated with no adjacent runtime libraries | Offline create/read/tags/trash/restore/delete pass |
+| Tarball, DEB, RPM and AppImage extraction | Flutter assets and Rust engine load; relocated Rust CLI notebook smoke passes |
+| Installed Flatpak in disposable installation/home/data | Rust engine loads; Rust version and offline CLI-first note/tag checks pass |
+| Changed shell scripts / workflow and Flatpak YAML | Bash syntax and YAML parsing pass |
+| `git diff --check` | Pass |
+
+The native app and all five package formats were built locally from this tree.
+Missing Fedora packaging tools were downloaded/extracted under `/tmp`, including
+AppStream Compose; no system packages or user application installation were
+replaced. Package verification extracts archives, and Flatpak verification uses a
+disposable installation and explicit temporary notebook paths. Artifact hashes
+and verification scope are recorded in
+[`linux-cli-rust-rewrite-evidence.json`](linux-cli-rust-rewrite-evidence.json).
+
+The migration is complete at the implementation and local acceptance level.
+All batches are committed and pushed separately on the migration branch. No full
+Flutter suite, real account/keyring/clipboard, live Cloudinary/Firebase/backend
+upload, interactive image viewer or manual GUI tour was used. HTTP/refresh/
+multipart behavior is covered with controlled endpoints/transports, and actual
+Dart cryptography verifies the Rust wire formats. New remote CI execution is
+separate from these recorded local results.
+
+### Intentional compatibility choices
+
+JSON shapes, encryption formats, shared schema, command names/aliases and local
+save semantics remain compatible. Tables use plain text, absolute timestamps and
+`*` pins; interactive lookup uses numbered choices. Search wildcards are literal,
+tag counts exclude archived/trash, ambiguous scripted lookups require explicit
+IDs and invalid option combinations are usage errors. Password-protected/rich
+documents are edited in the desktop app. Supported still images can be compressed;
+AVIF and animated images retain their original bytes or require another tool for
+conversion. These choices are explicit, with no hidden Dart execution path.
