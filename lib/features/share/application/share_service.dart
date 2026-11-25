@@ -1,3 +1,4 @@
+import '../../tasks/domain/task_document.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
@@ -80,7 +81,11 @@ class ShareService {
     onProgress?.call(ShareProgressPhase.preparing);
 
     // 1. Strip internal YAML frontmatter so it is never published.
-    final body = _stripFrontmatter(decryptedContent);
+    final markdown = note.copyWith(content: decryptedContent).markdownContent;
+    if (Note.isRichTextContent(markdown)) {
+      throw const ShareException('This note format cannot be shared safely. Repair its source before sharing.');
+    }
+    final body = TaskDocument.visibleMarkdown(_stripFrontmatter(markdown));
 
     // 2. Decrypt + upload referenced attachments, rewriting qp:// embeds to
     //    public https URLs.

@@ -1,3 +1,4 @@
+import '../../tasks/domain/task_document.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -628,7 +629,7 @@ class RichDocumentController extends ChangeNotifier {
 
   /// Insert structured Markdown at the current AST selection without source offsets.
   void insertMarkdownSnippet(String snippet) {
-    final (document, position) = RichDocumentMutations.insertDocument(_document, _selection, _parser.parse(snippet));
+    final (document, position) = RichDocumentMutations.insertDocument(_document, _selection, _parser.parse(TaskDocument.rekey(snippet)));
     _commitMutation(document, newSelection: RichDocumentSelection.collapsed(position));
   }
 
@@ -673,7 +674,9 @@ class RichDocumentController extends ChangeNotifier {
       } else {
         final id = replacements.isEmpty ? original.id : _uuid.v4();
         replacements.add(task
-          ? original.copyWith(id: id, spans: line, isChecked: replacements.isEmpty ? original.isChecked : false)
+          ? original.copyWith(id: id, spans: line,
+                  clearTaskData: replacements.isNotEmpty,
+                  isChecked: replacements.isEmpty ? original.isChecked : false)
           : ParagraphBlock(id: id, spans: line));
         starts.add(rawOffset);
       }

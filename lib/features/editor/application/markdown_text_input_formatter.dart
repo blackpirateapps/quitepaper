@@ -1,3 +1,4 @@
+import '../domain/task_metadata.dart';
 import 'dart:math';
 import 'package:flutter/services.dart';
 
@@ -271,12 +272,30 @@ class MarkdownTextInputFormatter extends TextInputFormatter {
       final number = checklistMatch.group(3);
       final marker = number == null ? '-' : '${int.parse(number) + 1}${checklistMatch.group(4)}';
       final continuation = '$indent$marker [ ] ';
-      final newText = newValue.text.replaceRange(
-        insertedOffset + 1,
-        insertedOffset + 1,
-        continuation,
+      var source = newValue.text;
+      var metadataShift = 0;
+      final lineEnd = oldValue.text.indexOf('\n', insertedOffset);
+      final fullLine = oldValue.text.substring(
+        lineStart,
+        lineEnd < 0 ? oldValue.text.length : lineEnd,
       );
-      final newCursor = insertedOffset + 1 + continuation.length;
+      final parsed = TaskMetadata.parseTerminal(fullLine);
+      if (parsed.metadata != null &&
+          insertedOffset <= lineStart + parsed.text.length) {
+        final markerStart = lineStart + parsed.text.length - removedLength + 1;
+        final markerEnd = lineStart + fullLine.length - removedLength + 1;
+        if (markerStart >= insertedOffset + 1 && markerEnd <= source.length) {
+          final marker = source.substring(markerStart, markerEnd);
+          source = source
+              .replaceRange(markerStart, markerEnd, '')
+              .replaceRange(insertedOffset, insertedOffset, marker);
+          metadataShift = marker.length;
+        }
+      }
+      final insertion = insertedOffset + metadataShift + 1;
+      final newText = source.replaceRange(insertion, insertion, continuation,
+      );
+      final newCursor = insertion + continuation.length;
       return TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newCursor),

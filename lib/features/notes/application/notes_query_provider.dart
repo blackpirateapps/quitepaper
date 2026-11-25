@@ -88,6 +88,7 @@ final notesQueryProvider =
         case AppDestination.tag:
           context = NotesContext.active;
           break;
+        case AppDestination.tasks:
         case AppDestination.tagBrowser:
         case AppDestination.allJournalEntries:
         case AppDestination.onThisDay:
@@ -148,6 +149,7 @@ class NotesQueryNotifier extends StateNotifier<NotesQuery> {
         newContext = NotesContext.trash;
         break;
       case AppDestination.tag:
+      case AppDestination.tasks:
       case AppDestination.tagBrowser:
       case AppDestination.allJournalEntries:
       case AppDestination.onThisDay:

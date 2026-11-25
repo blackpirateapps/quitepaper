@@ -1,3 +1,6 @@
+import '../../../domain/task_metadata.dart';
+import '../../../../tasks/presentation/task_date_picker.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -104,6 +107,19 @@ class QuietTaskComponentBuilder implements ComponentBuilder {
       completedCount: completedCount,
       onToggleCollapse: onToggleCollapse,
       placeholder: placeholder,
+      taskMetadata: TaskMetadata.fromJson(node.metadata['qp-task']),
+      onSetDate: (date) {
+        final live = _editor.document.getNodeById(node.id);
+        if (live is! TaskNode) return;
+        final old = TaskMetadata.fromJson(live.metadata['qp-task']);
+        final data = TaskMetadata(id: old?.id ?? const Uuid().v4(), due: date);
+        _editor.execute([
+          ReplaceNodeRequest(
+            existingNodeId: live.id,
+            newNode: live.copyWithAddedMetadata({'qp-task': data.toJson()}),
+          ),
+        ]);
+      },
     );
   }
 
@@ -151,7 +167,12 @@ class QuietTaskComponentViewModel extends TaskComponentViewModel {
     this.completedCount = 0,
     this.onToggleCollapse,
     this.placeholder = 'New task...',
+    this.taskMetadata,
+    this.onSetDate,
   });
+
+  final TaskMetadata? taskMetadata;
+  final void Function(TaskDate?)? onSetDate;
 
   final bool isCollapseSummary;
   final bool isExpandedHeader;
@@ -163,6 +184,8 @@ class QuietTaskComponentViewModel extends TaskComponentViewModel {
   @override
   QuietTaskComponentViewModel copy() {
     return QuietTaskComponentViewModel(
+      taskMetadata: taskMetadata,
+      onSetDate: onSetDate,
       nodeId: nodeId,
       createdAt: createdAt,
       maxWidth: maxWidth,
@@ -197,6 +220,7 @@ class QuietTaskComponentViewModel extends TaskComponentViewModel {
       super == other &&
           other is QuietTaskComponentViewModel &&
           runtimeType == other.runtimeType &&
+          taskMetadata == other.taskMetadata &&
           isCollapseSummary == other.isCollapseSummary &&
           isExpandedHeader == other.isExpandedHeader &&
           isHiddenInCollapse == other.isHiddenInCollapse &&
@@ -489,6 +513,29 @@ class _QuietTaskComponentState extends State<QuietTaskComponent>
                   ],
                 ),
               ),
+              if (quietVm != null)
+                IconButton(
+                  tooltip: quietVm.taskMetadata?.due == null
+                      ? 'Add due date'
+                      : 'Due ${quietVm.taskMetadata!.due}',
+                  icon: Icon(
+                    Icons.event_outlined,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  onPressed: widget.viewModel.setComplete == null
+                      ? null
+                      : () async {
+                          final picked = await showTaskDatePicker(
+                            context,
+                            today: TaskDate.local(DateTime.now()),
+                            current: quietVm.taskMetadata?.due,
+                          );
+                          if (picked != null && mounted) {
+                            quietVm.onSetDate?.call(picked.value);
+                          }
+                        },
+                ),
             ],
           ),
         ),
@@ -560,7 +607,7 @@ class QuietTaskNodeSerializer
     final markdownText = textToConvert.toMarkdown();
     final indent = '  ' * node.indent;
     final taskMarkdown =
-        '$indent- [${node.isComplete ? 'x' : ' '}] $markdownText';
+        '${node.metadata['qp-task-prefix'] ?? '$indent- '}[${node.isComplete ? 'x' : ' '}] $markdownText${textSelection == null ? TaskMetadata.fromJson(node.metadata['qp-task'])?.comment ?? '' : ''}';
 
     final nodeIndex = document.getNodeIndexById(node.id);
     final isFollowedByNonList =

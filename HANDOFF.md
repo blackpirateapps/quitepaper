@@ -8,6 +8,22 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Tasks workspace implementation (November 25, 2026)
+
+`feat/tasks-workspace` adds a sidebar/command-palette Tasks workspace, local-date
+groups, note-tag search/filtering, staged due dates, capture into a stable Task
+Inbox/Today’s Journal/existing notes, source navigation and guarded Undo. Canonical
+notes own task identity/completion/dates; schema **26** adds a derived local index
+and durable repair markers. Local saves now preserve an existing server revision,
+which is necessary for independent encrypted task edits to merge correctly.
+No task cloud columns, endpoint or new Rust API were added.
+
+See [the Tasks guide](handoff/tasks.md) and engineering log 352 for integration,
+round trips, measured performance and validation. **Production acceptance remains
+blocked** on older-client compatibility/rollout and the explicit device/manual
+checks in that guide; compilation and native synthetic tests do not establish a
+physical Android pass.
+
 ## Latest fix: stable, compact tag picker (November 24, 2026)
 
 The shared Add tags picker now keeps its current suggestions visible while the

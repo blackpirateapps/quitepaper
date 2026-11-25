@@ -1,3 +1,4 @@
+import '../domain/task_metadata.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/audio/application/audio_transcript_markdown_helper.dart';
 import '../../../core/uri/quiet_paper_uri.dart';
@@ -168,15 +169,27 @@ class RichDocumentParser {
       }
 
       // 6. Checklist Item: - [ ] Task or - [x] Task
-      final checklistMatch = RegExp(r'^(\s*)[-*+]\s+\[([ xX])\]\s*(.*)$').firstMatch(line);
+      final checklistMatch = RegExp(
+        r'^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\][ \t]*(.*)$',
+      ).firstMatch(line);
       if (checklistMatch != null) {
         final isChecked = checklistMatch.group(2)!.toLowerCase() == 'x';
-        final text = checklistMatch.group(3) ?? '';
+        final task = TaskMetadata.parseTerminal(checklistMatch.group(3) ?? '');
+        final text = task.text;
         blocks.add(ChecklistItemBlock(
           id: _uuid.v4(),
-          indent: ((checklistMatch.group(1) ?? '').replaceAll('\t', '    ').length / 2).floor(),
-          isChecked: isChecked,
-          spans: parseInlines(text),
+          indent:
+                RegExp(
+                  r'^[ \t]*',
+                ).firstMatch(line)![0]!.replaceAll('\t', '    ').length ~/
+                2,
+            isChecked: isChecked,
+            taskData: task.metadata?.toJson(),
+            markdownPrefix:
+                RegExp(r'^[ \t]*[-*+] $').hasMatch(checklistMatch.group(1)!)
+                ? null
+                : checklistMatch.group(1),
+            spans: parseInlines(text),
         ));
         i++;
         continue;
@@ -247,9 +260,28 @@ class RichDocumentParser {
       return const [RichInlineSpan(text: '')];
     }
 
+    final literals = <String, String>{};
+    // Use placeholders absent from this source so escaped delimiters cannot be
+    // interpreted by the inline matchers. Restore them in the resulting spans.
+    var next = 0xe000;
+    final used = text.runes.toSet();
+    final protected = text.replaceAllMapped(
+      RegExp(r'''\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])'''),
+      (match) {
+        while (used.contains(next)) {
+          next++;
+        }
+        final key = String.fromCharCode(next++);
+        literals[key] = match[1]!;
+        return key;
+      },
+    );
     final spans = <RichInlineSpan>[];
-    _parseInlineRange(text, 0, text.length, TextAttributes.none, spans);
-    return spans.normalized();
+    _parseInlineRange(
+      protected,
+      0,
+      protected.length, TextAttributes.none, spans);
+    return spans.map((span) => span.copyWith(text: span.text.runes.map((r) => literals[String.fromCharCode(r)] ?? String.fromCharCode(r)).join())).toList().normalized();
   }
 
   static void _parseInlineRange(

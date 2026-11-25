@@ -8461,3 +8461,112 @@ Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
 Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
 layout, nested paths, comma batches, cancellation and single editor/frontmatter
 updates. No full suite, app build or physical-device/cloud-sync replay was run.
+
+
+## 352. Tasks workspace, due dates and canonical task commands (November 25, 2026)
+
+### Scope and integration
+
+Implemented on `feat/tasks-workspace`: sidebar and command-palette navigation,
+desktop middle-pane/phone list UI, Open/Completed counts after search and owning
+note-tag subtree filters, local-date groups, source navigation, staged date picker
+and single-task capture. Capture resolves a vault-scoped UUIDv5 Task Inbox identity
+independently of its title, Today’s Journal through the daily-note service, or an
+eligible existing note. Drafts survive failures and pending writes reject duplicate
+submits/unfinished IME composition. Inbox Trash recovery uses the existing restore
+path. Successful capture provides destination navigation and guarded Undo.
+
+Canonical rich checklist nodes and strict terminal Markdown comments own optional
+UUID/date metadata. Legacy checkboxes use version hashes and ordinals; unique
+durable IDs resolve later revisions only with expected-field checks. Copies rekey,
+template instances clear deadlines, and personal Markdown export retains comments
+while preview/search/public sharing suppress recognized metadata.
+
+Schema **26** adds a local task projection, indexed status/date/identity paths,
+durable dirty triggers, generic parse-failure recovery and 32-note repair batches.
+Canonical saves maintain the projection atomically, including normal sync/import
+paths. Queries join live note eligibility; protected/archive/trash notes are gated,
+read-only editor sessions are excluded, and locked/session-invalidated providers
+prevent late results. No task payloads are logged and derived tables are excluded
+from sync/backups.
+
+Attached editors serialize mutations, preserve dirty text/composition boundaries
+and use their own histories. Closed commands re-read/save in one transaction.
+Field-aware Undo preserves independent durable-task edits and refuses unsafe
+capture removal or double-Undo. The existing client diff3 boundary now handles
+independent completion/date changes in Markdown and rich JSON. A real encrypted
+two-device regression found that ordinary repository saves reset server revisions;
+`saveNote` now preserves the prior revision when callers omit one. Explicit sync
+revisions continue to apply. No backend task columns or endpoint were added.
+
+### Performance and Rust decision
+
+Kept Dart/SQLite and the existing Rust bridge unchanged. The initial synthetic
+6,000-task, 120-note Linux release run measured 271 ms for repair, 33 ms for a full
+projection read, and 4,235 µs median / 5,187 µs p95 for 30 search/sort samples. That
+first corpus had completion/Unicode/mixed-format/fenced examples; the final probe
+also includes overdue/today/upcoming/undated metadata and legacy items. Final
+aggregate evidence is recorded below. There is no measured need for a task-native
+matching/ranking function, so no new toolchain or competing parser was introduced.
+
+### Validation and release status
+
+The first full Flutter run completed with **3,219 passing tests and two stale
+schema-25 assertions** in email migration fixtures. Those assertions were updated
+to 26; the subsequent focused sync/crypto/account/attachment/task run passed all
+**218 tests**, including the two real encrypted task merge regressions. The later
+expanded task-only run passed **39 tests**, including hardware Enter, IME staging,
+read-only session exclusion, Visual dirty-edit flush and shared Undo. Backend
+contract validation passed **144 tests in 21 files** after `npm ci --ignore-scripts`.
+Drift generation completed without a generated database diff. Final full-suite,
+analysis, build and native-probe results are recorded below.
+
+**Production release acceptance is incomplete.** Older rewriting clients can drop
+unknown rich task fields; supported-client rollout/version enforcement remains a
+release gate. Key-transition inbox identity, every conversion/join/clipboard path,
+assistive technology, exact folded-jump geometry and physical Android acceptance
+are explicitly tracked in [the Tasks subsystem guide](tasks.md). Do not infer
+production acceptance from compilation or synthetic native runs.
+
+#### Final benchmark and platform gates
+
+The final dated/legacy release corpus measured **2,094 ms** for data generation,
+canonical writes and candidate extraction; **708 ms** for four repair batches;
+**65 ms** to read 6,000 projections; and **8,854 µs median / 12,981 µs p95** for
+30 normalized search-and-sort samples. Replacing ISO-string allocation in date
+comparisons reduced the dated-corpus median from 39,431 µs. Timings were collected
+on this development host during other validation work and are not a production
+SLA. Dart/SQLite remains sufficient; no Rust task extension was added. Aggregate
+commands/results are in [the evidence file](../docs/tasks-workspace-evidence.json).
+
+Final `flutter analyze --no-pub` reports no issues. The final task/sharing run passes
+**47 tests**; the overlapping task/sharing/export run passes **51**. The payload
+regressions verify that public shares convert canonical rich JSON to Markdown
+before stripping task identity/date comments, preventing raw JSON metadata from
+being published. A full run caught this regression while the correction was being
+made; a clean full-suite rerun follows the fix.
+
+`flutter build linux --release --no-pub` passes, and the existing bundled-library
+smoke verifies ELF x86-64 loading and **FRB contract 2**. The isolated real Linux
+profile integration target passes its scenario and teardown. This is synthetic
+UI/service acceptance, not a personal-vault or physical-device test.
+`flutter build apk --debug --flavor github --no-pub` passes and produces
+`build/app/outputs/flutter-apk/app-github-debug.apk`. Android runtime testing was
+unavailable because no emulator/physical device was connected. Existing plugin
+Kotlin/NDK warnings and host accessibility-bus warnings remain; Flutter static
+analysis is clean. DEB/RPM/AppImage/Flatpak installation and physical Android
+acceptance are not claimed.
+
+#### Completed final verification
+
+The clean final `flutter test --no-pub --concurrency=2` run completed with
+**3,229 passing tests, zero failures** in 12m 08s. This completed before the user
+requested no further full-suite runs; no further full suite was started. Final
+analysis has zero issues, the focused task/sharing gate passes 47 tests, and
+`git diff --check` passes. The final Linux release bundle and bundled FRB smoke
+pass, and the final GitHub-flavor Android debug APK compiles successfully. The
+remaining changes after verification record documentation/evidence outcomes.
+
+Delivery remains a feature branch for review, with the production release gates
+in [tasks.md](tasks.md) explicitly open. No release deployment or physical Android
+validation is claimed.

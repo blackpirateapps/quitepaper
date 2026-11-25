@@ -629,7 +629,7 @@ void main() {
     },
   );
   for (final layout in ['templates', 'email']) {
-    test('schema 21 $layout layout upgrades to 25 without data loss', () async {
+    test('schema 21 $layout layout upgrades to 26 without data loss', () async {
       final file = File('${dir.path}/v21-$layout.sqlite');
       final previous = AppDatabase(NativeDatabase(file));
       final source = NoteImportSource(
@@ -677,7 +677,7 @@ void main() {
         expect(
           (await upgraded.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          25,
+          26,
         );
         final templates = TemplateRepository(upgraded);
         if (layout == 'templates') {

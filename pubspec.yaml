@@ -92,6 +92,8 @@ dependencies:
   dbus: 0.7.15
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   webview_flutter_platform_interface: ^2.15.1
   flutter_test:
     sdk: flutter

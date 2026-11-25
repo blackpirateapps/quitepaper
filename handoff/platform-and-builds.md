@@ -238,3 +238,25 @@ The app and instrumented APKs build, and the focused JVM tests pass locally.
 The local emulator repeatedly exited 139 before stable boot, so system-picker and
 physical-device/provider acceptance remain unverified. Full details and findings:
 [Android watched-folder audit](../docs/audits/android-watched-folders-2026-11-21.md).
+
+## Tasks native validation
+
+Tasks adds no Rust/FRB API or Android native toolchain requirement. Schema 26 uses
+the repository’s existing raw local-index migration convention; Drift codegen
+remains `dart run build_runner build --delete-conflicting-outputs`. The benchmark
+and native integration target use synthetic in-memory data.
+
+```sh
+flutter test test/tasks
+flutter build apk --debug --flavor github
+flutter build linux --release
+scripts/smoke_linux_rust_bundle.sh "$PWD/build/linux/x64/release/bundle"
+dbus-run-session -- flutter drive --driver=test_driver/tasks_driver.dart --target=integration_test/tasks_workspace_test.dart -d linux --profile
+```
+
+The repository has `github`/`play` Android flavors; an unflavored build may produce
+both APKs while Flutter reports that the expected unflavored filename is absent.
+The integration-test SDK dependency is development-only. A separate D-Bus session
+prevents the Linux single-instance runner from forwarding the synthetic test to
+a real app instance. [tasks.md](tasks.md) records compatibility/release gates and
+exact device/build limits; native compilation is not a physical-device pass.

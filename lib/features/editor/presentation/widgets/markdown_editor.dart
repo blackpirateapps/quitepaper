@@ -1,3 +1,4 @@
+import '../../../tasks/presentation/task_text_field_actions.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -779,6 +780,17 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       }
       return item;
     }).toList();
+    if (!widget.readOnly && taskAtCaret(widget.controller) != null) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: 'Due date',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            editTaskDateAtCaret(context, widget.controller, widget.onChanged);
+          },
+        ),
+      );
+    }
     final isSelectionActive = !editableTextState.textEditingValue.selection.isCollapsed;
     final val = widget.controller.value;
     final currentLang = MarkdownHelper.getCodeBlockLanguageAtCursor(val);
@@ -1132,6 +1144,17 @@ class _TextSegmentFieldState extends State<_TextSegmentField> {
       }
       return item;
     }).toList();
+    if (!widget.readOnly && taskAtCaret(_sourceController) != null) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: 'Due date',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            editTaskDateAtCaret(context, _sourceController, widget.onChanged);
+          },
+        ),
+      );
+    }
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: buttonItems,

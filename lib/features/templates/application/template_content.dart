@@ -1,3 +1,4 @@
+import '../../tasks/domain/task_document.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -205,11 +206,11 @@ String templatePreviewMarkdown(NoteTemplate template) =>
 
 String instantiateTemplateContent(NoteTemplate template) {
   if (template.storageFormat != TemplateStorageFormat.markdown) {
-    return template.content;
+    return TaskDocument.rekey(template.content, clearDates: true);
   }
   final original = FrontmatterEditorHelper.parse(template.content);
   if (!original.hasFrontmatter || original.getProperty('title') == null) {
-    return template.content;
+    return TaskDocument.rekey(template.content, clearDates: true);
   }
   // JSON's quoted string syntax is valid YAML and safely handles quotes, slashes,
   // boolean-like titles, Unicode and scalar-looking names.
@@ -224,7 +225,7 @@ String instantiateTemplateContent(NoteTemplate template) {
       'The frontmatter title could not be updated safely.',
     );
   }
-  return updated;
+  return TaskDocument.rekey(updated, clearDates: true);
 }
 
 /// Called only for a source with no visible title or organizational metadata.

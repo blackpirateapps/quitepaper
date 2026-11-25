@@ -1,3 +1,8 @@
+import 'dart:async';
+import '../domain/document_selection.dart';
+import '../../tasks/application/task_editor_bridge.dart';
+import '../../tasks/domain/task_document.dart';
+import '../../tasks/domain/task_item.dart';
 import '../../notes/application/workspace_commands.dart';
 import '../../email_import/application/email_editor_bridge.dart';
 import '../../email_import/presentation/email_workspace_actions.dart';
@@ -124,7 +129,10 @@ class EditorScreen extends ConsumerStatefulWidget {
     this.showFirstNoteTips = false,
     this.onClose,
     this.onOpenLinkedNote,
+    this.initialTask,
   });
+
+  final TaskItem? initialTask;
 
   final Note note;
   final bool autoFocusBody;
@@ -174,13 +182,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final TypewriterScrollCoordinator _typewriterCoordinator;
   final GlobalKey _viewportKey = GlobalKey();
   late final EmailEditorBridge _emailBridge;
+  late final TaskEditorBridge _taskBridge;
+  Timer? _taskHighlightTimer;
   Route<dynamic>? _commandRoute;
   late final WorkspaceCommands _workspaceCommands;
   Future<Note?> _prepareEmailPreview() async {
     if (!mounted) return null;
     _bodyEditorKey.currentState?.flushPendingChanges();
     final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
-    if (_richDocumentController != null && _isWysiwyg) {
+    if (_richDocumentController != null && _isWysiwyg &&
+        _richDocumentController!.isDirty) {
       notifier.updateContent(
         _richDocumentController!.hasFrontmatter
             ? _richDocumentController!.toMarkdown()
@@ -193,6 +204,138 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (state.isDirty || state.isSaving) throw StateError('Editor save pending');
     return state.note;
   }
+
+  Future<Note> _prepareTask() async {
+    final state = ref.read(editorProviderFamily(_editorParams));
+    if (state.isReadOnly ||
+        !state.isUnlocked ||
+        state.activePassword != null ||
+        state.note.isPasswordProtected) {
+      throw const StaleTask('This note cannot be changed from Tasks.');
+    }
+    if (!_contentController.value.composing.isCollapsed ||
+        !(_activeTargetController?.value.composing.isCollapsed ?? true) ||
+        _superEditorController.hasComposition) {
+      throw const StaleTask('Finish composing text in the editor, then retry.');
+    }
+    final note = await _prepareEmailPreview();
+    if (note == null) throw const StaleTask();
+    return note;
+  }
+
+  Future<Note> _mutateTask(String Function(Note) transform) async {
+    final note = await _prepareTask();
+    return ref.read(databaseProvider).transaction(() async {
+      final latest = await ref
+          .read(notesRepositoryProvider)
+          .getNoteById(note.id);
+      if (latest == null ||
+          !latest.isActive ||
+          latest.isPasswordProtected ||
+          latest.content != note.content || latest.title != note.title ||
+          latest.isPinned != note.isPinned || latest.journalDate != note.journalDate ||
+          latest.tags.toSet().difference(note.tags.toSet()).isNotEmpty ||
+          note.tags.toSet().difference(latest.tags.toSet()).isNotEmpty) {
+        throw const StaleTask();
+      }
+      final content = transform(note);
+      if (content == note.content) return note;
+      if (_isWysiwyg && _richDocumentController != null) {
+        final selection = _richDocumentController!.selection;
+        _richDocumentController!.setContent(content);
+        _richDocumentController!.updateSelection(selection);
+      } else if (_superEditorController.isAttached) {
+        _superEditorController.applyTaskContent(note.markdownContent, content);
+      } else {
+        final selection = _contentController.selection;
+        final projected = note.copyWith(content: content).markdownContent;
+        _contentController.value = TextEditingValue(
+          text: projected,
+          selection: selection.isValid
+              ? TextSelection(
+                  baseOffset: selection.baseOffset.clamp(0, projected.length),
+                  extentOffset: selection.extentOffset.clamp(
+                    0,
+                    projected.length,
+                  ),
+                )
+              : const TextSelection.collapsed(offset: 0),
+        );
+      }
+      final notifier = ref.read(editorProviderFamily(_editorParams).notifier);
+      // The Super Editor callback publishes its actual serialization, preserving
+      // its current nodes and undo entry. Other modes already use canonical data.
+      if (!_superEditorController.isAttached) notifier.updateContent(content);
+      await notifier.flushPendingChanges();
+      final saved = ref.read(editorProviderFamily(_editorParams));
+      if (saved.isDirty || saved.isSaving) {
+        throw const StaleTask(
+          'Task could not be saved. Your editor changes are retained; retry saving.',
+        );
+      }
+      return saved.note;
+    });
+  }
+
+  void _revealTask(TaskItem item) {
+    if (!mounted || item.note.id != widget.note.id) return;
+    try {
+      final state = ref.read(editorProviderFamily(_editorParams));
+      if(state.isPreviewMode) {
+        ref.read(editorProviderFamily(_editorParams).notifier).togglePreviewMode();
+        WidgetsBinding.instance.addPostFrameCallback((_) {if(mounted) _revealTask(item);});
+        return;
+      }
+      _taskHighlightTimer?.cancel();
+      final content = state.note.content;
+      final target = TaskDocument.resolve(
+        content,
+        expectedVersion: item.version,
+        ordinal: item.occurrence.ordinal,
+        taskId: item.occurrence.metadata?.id,
+      );
+      if (_isWysiwyg && _richDocumentController != null) {
+        final controller = _richDocumentController!;
+        final liveTasks = TaskDocument.extract(controller.toJsonString());
+        final richTarget = target.metadata == null
+            ? liveTasks[target.ordinal]
+            : liveTasks.singleWhere(
+                (t) => t.metadata?.id == target.metadata!.id,
+              );
+        final block = controller.document.blocks[richTarget.start];
+        final selection = RichDocumentSelection(base:RichDocumentPosition(blockIndex:richTarget.start,blockId:block.id,offset:0),extent:RichDocumentPosition(blockIndex:richTarget.start,blockId:block.id,offset:block.plainText.length));
+        controller.updateSelection(selection);
+        _taskHighlightTimer=Timer(const Duration(seconds:2),(){if(mounted && controller.selection==selection) controller.updateSelection(RichDocumentSelection.collapsed(selection.base));});
+      } else if (_superEditorController.isAttached) {
+        _superEditorController.revealTask(target.ordinal);
+        _contentFocusNode.requestFocus();
+      } else {
+        final projected = TaskDocument.extract(_contentController.text);
+        final sourceTarget = projected[target.ordinal];
+        _contentController.selection = TextSelection(
+          baseOffset: sourceTarget.checkOffset - 1,
+          extentOffset: sourceTarget.checkOffset + 2,
+        );
+        _contentFocusNode.requestFocus();
+        final selection=_contentController.selection;
+        _taskHighlightTimer=Timer(const Duration(seconds:2),(){if(mounted && _contentController.selection==selection) _contentController.selection=TextSelection.collapsed(offset:selection.baseOffset);});
+      }
+      final sourceTask = TaskDocument.extract(state.note.markdownContent);
+      if (target.ordinal < sourceTask.length) {
+        _scrollToMatch(
+          TextRange(
+            start: sourceTask[target.ordinal].start,
+            end: sourceTask[target.ordinal].end,
+          ),
+        );
+      }
+    } on StaleTask catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   void _acceptEmailAppend(Note note) {
     if(!mounted || note.id != widget.note.id) return;
     final selection = _contentController.selection;
@@ -221,6 +364,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _workspaceCommands = ref.read(workspaceCommandsProvider);
     _emailBridge=EmailEditorBridge(prepare:_prepareEmailPreview,accept:_acceptEmailAppend);
     _emailBridge.attach();
+    _taskBridge = TaskEditorBridge(
+      noteId: widget.note.id,
+      prepare: _prepareTask,
+      apply: _mutateTask,
+      reveal: _revealTask,
+    );
+    _taskBridge.attach();
+    if (widget.initialTask != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealTask(widget.initialTask!);
+      });
+    }
     WidgetsBinding.instance.addObserver(this);
 
     final frontmatterDoc = FrontmatterEditorHelper.parse(widget.note.content);
@@ -323,6 +478,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void didUpdateWidget(EditorScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialTask != null &&
+        widget.initialTask != oldWidget.initialTask) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealTask(widget.initialTask!);
+      });
+    }
     if (oldWidget.note.id != widget.note.id) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -1749,6 +1910,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void dispose() {
     _workspaceCommands.routeExits.remove(_commandRoute);
     _emailBridge.detach();
+    _taskBridge.detach();
+    _taskHighlightTimer?.cancel();
     try {
       ref.read(speechRecognitionServiceProvider).releaseEngine();
       ref.read(audioPlaybackServiceProvider).stop();
@@ -1797,6 +1960,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     ref.watch(allTagsProvider);
     final editorState = ref.watch(editorProviderFamily(_editorParams));
+    ref.listen(editorProviderFamily(_editorParams),(previous,next) => _taskBridge.setReadOnly(next.isReadOnly || !next.isUnlocked || next.activePassword != null));
     final editorNotifier =
         ref.read(editorProviderFamily(_editorParams).notifier);
     final colors = context.appColors;
@@ -3707,6 +3871,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     }
 
+    snippet = TaskDocument.rekey(snippet);
     final targetCtrl = _activeTargetController ?? _contentController;
     final val = targetCtrl.value;
     final text = val.text;

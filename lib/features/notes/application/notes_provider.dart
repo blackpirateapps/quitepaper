@@ -7,6 +7,7 @@ import '../domain/note_group.dart';
 import '../domain/note_model.dart';
 
 enum AppDestination {
+  tasks,
   allNotes,
   pinned,
   archive,
@@ -20,6 +21,7 @@ enum AppDestination {
 
 /// Explicit representation of the active workspace context
 enum WorkspaceContextType {
+  tasks,
   allNotes,
   pinned,
   archive,
@@ -42,6 +44,7 @@ class WorkspaceContext {
   final String? tagId;
   final String? tagName;
 
+  static const tasks = WorkspaceContext(type: WorkspaceContextType.tasks);
   static const allNotes = WorkspaceContext(type: WorkspaceContextType.allNotes);
   static const pinned = WorkspaceContext(type: WorkspaceContextType.pinned);
   static const archive = WorkspaceContext(type: WorkspaceContextType.archive);
@@ -106,6 +109,8 @@ final workspaceContextProvider = Provider<WorkspaceContext>((ref) {
   final tagId = ref.watch(selectedTagIdProvider);
 
   switch (destination) {
+    case AppDestination.tasks:
+      return WorkspaceContext.tasks;
     case AppDestination.allNotes:
       return WorkspaceContext.allNotes;
     case AppDestination.pinned:
@@ -167,6 +172,7 @@ final filteredNotesStreamProvider = StreamProvider<List<Note>>((ref) {
         isTrashed: false,
         filterTag: tagFilter,
       );
+    case AppDestination.tasks:
     case AppDestination.tagBrowser:
     case AppDestination.allJournalEntries:
     case AppDestination.onThisDay:

@@ -247,7 +247,7 @@ void main() {
   test(
     'fresh schema, mandatory complete enrollment and durable baseline after rename',
     () async {
-      expect(db.schemaVersion, 25);
+      expect(db.schemaVersion, 26);
       final f = (await store.folder())!;
       await expectLater(
         store.decide(f.read<String>('id'), false),

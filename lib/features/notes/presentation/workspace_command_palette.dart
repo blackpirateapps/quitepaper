@@ -1,3 +1,5 @@
+import '../../tasks/application/task_providers.dart';
+import '../../tasks/presentation/task_capture_dialog.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,6 +71,43 @@ Future<WorkspaceCommandAction?> showWorkspaceCommandPalette(
         () => onCommand(command),
         command.icon,
       ),
+    action('Tasks', 'Browse note checkboxes and due dates', () {
+      ref.read(currentDestinationProvider.notifier).state =
+          AppDestination.tasks;
+    }, Icons.check_box_outlined),
+    action(
+      'New task',
+      'Capture into Task Inbox, Today’s Journal or a note',
+      () async {
+        final result = await showTaskCapture(context);
+        if (result != null && context.mounted && ref.read(taskSessionProvider)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added to ${result.note.displayTitle}'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () async {
+                  try {
+                    await result.undo.run();
+                  } catch (_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Undo is no longer available. The task was preserved.',
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      },
+      Icons.add_task,
+    ),
     action(
       'Quick Search Notes',
       'Type a title or text here • @ searches only notes',

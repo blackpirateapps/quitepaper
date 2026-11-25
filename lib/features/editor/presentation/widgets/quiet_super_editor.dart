@@ -1,3 +1,4 @@
+import '../../../tasks/domain/task_document.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -169,7 +170,8 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
   // keyboard paste callback. Give it the same math parsing as controller paste.
   EditCommand? _handleMathPasteRequest(Editor editor, EditRequest request) {
     if (request is! PasteEditorRequest ||
-        !QuietMathParser.containsMathSyntax(request.content)) {
+        (!QuietMathParser.containsMathSyntax(request.content) &&
+            TaskDocument.extract(request.content).isEmpty)) {
       return null;
     }
     final target = editor.document.getNodeById(request.pastePosition.nodeId);
@@ -178,7 +180,7 @@ class _QuietSuperEditorState extends ConsumerState<QuietSuperEditor> {
       return null;
     }
     final content = deserializeQuietMathDocument(
-      normalizeMarkdownForSuperEditor(request.content),
+      normalizeMarkdownForSuperEditor(TaskDocument.rekey(request.content)),
     );
     promoteQuietAttachmentNodes(content);
     promoteLinkPreviewNodes(content);
