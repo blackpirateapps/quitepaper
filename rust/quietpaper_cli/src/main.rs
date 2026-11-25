@@ -1,7 +1,12 @@
+mod attachments;
+mod credentials;
+mod crypto;
 mod database;
 mod editor;
+mod image_paths;
 mod markdown;
 mod model;
+mod process;
 mod writes;
 
 use std::{
@@ -16,7 +21,7 @@ use clap::{error::ErrorKind, Args, Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "qp", version, about = "Quiet Paper CLI — Offline-first notes in your terminal",
     long_version = concat!(env!("CARGO_PKG_VERSION"), " (Rust)"),
-    after_help = "Rust migration batch 2: local notes and editors. Attachment import and upload sync arrive in later batches.",
+    after_help = "Rust migration batch 3: local notes, editors and encrypted images. Upload sync arrives in batch 4.",
     disable_version_flag = true, propagate_version = true, arg_required_else_help = true)]
 struct Cli {
     /// Print the current CLI version
@@ -71,6 +76,23 @@ enum Command {
         #[arg(short = 'r', long)]
         restore: bool,
     },
+    /// Append image files or a clipboard screenshot to a note
+    Attach {
+        note: String,
+        paths: Vec<PathBuf>,
+        #[command(flatten)]
+        options: attachments::ImportOptions,
+    },
+    /// List attached images, or open one with temporary plaintext cleanup
+    Attachments {
+        note: String,
+        #[arg(value_parser=["open"],requires="image")]
+        action: Option<String>,
+        #[arg(requires = "action")]
+        image: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Args, Default)]
@@ -100,9 +122,10 @@ fn run(cli: Cli) -> Result<()> {
         Some(path) => path,
         None => database::default_path()?,
     };
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
     if matches!(
         &cli.command,
-        Command::New(_) | Command::Edit(_) | Command::Delete { .. }
+        Command::New(_) | Command::Edit(_) | Command::Delete { .. } | Command::Attach { .. }
     ) {
         let db = database::Database::open_writable(&path)?;
         match cli.command {
@@ -127,6 +150,36 @@ fn run(cli: Cli) -> Result<()> {
                         note.title,
                         note.short_id
                     );
+                }
+            }
+            Command::Attach {
+                note,
+                paths,
+                mut options,
+            } => {
+                options.files.extend(paths);
+                if options.files.is_empty() && !options.clipboard {
+                    anyhow::bail!("Specify image files or --clipboard");
+                }
+                if let Some(note) = editor::resolve(&db, &[note], false)? {
+                    writes::guard_editor(&note.content)?;
+                    let snapshot = db.snapshot(&note.id)?;
+                    let saved = attachments::save(
+                        &db,
+                        &path,
+                        &writes::Save {
+                            id: &note.id,
+                            title: &note.title,
+                            content: &note.content,
+                            tags: &note.tags,
+                            pinned: note.is_pinned,
+                            expected: Some(&snapshot),
+                        },
+                        &options,
+                    )
+                    .map_err(|e| editor::recover(&path, &note.content, e))?;
+                    println!("Saved images to {} [{}]", saved.title, saved.short_id);
+                    eprintln!("Saved locally; desktop sync can upload pending changes.");
                 }
             }
             _ => unreachable!(),
@@ -234,6 +287,38 @@ fn run(cli: Cli) -> Result<()> {
                     )?;
                 }
                 writeln!(out, "\n{} tags total.", tags.len())?;
+            }
+        }
+        Command::Attachments {
+            note,
+            action: _,
+            image,
+            json,
+        } => {
+            let Some(note) = editor::resolve(&db, &[note], false)? else {
+                return Ok(());
+            };
+            if let Some(image) = image {
+                attachments::open(&db, &path, &note, &image)?;
+            } else {
+                let rows = attachments::list(&db, &note)?;
+                if json {
+                    serde_json::to_writer_pretty(&mut out, &rows)?;
+                    writeln!(out)?;
+                } else if rows.is_empty() {
+                    writeln!(out, "No attached images.")?;
+                } else {
+                    for row in rows {
+                        writeln!(
+                            out,
+                            "{}  {}  {} bytes  {}",
+                            row["id"].as_str().unwrap_or_default(),
+                            row["file_name"].as_str().unwrap_or_default(),
+                            row["byte_size"],
+                            row["upload_state"].as_str().unwrap_or_default()
+                        )?;
+                    }
+                }
             }
         }
         _ => unreachable!(),

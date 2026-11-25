@@ -8519,3 +8519,26 @@ New real-Drift checks cover note writes, FTS/history/queue entries, pin-cache
 preservation, trash/restore/permanent cascades, transactional failure rollback,
 private draft permissions and concurrent edits. No full suite ran.
 See [the batch progress report](../docs/linux-cli-rust-rewrite.md).
+
+## 354. Linux CLI Rust rewrite — batch 3 (November 25, 2026)
+
+Ports read-only desktop keyring/fallback credentials, Argon2id password unwrap,
+QPA1 image encryption and all image-import/list/open commands. Local Markdown
+destinations/reference definitions and repeated explicit files deduplicate;
+code/frontmatter/remote URLs remain literal. Imports preserve original image
+bytes by default, or explicitly compress supported still images to JPEG within
+bounded input/decoder/output sizes. Animation is never silently flattened.
+Staged 0600 ciphertext and database rows commit with the note or roll back
+together; original drafts survive failures. Clipboard helpers are bounded and
+opening an image requires interactive temporary-plaintext cleanup. Custom
+database paths are canonicalized; credential files remain unchanged.
+
+Validation: Rust fmt/Clippy, 16 Rust tests, `flutter analyze` and all 63 focused
+Flutter CLI tests pass. Dart decrypts Rust QPA1 data; Drift reads its metadata;
+tests cover duplicate imports, fallback-store immutability, JPEG conversion,
+injected attachment failure cleanup, source preservation and controlled
+clipboard access. Real pseudo-terminal tests accept a correct password and
+reject a wrong one for Dart-wrapped keys. Cargo deny checks pass with narrow
+BSD-3-Clause exceptions for SHA-1 UUID naming and constant-time crypto crates;
+no advisory ignores. No full suite or production notebook/keyring/cloud access.
+Eight of nine command families are ported. Upload sync and packaging remain.

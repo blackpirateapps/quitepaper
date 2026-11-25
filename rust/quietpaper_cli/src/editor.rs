@@ -18,6 +18,8 @@ use uuid::Uuid;
 
 #[derive(Args)]
 pub struct NewOptions {
+    #[command(flatten)]
+    pub imports: crate::attachments::ImportOptions,
     #[arg(num_args=0..)]
     pub name: Vec<String>,
     #[arg(short, long)]
@@ -32,6 +34,8 @@ pub struct NewOptions {
 
 #[derive(Args)]
 pub struct EditOptions {
+    #[command(flatten)]
+    pub imports: crate::attachments::ImportOptions,
     #[arg(num_args=0..)]
     pub note: Vec<String>,
     #[arg(short, long)]
@@ -180,12 +184,16 @@ pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
         .title
         .or_else(|| (!options.name.is_empty()).then(|| options.name.join(" ")));
     let content = if io::stdin().is_terminal() {
-        let Some(text) = edit_text(path, fallback.as_deref(), None, options.editor.as_deref())?
-        else {
-            println!("Note creation cancelled (empty or unchanged).");
-            return Ok(());
-        };
-        text
+        match edit_text(path, fallback.as_deref(), None, options.editor.as_deref())? {
+            Some(text) => text,
+            None if !options.imports.files.is_empty() || options.imports.clipboard => {
+                format!("# {}\n", fallback.as_deref().unwrap_or("Untitled"))
+            }
+            None => {
+                println!("Note creation cancelled (empty or unchanged).");
+                return Ok(());
+            }
+        }
     } else {
         let mut text = String::new();
         io::stdin()
@@ -194,23 +202,27 @@ pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
         if text.len() > 64 * 1024 * 1024 {
             bail!("Markdown input exceeds 64 MiB");
         }
-        if text.trim().is_empty() {
+        if text.trim().is_empty() && options.imports.files.is_empty() && !options.imports.clipboard
+        {
             bail!("Stdin was empty. Note not created.");
         }
         text
     };
     let title = markdown::title(&content, fallback.as_deref());
     let id = Uuid::new_v4().to_string();
-    let result = writes::pending_guard(&content).and_then(|_| {
-        db.save(&Save {
+    let result = crate::attachments::save(
+        db,
+        path,
+        &Save {
             id: &id,
             title: &title,
             content: &content,
             tags: &options.tags,
             pinned: options.pinned,
             expected: None,
-        })
-    });
+        },
+        &options.imports,
+    );
     let note = result.map_err(|error| recover(path, &content, error))?;
     println!("Created note: {} ({})", note.title, note.short_id);
     eprintln!("Saved locally; desktop sync can upload pending changes.");
@@ -223,7 +235,6 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
     };
     let snapshot = db.snapshot(&note.id)?;
     writes::guard_editor(&note.content)?;
-    writes::pending_guard(&note.content)?;
     let text = edit_text(
         path,
         Some(&note.title),
@@ -237,22 +248,29 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
     } else {
         note.is_pinned
     };
-    if text.is_none() && pinned == note.is_pinned {
+    if text.is_none()
+        && pinned == note.is_pinned
+        && options.imports.files.is_empty()
+        && !options.imports.clipboard
+    {
         println!("No changes made.");
         return Ok(());
     }
     let content = text.as_deref().unwrap_or(&note.content);
     let title = markdown::title(content, Some(&note.title));
-    let result = writes::pending_guard(content).and_then(|_| {
-        db.save(&Save {
+    let result = crate::attachments::save(
+        db,
+        path,
+        &Save {
             id: &note.id,
             title: &title,
             content,
             tags: &[],
             pinned,
             expected: Some(&snapshot),
-        })
-    });
+        },
+        &options.imports,
+    );
     let note = result.map_err(|error| recover(path, content, error))?;
     println!("Saved note: {} [{}]", note.title, note.short_id);
     eprintln!("Saved locally; desktop sync can upload pending changes.");

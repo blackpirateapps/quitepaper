@@ -15,7 +15,7 @@ be committed and pushed on this branch before the next batch starts.
 | --- | --- | --- |
 | 1 | Rust executable, database discovery, read-only `list` / `show` / `tags`, compatibility tests and CI | Complete and verified |
 | 2 | Local `new` / `edit` / `delete` / restore, external editors and interactive picker, frontmatter/tag parsing, transactional history/search/sync-queue updates, concurrent-edit recovery | Complete and verified |
-| 3 | Desktop credential-store compatibility, account/device keys, QPA1 image encryption, Markdown/clipboard imports, attachment listing/opening and draft recovery | Pending |
+| 3 | Desktop credential-store compatibility, account/device keys, QPA1 image encryption, Markdown/clipboard imports, attachment listing/opening and draft recovery | Complete and verified |
 | 4 | Encrypted note/image upload retries, auth refresh, attachment reference updates, conflict/offline recovery and `sync` | Pending |
 | 5 | Switch Linux builds and DEB/RPM/AppImage/Flatpak packaging to Rust, installed-package smoke checks, remove superseded Dart-only CLI code after parity verification | Pending |
 
@@ -169,10 +169,48 @@ and a real concurrent SQLite edit during an external editor session. No full sui
 
 ## Next batch acceptance
 
-Batch 2 must preserve the desktop schema and shared write contract: atomically
-save notes, normalized tags, history, FTS projections and sync queue records;
-retain all desktop-owned fields; detect concurrent changes before overwriting;
-preserve recoverable editor drafts; exercise successful saves and rollback using
-actual Drift-created notebooks. Attachment-bearing edits must wait for batch 3
-or fail explicitly without changing private asset references. Continue on this
-branch and update this report with the next batch's exact completed scope.
+Batch 4 must upload encrypted note/image snapshots using existing endpoints,
+verify the account key, refresh authentication without rewriting GUI credentials,
+retain pending state after offline/conflict/reference failures and concurrent GUI
+edits, and leave desktop pull cursors untouched. Test against controlled HTTP
+endpoints and Dart decryption before changing release packaging.
+
+## Batch 3 implementation and verification
+
+Adds `attach` and `attachments`/open, bringing eight of nine command families to
+Rust. `new` and `edit` support repeatable `--attach`, `--clipboard`, `--compress`
+and `--base-dir`; the temporary batch-2 attachment guard is removed. CommonMark
+parser source offsets import only actual local image destinations/reference
+definitions, retaining code/frontmatter/remote examples and surrounding bytes.
+Canonical source paths deduplicate within a save. Ordinary imports preserve
+PNG/JPEG/GIF/WebP/AVIF bytes (10 MiB); optional still-image JPEG conversion uses
+quality 85, orientation correction, a 2560-pixel bound and bounded decoder/input
+memory. Animated images cannot be silently flattened. AVIF remains supported as
+original bytes; this Rust decoder build explicitly refuses AVIF compression.
+
+Read-only desktop credentials support Secret Service on the configured notebook
+and the AES-256-GCM fallback beside custom databases. Keyring entries take
+precedence; fallback key derivation matches the machine ID, user and salt format.
+Argon2id/XChaCha20-Poly1305 unwraps existing password-wrapped keys in a terminal;
+scripts with locked keys fail clearly. Sensitive key/password/decrypted buffers
+are zeroized. No credentials are written, exported or refreshed on disk.
+
+QPA1 envelopes use the existing header, versions, 24-byte random nonce and
+attachment-bound AAD. Encrypted files are created as 0600 before transactional
+note/history/search/queue/attachment-row commits. Failed transactions delete
+staged files and preserve the original draft. Database paths are canonicalized so
+stored attachment paths remain valid across invocation directories. Clipboard
+helpers have output/time limits. Opening images requires a terminal and uses a
+private temporary directory, removed after viewer acknowledgement or an error.
+
+Validation: Rust fmt/Clippy pass, **16 Rust tests** and **63 focused Flutter CLI
+tests** pass, and `flutter analyze` is clean. New Drift/Dart tests decrypt Rust
+QPA1 data, verify fallback-store immutability, source-image preservation,
+deduplication, attachment-row visibility, rollback cleanup and JPEG conversion.
+Actual pseudo-terminal tests unwrap a Dart-produced key with the correct password
+and reject the wrong password; a controlled clipboard helper covers screenshot
+import and noninteractive viewer refusal. Rust tests cover tampering/identity
+binding, image bounds/animation and Markdown source ranges. Cargo deny passes;
+two narrow BSD-3-Clause license exceptions cover `sha1_smol` (UUID v5) and
+`subtle` (constant-time crypto), without advisory ignores. No full suite or real
+notebook/keyring/clipboard/viewer/cloud access ran.

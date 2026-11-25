@@ -63,10 +63,6 @@ impl Database {
         Ok(())
     }
 
-    pub fn save(&self, save: &Save<'_>) -> Result<Note> {
-        self.transaction(|| self.save_inner(save))
-    }
-
     pub fn save_inner(&self, save: &Save<'_>) -> Result<Note> {
         if let Some(expected) = save.expected {
             self.check_snapshot(save.id, expected)?;
@@ -200,16 +196,6 @@ pub fn preserve_draft(database: &Path, text: &str) -> Result<std::path::PathBuf>
         .context("Could not preserve editor draft")?;
     file.sync_all()?;
     Ok(path)
-}
-
-pub fn pending_guard(content: &str) -> Result<()> {
-    if content.contains("qp://asset/")
-        || content.contains("qp://document/")
-        || content.contains("![")
-    {
-        bail!("Attachment-bearing writes require migration batch 3; original note unchanged.");
-    }
-    Ok(())
 }
 
 pub fn guard_editor(content: &str) -> Result<()> {

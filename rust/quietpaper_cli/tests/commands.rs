@@ -69,6 +69,11 @@ fn help_version_and_usage_do_not_open_database() {
         vec!["--version"],
         vec!["list", "--help"],
         vec!["show", "--help"],
+        vec!["new", "--help"],
+        vec!["edit", "--help"],
+        vec!["delete", "--help"],
+        vec!["attach", "--help"],
+        vec!["attachments", "--help"],
     ] {
         assert!(qp(&path, &args).status.success(), "{args:?}");
     }
