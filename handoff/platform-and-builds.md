@@ -59,7 +59,9 @@ Current release: **1.6.4+22**. When bumping the app release version:
    `lib/core/version/app_version_provider.dart`, the backup, device and location
    services, weather HTTP user agent, update service/dialog defaults, and
    `qpnote_exporter.dart`. Update
-   `lib/core/cli/cli_runner.dart` and version-format test examples as well.
+   `lib/core/cli/cli_runner.dart`, the Rust CLI package version in
+   `rust/quietpaper_cli/Cargo.toml` (refresh `Cargo.lock`), and version-format
+   test examples as well.
 3. Update `linux/packaging/quietpaper.spec`, add a release to
    `linux/com.blackpiratex.quietpaper.metainfo.xml`, and synchronize the fallback
    numeric/string versions in `windows/runner/Runner.rc`.
@@ -97,6 +99,12 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 - App Version Bump Checklist: [Historical Logs v1.0–v1.4, Section 17](archive/logs-v1.0-v1.4.md#17-app-version-bump-checklist)
 
 ## Linux CLI image attachments
+
+The installed CLI described below remains Dart during the staged Rust rewrite.
+The independent Rust binary currently implements read-only `list`, `show` and
+`tags`; see [the migration batches and validation](../docs/linux-cli-rust-rewrite.md).
+Linux release packaging will switch only after the remaining write, encryption,
+attachment and sync batches pass their acceptance checks.
 
 `qp` can import images without launching Flutter or GTK:
 

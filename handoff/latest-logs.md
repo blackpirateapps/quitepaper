@@ -8461,3 +8461,40 @@ Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
 Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
 layout, nested paths, comma batches, cancellation and single editor/frontmatter
 updates. No full suite, app build or physical-device/cloud-sync replay was run.
+
+## 352. Linux CLI Rust rewrite — batch 1 (November 25, 2026)
+
+Started on `feat/linux-cli-rust-rewrite` from `12c49b3`. The user requested a
+batched rewrite of the Linux Dart CLI, with progress documented and a commit/push
+after each batch. [The migration report](../docs/linux-cli-rust-rewrite.md) tracks
+all five batches, completed scope, behavior differences and the next acceptance
+gate. This batch finishes the independent read-only Rust executable: **3 of 9
+existing command families**, not a claim that one third of all work is complete.
+
+`rust/quietpaper_cli` joins the Cargo workspace and builds `qp`, with `list`/`ls`,
+`show`/`cat`/`view`/`s`, `tags`/`t`, global database/help/version options, JSON and
+plain output. It preserves canonical/legacy Linux database discovery and the
+Dart JSON contract. Database access is read-only with a busy timeout and a read
+snapshot, reads committed desktop WAL writes, and makes no schema/title/history
+or queue changes. Tests use disposable fixtures and actual Drift schema-25
+notebooks. Missing notebooks fail with setup guidance instead of creating files.
+
+The rewrite corrects active tag counts, excludes deleted tags from filters,
+escapes literal search wildcards and requires explicit IDs for ambiguous matches.
+Interactive selection, local writes/editors, encryption/attachments, upload sync
+and packaging cutover remain in batches 2–5. Linux distribution workflows still
+package the full existing Dart CLI; the Rust CLI does not delegate to Dart.
+The release-version checklist now includes the Rust package version.
+
+`scripts/test_rust_cli.sh` and `.github/workflows/linux_cli_rust.yml` provide the
+focused gate. Ordinary Flutter-only runs explicitly skip the three binary
+compatibility tests unless `QP_RUST_CLI_BIN` is set; the dedicated gate always
+builds the binary and enables them. Final local validation passes Rust fmt,
+Clippy with warnings denied, **12 Rust tests**, binary build/help/version smoke,
+`flutter analyze` with no issues, and **53 focused Flutter CLI tests** including
+all three cross-language tests. `git diff --check`, `cargo audit`, and Cargo deny
+advisory/license/source/ban checks pass. The latter permits duplicate-version
+warnings under the existing policy. Advisory checks prompted an upgrade to
+rusqlite 0.43's patched bundled SQLite and replacement of Chrono with Jiff before
+acceptance; no advisory ignores were added. No full Flutter suite, app/package
+build, production notebook, cloud operation or physical-device validation ran.
