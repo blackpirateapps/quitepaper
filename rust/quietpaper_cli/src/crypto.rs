@@ -16,6 +16,9 @@ pub fn decode(text: &str) -> Result<Vec<u8>> {
         .decode(text)
         .context("Invalid base64 encryption data")
 }
+pub fn encode(bytes: &[u8]) -> String {
+    STANDARD.encode(bytes)
+}
 
 pub fn encrypt(key: &[u8; 32], nonce: &[u8; 24], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
     XChaCha20Poly1305::new(key.into())

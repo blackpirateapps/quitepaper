@@ -163,15 +163,16 @@ complete. These changes address the recent Linux workflow test failures; see
 ## Latest Linux CLI Work
 
 The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
-Batch 3 adds desktop credential compatibility, password key unwrapping, QPA1
-image encryption, Markdown/clipboard imports and attachment listing/opening to
-the independent `rust/quietpaper_cli` executable. Eight command families now run
-in Rust, including local writes/editors with transactional history/search/queues
-and private recovery. Upload sync and Linux packaging cutover remain pending.
+Batch 4 completes all nine command families in the independent
+`rust/quietpaper_cli` executable, including encrypted note/image upload retries,
+account/key checks, authentication refresh, reference projection and permanent
+deletion tombstones. Encrypted idempotency journals and snapshot checks preserve
+pending changes across failures and concurrent GUI edits. Linux packaging cutover
+and removal of the superseded Dart CLI remain in the final batch.
 The packaged CLI still uses
 Dart. See [the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
 scope, behavior differences, validation and next-batch acceptance, and
-engineering logs 352–354 in [the active logs](handoff/latest-logs.md).
+engineering logs 352–355 in [the active logs](handoff/latest-logs.md).
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image

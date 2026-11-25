@@ -158,6 +158,8 @@ impl Database {
     pub fn delete(&self, note: &Note, restore: bool, permanent: bool) -> Result<()> {
         self.transaction(|| {
             if permanent {
+                let row=self.row("notes",&note.id)?;
+                crate::sync::set_metadata(self,&format!("cli_delete:{}",note.id),&serde_json::json!({"baseRevision":row["server_revision"],"time":now()}).to_string())?;
                 self.0.execute("DELETE FROM notes WHERE id=?", [&note.id])?;
                 self.delete_search(&note.id)?;
                 self.queue(&note.id,"delete")?;

@@ -74,6 +74,7 @@ fn help_version_and_usage_do_not_open_database() {
         vec!["delete", "--help"],
         vec!["attach", "--help"],
         vec!["attachments", "--help"],
+        vec!["sync", "--help"],
     ] {
         assert!(qp(&path, &args).status.success(), "{args:?}");
     }

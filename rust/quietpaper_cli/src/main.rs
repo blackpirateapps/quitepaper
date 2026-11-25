@@ -7,6 +7,7 @@ mod image_paths;
 mod markdown;
 mod model;
 mod process;
+mod sync;
 mod writes;
 
 use std::{
@@ -21,7 +22,7 @@ use clap::{error::ErrorKind, Args, Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "qp", version, about = "Quiet Paper CLI — Offline-first notes in your terminal",
     long_version = concat!(env!("CARGO_PKG_VERSION"), " (Rust)"),
-    after_help = "Rust migration batch 3: local notes, editors and encrypted images. Upload sync arrives in batch 4.",
+    after_help = "Upload sync retries local notes and images; remote pull/merge remains in the desktop app.",
     disable_version_flag = true, propagate_version = true, arg_required_else_help = true)]
 struct Cli {
     /// Print the current CLI version
@@ -93,6 +94,11 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Retry encrypted note/image uploads (conflicts require the desktop app)
+    Sync {
+        #[arg(num_args=0..)]
+        note: Vec<String>,
+    },
 }
 
 #[derive(Args, Default)]
@@ -125,7 +131,11 @@ fn run(cli: Cli) -> Result<()> {
     let path = std::fs::canonicalize(&path).unwrap_or(path);
     if matches!(
         &cli.command,
-        Command::New(_) | Command::Edit(_) | Command::Delete { .. } | Command::Attach { .. }
+        Command::New(_)
+            | Command::Edit(_)
+            | Command::Delete { .. }
+            | Command::Attach { .. }
+            | Command::Sync { .. }
     ) {
         let db = database::Database::open_writable(&path)?;
         match cli.command {
@@ -150,6 +160,7 @@ fn run(cli: Cli) -> Result<()> {
                         note.title,
                         note.short_id
                     );
+                    sync::after_save(&db, &path, &note.id);
                 }
             }
             Command::Attach {
@@ -179,9 +190,10 @@ fn run(cli: Cli) -> Result<()> {
                     )
                     .map_err(|e| editor::recover(&path, &note.content, e))?;
                     println!("Saved images to {} [{}]", saved.title, saved.short_id);
-                    eprintln!("Saved locally; desktop sync can upload pending changes.");
+                    sync::after_save(&db, &path, &saved.id);
                 }
             }
+            Command::Sync { note } => sync::run(&db, &path, &note)?,
             _ => unreachable!(),
         }
         return Ok(());

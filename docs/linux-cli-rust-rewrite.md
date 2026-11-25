@@ -16,7 +16,7 @@ be committed and pushed on this branch before the next batch starts.
 | 1 | Rust executable, database discovery, read-only `list` / `show` / `tags`, compatibility tests and CI | Complete and verified |
 | 2 | Local `new` / `edit` / `delete` / restore, external editors and interactive picker, frontmatter/tag parsing, transactional history/search/sync-queue updates, concurrent-edit recovery | Complete and verified |
 | 3 | Desktop credential-store compatibility, account/device keys, QPA1 image encryption, Markdown/clipboard imports, attachment listing/opening and draft recovery | Complete and verified |
-| 4 | Encrypted note/image upload retries, auth refresh, attachment reference updates, conflict/offline recovery and `sync` | Pending |
+| 4 | Encrypted note/image upload retries, auth refresh, attachment reference updates, conflict/offline recovery and `sync` | Complete and verified |
 | 5 | Switch Linux builds and DEB/RPM/AppImage/Flatpak packaging to Rust, installed-package smoke checks, remove superseded Dart-only CLI code after parity verification | Pending |
 
 Batch 1 implements **3 of the 9 existing top-level command families**. That is a
@@ -169,11 +169,9 @@ and a real concurrent SQLite edit during an external editor session. No full sui
 
 ## Next batch acceptance
 
-Batch 4 must upload encrypted note/image snapshots using existing endpoints,
-verify the account key, refresh authentication without rewriting GUI credentials,
-retain pending state after offline/conflict/reference failures and concurrent GUI
-edits, and leave desktop pull cursors untouched. Test against controlled HTTP
-endpoints and Dart decryption before changing release packaging.
+Batch 5 must switch all Linux artifact builders to the Rust executable, fail on
+missing CLI artifacts, verify relocatable installed layouts, remove the shipped
+Dart implementation, and run the final relevant gates without the full suite.
 
 ## Batch 3 implementation and verification
 
@@ -214,3 +212,48 @@ binding, image bounds/animation and Markdown source ranges. Cargo deny passes;
 two narrow BSD-3-Clause license exceptions cover `sha1_smol` (UUID v5) and
 `subtle` (constant-time crypto), without advisory ignores. No full suite or real
 notebook/keyring/clipboard/viewer/cloud access ran.
+
+## Batch 4 implementation and verification
+
+All nine existing command families now run in Rust. `sync [note]` retries dirty
+notes, pending referenced images even when their note is already clean, and
+permanent deletion tombstones. Successful local `new`/`edit`/`attach`/delete saves
+attempt upload; authentication/network/quota/conflict failures retain the local
+commit and exit 0. Explicit `sync` exits 1 when any requested snapshot remains
+pending. Pull/merge, OCR, history/tag metadata sync and pull cursors stay under
+the desktop app's existing ownership.
+
+The client uses HTTPS with certificate validation and redirects disabled,
+bounded responses and request/connect timeouts. `QP_API_URL` supports HTTPS or
+loopback HTTP for development. Authentication reads the desktop session and
+refreshes through the backend public Firebase config; a refresh must return the
+same account ID, and credentials are never rewritten. Cloud key commitments (or
+legacy wrapped-key equality) are verified before uploads. XChaCha20-Poly1305 note
+payloads include tags, per-tag pins and email provenance inside ciphertext.
+
+Image uploads authenticate QPA1 locally and check plaintext size/hash, obtain
+upload authorization, send encrypted multipart bytes without account headers,
+confirm metadata and update attachment state only if its entire row still
+matches. Note pushes use revision checks and an encrypted, account-bound
+idempotency journal in existing `sync_metadata` keys (`cli_push:<id>`). Retrying
+an uncertain acknowledgement or failed reference projection replays the same
+ciphertext and idempotency key. References are bounded into 500-item requests.
+The journal stores no plaintext note/password/key. Acknowledgement advances the
+base revision but clears dirty state/queue entries only for unchanged row/tag/
+queue snapshots. Conflicts remain pending for desktop resolution.
+
+Permanent deletion records a revision/time tombstone in `cli_delete:<id>` before
+removing local rows, then retries it through the same push contract. These are
+local metadata keys, not new tables or schema migrations; pull cursors remain
+untouched. Old Dart deletion queues without revision metadata remain retryable.
+
+Validation: Rust fmt/Clippy and **18 Rust tests** pass; `flutter analyze` is clean;
+all **72 focused Flutter CLI tests** pass. Controlled loopback HTTP tests decrypt
+Rust note payloads in Dart, including provenance and per-tag pins, and cover
+HTTP failure, conflicts, missing acknowledgement, GUI races, key mismatch,
+permanent deletion, image retry discovery and refusal of non-HTTPS uploads.
+Reference failure/retry tests compare the exact encrypted push and idempotency
+key across processes. Rust transport tests verify encrypted multipart data and
+header isolation, attachment races, one authentication refresh and account
+mismatch refusal. Cargo deny advisory/license/source/ban checks pass. No full
+suite or live account/cloud access ran.

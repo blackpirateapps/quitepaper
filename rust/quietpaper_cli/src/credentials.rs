@@ -20,6 +20,19 @@ pub struct Credentials {
 }
 
 impl Credentials {
+    #[cfg(test)]
+    pub fn fixture(key: [u8; 32], session: serde_json::Value) -> Self {
+        let entries = [(
+            "quietpaper_auth_session_v1".into(),
+            Zeroizing::new(session.to_string()),
+        )]
+        .into_iter()
+        .collect();
+        Self {
+            entries,
+            key: Some(Zeroizing::new(key)),
+        }
+    }
     pub fn read(database: &Path) -> Result<Self> {
         let mut entries = BTreeMap::new();
         let canonical = database::default_path()

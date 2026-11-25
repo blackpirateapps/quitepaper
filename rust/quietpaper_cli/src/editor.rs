@@ -225,7 +225,7 @@ pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
     );
     let note = result.map_err(|error| recover(path, &content, error))?;
     println!("Created note: {} ({})", note.title, note.short_id);
-    eprintln!("Saved locally; desktop sync can upload pending changes.");
+    crate::sync::after_save(db, path, &note.id);
     Ok(())
 }
 
@@ -273,7 +273,7 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
     );
     let note = result.map_err(|error| recover(path, content, error))?;
     println!("Saved note: {} [{}]", note.title, note.short_id);
-    eprintln!("Saved locally; desktop sync can upload pending changes.");
+    crate::sync::after_save(db, path, &note.id);
     Ok(())
 }
 

@@ -8542,3 +8542,28 @@ reject a wrong one for Dart-wrapped keys. Cargo deny checks pass with narrow
 BSD-3-Clause exceptions for SHA-1 UUID naming and constant-time crypto crates;
 no advisory ignores. No full suite or production notebook/keyring/cloud access.
 Eight of nine command families are ported. Upload sync and packaging remain.
+
+## 355. Linux CLI Rust rewrite — batch 4 (November 25, 2026)
+
+Ports `sync` and automatic post-save uploads, completing nine command families.
+The Rust client verifies cloud account keys, refreshes sessions without rewriting
+desktop credentials, encrypts note metadata/provenance, uploads QPA1 multipart
+payloads without account headers and confirms attachment references. HTTPS,
+certificate validation, redirect refusal and time/size limits apply. Local saves
+remain successful when upload is pending; explicit sync reports failures.
+
+Account-bound encrypted push journals retain idempotency across uncertain
+acknowledgements/reference failures. Full row/tag/queue fingerprints prevent
+clearing concurrent GUI mutations. Image state uses full-row checks, and retry
+discovery includes pending images on otherwise clean notes. Permanent deletions
+retain revision-bound tombstones. Both journals use existing local metadata keys;
+there is no schema change or pull-cursor advancement. Desktop pull/merge and OCR
+ownership remain unchanged.
+
+Validation: fmt/Clippy, 18 Rust tests, clean `flutter analyze`, and all 72 focused
+Flutter CLI cases pass. Actual loopback HTTP tests decrypt Rust ciphertext in
+Dart and cover HTTP/conflict/acknowledgement/race/key-mismatch/tombstone cases,
+exact idempotent replay after reference failure and pending-image discovery.
+Rust transport tests cover encrypted multipart/header isolation, attachment
+races, authentication refresh and account mismatch. Cargo deny passes. No full
+suite or live cloud access ran. Packaging/removal is the remaining batch.
