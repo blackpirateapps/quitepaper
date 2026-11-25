@@ -8,6 +8,38 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Task editing, note links and multi-tag filtering (November 25, 2026)
+
+Expanded tasks now offer Phosphor Rename and Delete actions. Rename opens a
+keyboard-aware sheet, validates a single-line name and retains the draft after
+save errors. Delete confirms removal of the task and nested items. Both commands
+save through the existing note/editor transaction and derived index, preserve
+dates/completion, and offer guarded Undo. Deletion checks the original note
+version before removing descendants; rename/delete Undo refuses later source
+content changes. Markdown rename preserves checklist prefixes, metadata and
+continuation bytes, while replacing the name with literal text. No-op rename
+retains inline formatting. Super Editor handles task text, deletion/restoration
+and capture with ordinary undoable node requests and retains unaffected node IDs.
+
+Source-note headings and task subtitles now include a Phosphor arrow and open
+their exact source note directly. All tags opens a searchable multi-select picker:
+selecting several tags matches any selected tag and its descendants, combined
+with task search and the Open/Completed tab. The picker uses tags from eligible
+task notes, retains selected tags while searching, and stages Apply/Clear changes;
+dismissal preserves the current filter. Mobile uses the shared paper bottom
+sheet; desktop uses a compact dialog. No schema or sync format changed. See
+[the current Tasks guide](handoff/tasks.md).
+
+Validation: `flutter analyze` reports no issues. **102 focused tests** pass with
+`flutter test --no-pub test/tasks test/editor/smart_task_super_editor_test.dart`
+(using an isolated temporary directory after Flutter lost its first run's temp
+compiler files). Coverage includes canonical Markdown/rich rename/delete/Undo,
+stale-edit protection, attached Visual and Super Editor history, mobile
+search/multi-select/cancel/clear, exact note navigation, empty tags, desktop
+dialogs, large text and keyboard insets. Light/dark phone widget previews were
+visually inspected. `git diff --check` passes. **No full suite, app build or
+physical-device run was performed.**
+
 ## Tasks phone layout correction (November 25, 2026)
 
 The Tasks workspace now follows the supplied smartphone references: one serif

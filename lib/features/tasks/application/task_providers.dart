@@ -21,7 +21,7 @@ final taskExcludedNotesProvider = Provider<Set<String>>((ref) {
 });
 final taskClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 final taskSearchProvider = StateProvider<String>((ref) => '');
-final taskTagProvider = StateProvider<String?>((ref) => null);
+final taskTagsProvider = StateProvider<Set<String>>((ref) => const {});
 final taskCompletedProvider = StateProvider<bool>((ref) => false);
 final taskScrollProvider = StateProvider<double>((ref) => 0);
 final taskIndexFailuresProvider = StreamProvider.autoDispose<int>((ref) {
@@ -117,11 +117,19 @@ final taskItemsProvider = StreamProvider.autoDispose<List<TaskItem>>((
   }
 });
 
-List<TaskItem> filterTasks(List<TaskItem> tasks, String search, String? tag) {
+List<TaskItem> filterTasks(
+  List<TaskItem> tasks,
+  String search,
+  Iterable<String> tags,
+) {
   final tokens = SearchTokenizer.tokenize(search);
   return tasks.where((t) {
-    if (tag != null &&
-        !t.note.tags.any((name) => name == tag || name.startsWith('$tag/'))) {
+    if (tags.isNotEmpty &&
+        !tags.any(
+          (tag) => t.note.tags.any(
+            (name) => name == tag || name.startsWith('$tag/'),
+          ),
+        )) {
       return false;
     }
     return tokens.every(t.normalizedSearch.contains);

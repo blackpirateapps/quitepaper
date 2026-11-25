@@ -90,13 +90,13 @@ void main() {
         await tester.tap(find.text('Shirts 3x'));
         await tester.pumpAndSettle();
         expect(find.text('Add due date'), findsOneWidget);
-        expect(find.text('Open note'), findsOneWidget);
+        expect(find.text('Rename'), findsOneWidget);
         await tester.tap(find.text('Pants 1x'));
         await tester.pumpAndSettle();
-        expect(find.text('Open note'), findsOneWidget);
+        expect(find.text('Rename'), findsOneWidget);
         await tester.tap(find.text('Pants 1x'));
         await tester.pumpAndSettle();
-        expect(find.text('Open note'), findsNothing);
+        expect(find.text('Rename'), findsNothing);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       },
@@ -221,7 +221,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Shirts 3x'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Open note'));
+      await tester.tap(find.byTooltip('Open note: Bag package'));
       await tester.pumpAndSettle();
       expect(openedNote!.id, 'bag');
       await tester.tap(find.text('Add due date'));

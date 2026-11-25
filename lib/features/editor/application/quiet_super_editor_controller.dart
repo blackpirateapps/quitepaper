@@ -1,3 +1,7 @@
+import 'dart:convert';
+import '../domain/rich_document.dart';
+import 'rich_document_serializer.dart';
+import 'frontmatter_editor_helper.dart';
 import '../../tasks/domain/task_document.dart';
 import 'dart:ui' show TextAffinity;
 
@@ -54,7 +58,8 @@ class QuietSuperEditorController extends ChangeNotifier {
     if (newTasks.length == oldTasks.length) {
       for (var i = 0; i < nodes.length; i++) {
         if (oldTasks[i].completed == newTasks[i].completed &&
-            oldTasks[i].metadata == newTasks[i].metadata) {
+            oldTasks[i].metadata == newTasks[i].metadata &&
+            oldTasks[i].text == newTasks[i].text) {
           continue;
         }
         final metadata = {...nodes[i].metadata};
@@ -67,35 +72,83 @@ class QuietSuperEditorController extends ChangeNotifier {
           ReplaceNodeRequest(
             existingNodeId: nodes[i].id,
             newNode: nodes[i].copyTaskWith(
+              text: oldTasks[i].text == newTasks[i].text
+                  ? nodes[i].text
+                  : AttributedText(newTasks[i].text),
               isComplete: newTasks[i].completed,
               metadata: metadata,
             ),
           ),
         );
       }
-    } else if (newTasks.length == oldTasks.length + 1) {
-      final t = newTasks.last;
-      requests.add(
-        InsertNodeAtEndOfDocumentRequest(
-          TaskNode(
-            id: Editor.createNodeId(),
-            text: AttributedText(t.text),
-            isComplete: false,
-            metadata: {'qp-task': t.metadata!.toJson()},
-          ),
-        ),
-      );
-    } else if (newTasks.length == oldTasks.length - 1) {
-      final ids = newTasks.map((t) => t.metadata?.id).toSet();
-      final removed = oldTasks.indexWhere(
-        (t) => t.metadata != null && !ids.contains(t.metadata!.id),
-      );
-      if (removed < 0) throw const StaleTask();
-      requests.add(DeleteNodeRequest(nodeId: nodes[removed].id));
     } else {
-      throw const StaleTask();
+      _replaceTaskStructure(after);
+      return;
     }
     _editor!.execute(requests);
+  }
+
+  /// Reconcile only the changed node range, keeping unaffected live node IDs.
+  /// Structural commands and restoration use the same undoable edit transaction.
+  void _replaceTaskStructure(String content) {
+    final markdown = RichDocument.isJson(content)
+        ? const RichDocumentSerializer().serialize(
+            RichDocument.fromJson(jsonDecode(content) as Map<String, dynamic>),
+          )
+        : content;
+    final body = markdown.substring(
+      FrontmatterEditorHelper.parse(markdown).bodyStartOffset,
+    );
+    final next = deserializeQuietMathDocument(
+      normalizeMarkdownForSuperEditor(body),
+    );
+    promoteQuietAttachmentNodes(next);
+    promoteLinkPreviewNodes(next);
+    promoteQuietCodeBlockNodes(next, body);
+    promoteQuietMathBlockNodes(next);
+    if (next.isEmpty) {
+      next.insertNodeAt(
+        0,
+        ParagraphNode(id: Editor.createNodeId(), text: AttributedText()),
+      );
+    }
+    final current = _editor!.document.toList();
+    final replacement = next.toList();
+    bool same(DocumentNode a, DocumentNode b) {
+      if (a.runtimeType != b.runtimeType || !a.hasEquivalentContent(b)) {
+        return false;
+      }
+      if (a is TaskNode && b is TaskNode) {
+        return a.indent == b.indent &&
+            TaskMetadata.fromJson(a.metadata['qp-task']) ==
+                TaskMetadata.fromJson(b.metadata['qp-task']);
+      }
+      return true;
+    }
+
+    var start = 0;
+    while (start < current.length &&
+        start < replacement.length &&
+        same(current[start], replacement[start])) {
+      start++;
+    }
+    var oldEnd = current.length;
+    var newEnd = replacement.length;
+    while (oldEnd > start &&
+        newEnd > start &&
+        same(current[oldEnd - 1], replacement[newEnd - 1])) {
+      oldEnd--;
+      newEnd--;
+    }
+    final requests = <EditRequest>[
+      for (var i = oldEnd - 1; i >= start; i--)
+        DeleteNodeRequest(nodeId: current[i].id),
+      for (var i = start; i < newEnd; i++)
+        InsertNodeAtIndexRequest(nodeIndex: i, newNode: replacement[i]),
+    ];
+    if (requests.isNotEmpty) {
+      _editor!.execute(requests);
+    }
   }
 
   void revealTask(int ordinal) {

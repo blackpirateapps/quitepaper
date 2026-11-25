@@ -153,9 +153,10 @@ void main() {
           tester.widget<TextField>(find.byType(TextField)).controller!.text,
           'estimate',
         );
-        await tester.tap(find.byType(DropdownButton<String>));
+        await tester.tap(find.text('All tags'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('#work').last);
+        await tester.tap(find.byKey(const ValueKey('task-filter-tag-work')));
+        await tester.tap(find.text('Apply'));
         await tester.pumpAndSettle();
         expect(find.text('Estimate'), findsOneWidget);
         await tester.tap(find.text('Completed 1'));
@@ -192,7 +193,7 @@ void main() {
             task('a', 'বাংলা café', tags: ['work/project']),
           ],
           'বাংলা',
-          'work',
+          const {'work'},
         ),
         hasLength(1),
       );
@@ -202,7 +203,7 @@ void main() {
             task('a', 'বাংলা café', tags: ['work/project']),
           ],
           'café',
-          'wor',
+          const {'wor'},
         ),
         isEmpty,
       );

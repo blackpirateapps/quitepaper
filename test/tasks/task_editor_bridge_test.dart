@@ -82,4 +82,80 @@ void main() {
       await db.close();
     },
   );
+  testWidgets(
+    'open Visual rename/delete persist through the editor and share its undo history',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final db = AppDatabase.memory();
+      final repository = DriftNotesRepository(db);
+      final note = Note(
+        id: 'editing',
+        title: 'Source',
+        content:
+            '- [ ] **Original** <!-- qp-task:v1 id=$id due=2026-11-27 -->\n  - [ ] Child\n- [ ] Sibling',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      );
+      await repository.saveNote(note);
+      final service = TaskService(
+        db,
+        repository,
+        inboxNamespace: () async => 'synthetic',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            notesRepositoryProvider.overrideWithValue(repository),
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(home: EditorScreen(note: note)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bridge = TaskEditorBridge.forNote(note.id)!;
+      TaskItem item(Note note) => TaskItem(
+        note: note,
+        version: TaskDocument.version(note.content),
+        occurrence: TaskDocument.extract(note.content).first,
+      );
+      final controller = tester
+          .widget<RichChecklistEditor>(find.byType(RichChecklistEditor).first)
+          .controller;
+      final before = await bridge.prepare();
+      await service.rename(item(before), 'Renamed');
+      await tester.pumpAndSettle();
+      expect(
+        TaskDocument.extract(
+          (await repository.getNoteById(note.id))!.content,
+        ).first.text,
+        'Renamed',
+      );
+      controller.undo();
+      await tester.pumpAndSettle();
+      final restored = await bridge.prepare();
+      expect(TaskDocument.extract(restored.content).first.text, 'Original');
+      final deleted = await service.delete(item(restored));
+      await tester.pumpAndSettle();
+      expect(
+        TaskDocument.extract(
+          (await repository.getNoteById(note.id))!.content,
+        ).map((task) => task.text),
+        ['Sibling'],
+      );
+      await deleted.undo.run();
+      await tester.pumpAndSettle();
+      expect(
+        TaskDocument.extract(
+          (await repository.getNoteById(note.id))!.content,
+        ).map((task) => task.text),
+        ['Original', 'Child', 'Sibling'],
+      );
+      expect(tester.takeException(), isNull);
+      await db.close();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
 }

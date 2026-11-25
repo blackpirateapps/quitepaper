@@ -168,6 +168,101 @@ abstract final class TaskDocument {
     );
   }
 
+  static String _literal(String text) => text.replaceAllMapped(
+    RegExp(r'[\\`*_{}\[\]()<>#+.!|~$=-]'),
+    (m) => '\\${m[0]}',
+  );
+
+  static String rename(String content, TaskOccurrence task, String text) {
+    if (text.trim().isEmpty || text.contains(RegExp(r'[\r\n\u2028\u2029]'))) {
+      throw const StaleTask('Enter a task name on a single line.');
+    }
+    if (text.trim() == task.text.split('\n').first) return content;
+    if (RichDocument.isJson(content)) {
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      (data['blocks'] as List)[task.start]['spans'] = [
+        {'text': text.trim()},
+      ];
+      return jsonEncode(data);
+    }
+    final line = content.substring(task.start, task.end);
+    final parsed = TaskMetadata.parseTerminal(line);
+    if (parsed.metadata == null && line.contains('qp-task:')) {
+      throw const StaleTask(
+        'Repair unrecognized task metadata in the note before renaming.',
+      );
+    }
+    final afterBracket = task.checkOffset + 2;
+    final spacing = RegExp(
+      r'^[ \t]*',
+    ).firstMatch(content.substring(afterBracket, task.end))![0]!;
+    final prefix = content.substring(task.start, afterBracket);
+    final metadata = line.substring(parsed.text.length);
+    return content.replaceRange(
+      task.start,
+      task.end,
+      '$prefix${spacing.isEmpty ? ' ' : spacing}${_literal(text.trim())}$metadata',
+    );
+  }
+
+  /// Deliberate deletion includes indented continuation and nested list items.
+  /// Capture Undo continues to use the stricter [remove] operation below.
+  static String delete(String content, TaskOccurrence task) {
+    if (RichDocument.isJson(content)) {
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      final blocks = data['blocks'] as List;
+      final indent = blocks[task.start]['indent'] as int? ?? 0;
+      var end = task.start + 1;
+      while (end < blocks.length &&
+          (blocks[end]['indent'] as int? ?? 0) > indent) {
+        end++;
+      }
+      blocks.removeRange(task.start, end);
+      return jsonEncode(data);
+    }
+    final base = _lineStructure(content.substring(task.start, task.end));
+    var end = task.end;
+    // Include the first line's own terminator, retaining the note's line endings.
+    if (content.startsWith('\r\n', end)) {
+      end += 2;
+    } else if (content.startsWith('\n', end)) {
+      end++;
+    }
+    for (final line in RegExp(r'[^\n]*(?:\n|$)').allMatches(content, end)) {
+      if (line.start == line.end) break;
+      final structure = _lineStructure(
+        line[0]!.replaceFirst(RegExp(r'\r?\n$'), ''),
+      );
+      if (structure.blank) continue;
+      if (structure.quotes != base.quotes || structure.indent <= base.indent) {
+        break;
+      }
+      end = line.end;
+    }
+    return content.replaceRange(task.start, end, '');
+  }
+
+  static ({int quotes, int indent, bool blank}) _lineStructure(String line) {
+    var quotes = 0;
+    while (true) {
+      final quote = RegExp(r'^[ \t]*> ?').firstMatch(line);
+      if (quote == null) break;
+      quotes++;
+      line = line.substring(quote.end);
+    }
+    var indent = 0;
+    for (final code in line.codeUnits) {
+      if (code == 32) {
+        indent++;
+      } else if (code == 9) {
+        indent += 4 - indent % 4;
+      } else {
+        break;
+      }
+    }
+    return (quotes: quotes, indent: indent, blank: line.trim().isEmpty);
+  }
+
   static String append(
     String content,
     String text,
@@ -212,10 +307,7 @@ abstract final class TaskDocument {
       return jsonEncode(data);
     }
     // Escape inline syntax, keeping capture a single literal checklist node.
-    final literal = text.trim().replaceAllMapped(
-      RegExp(r'[\\`*_{}\[\]()<>#+.!|~$=-]'),
-      (m) => '\\${m[0]}',
-    );
+    final literal = _literal(text.trim());
     final nl = content.contains('\r\n') ? '\r\n' : '\n';
     return '$content${content.isEmpty || content.endsWith('\n') ? '' : nl}- [ ] $literal${metadata.comment}';
   }

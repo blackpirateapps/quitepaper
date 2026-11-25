@@ -71,7 +71,7 @@ Future<void> main() async {
   final samples = <int>[];
   for (var i = 0; i < 30; i++) {
     clock.reset();
-    final results = filterTasks(candidates, 'Task 1 café', 'work')
+    final results = filterTasks(candidates, 'Task 1 café', const {'work'})
       ..sort((a, b) => compareTasks(a, b, TaskDate.local(now)));
     if (results.isEmpty) throw StateError('Benchmark search failed');
     samples.add(clock.elapsedMicroseconds);

@@ -14,7 +14,7 @@ release approval.
   offsets, literal exclusion, checkbox counting/toggling and metadata suppression.
 - `core/database/task_index.dart`: schema 26 installation-local projection,
   canonical-save maintenance, durable dirty triggers and bounded repair.
-- `features/tasks/application`: shared explicit completion/date/capture commands,
+- `features/tasks/application`: shared completion/date/capture/rename/delete commands,
   field-aware operation receipts and Riverpod state.
 - `features/tasks/presentation`: lazy Tasks list, capture, phone date sheet and
   staged desktop date picker.
@@ -40,8 +40,9 @@ search on demand, underlined Open/Completed counts and compact All tags filterin
 Date groups retain canonical ordering. Adjacent tasks from the same source note
 share a note heading; standalone tasks retain their source subtitle. Circular
 checkboxes invoke the existing completion command. Tapping the task text expands
-one row with due-date and explicit Open note actions, keeping source navigation
-separate from completion. Wide-font/large-text controls adapt to the available
+one row with due-date, Rename and Delete actions. Source-note headings and
+subtitles include a Phosphor arrow and open the exact note directly, independently
+of row expansion or completion. Wide-font/large-text controls adapt to the available
 width and expanded actions wrap.
 
 At viewport widths below 600 logical pixels, due dates use a paper-themed modal
@@ -58,6 +59,30 @@ load, date dismissal/presets/calendar/clear, canonical date/completion/Undo and
 source opening. A targeted real app-shell test verifies one toolbar and drawer
 navigation. Rendered widget previews were inspected at 390 × 844 logical pixels;
 these checks do not establish physical-device acceptance.
+
+## Editing tasks and filtering tags
+
+Rename/Delete use the same note persistence and attached-editor barrier as dates
+and completion. Rename accepts one literal line and preserves completion, date,
+identity, unrelated note content, and Markdown prefix/continuation/line endings.
+Replacing a name replaces its inline styling; an unchanged name preserves styling.
+The rename sheet keeps its draft on failure. Delete confirms removal of the task
+and its indented continuation/nested items, rechecking the source version to
+avoid deleting children added since the list snapshot. Closed-note rename/delete
+Undo restores the exact previous content only while the source content remains
+unchanged. Attached editors retain their own history too. Super Editor renames
+through task-node replacement and reconciles structural changes using undoable
+node requests, retaining unaffected prefix/suffix nodes.
+
+`taskTagsProvider` stores a set independently of note-list filters. All tags opens
+a searchable selection sheet (compact dialog on desktop) offering tags from all
+eligible task notes and their ancestor paths. Selected tags remain removable
+while searching. **Any selected tag** matches that tag or its descendants; task
+search and completion state further narrow results. Counts reflect those combined
+filters. Apply commits the staged selection, Clear filters stages an empty set,
+and dismissing discards staged changes. Untagged task notes produce an explanatory
+empty state. The sheet keeps its controls visible above the keyboard and supports
+large text and both palettes.
 
 ## Canonical format
 

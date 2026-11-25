@@ -16,6 +16,8 @@ import '../domain/task_document.dart';
 import '../domain/task_item.dart';
 import 'task_capture_dialog.dart';
 import 'task_date_picker.dart';
+import 'task_tag_filter.dart';
+import 'task_edit_sheet.dart';
 
 class TasksView extends ConsumerStatefulWidget {
   const TasksView({super.key, this.onNoteSelected, this.onMenu});
@@ -158,15 +160,16 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
 
   Future<void> mutate(
     TaskItem item,
-    Future<TaskCommit> Function() action,
-  ) async {
+    Future<TaskCommit> Function() action, {
+    String message = 'Task updated',
+  }) async {
     if (!pending.add(item.key)) return;
     setState(() {});
     try {
       final result = await action();
       if (mounted) {
         listFocus.requestFocus();
-        committed(result, 'Task updated');
+        committed(result, message);
       }
     } catch (e) {
       failure(e);
@@ -180,15 +183,18 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
     final colors = context.appColors;
     final data = ref.watch(taskItemsProvider);
     final completed = ref.watch(taskCompletedProvider);
-    final tag = ref.watch(taskTagProvider);
+    final selectedTags = ref.watch(taskTagsProvider);
     final excluded = ref.watch(taskExcludedNotesProvider);
     final all = ref.watch(taskSessionProvider)
         ? (data.valueOrNull ?? <TaskItem>[])
               .where((t) => !excluded.contains(t.note.id))
               .toList()
         : <TaskItem>[];
-    final filtered = filterTasks(all, ref.watch(taskSearchProvider), tag)
-      ..sort((a, b) => compareTasks(a, b, today));
+    final filtered = filterTasks(
+      all,
+      ref.watch(taskSearchProvider),
+      selectedTags,
+    )..sort((a, b) => compareTasks(a, b, today));
     final openCount = filtered.where((t) => !t.occurrence.completed).length;
     final doneCount = filtered.length - openCount;
     final items = filtered
@@ -207,7 +213,7 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
             .toSet()
             .toList()
           ..sort();
-    if (tag != null && !tags.contains(tag)) tags.add(tag);
+    tags.addAll(selectedTags.difference(tags.toSet()));
     final firstLoad = data.isLoading && data.valueOrNull == null;
     final display = <Object>[];
     final groupedKeys = <String>{};
@@ -228,7 +234,7 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
         end++;
       }
       if (end - i > 1) {
-        display.add(item.note.displayTitle);
+        display.add(_TaskSourceHeading(item));
         groupedKeys.addAll(items.sublist(i, end).map((item) => item.key));
       }
       display.addAll(items.sublist(i, end));
@@ -351,36 +357,42 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                 );
                 final tagPicker = SizedBox(
                   width: 104,
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: tag ?? '',
-                      isExpanded: true,
-                      icon: const Icon(
-                        PhosphorIconsRegular.caretDown,
-                        size: 12,
-                      ),
-                      dropdownColor: colors.background,
-                      style: Theme.of(context).textTheme.bodyMedium!
-                          .merge(context.appTypography.body)
-                          .copyWith(color: colors.textSecondary),
-                      items: [
-                        const DropdownMenuItem(
-                          value: '',
-                          child: Text('All tags'),
-                        ),
-                        for (final name in tags)
-                          DropdownMenuItem(
-                            value: name,
-                            child: Text(
-                              '#$name',
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: selectedTags.isEmpty
+                          ? colors.textSecondary
+                          : colors.accent,
+                      textStyle: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium!.merge(context.appTypography.body),
+                    ),
+                    onPressed: () async {
+                      final selection = await showTaskTagFilter(
+                        context,
+                        available: tags,
+                        selected: selectedTags,
+                      );
+                      if (selection != null && mounted) {
+                        ref.read(taskTagsProvider.notifier).state = selection;
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedTags.isEmpty
+                                ? 'All tags'
+                                : selectedTags.length == 1
+                                ? '#${selectedTags.single}'
+                                : '${selectedTags.length} tags',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(PhosphorIconsRegular.caretDown, size: 12),
                       ],
-                      onChanged: (value) =>
-                          ref.read(taskTagProvider.notifier).state = value == ''
-                          ? null
-                          : value,
                     ),
                   ),
                 );
@@ -503,7 +515,8 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                         itemCount: display.length,
                         itemBuilder: (context, index) {
                           final entry = display[index];
-                          if (entry is TaskGroup || entry is String) {
+                          if (entry is TaskGroup ||
+                              entry is _TaskSourceHeading) {
                             return Padding(
                               padding: EdgeInsets.fromLTRB(
                                 24,
@@ -511,21 +524,22 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                                 24,
                                 10,
                               ),
-                              child: Text(
-                                entry is String
-                                    ? entry
-                                    : switch (entry as TaskGroup) {
+                              child: entry is _TaskSourceHeading
+                                  ? sourceLink(entry.item, heading: true)
+                                  : Text(
+                                      switch (entry as TaskGroup) {
                                         TaskGroup.overdue => 'Overdue',
                                         TaskGroup.today => 'Due today',
                                         TaskGroup.upcoming => 'Upcoming',
                                         TaskGroup.undated => 'No date',
                                         TaskGroup.completed => 'Completed',
                                       },
-                                style: context.appTypography.body.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textSecondary,
-                                ),
-                              ),
+                                      style: context.appTypography.body
+                                          .copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: colors.textSecondary,
+                                          ),
+                                    ),
                             );
                           }
                           final item = entry as TaskItem;
@@ -642,11 +656,15 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                                 ),
                                 if (showSource) ...[
                                   const SizedBox(height: 2),
-                                  Text(
-                                    '${item.note.displayTitle}${task.heading == null ? '' : ' · ${task.heading}'}',
-                                    style: context.appTypography.bodySmall
-                                        .copyWith(color: colors.textSecondary),
-                                  ),
+                                  sourceLink(item),
+                                  if (task.heading != null)
+                                    Text(
+                                      task.heading!,
+                                      style: context.appTypography.bodySmall
+                                          .copyWith(
+                                            color: colors.textSecondary,
+                                          ),
+                                    ),
                                 ] else if (task.heading != null)
                                   Text(
                                     task.heading!,
@@ -703,22 +721,30 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                     ),
                     label: Text(dateLabel),
                   ),
-                  TextButton(
+                  TextButton.icon(
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 0),
                       foregroundColor: colors.textSecondary,
+                      padding: EdgeInsets.zero,
                       minimumSize: const Size(0, 28),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: () => open(item),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Open note'),
-                        SizedBox(width: 4),
-                        Icon(PhosphorIconsRegular.arrowUpRight, size: 14),
-                      ],
+                    onPressed: disabled ? null : () => renameTask(item),
+                    icon: const Icon(
+                      PhosphorIconsRegular.pencilSimple,
+                      size: 16,
                     ),
+                    label: const Text('Rename'),
+                  ),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.error,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: disabled ? null : () => deleteTask(item),
+                    icon: const Icon(PhosphorIconsRegular.trash, size: 16),
+                    label: const Text('Delete'),
                   ),
                 ],
               ),
@@ -726,6 +752,75 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Widget sourceLink(TaskItem item, {bool heading = false}) {
+    final colors = context.appColors;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Tooltip(
+        message: 'Open note: ${item.note.displayTitle}',
+        child: Semantics(
+          link: true,
+          child: InkWell(
+            onTap: () => open(item),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      item.note.displayTitle,
+                      style:
+                          (heading
+                                  ? context.appTypography.body
+                                  : context.appTypography.bodySmall)
+                              .copyWith(
+                                fontWeight: heading
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: colors.textSecondary,
+                              ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    PhosphorIconsRegular.arrowUpRight,
+                    size: heading ? 16 : 14,
+                    color: colors.iconSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> renameTask(TaskItem item) async {
+    final result = await showTaskRename(
+      context,
+      text: item.occurrence.text,
+      onSave: (text) => ref.read(taskServiceProvider).rename(item, text),
+    );
+    if (result != null && mounted) {
+      setState(() => expandedTask = null);
+      listFocus.requestFocus();
+      committed(result, 'Task renamed');
+    }
+  }
+
+  Future<void> deleteTask(TaskItem item) async {
+    final confirmed = await showTaskDelete(context, item.occurrence.text);
+    if (confirmed == true && mounted) {
+      await mutate(
+        item,
+        () => ref.read(taskServiceProvider).delete(item),
+        message: 'Task deleted',
+      );
+    }
   }
 
   Future<void> editDate(TaskItem item) async {
@@ -816,4 +911,9 @@ class _TaskListLoading extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TaskSourceHeading {
+  const _TaskSourceHeading(this.item);
+  final TaskItem item;
 }

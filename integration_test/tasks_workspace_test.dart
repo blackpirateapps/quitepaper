@@ -175,7 +175,7 @@ void main() {
       expect(find.text('Task 1 café বাংলা 😀'), findsWidgets);
       await tester.tap(find.text('Task 1 café বাংলা 😀').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Open note'));
+      await tester.tap(find.byTooltip('Open note: Project 0').first);
       await tester.pumpAndSettle();
       expect(find.byType(EditorScreen), findsOneWidget);
       expect(tester.takeException(), isNull);

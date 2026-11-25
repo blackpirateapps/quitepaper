@@ -134,6 +134,51 @@ class TaskService {
         );
       });
 
+  Future<TaskCommit> rename(TaskItem item, String text) => _editContent(
+    item,
+    (content, task) => TaskDocument.rename(content, task, text),
+  );
+
+  Future<TaskCommit> delete(TaskItem item) =>
+      _editContent(item, TaskDocument.delete, requireVersion: true);
+
+  Future<TaskCommit> _editContent(
+    TaskItem item,
+    String Function(String, TaskOccurrence) transform, {
+    bool requireVersion = false,
+  }) => _serial(() async {
+    late String before;
+    final note = await _write(item.note.id, (live) {
+      final target = _resolve(live, item);
+      if (requireVersion &&
+          TaskDocument.version(live.content) != item.version) {
+        throw const StaleTask();
+      }
+      if (target.text != item.occurrence.text ||
+          target.completed != item.occurrence.completed ||
+          target.metadata != item.occurrence.metadata) {
+        throw const StaleTask();
+      }
+      before = live.content;
+      return transform(live.content, target);
+    });
+    return TaskCommit(
+      note,
+      TaskUndo(
+        () => _serial(() async {
+          await _write(note.id, (live) {
+            if (live.content != note.content) {
+              throw const StaleTask(
+                'Undo is unavailable because the note has been edited.',
+              );
+            }
+            return before;
+          });
+        }),
+      ),
+    );
+  });
+
   TaskItem _currentItem(Note note, int ordinal, String? id) {
     final version = TaskDocument.version(note.content);
     return TaskItem(
