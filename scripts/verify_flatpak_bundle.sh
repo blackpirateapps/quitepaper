@@ -24,5 +24,17 @@ flatpak run --user --nosocket=wayland --nosocket=x11 --nosocket=fallback-x11 \
   com.blackpiratex.quietpaper /app/bin/lib/libquietpaper_watched_import.so
 flatpak run --user --nosocket=wayland --nosocket=x11 --nosocket=fallback-x11 \
   --nofilesystem=host --nofilesystem=home --unset-env=LD_LIBRARY_PATH \
-  --command=qp com.blackpiratex.quietpaper --version
+  --command=qp com.blackpiratex.quietpaper --version | grep -F '(Rust)'
+flatpak run --user --nosocket=wayland --nosocket=x11 --nosocket=fallback-x11 \
+  --nofilesystem=host --nofilesystem=home --unset-env=LD_LIBRARY_PATH \
+  --command=sh com.blackpiratex.quietpaper -c '
+    set -eu
+    unset QP_DB QP_API_URL
+    smoke_dir=$(mktemp -d /tmp/qp-cli-smoke.XXXXXX)
+    trap '\''rm -rf "$smoke_dir"'\'' EXIT
+    smoke_db="$smoke_dir/notebook.sqlite"
+    printf "# Flatpak Rust CLI\n\nOffline #smoke\n" | /app/bin/qp --db "$smoke_db" new
+    /app/bin/qp --db "$smoke_db" list --plain | grep -F "Flatpak Rust CLI"
+    /app/bin/qp --db "$smoke_db" tags --json | grep -F "smoke"
+  '
 echo 'PASS: disposable installed Flatpak loads the Rust engine and CLI without a real user vault'

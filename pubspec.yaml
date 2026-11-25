@@ -36,7 +36,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   meta: ^1.17.0
-  args: ^2.7.0
   sqlite3: ^3.5.1
   flutter_riverpod: ^2.6.1
   drift: ^2.34.3
@@ -90,6 +89,7 @@ dependencies:
     path: rust_builder
   file_selector_linux: 0.9.4+1
   dbus: 0.7.15
+  unorm_dart: ^0.3.3
 
 dev_dependencies:
   integration_test:

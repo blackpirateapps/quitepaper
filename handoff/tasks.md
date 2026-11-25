@@ -217,3 +217,12 @@ benchmark measures **708 ms** repair, **65 ms** projection read and **8.854 ms
 median / 12.981 ms p95** search plus sorting. See
 [aggregate evidence](../docs/tasks-workspace-evidence.json) for exact commands and
 limits. The user requested no further full-suite runs after the completed run.
+
+### Integration with main and safe queue triggers
+
+PR #20 integrates schema 26 with the Rust CLI bootstrap snapshot and keeps the
+startup repair for legacy Tasks triggers. Both newly created queue triggers use
+`INSERT ... ON CONFLICT(note_id) DO NOTHING`; `OR IGNORE` is unsafe under an outer
+note UPSERT and can abort repeated saves. Existing task-index rows and cleanup
+logic survive the repair. See engineering logs 359–361 and the file-backed
+regressions in `test/database/legacy_task_trigger_repair_test.dart`.

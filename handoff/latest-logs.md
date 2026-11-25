@@ -8462,8 +8462,295 @@ Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
 layout, nested paths, comma batches, cancellation and single editor/frontmatter
 updates. No full suite, app build or physical-device/cloud-sync replay was run.
 
+## 352. Journal audit with Dart VM and native Linux windows (November 24, 2026)
 
-## 352. Tasks workspace, due dates and canonical task commands (November 25, 2026)
+Audited application revision `12c49b3` on
+`audit/journal-rigorous-2026-11-24`, without fixing production code. Findings were
+written into the [audit report](audits/journal-2026-11-24/README.md) as confirmed.
+All **10 confirmed bugs remain open**: ordinary date properties reserve journal
+days; nested YAML dates override canonical dates; journal frontmatter rewrites
+destroy nested dates; failed inserts return ghost entries; calendar previews
+open trashed notes without restoration; the month picker overflows short screens;
+Bengali day numerals remain ASCII; coordinate-place renames are ignored; spring
+DST joins visits across a 31-day gap; and wrapped titles make timeline jumps
+land in the wrong month.
+
+Validation: `flutter analyze` is clean before and after the audit. The existing
+focused command passes **207 tests**:
+
+```sh
+flutter test test/journal test/notes/note_metadata_journal_test.dart
+```
+
+Four of 14 additional adversarial probes pass; ten assertions intentionally fail
+against existing behavior. The separate `TZ=America/New_York` visit probe also
+fails. Passing probes include 100 concurrent canonical-entry requests,
+trash/restore identity and content, and 76,336 calendar-date round trips.
+Reproduction sources are archived as `.dart.txt`, outside active tests/builds.
+The passing baseline emits two pre-existing Drift multiple-database warnings in
+the place-alias-store fixture. An isolated nine-test rerun passes and reproduces
+both warnings. This fixture concern is documented separately; the zero-warning
+test requirement is not met on unchanged source, and no suppression or fix was
+applied under the user's audit-only instruction.
+
+The real `QuietPaperApp` was launched in isolated Linux debug windows and
+inspected through the Dart VM service. Pointer events and Hyprland keyboard
+events verified calendar previews, writing/leaving/reopening, historical entries,
+Places drill-in and rename. A batched seed produced a 1,005-entry archive; short
+titles permit the selected-date jump, while wrapped titles reproducibly land in
+December instead of the requested June. An earlier incremental seed lost its VM
+connection without a captured cause and remains an explicitly unresolved stress
+observation. Runtime logs retain the startup sharing-plugin exception and keyring
+warnings separately from journal findings.
+
+The report preserves 16 screenshots, raw VM records, test/runtime logs, probe
+sources, replay instructions and limits. No full suite, production-source fix,
+cloud/GPS replay, physical mobile test, restart-durability check or release
+performance claim is included. The isolated windows were closed after the audit.
+
+## 353. Second journal audit: ten additional confirmed bugs (November 24, 2026)
+
+Extended the journal audit on `audit/journal-rigorous-2026-11-24`, with findings
+written as confirmed in the [second-pass report](audits/journal-2026-11-24/round-2/README.md).
+Application source remains unchanged. **JRN-011–020 add ten confirmed open bugs,
+bringing the cumulative total to twenty.**
+
+Repeated merging leaves existing constituents in an old group; asynchronous
+alias decryption can roll back newer state; failed alias writes disappear on
+reopening without a retry record; canonically equivalent Unicode place names
+split into duplicate groups; antimeridian longitude averaging places a cluster
+near Greenwich; rounded coordinate keys join clusters outside the radius; and
+incomplete weather responses invent clear, 0°C measurements. Cached dates remain
+on yesterday after midnight/resume, and the earliest-year cache hides newly
+backfilled older memories. A pending weather fetch also overwrites journal body
+edits made while its request is in flight, with the loss retained on reopening.
+
+Native Linux/Dart VM replay confirms repeated merge splitting, midnight/resume
+staleness, older-backfill pagination staleness and weather-related edit loss.
+The clock experiment uses a process-scoped wall-clock shim; monotonic time and
+the host clock are unchanged. Weather is intercepted by a delayed mock HTTP
+client while exercising the real button and native keyboard input. The report
+preserves nine new screenshots, VM records, runtime logs and replay sources.
+
+All **72 selected existing tests pass** without warnings in this pass's logs:
+
+```sh
+flutter test --no-pub --reporter expanded \
+  test/journal/place_grouping_service_test.dart \
+  test/journal/places_merge_ui_test.dart \
+  test/journal/place_alias_sync_test.dart \
+  test/journal/on_this_day_widget_test.dart \
+  test/journal/journal_metadata_service_test.dart
+flutter test --no-pub --reporter expanded \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+The eleven new edge probes produce three passes and eight expected failures;
+the separate Properties weather-race probe produces one expected failure.
+A positive durability probe closes and reopens a temporary SQLite file and
+retains the journal ID and saved body. The first pass's existing warning-bearing
+alias fixture was not rerun in this selected gate; it remains unresolved.
+An initial test-font layout overflow is retained as an uncounted observation,
+and the previously unresolved incremental-seed process exit remains unresolved.
+
+Final `flutter analyze` is clean; the clock shim builds with C warnings treated
+as errors. Probe code is archived as `.dart.txt`, without adding failing ordinary
+CI tests or shipping VM hooks. The window was closed and its clock offset reset.
+No fixes, full suite, physical mobile checks, live GPS/weather/cloud requests or
+release performance claims are included.
+
+## 354. Linux CLI Rust rewrite — batch 1 (November 25, 2026)
+
+Started on `feat/linux-cli-rust-rewrite` from `12c49b3`. The user requested a
+batched rewrite of the Linux Dart CLI, with progress documented and a commit/push
+after each batch. [The migration report](../docs/linux-cli-rust-rewrite.md) tracks
+all five batches, completed scope, behavior differences and the next acceptance
+gate. This batch finishes the independent read-only Rust executable: **3 of 9
+existing command families**, not a claim that one third of all work is complete.
+
+`rust/quietpaper_cli` joins the Cargo workspace and builds `qp`, with `list`/`ls`,
+`show`/`cat`/`view`/`s`, `tags`/`t`, global database/help/version options, JSON and
+plain output. It preserves canonical/legacy Linux database discovery and the
+Dart JSON contract. Database access is read-only with a busy timeout and a read
+snapshot, reads committed desktop WAL writes, and makes no schema/title/history
+or queue changes. Tests use disposable fixtures and actual Drift schema-25
+notebooks. Missing notebooks fail with setup guidance instead of creating files.
+
+The rewrite corrects active tag counts, excludes deleted tags from filters,
+escapes literal search wildcards and requires explicit IDs for ambiguous matches.
+Interactive selection, local writes/editors, encryption/attachments, upload sync
+and packaging cutover remain in batches 2–5. Linux distribution workflows still
+package the full existing Dart CLI; the Rust CLI does not delegate to Dart.
+The release-version checklist now includes the Rust package version.
+
+`scripts/test_rust_cli.sh` and `.github/workflows/linux_cli_rust.yml` provide the
+focused gate. Ordinary Flutter-only runs explicitly skip the three binary
+compatibility tests unless `QP_RUST_CLI_BIN` is set; the dedicated gate always
+builds the binary and enables them. Final local validation passes Rust fmt,
+Clippy with warnings denied, **12 Rust tests**, binary build/help/version smoke,
+`flutter analyze` with no issues, and **53 focused Flutter CLI tests** including
+all three cross-language tests. `git diff --check`, `cargo audit`, and Cargo deny
+advisory/license/source/ban checks pass. The latter permits duplicate-version
+warnings under the existing policy. Advisory checks prompted an upgrade to
+rusqlite 0.43's patched bundled SQLite and replacement of Chrono with Jiff before
+acceptance; no advisory ignores were added. No full Flutter suite, app/package
+build, production notebook, cloud operation or physical-device validation ran.
+
+## 355. Linux CLI Rust rewrite — batch 2 (November 25, 2026)
+
+Adds local `new`, `edit`, `delete`/restore and aliases, external editors with
+quoted arguments and environment selection, and numbered interactive lookup.
+All six local command families now run in Rust. Existing desktop notebooks are
+updated without schema creation/migration. Immediate transactions include tags,
+per-tag pin caches, version history, FTS projections and sync queue records;
+write failures roll everything back. Desktop provenance/share/revision fields
+survive. Concurrent editor changes prevent overwrite; private temporary files
+and recovery drafts preserve user text. Protected/rich-note editing stays in the
+desktop app. Attachment-bearing saves remain guarded until batch 3 and uploads
+until batch 4; the installed CLI still uses Dart until packaging cutover.
+
+Validation: Rust fmt, Clippy with warnings denied and 13 Rust tests pass;
+`flutter analyze` is clean. All 58 focused Flutter CLI cases pass across the
+directory gate and compatibility rerun, including eight cross-language cases.
+New real-Drift checks cover note writes, FTS/history/queue entries, pin-cache
+preservation, trash/restore/permanent cascades, transactional failure rollback,
+private draft permissions and concurrent edits. No full suite ran.
+See [the batch progress report](../docs/linux-cli-rust-rewrite.md).
+
+## 356. Linux CLI Rust rewrite — batch 3 (November 25, 2026)
+
+Ports read-only desktop keyring/fallback credentials, Argon2id password unwrap,
+QPA1 image encryption and all image-import/list/open commands. Local Markdown
+destinations/reference definitions and repeated explicit files deduplicate;
+code/frontmatter/remote URLs remain literal. Imports preserve original image
+bytes by default, or explicitly compress supported still images to JPEG within
+bounded input/decoder/output sizes. Animation is never silently flattened.
+Staged 0600 ciphertext and database rows commit with the note or roll back
+together; original drafts survive failures. Clipboard helpers are bounded and
+opening an image requires interactive temporary-plaintext cleanup. Custom
+database paths are canonicalized; credential files remain unchanged.
+
+Validation: Rust fmt/Clippy, 16 Rust tests, `flutter analyze` and all 63 focused
+Flutter CLI tests pass. Dart decrypts Rust QPA1 data; Drift reads its metadata;
+tests cover duplicate imports, fallback-store immutability, JPEG conversion,
+injected attachment failure cleanup, source preservation and controlled
+clipboard access. Real pseudo-terminal tests accept a correct password and
+reject a wrong one for Dart-wrapped keys. Cargo deny checks pass with narrow
+BSD-3-Clause exceptions for SHA-1 UUID naming and constant-time crypto crates;
+no advisory ignores. No full suite or production notebook/keyring/cloud access.
+Eight of nine command families are ported. Upload sync and packaging remain.
+
+## 357. Linux CLI Rust rewrite — batch 4 (November 25, 2026)
+
+Ports `sync` and automatic post-save uploads, completing nine command families.
+The Rust client verifies cloud account keys, refreshes sessions without rewriting
+desktop credentials, encrypts note metadata/provenance, uploads QPA1 multipart
+payloads without account headers and confirms attachment references. HTTPS,
+certificate validation, redirect refusal and time/size limits apply. Local saves
+remain successful when upload is pending; explicit sync reports failures.
+
+Account-bound encrypted push journals retain idempotency across uncertain
+acknowledgements/reference failures. Full row/tag/queue fingerprints prevent
+clearing concurrent GUI mutations. Image state uses full-row checks, and retry
+discovery includes pending images on otherwise clean notes. Permanent deletions
+retain revision-bound tombstones. Both journals use existing local metadata keys;
+there is no schema change or pull-cursor advancement. Desktop pull/merge and OCR
+ownership remain unchanged.
+
+Validation: fmt/Clippy, 18 Rust tests, clean `flutter analyze`, and all 72 focused
+Flutter CLI cases pass. Actual loopback HTTP tests decrypt Rust ciphertext in
+Dart and cover HTTP/conflict/acknowledgement/race/key-mismatch/tombstone cases,
+exact idempotent replay after reference failure and pending-image discovery.
+Rust transport tests cover encrypted multipart/header isolation, attachment
+races, authentication refresh and account mismatch. Cargo deny passes. No full
+suite or live cloud access ran. Packaging/removal is the remaining batch.
+
+## 358. Linux CLI Rust rewrite — batch 5 and final acceptance (November 25, 2026)
+
+All five migration batches are complete. Linux build/release workflows and
+tarball/DEB/RPM/AppImage/Flatpak builders now require the release Rust `qp` binary,
+staged atomically by shared build/install scripts. The standalone Dart entry
+point, runner, commands, editor, credential/image and sync implementations are
+removed. The GUI launch-argument helper remains. Historical database/frontmatter
+parsing is retained only under `test/cli/support` as an independent fixture/JSON
+oracle. Tests of the retired Dart executable are replaced with Rust binary and
+interoperability coverage; the app's direct `args` dependency is removed.
+
+Fresh `qp new` notebooks use complete schema-25 DDL generated by the actual
+desktop migration. A schema-coherence test guards this snapshot. Private
+temporary initialization and non-clobbering publication support concurrent
+first creation, followed by normal SQLite/WAL writes. Existing notebooks remain
+under Drift migration control. Final fixes preserve GUI titles/manual tags on
+unchanged-editor/pin-only writes and lock concurrent CLI sync attempts before
+they can race an idempotency journal. GUI concurrency retains snapshot guards.
+
+Final validation passes Rust fmt/Clippy, **18 Rust tests**, clean Flutter analysis,
+and **29 focused Flutter tests** (26 CLI/schema and 3 launch/storage), with no
+test warnings. The actual Flutter Linux release bundle builds; third-party
+Whisper C++ literal-operator deprecation warnings remain. All five package
+formats build locally. Tarball/DEB/RPM/AppImage extraction verifies Flutter
+assets, native engine loading and a relocated headless CLI's offline note
+lifecycle. An isolated installed Flatpak loads the engine and creates/lists/tags
+a fresh Rust notebook. Bash/YAML syntax, Cargo audit and Cargo deny pass.
+Packaging tools were extracted under `/tmp`; no system packages or real user
+application installation/notebook were replaced. No full suite or live account,
+keyring, clipboard or cloud upload was used. Controlled transports/endpoints and
+Dart cryptography cover those protocols; the image viewer and manual GUI tour
+remain outside this CLI rewrite's acceptance scope.
+
+See [the completed batch report](../docs/linux-cli-rust-rewrite.md) and
+[artifact hashes and verification evidence](../docs/linux-cli-rust-rewrite-evidence.json).
+
+## 359. Recover note saves from legacy Tasks queue triggers (November 25, 2026)
+
+The installed Linux app could not persist repeated edits because its shared
+notebook retained `task_note_insert` / `task_note_update` from an experimental
+Tasks build. A queued note hit `UNIQUE constraint failed: task_dirty.note_id`
+during `notes` UPSERT: SQLite's outer conflict handling overrides the trigger's
+`INSERT OR IGNORE`, aborting the note transaction. The installed binary has no
+Tasks indexer to drain that queue. The editor's existing catch retains dirty
+state but hides the underlying SQLite error. Integrity and foreign-key checks
+were clean; disk exhaustion was not the cause.
+
+`AppDatabase.beforeOpen` now inspects only the two known queue triggers and
+atomically replaces their legacy insert with
+`INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING`.
+All remaining trigger statements, including archive/protection cleanup, are
+preserved. Existing notes, task indexes, queue and delete trigger are retained.
+Already-repaired triggers are left alone and ordinary notebooks acquire no task
+tables or triggers. No schema-version bump or generated-schema/CLI snapshot
+change is required: this repair runs on every database open, including shared
+notebooks whose version is still 25. Future Tasks trigger definitions must use
+the explicit UPSERT conflict clause rather than `OR IGNORE`.
+
+The installed database was backed up privately with SQLite's online backup API,
+then both trigger definitions were repaired together under `BEGIN IMMEDIATE`
+without restarting or modifying the installed binary. All 1,020 existing notes
+were preserved; integrity and foreign-key checks pass. Three repeated saves on
+an in-memory copy of the repaired notebook pass. Earlier reproduction using the
+installed SQLite 3.53.4 library failed on the second save with the old triggers;
+the same save passed after removing them from that disposable snapshot. No test
+notes were inserted into the live notebook or its cloud queue. Recovery cannot
+reconstruct edits already discarded before persistence.
+
+Validation: `flutter analyze` reports no issues; `git diff --check`
+passes. All **39 focused tests** pass with:
+
+```sh
+flutter test --no-pub test/database/legacy_task_trigger_repair_test.dart \
+  test/database/app_database_test.dart \
+  test/database/database_migration_test.dart
+```
+
+Four new file-backed regressions cover reopening a legacy notebook followed by
+repeated editor/new-note saves, actual tag/search persistence, task cleanup on
+archive/deletion, retained timestamps/data, idempotence and notebooks without
+Tasks. Disabling the startup repair reproduces the new autosave regression;
+restoring it passes. No full suite, app rebuild, live cloud request or GUI input
+automation was run. The unrelated pre-existing prompt file remains uncommitted.
+
+
+## 360. Tasks workspace, due dates and canonical task commands (November 25, 2026)
 
 ### Scope and integration
 
@@ -8570,3 +8857,38 @@ remaining changes after verification record documentation/evidence outcomes.
 Delivery remains a feature branch for review, with the production release gates
 in [tasks.md](tasks.md) explicitly open. No release deployment or physical Android
 validation is claimed.
+
+## 361. PR #20 integration with note-save recovery and Rust CLI (November 25, 2026)
+
+Merged current `main` into the Tasks workspace branch before PR integration.
+Resolved only the overlapping HANDOFF/log additions by retaining both histories;
+the original Tasks implementation entry is now 360. Source merges retain the
+journal fixes, canonical revision preservation, Rust CLI and startup repair.
+
+The Tasks creation DDL now uses explicit `ON CONFLICT(note_id) DO NOTHING` in
+both queue triggers, so fresh notebooks cannot reintroduce the duplicate-queue
+save error. Legacy trigger repair remains active. File-backed regressions now
+use the actual Tasks schema and check canonical index consumption, preserved
+legacy rows on open, repeated editor/new-note saves, archive/deletion cleanup,
+schema-25 upgrade/idempotence and repeated direct UPSERTs without an indexer.
+
+Regenerated the Rust CLI bootstrap snapshot from the actual Drift schema 26,
+including task tables/indexes and safe triggers. CLI interoperability checks use
+the current desktop schema version; intentional old-schema Rust fixtures remain
+unchanged. Fresh CLI notebooks can be opened by Tasks builds without migration.
+
+Validation: clean `flutter analyze --no-pub`; Rust CLI builds; all 26 focused
+Flutter CLI/schema tests pass using the rebuilt native binary. All 199 focused
+Tasks/persistence/editor/share/template/email/watched-import tests pass with:
+
+```sh
+flutter test --no-pub --concurrency=2 test/tasks test/database \
+  test/editor/smart_task_super_editor_test.dart test/share/share_service_test.dart \
+  test/templates/template_database_test.dart test/email_import/email_persistence_test.dart \
+  test/watched_import/watched_import_storage_test.dart
+QP_RUST_CLI_BIN=/path/to/rebuilt/qp flutter test --no-pub --concurrency=1 test/cli
+```
+
+`git diff --check origin/main` passes. No full suite, app/package build or personal-database
+migration was run for this integration. Existing manual/device/older-client
+rollout limits remain documented in [the Tasks guide](tasks.md).

@@ -1,5 +1,5 @@
 [workspace]
-members = ["rust/quietpaper_watched_import"]
+members = ["rust/quietpaper_watched_import", "rust/quietpaper_cli"]
 resolver = "2"
 
 [profile.dev]

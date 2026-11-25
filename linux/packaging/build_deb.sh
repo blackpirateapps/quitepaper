@@ -39,20 +39,10 @@ chmod +x "${STAGING_DIR}/opt/quitepaper/quitepaper"
 # Symlink binary to /usr/bin/quitepaper
 ln -sf /opt/quitepaper/quitepaper "${STAGING_DIR}/usr/bin/quitepaper"
 
-# Build & include native CLI binary if bin/qp.dart exists
-if [ -f "${PROJECT_ROOT}/bin/qp.dart" ]; then
-  echo "==> Building native Quiet Paper CLI binary (qp)..."
-  dart build cli -t "${PROJECT_ROOT}/bin/qp.dart" -o "${PROJECT_ROOT}/build/cli"
-  mkdir -p "${STAGING_DIR}/opt/quitepaper/bin"
-  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${STAGING_DIR}/opt/quitepaper/bin/qp"
-  if [ -d "${PROJECT_ROOT}/build/cli/bundle/lib" ]; then
-    cp -a "${PROJECT_ROOT}/build/cli/bundle/lib"/* "${STAGING_DIR}/opt/quitepaper/lib/" 2>/dev/null || :
-  fi
-  chmod +x "${STAGING_DIR}/opt/quitepaper/bin/qp"
-  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/opt/quitepaper/qp"
-  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/qp"
-  ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/quietpaper-cli"
-fi
+# The Rust CLI is required in every package; missing builds must fail.
+bash "${PROJECT_ROOT}/scripts/install_rust_cli.sh" "${STAGING_DIR}/opt/quitepaper"
+ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/qp"
+ln -sf /opt/quitepaper/bin/qp "${STAGING_DIR}/usr/bin/quietpaper-cli"
 
 # Copy desktop and metainfo
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.desktop" "${STAGING_DIR}/usr/share/applications/"

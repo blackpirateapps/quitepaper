@@ -29,6 +29,7 @@ modules:
       - chmod 0755 /app/bin/bin/qp
       - test -x /app/bin/bin/qp
       - ln -sf bin/qp /app/bin/qp
+      - ln -sf bin/qp /app/bin/quietpaper-cli
       - test -f /app/bin/lib/libquietpaper_watched_import.so
       - chmod 0755 /app/bin/lib/libquietpaper_watched_import.so
       - install -Dm644 com.blackpiratex.quietpaper.desktop /app/share/applications/com.blackpiratex.quietpaper.desktop

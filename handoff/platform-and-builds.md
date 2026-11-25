@@ -22,7 +22,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 - **GStreamer Dependencies**: Audio playback and voice recording depend on `gstreamer1.0-plugins-base` and `gstreamer1.0-plugins-good`.
 - **Headless & Keyring Resiliency**: If SecretService / KDE Wallet is unavailable or headless, [`LinuxSecureStorageFallback`](file:///home/dog/git/quitepaper/lib/core/crypto/key_manager.dart) provides an encrypted local key vault without crashing.
 - **Native File Sharing (`shareXFiles`)**: Resolves upstream `share_plus` Linux limitation (`UnimplementedError`) via [`QuietPaperLinuxSharePlugin`](file:///home/dog/git/quitepaper/lib/core/sharing/quiet_paper_linux_share.dart), using XDG Desktop Portal `OpenURI` (`ask: true`), `gio open`, `xdg-open`, `FileManager1.ShowItems`, `xdg-email`, and `mailto:` fallbacks.
-- **Native Command-Line Interface (`qp`)**: Standalone, AOT-compiled native CLI binary (`bin/qp.dart` $\rightarrow$ `/usr/bin/qp`) providing sub-15ms terminal interaction for note listing, creation, and modification with external editors (`nvim`, `vim`, `nano`, `$EDITOR`), full-text search, and SQLite WAL concurrent access. Installed alongside the desktop GUI in DEB, RPM, and AppImage packages (under `/opt/quitepaper/bin/qp` with stripping disabled to protect the Dart AOT snapshot payload).
+- **Native Command-Line Interface (`qp`)**: Standalone Rust executable in `rust/quietpaper_cli`, built with `scripts/build_rust_cli.sh`. All nine note/image/sync command families run without Dart, Flutter or GTK. It shares SQLite/WAL and desktop credentials, supports external editors and encrypted image imports, and initializes complete desktop-compatible notebooks for `new`. Tarball/DEB/RPM/AppImage/Flatpak require the Rust artifact; DEB/RPM install it at `/opt/quitepaper/bin/qp` with `/usr/bin/qp` and `/usr/bin/quietpaper-cli` aliases. See [the completed rewrite and validation](../docs/linux-cli-rust-rewrite.md).
 
 ### Desktop Adaptive UI
 - **Spotlight Command Palette**: `Cmd/Ctrl + K` triggers an adaptive modal palette for jumping between notes, tags, and commands.
@@ -32,7 +32,7 @@ Quiet Paper is architected to run seamlessly across Android, Linux, iOS, macOS, 
 
 ## 2. CI/CD Workflows & Release Pipelines
 
-All seven `subosito/flutter-action` setup steps across the six workflows pin
+All `subosito/flutter-action` setup steps in the Flutter workflows pin
 **Flutter 3.47.2** (Dart 3.13.2), matching local analysis and test validation.
 Keep these `flutter-version` values aligned when upgrading. An SDK upgrade must
 pass analysis, code generation and the full test suite before changing the pins.
@@ -59,7 +59,9 @@ Current release: **1.6.4+22**. When bumping the app release version:
    `lib/core/version/app_version_provider.dart`, the backup, device and location
    services, weather HTTP user agent, update service/dialog defaults, and
    `qpnote_exporter.dart`. Update
-   `lib/core/cli/cli_runner.dart` and version-format test examples as well.
+   the Rust CLI package version in `rust/quietpaper_cli/Cargo.toml`
+   (refresh `Cargo.lock`), and version-format
+   test examples as well.
 3. Update `linux/packaging/quietpaper.spec`, add a release to
    `linux/com.blackpiratex.quietpaper.metainfo.xml`, and synchronize the fallback
    numeric/string versions in `windows/runner/Runner.rc`.
@@ -97,6 +99,11 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 - App Version Bump Checklist: [Historical Logs v1.0–v1.4, Section 17](archive/logs-v1.0-v1.4.md#17-app-version-bump-checklist)
 
 ## Linux CLI image attachments
+
+The installed CLI is Rust. All five rewrite batches are complete; see
+[the migration batches and validation](../docs/linux-cli-rust-rewrite.md).
+Only the GUI launch-argument provider remains under `lib/core/cli`; historical
+Dart database parsing is retained exclusively as a test compatibility oracle.
 
 `qp` can import images without launching Flutter or GTK:
 
@@ -199,13 +206,19 @@ checks refuse a missing native engine. Release publishing is limited to main or
 version tags. See [build commands and acceptance status](../docs/linux-rust-watched-import.md).
 
 The watched-import packaging follow-up uses GNOME **50** for Flatpak (replacing
-end-of-life 47), preserves the standalone CLI's appended Dart snapshot by disabling
-stripping, and verifies the actual installed native engine in disposable account
+end-of-life 47) and verifies the actual installed native engine in disposable account
 state. AppImage tool **1.9.1** and runtime **20251108** have independent SHA256 pins.
 `verify_linux_package.sh` checks extracted tarball/DEB/RPM/AppImage bundles;
 `verify_flatpak_bundle.sh` isolates its installation, home and app data. Neither
 requires or opens a real notebook. See the report for exact verified formats and
 interactive permission/device limitations.
+
+The Rust CLI no longer has an appended Dart snapshot or native asset directory.
+Its independent release builder stages `build/cli/bin/qp` atomically. Packagers
+require it and extracted-package checks relocate it and create/edit/delete a
+temporary notebook without Flutter. The isolated Flatpak check also exercises
+headless CLI-first creation. Bootstrap DDL is generated from Drift and checked by
+`test/cli/schema_contract_test.dart`; regenerate it deliberately on schema changes.
 
 
 ## Android watched-folder SAF bridge (November 21, 2026)

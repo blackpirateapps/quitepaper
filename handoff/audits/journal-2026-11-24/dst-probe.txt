@@ -1,0 +1,16 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart
+00:00 +0: 31 calendar day gap must split visits across DST
+AUDIT_DST_OFFSETS=-5:00:00.000000,-4:00:00.000000; elapsedDays=30
+00:00 +0 -1: 31 calendar day gap must split visits across DST [E]
+  Expected: an object with length of <2>
+    Actual: [JournalVisit:JournalVisit(March 2026 – April 2026, 2 entries)]
+     Which: has length of <1>
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/journal/journal_audit_probe_test.dart 122:5    main.<fn>
+
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/journal_audit_probe_test.dart: 31 calendar day gap must split visits across DST

@@ -8,6 +8,17 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## PR #20 integration — November 25, 2026
+
+Integrated Tasks with current `main`, preserving journal fixes, the Rust CLI and
+note-save recovery. Fresh task queue triggers now use explicit
+`ON CONFLICT(note_id) DO NOTHING`; startup repair still upgrades old definitions.
+The Rust CLI bootstrap snapshot now matches Tasks schema 26. Existing note-save
+regressions exercise the real Tasks tables/indexer and schema-25 upgrades;
+CLI compatibility assertions follow the desktop schema version. Both sides of
+the documentation conflicts are retained, with Tasks implementation log 360 and
+integration log 361. See [the active logs](handoff/latest-logs.md) for validation.
+
 ## Task editing, note links and multi-tag filtering (November 25, 2026)
 
 Expanded tasks now offer Phosphor Rename and Delete actions. Rename opens a
@@ -77,11 +88,56 @@ and durable repair markers. Local saves now preserve an existing server revision
 which is necessary for independent encrypted task edits to merge correctly.
 No task cloud columns, endpoint or new Rust API were added.
 
-See [the Tasks guide](handoff/tasks.md) and engineering log 352 for integration,
+See [the Tasks guide](handoff/tasks.md) and engineering log 360 for integration,
 round trips, measured performance and validation. **Production acceptance remains
 blocked** on older-client compatibility/rollout and the explicit device/manual
 checks in that guide; compilation and native synthetic tests do not establish a
 physical Android pass.
+
+## Note-save recovery — November 25, 2026
+
+Fixed repeated note saves failing with `UNIQUE constraint failed:
+task_dirty.note_id` after an experimental Tasks build left queue triggers in a
+shared notebook. `AppDatabase.beforeOpen` now atomically upgrades the two legacy
+queue inserts to explicit `ON CONFLICT(note_id) DO NOTHING`, preserving task
+cleanup, existing notes, queue entries and schema version 25. This compatibility
+repair also runs when opening a database without a schema-version change;
+ordinary notebooks do not acquire Tasks tables. Regression coverage includes
+reopened databases, editor autosave, repeated new-note saves, search/tag updates,
+cleanup and idempotence. See engineering log 359 in
+[the active logs](handoff/latest-logs.md).
+
+## PR #19 integration — November 25, 2026
+
+Merged the latest `main` into the Linux CLI Rust rewrite branch. The only
+conflict was overlapping engineering log additions; both journal audit entries
+and all five CLI migration entries are preserved, with CLI logs renumbered
+354–358. Application source merged without conflicts. Validation passed Rust
+formatting, Clippy with warnings denied, all 18 Rust tests, `flutter analyze`
+with no issues, and all 26 focused Flutter CLI/schema tests. No full suite ran.
+
+## Journal audit — November 24, 2026
+
+The [second audit pass](handoff/audits/journal-2026-11-24/round-2/README.md) found
+**10 additional bugs, bringing the total to 20**. They include weather fetches
+overwriting concurrent journal edits, repeated merge failures, alias persistence
+and ordering failures, coordinate/Unicode grouping, incomplete weather responses,
+midnight/resume staleness and older-backfill pagination. Native UI and Dart VM
+replays confirm the central interaction failures. All 72 selected existing tests
+pass; 12 new probes produce three passes and nine expected failures. No fixes
+or full-suite run. See log 353 and the second-pass evidence for exact limits.
+
+The journal audit on `audit/journal-rigorous-2026-11-24` found **10 confirmed open
+bugs**, recorded as they were discovered in [the audit report](handoff/audits/journal-2026-11-24/README.md).
+The focused journal gate passes 207 tests with two existing Drift fixture
+warnings; static analysis is clean. Four of 14
+new adversarial probes pass and ten intentionally fail to expose existing bugs;
+a separate New York DST probe also fails. Native Linux verification uses the
+Dart VM, real keyboard input and an isolated 1,005-entry archive. Findings cover
+journal classification, frontmatter damage, failed writes, Trash preview,
+layout/localization, place rename/visit grouping and incorrect timeline jumps.
+Screenshots, probe sources, raw evidence and verification limits are preserved.
+No fixes or production source changes were made. No full suite ran. See log 352.
 
 ## Latest fix: stable, compact tag picker (November 24, 2026)
 
@@ -236,6 +292,19 @@ complete. These changes address the recent Linux workflow test failures; see
 [engineering log 312](handoff/latest-logs.md#312-linux-ci-image-import-and-document-viewer-async-test-races-november-17-2026).
 
 ## Latest Linux CLI Work
+
+The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
+All five rewrite batches are implemented: `rust/quietpaper_cli` owns every note,
+editor, image and sync command, and Linux tarball/DEB/RPM/AppImage/Flatpak builders
+require its release binary. The standalone Dart client is removed; the GUI launch
+argument provider stays, with historical database parsing retained only in test
+fixtures. `qp new` bootstraps a complete schema-26 notebook using Drift-generated,
+coherence-checked DDL. Existing notebooks are never migrated by the CLI.
+Encrypted journals, snapshot checks and a notebook sync lock preserve pending
+changes across failures and concurrent edits. See
+[the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
+scope, behavior differences, validation and next-batch acceptance, and
+engineering logs 354–358 in [the active logs](handoff/latest-logs.md).
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image
@@ -1245,3 +1314,243 @@ pass, and the Rust dependency audit is clean. Implementation is complete;
 **production release acceptance remains INCOMPLETE** for the explicit manual
 portal/desktop/device and real Proton-fixture checks in that report. No full
 Flutter suite has been run or authorized on this laptop. See engineering log 344.
+
+## Journal audit fixes — November 24, 2026
+
+### JRN-001 — Ordinary dated notes
+
+Journal metadata now exposes a canonical journal date only when `journal: true`
+is explicit. Ordinary dated notes, including `journal: false`, retain their
+content and stay outside journal queries; opening that day creates a separate
+journal entry. Existing explicitly indexed journal notes remain supported.
+Validation: `flutter analyze` clean; 32 relevant tests pass in
+`journal_metadata_service_test.dart`, `journal_repository_test.dart`,
+`journal_database_test.dart` and `note_metadata_journal_test.dart`. No full suite.
+
+### JRN-002 — Top-level journal metadata extraction
+
+Extraction ignores indented YAML mappings and block scalar text, keeping nested
+dates and journal flags from changing the canonical day or classifying a note.
+Regression coverage includes nested flags/dates and scalar text.
+Validation: `flutter analyze --no-pub` clean; 27 tests pass in the metadata,
+repository and database journal test files. No full suite.
+
+### JRN-003 — Preserve nested frontmatter during journal rewrites
+
+Ensure/remove operations now match only unindented managed keys. Nested dates,
+journal properties, comments, block scalar contents and blank lines are retained.
+Regression checks verify the entire rewritten document and ensure idempotence.
+Validation: `flutter analyze --no-pub` clean; 23 tests pass in metadata service,
+journal Properties domain and note journal metadata files. No full suite.
+
+### JRN-004 — Report journal persistence failures
+
+Creation rethrows a failed write when no concurrent canonical entry exists;
+missing post-write rows also fail explicitly. Callers only receive persisted
+entries. SQLite-trigger regression coverage verifies the original error, no ghost
+row, successful retry and 100 concurrent requests sharing one stored entry.
+Validation: `flutter analyze --no-pub` clean; all 20 repository/service tests pass.
+No full suite.
+
+### JRN-005 — Restore trashed calendar entries before opening
+
+Selected trashed dates show an explicit Trash state and Restore entry action,
+hide the timeline jump and route title/action taps through the existing
+Restore & Open / Cancel flow. Both initially trashed and subsequently trashed
+selections are tested: cancel keeps Trash intact; restore retains ID/body before
+opening. The empty timeline state now scrolls as part of the archive, avoiding
+an overflow when an expanded preview consumes most of a short viewport.
+Validation: `flutter analyze --no-pub` clean; 24 archive/service tests pass, with
+a final overlapping 16-test archive run passing after layout cleanup. No full suite.
+
+### JRN-006 — Scrollable month/year picker
+
+The picker scrolls within the dialog's available height; footer actions wrap on
+narrow phones. Dialog interaction regressions at 640×320 and 360×640 exercise
+year navigation, December selection, Current Month and Cancel without overflow.
+Validation: `flutter analyze --no-pub` clean; 18 picker/archive tests pass.
+No full suite.
+
+### JRN-007 — Bengali day numerals
+
+Calendar day cells and padded timeline days use locale-aware number formatting.
+Canonical date/month keys stay ASCII. The widget regression enables the actual
+Bengali preference, selects a Bengali day, verifies its ASCII selection key and
+switches back to English without changing that key.
+Validation: `flutter analyze --no-pub` clean; 58 tests pass across Bengali dates,
+date helpers, archive widgets and timeline datelines. No full suite.
+
+### JRN-008 — Coordinate place aliases
+
+Radius-based grouping consumes the alias map after clustering, applying the
+chosen display name and canonical merge target just as labeled grouping does.
+Renamed/merged coordinate places stop presenting as unnamed. Regressions cover
+GPS jitter, reversible rename and merges across coordinate/labeled groups.
+Validation: `flutter analyze --no-pub` clean; 37 tests pass across place grouping,
+Places view and merge UI, without fixture warnings. No full suite.
+
+### JRN-009 — Visit gaps count calendar days across DST
+
+Visit clustering subtracts UTC representations of each resolved calendar date,
+so DST's 23/25-hour days cannot alter gap thresholds. Regressions cover the
+March-to-April 31-day split, exact 30-day spring/fall gaps and leap-year dates.
+Validation: `flutter analyze --no-pub` clean; 13 visit/Places tests pass in the
+normal timezone; all 8 visit tests also pass with `TZ=America/New_York`.
+The timezone runs overlap. No full suite.
+
+### JRN-010 — Reveal the requested entry in variable-height archives
+
+Timeline jumps re-read lazy entry keys after every layout. A coarse scroll
+estimate is refined with overlapping viewport steps toward actually built note
+identities; once built, the target is precisely revealed and highlighted. A newer
+jump supersedes pending work, and removed targets stop the seek. The code respects
+reduced-motion preferences for the final reveal.
+
+The new regression seeds 1,005 real SQLite journal entries with varying snippets,
+tags and short/wrapped titles at 700×700. It verifies a previously unbuilt June 15,
+2024 tile becomes fully visible and highlighted, then jumps back toward newer
+entries. Both cases fail on the previous implementation and pass with this fix.
+Validation: `flutter analyze --no-pub` clean; all 19 tests pass with
+`flutter test --no-pub test/journal/journal_timeline_jump_test.dart test/journal/journal_all_entries_widget_test.dart`.
+`git diff --check` passes. No full suite or new native-device/performance run.
+
+All first-pass findings **JRN-001–010 are fixed**, each committed and pushed
+separately on `audit/journal-rigorous-2026-11-24`. The original audit evidence is
+preserved and its progress summaries distinguish fixed findings from the
+second-pass **JRN-011–020, which remain open**. Per-fix test totals above overlap.
+
+## Remaining journal audit fixes — November 24, 2026
+
+### JRN-011 — Preserve constituents through repeated place merges
+
+Merge expands selected canonical keys to all existing constituents (including
+legacy chains) before flattening them onto the new destination. Regressions
+cover three successive merges, reload, rename, reversible unmerge and an
+unrelated group. Device-local alias fixtures explicitly override vault lock state,
+preventing the default key manager from creating unintended databases.
+Validation: `flutter analyze --no-pub` clean; 16 alias-store/merge-UI tests pass
+without the previously documented fixture warnings. No full suite.
+
+### JRN-012 — Order asynchronous place-alias snapshots
+
+Each incoming snapshot has a generation; only the latest decode may publish.
+Local mutations invalidate pending older decodes, disposal prevents late writes,
+and a failed decode retains the last readable state for later recovery.
+Validation: `flutter analyze --no-pub` clean; 14 asynchronous/store tests pass,
+including controlled out-of-order completion, local rename, decode recovery and
+disposal. No full suite.
+
+### JRN-013 — Recoverable, atomic place-alias persistence
+
+Place mutations now return `Future<void>`, serialize writes, and publish visible
+state only after persistence succeeds. The encrypted repository reads the latest
+aliases and applies each complete mutation in one SQLite transaction. Legacy
+preference writes are awaited; a locked vault fails explicitly. Initialization
+and post-write reloads use the snapshot generation guard, and queued edits can
+recover after a failed action. Legacy migration is also transactional.
+
+Places awaits merge/rename/unmerge and shows a recoverable error with Retry on
+failure. Merge selection and drill-in close only after success. Callers/tests
+now await the mutation API; encrypted rows and sync protocol are unchanged.
+Regression tests inject failures in rename, the second merge insertion and the
+second unmerge deletion, verify rollback, retry and store reopening, and exercise
+queued repeated merges, lock/recovery and the production Retry UI.
+Validation: `flutter analyze --no-pub` clean; 45 tests pass across alias
+persistence/asynchronous/store/provider/merge-UI/sync files, plus a final
+overlapping 9-test persistence/snapshot guard run. No full suite.
+
+### JRN-014 — Canonically equivalent Unicode place names
+
+Place keys normalize to Unicode NFC before existing Latin accent folding, so
+composed/decomposed spellings group together across scripts. Added the pure-Dart
+`unorm_dart` dependency for canonical composition. Display text is preserved;
+legacy decomposed alias keys remain reachable without changing encrypted IDs or
+canonical destinations. Exact current alias keys take precedence over legacy
+variants. Regressions cover São Paulo, Zürich, Greek, Korean, Bengali mark
+preservation and legacy aliases.
+Validation: `flutter analyze --no-pub` clean; 42 grouping/provider/merge-UI tests
+pass. Dependency resolution adds only `unorm_dart` 0.3.3. No full suite.
+
+### JRN-015 — Correct antimeridian coordinate centroids
+
+Unnamed-place longitude uses the circular mean of cluster longitudes instead of
+an arithmetic mean. Dateline clusters remain near ±180; exact 180 is represented
+consistently as -180. Tests check distance from both cluster members, input-order
+determinism and ordinary clustering across Greenwich.
+Validation: `flutter analyze --no-pub` clean; 36 grouping/provider tests pass.
+No full suite.
+
+### JRN-016 — Distinct identities for colliding coordinate clusters
+
+Separate radius clusters no longer recombine through rounded centroid keys.
+The deterministic first cluster retains the legacy rounded key; subsequent
+collisions add exact seed coordinates. Existing aliases apply to that first
+cluster, while explicit aliases can still intentionally merge distinct clusters.
+Tests cover the reported >1,500-meter separation, stable reversed input, isolated
+rename, explicit merge and collisions below six-decimal coordinate precision.
+Validation: `flutter analyze --no-pub` clean; 45 grouping/provider/merge-UI tests
+pass. No full suite.
+
+### JRN-017 — Reject missing weather measurements
+
+Weather responses require a numeric finite temperature and a finite,
+non-negative integer weather code. Missing/null/wrong-type fields, invalid
+shapes and malformed JSON produce recoverable weather errors instead of
+inventing clear 0°C weather. Genuine measured zero values remain valid.
+Validation: `flutter analyze --no-pub` clean; 27 weather/Properties-domain tests
+pass, including complete responses, malformed payloads and HTTP errors. No full suite.
+
+### JRN-018 — Refresh journal dates at midnight and resume
+
+A shared `JournalDayClock` schedules the next local midnight and rechecks wall
+time on resume. It cancels background/disposed timers and accounts for 23/25-hour
+DST days. Today, exact-date memories, historical headings/queries and calendar/
+timeline Today highlights consume that shared day. The wall-clock function is
+injectable for deterministic tests; browsing month/selection is preserved.
+Regression coverage uses the actual memories view and repository to verify the
+heading and queried notes change together with Today. It also covers forward/
+backward resume adjustments, year boundaries, leap-day rescheduling, exact local
+midnight timing on a DST day and disposal.
+Validation: `flutter analyze --no-pub` clean; 40 clock/memories/sidebar/archive/
+timeline tests pass. All 4 clock tests also pass under `TZ=America/New_York`.
+These totals overlap. No full suite or real overnight/device acceptance run.
+
+### JRN-019 — React to older backfills in memories pagination
+
+The database/repository expose `watchEarliestJournalYear`, and memories consume
+`earliestJournalYearStreamProvider` instead of a cached one-shot future. The
+limit-one active-entry query reacts to backfill, direct database/sync updates,
+Trash, restore and permanent removal without loading the full archive.
+Regression tests backfill outside the queried week, check earliest-year and
+pagination changes through Trash/restore/delete, then use the real memories view
+to reveal Show older memories and load a 2010 paper-diary entry without restart.
+Validation: `flutter analyze --no-pub` clean; 30 backfill/repository/memories/
+clock tests pass. No full suite.
+
+### JRN-020 — Preserve edits while location/weather requests are pending
+
+Weather completion reads the latest canonical document instead of its pre-request
+snapshot. EditorScreen supplies a reader that publishes pending Visual edits
+before returning the source buffer. GPS-derived location is merged only at
+completion. Request generations and document identity prevent a late response
+from touching a different note or clearing its newer request; read-only state and
+newer location/weather values supersede pending results. Failed/disposed requests
+do not submit a replacement document. Location acquisition has an injectable
+callback for deterministic concurrency coverage.
+
+The pending-weather label now wraps within narrow Properties columns, fixing the
+incidental loading-label overflow recorded during the audit and reproduced by
+editor integration. Race tests cover rebuilt and not-yet-rebuilt bodies, concurrent
+property edits, both GPS/HTTP waits, changed location/weather, read-only state,
+document switching, failed responses and disposal. Real EditorScreen regressions
+at 1400×900 and 550×1200 type before the 50ms Visual debounce, complete weather,
+then verify both the text and weather persist through save and reopening.
+Validation: `flutter analyze --no-pub` clean; all 64 focused weather/Properties/
+frontmatter/editor tests pass without warnings. `git diff --check` passes.
+No full suite, new native-device run or live GPS/weather request was performed.
+
+All **20 confirmed journal audit findings (JRN-001–020) are fixed**. JRN-011–020
+were each committed and pushed separately after their relevant checks, following
+the ten first-pass fixes. Audit evidence retains its original source/reproduction
+context; unresolved stress observations and physical-device/release acceptance
+limits are not claimed resolved. Per-fix test totals overlap.

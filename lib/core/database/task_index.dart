@@ -11,10 +11,12 @@ const _taskSchema = [
   'CREATE TABLE IF NOT EXISTS task_index_failures (note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS task_identity ON task_index(note_id,task_id)',
   'CREATE TABLE IF NOT EXISTS task_dirty (note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE)',
+  // A trigger's OR IGNORE inherits the outer note UPSERT's conflict policy.
+  // Keep queue deduplication explicit so repeated saves cannot abort the note.
   '''CREATE TRIGGER IF NOT EXISTS task_note_insert AFTER INSERT ON notes BEGIN
-    INSERT OR IGNORE INTO task_dirty(note_id) VALUES(new.id); END''',
+    INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING; END''',
   '''CREATE TRIGGER IF NOT EXISTS task_note_update AFTER UPDATE OF content,is_archived,is_trashed,deleted_at ON notes BEGIN
-    INSERT OR IGNORE INTO task_dirty(note_id) VALUES(new.id);
+    INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING;
     DELETE FROM task_index WHERE note_id=new.id AND
       (new.is_archived=1 OR new.is_trashed=1 OR new.deleted_at IS NOT NULL OR ltrim(new.content) LIKE '<!-- quiet-paper-encrypted-note-v1:%'); END''',
   '''CREATE TRIGGER IF NOT EXISTS task_note_delete AFTER DELETE ON notes BEGIN

@@ -88,7 +88,10 @@ List<JournalVisit> clusterVisits(
   for (var i = 1; i < ascending.length; i++) {
     final note = ascending[i];
     final date = _dateOf(note);
-    if (date.difference(previous).inDays > gapThresholdDays) {
+    // Compare civil days: local elapsed hours vary across DST transitions.
+    final currentDay = DateTime.utc(date.year, date.month, date.day);
+    final previousDay = DateTime.utc(previous.year, previous.month, previous.day);
+    if (currentDay.difference(previousDay).inDays > gapThresholdDays) {
       visits.add(_buildVisit(clusterNotes, clusterStart, previous, localeTag));
       clusterNotes = <Note>[note];
       clusterStart = date;

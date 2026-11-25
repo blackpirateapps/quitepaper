@@ -31,7 +31,7 @@ void main() {
         databaseProvider.overrideWithValue(db),
         notesRepositoryProvider.overrideWithValue(repository),
         historicalWeekNotesStreamProvider.overrideWith((ref) => Stream.value([])),
-        earliestJournalYearFutureProvider.overrideWith((ref) => Future.value(null)),
+        earliestJournalYearStreamProvider.overrideWith((ref) => Stream.value(null)),
         ...overrides,
       ],
       child: const MaterialApp(
