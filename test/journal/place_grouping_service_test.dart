@@ -40,6 +40,34 @@ void main() {
     });
   });
 
+  test('canonical Unicode spellings group together without altering display text', () {
+    for (final names in [
+      ['São Paulo', 'Sa\u0303o Paulo'],
+      ['Zürich', 'Zu\u0308rich'],
+      ['Αθήνα', 'Αθη\u0301να'],
+      ['서울', '\u1109\u1165\u110b\u116e\u11af'],
+    ]) {
+      final grouped = service.group([
+        _entry('composed', '${names[0]}, Country', DateTime(2026, 1, 1)),
+        _entry('decomposed', '${names[1]}, Country', DateTime(2026, 1, 2)),
+      ]);
+      expect(grouped, hasLength(1), reason: names.toString());
+      expect(grouped.single.displayName, names.first);
+    }
+    expect(PlaceGroupingService.normalizeKey('ঢাকা'), 'ঢাকা');
+  });
+
+  test('legacy decomposed aliases still rename equivalent place spellings', () {
+    final places = service.group([
+      _entry('a', 'São Paulo, Brazil', DateTime(2026, 1, 1)),
+      _entry('b', 'Sa\u0303o Paulo, Brazil', DateTime(2026, 1, 2)),
+    ], aliases: {
+      'sa\u0303o paulo': const PlaceAlias(canonicalKey: 'home', displayName: 'Home'),
+    });
+    expect(places.single.displayName, 'Home');
+    expect(places.single.noteIds, ['a', 'b']);
+  });
+
   group('haversineMeters', () {
     test('zero distance for identical points', () {
       expect(
@@ -197,6 +225,101 @@ void main() {
       expect(p.matchKey, equals('mumbai'));
       expect(p.displayName, equals('Mumbai'));
       expect(p.entryCount, equals(2));
+    });
+  });
+
+  test('coordinate centroids stay near the antimeridian and are deterministic', () {
+    final inputs = [
+      _entry('east', '', DateTime(2026, 1, 1), lat: 10, lng: 179.999),
+      _entry('west', '', DateTime(2026, 1, 2), lat: 10, lng: -179.999),
+    ];
+    final group = service.group(inputs).single;
+    final coordinates = group.matchKey.substring('~coord:'.length).split(',');
+    final lat = double.parse(coordinates[0]);
+    final lng = double.parse(coordinates[1]);
+    expect(lng.abs(), greaterThan(179.99));
+    for (final input in inputs) {
+      expect(PlaceGroupingService.haversineMeters(lat, lng,
+        input.location.latitude, input.location.longitude), lessThan(1500));
+    }
+    expect(service.group(inputs.reversed.toList()).single.displayName, group.displayName);
+    final ordinary = service.group([
+      _entry('a', '', DateTime(2026), lat: 10, lng: -0.001),
+      _entry('b', '', DateTime(2026), lat: 10, lng: 0.001),
+    ]).single;
+    expect(ordinary.displayName, 'Unnamed place near 10.00, 0.00');
+  });
+
+  test('rounded key collisions keep separate clusters, aliases and explicit merges', () {
+    final inputs = [
+      _entry('a', '', DateTime(2026, 1, 1), lat: 1.0051, lng: 103.0051),
+      _entry('b', '', DateTime(2026, 1, 2), lat: 1.0149, lng: 103.0149),
+    ];
+    expect(PlaceGroupingService.haversineMeters(1.0051, 103.0051, 1.0149, 103.0149),
+      greaterThan(PlaceGroupingService.defaultNeighborhoodRadiusMeters));
+    final groups = service.group(inputs);
+    expect(groups, hasLength(2));
+    expect(groups.map((place) => place.matchKey).toSet(), hasLength(2));
+    expect(groups.every((place) => place.entryCount == 1), isTrue);
+    final first = groups.singleWhere((place) => place.noteIds.contains('a'));
+    expect(first.matchKey, '~coord:1.01,103.01');
+    expect(service.group(inputs.reversed.toList()).map((place) => place.matchKey).toList(),
+      groups.map((place) => place.matchKey).toList());
+    final renamed = service.group(inputs, aliases: {
+      first.matchKey: PlaceAlias(canonicalKey: first.matchKey, displayName: 'Home'),
+    });
+    expect(renamed, hasLength(2));
+    expect(renamed.singleWhere((place) => place.displayName == 'Home').noteIds, ['a']);
+    final merged = service.group(inputs, aliases: {
+      for (final place in groups)
+        place.matchKey: const PlaceAlias(canonicalKey: 'trip', displayName: 'Trip'),
+    });
+    expect(merged.single.noteIds, ['a', 'b']);
+    expect(merged.single.displayName, 'Trip');
+  });
+
+  test('coordinate collision suffixes retain full seed precision', () {
+    final groups = service.group([
+      _entry('a', '', DateTime(2026), lat: 1.0051000, lng: 103.0051000),
+      _entry('b', '', DateTime(2026), lat: 1.0051001, lng: 103.0051001),
+      _entry('c', '', DateTime(2026), lat: 1.0051002, lng: 103.0051002),
+    ], coordinateClusterRadiusMeters: 0.001);
+    expect(groups, hasLength(3));
+    expect(groups.map((place) => place.matchKey).toSet(), hasLength(3));
+  });
+
+  group('coordinate aliases', () {
+    final entries = [
+      _entry('home', '', DateTime(2026, 1, 1), lat: 22.57, lng: 88.36),
+      _entry('jitter', '', DateTime(2026, 1, 2), lat: 22.5701, lng: 88.3601),
+    ];
+    test('rename applies to the whole coordinate cluster and is reversible', () {
+      final original = service.group(entries).single;
+      final renamed = service.group(entries, aliases: {
+        original.matchKey: PlaceAlias(canonicalKey: original.matchKey, displayName: 'Home'),
+      }).single;
+      expect(renamed.displayName, 'Home');
+      expect(renamed.isUnnamed, isFalse);
+      expect(renamed.noteIds, ['home', 'jitter']);
+      expect(renamed.matchKey, original.matchKey);
+      expect(service.group(entries).single.displayName, original.displayName);
+    });
+
+    test('coordinates can merge with labeled places or other coordinate clusters', () {
+      final inputs = [...entries,
+        _entry('city', 'Kyoto, Japan', DateTime(2026, 1, 3)),
+        _entry('away', '', DateTime(2026, 1, 4), lat: 35.0, lng: 135.0),
+      ];
+      final keys = service.group(inputs).map((place) => place.matchKey);
+      final merged = service.group(inputs, aliases: {
+        for (final key in keys)
+          key: const PlaceAlias(canonicalKey: 'journey', displayName: 'Journey'),
+        'journey': const PlaceAlias(canonicalKey: 'journey', displayName: 'Journey'),
+      }).single;
+      expect(merged.matchKey, 'journey');
+      expect(merged.displayName, 'Journey');
+      expect(merged.isUnnamed, isFalse);
+      expect(merged.noteIds, ['home', 'jitter', 'city', 'away']);
     });
   });
 

@@ -1,0 +1,60 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart
+00:00 +0: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: normalizeKey lowercases, trims, collapses whitespace
+00:00 +1: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: normalizeKey strips diacritics (Zürich -> zurich)
+00:00 +2: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: normalizeKey folds assorted accented letters
+00:00 +3: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: haversineMeters zero distance for identical points
+00:00 +4: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: haversineMeters one degree of latitude is ~111 km
+00:00 +5: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: haversineMeters known city-to-city distance (Kolkata -> Delhi ~1300 km)
+00:00 +6: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: label grouping — City granularity merges case/whitespace/diacritic variants into one place
+00:00 +7: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: label grouping — City granularity takes the first comma token as the city
+00:00 +8: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: label grouping — City granularity date span is first -> last member date
+00:00 +9: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: label grouping — City granularity entries with no location are excluded
+00:00 +10: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: granularity City keeps each locality separate
+00:00 +11: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: granularity Region groups by city+region
+00:00 +12: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: granularity Country collapses to the last token (travel lens)
+00:00 +13: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: alias / merge map two labels fold into one canonical place with chosen display name
+00:00 +14: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: alias / merge map alias can rename to a brand-new canonical key + display
+00:00 +15: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: radius fallback — unlabeled coordinates clusters nearby blank-address coords into one unnamed place
+00:00 +16: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: radius fallback — unlabeled coordinates does not merge coords beyond the radius
+00:00 +17: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: radius fallback — unlabeled coordinates neighborhood radius merges points that spot radius would split
+00:00 +18: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: radius fallback — unlabeled coordinates labeled and unlabeled entries coexist in one result
+00:00 +19: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: sort orders frequency: count desc
+00:00 +20: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: sort orders recency: latest date desc
+00:00 +21: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: sort orders firstSeen: earliest date asc
+00:00 +22: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: sort orders alphabetical: display name A-Z
+00:00 +23: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/place_grouping_service_test.dart: sort orders ties fall back to matchKey for deterministic output
+00:01 +24: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +25: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +26: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +27: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +28: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +29: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +30: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:01 +31: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +32: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +33: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +34: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +35: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +36: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +37: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +38: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +39: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +40: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +41: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +42: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:02 +43: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: selection mode: select two cards and merge into one chosen canonical
+00:03 +44: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays quiet empty state when no historical entries exist
+00:03 +45: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: merge with a custom canonical name
+00:03 +46: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests renders historical entry cards with relative year labels and triggers selection
+00:04 +47: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: rename updates the displayed place name
+00:04 +48: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests displays historical memories section with correct period header, day grouping, and updated exact-date subtitle
+00:04 +49: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: unmerge restores the separate cards
+00:04 +50: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: unmerge restores the separate cards
+00:04 +51: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:04 +52: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests taps historical note and invokes onNoteSelected callback
+00:04 +53: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/places_merge_ui_test.dart: merged state persists across a fresh view (device-local)
+00:05 +54: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests shows older memories button when earlier notes exist and triggers loadOlderMemories
+00:05 +55: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests renders error state gracefully preserving exact-date section
+00:05 +56: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests Case 4: displays quiet empty states for both sections when neither has entries
+00:05 +57: /home/dog/.codex/worktrees/dc6d/quitepaper/test/journal/on_this_day_widget_test.dart: OnThisDayView Widget Tests excludes current year notes from historical week section
+00:06 +58: All tests passed!

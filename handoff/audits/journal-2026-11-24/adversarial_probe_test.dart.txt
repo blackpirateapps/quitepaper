@@ -1,0 +1,167 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:quitepaper/core/database/app_database.dart';
+import 'package:quitepaper/core/journal/application/journal_metadata_service.dart';
+import 'package:quitepaper/core/journal/domain/journal_date_helper.dart';
+import 'package:quitepaper/features/journal/application/journal_providers.dart';
+import 'package:quitepaper/features/journal/presentation/journal_all_entries_view.dart';
+import 'package:quitepaper/features/journal/presentation/widgets/journal_month_year_picker.dart';
+import 'package:quitepaper/features/notes/application/notes_provider.dart';
+import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
+import 'package:quitepaper/features/settings/application/settings_provider.dart';
+import 'package:quitepaper/features/settings/application/default_settings_provider.dart';
+import 'package:quitepaper/core/journal/application/place_grouping_service.dart';
+import 'package:quitepaper/core/location/location_models.dart';
+import 'package:quitepaper/features/journal/domain/journal_visit.dart';
+
+void main() {
+  late AppDatabase db;
+  late DriftNotesRepository repository;
+  setUp(() {
+    db = AppDatabase.memory();
+    repository = DriftNotesRepository(db);
+    SharedPreferences.setMockInitialValues({});
+  });
+  tearDown(() => db.close());
+
+  test('ordinary date property must not reserve canonical journal day', () async {
+    final now = DateTime.now();
+    await repository.saveNote(Note(id: 'ordinary', title: 'Invoice',
+      content: '---\ndate: 2026-01-15\n---\nInvoice body', createdAt: now, updatedAt: now));
+    final ordinary = await repository.getNoteById('ordinary');
+    final journal = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+    expect({'isJournal': ordinary!.isJournal, 'canonicalId': journal.id},
+      {'isJournal': false, 'canonicalId': isNot('ordinary')});
+  });
+
+  test('explicit journal false must remain an ordinary note', () async {
+    final now = DateTime.now();
+    await repository.saveNote(Note(id: 'false-journal', title: 'Ordinary',
+      content: '---\njournal: false\ndate: 2026-01-16\n---\nBody', createdAt: now, updatedAt: now));
+    expect((await repository.getNoteById('false-journal'))!.isJournal, isFalse);
+  });
+
+  test('nested YAML date must not overwrite top-level journal date', () {
+    final meta = JournalMetadataService.extractJournalMetadata(
+      '---\njournal: true\ndate: 2026-01-15\nsource:\n  date: 2020-02-20\n---\nBody');
+    expect(meta.journalDate, '2026-01-15');
+  });
+
+  test('ensure frontmatter must preserve nested dates', () {
+    final value = JournalMetadataService.ensureJournalFrontmatter(
+      content: '---\nsource:\n  date: 2020-02-20\n---\nBody', journalDate: '2026-01-15');
+    expect(value, contains('  date: 2020-02-20'));
+  });
+
+  test('remove frontmatter must preserve nested dates', () {
+    final value = JournalMetadataService.removeJournalFrontmatter(
+      '---\njournal: true\ndate: 2026-01-15\nsource:\n  date: 2020-02-20\n---\nBody');
+    expect(value, contains('  date: 2020-02-20'));
+  });
+
+  test('failed SQLite insert must report failure rather than return ghost note', () async {
+    await db.customStatement("CREATE TRIGGER fail_journal_insert BEFORE INSERT ON notes BEGIN SELECT RAISE(ABORT, 'audit simulated write failure'); END");
+    await expectLater(repository.getOrCreateJournalEntry(DateTime(2026, 1, 15)), throwsA(anything));
+  });
+
+  test('100 concurrent requests must produce one persisted canonical entry', () async {
+    final notes = await Future.wait(List.generate(100, (_) => repository.getOrCreateJournalEntry(DateTime(2026, 1, 15))));
+    expect(notes.map((n) => n.id).toSet(), hasLength(1));
+    expect(await repository.getAllJournalEntries(), hasLength(1));
+    expect(await repository.validateJournalIntegrity(), isEmpty);
+  });
+
+  test('trash retains canonical identity and restore preserves content', () async {
+    final n = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+    await repository.saveNote(n.copyWith(content: '${n.content}\nSaved reflection'));
+    await repository.trashNote(n.id);
+    expect(await repository.getAllJournalEntries(), isEmpty);
+    expect((await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15))).id, n.id);
+    await repository.restoreFromTrash(n.id);
+    expect((await repository.getJournalEntry('2026-01-15'))!.content, contains('Saved reflection'));
+  });
+
+  test('all valid dates roundtrip across leap and century boundaries', () {
+    var count = 0;
+    for (var year = 1896; year <= 2104; year++) {
+      for (var month = 1; month <= 12; month++) {
+        for (var day = 1; day <= JournalDateHelper.daysInMonth(year, month); day++) {
+          final d = DateTime(year, month, day);
+          final key = JournalDateHelper.toDateString(d);
+          expect(JournalDateHelper.tryParseDateString(key), d);
+          count++;
+        }
+      }
+    }
+    // Preserve the exact number in the test evidence.
+    debugPrint('AUDIT_DATE_ROUNDTRIPS=$count');
+  });
+
+  test('coordinate-only place rename must affect displayed group', () {
+    final date = DateTime(2026, 1, 15);
+    final input = [PlaceEntryInput(noteId: 'coordinate',
+      location: const JournalLocation(address: '', latitude: 22.57, longitude: 88.36), date: date)];
+    const service = PlaceGroupingService();
+    final place = service.group(input).single;
+    final renamed = service.group(input, aliases: {
+      place.matchKey: PlaceAlias(canonicalKey: place.matchKey, displayName: 'Home'),
+    }).single;
+    expect(renamed.displayName, 'Home');
+  });
+
+  test('31 calendar day gap must split visits across DST', () {
+    final a = DateTime(2026, 3, 1), b = DateTime(2026, 4, 1);
+    final notes = [for (final date in [a, b]) Note(id: date.toIso8601String(),
+      title: 'Visit', content: '', journalDate: JournalDateHelper.toDateString(date),
+      createdAt: date, updatedAt: date)];
+    debugPrint('AUDIT_DST_OFFSETS=${a.timeZoneOffset},${b.timeZoneOffset}; elapsedDays=${b.difference(a).inDays}');
+    expect(clusterVisits(notes), hasLength(2));
+  });
+
+  testWidgets('selected trashed day must offer restore rather than open editor', (tester) async {
+    final n = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+    await repository.trashNote(n.id);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      databaseProvider.overrideWithValue(db), notesRepositoryProvider.overrideWithValue(repository),
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 1)),
+      calendarSelectedDateProvider.overrideWith((ref) => '2026-01-15'),
+    ], child: const MaterialApp(home: Scaffold(body: JournalAllEntriesView()))));
+    await tester.pumpAndSettle();
+    expect(find.text('Show in All Entries'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('month picker must remain usable at phone landscape height', (tester) async {
+    tester.view.physicalSize = const Size(640, 320);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: JournalMonthYearPicker(
+      initialYear: 2026, initialMonth: 11, onMonthSelected: (_, _) {}))));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('Bengali calendar must use Bengali day numerals', (tester) async {
+    await initializeDateFormatting('bn');
+    SharedPreferences.setMockInitialValues({DefaultSettingsNotifier.bengaliDatesKey: true});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      databaseProvider.overrideWithValue(db), notesRepositoryProvider.overrideWithValue(repository),
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      calendarVisibleMonthProvider.overrideWith((ref) => (year: 2026, month: 11)),
+    ], child: const MaterialApp(home: Scaffold(body: JournalAllEntriesView()))));
+    await tester.pumpAndSettle();
+    expect(find.text('২৪'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+}

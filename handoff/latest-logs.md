@@ -8461,3 +8461,100 @@ Android/iOS bottom-sheet and Linux dialog routing, fixed compact bounds and
 Escape dismissal. Existing coverage verifies keyboard-reduced/larger-text mobile
 layout, nested paths, comma batches, cancellation and single editor/frontmatter
 updates. No full suite, app build or physical-device/cloud-sync replay was run.
+
+## 352. Journal audit with Dart VM and native Linux windows (November 24, 2026)
+
+Audited application revision `12c49b3` on
+`audit/journal-rigorous-2026-11-24`, without fixing production code. Findings were
+written into the [audit report](audits/journal-2026-11-24/README.md) as confirmed.
+All **10 confirmed bugs remain open**: ordinary date properties reserve journal
+days; nested YAML dates override canonical dates; journal frontmatter rewrites
+destroy nested dates; failed inserts return ghost entries; calendar previews
+open trashed notes without restoration; the month picker overflows short screens;
+Bengali day numerals remain ASCII; coordinate-place renames are ignored; spring
+DST joins visits across a 31-day gap; and wrapped titles make timeline jumps
+land in the wrong month.
+
+Validation: `flutter analyze` is clean before and after the audit. The existing
+focused command passes **207 tests**:
+
+```sh
+flutter test test/journal test/notes/note_metadata_journal_test.dart
+```
+
+Four of 14 additional adversarial probes pass; ten assertions intentionally fail
+against existing behavior. The separate `TZ=America/New_York` visit probe also
+fails. Passing probes include 100 concurrent canonical-entry requests,
+trash/restore identity and content, and 76,336 calendar-date round trips.
+Reproduction sources are archived as `.dart.txt`, outside active tests/builds.
+The passing baseline emits two pre-existing Drift multiple-database warnings in
+the place-alias-store fixture. An isolated nine-test rerun passes and reproduces
+both warnings. This fixture concern is documented separately; the zero-warning
+test requirement is not met on unchanged source, and no suppression or fix was
+applied under the user's audit-only instruction.
+
+The real `QuietPaperApp` was launched in isolated Linux debug windows and
+inspected through the Dart VM service. Pointer events and Hyprland keyboard
+events verified calendar previews, writing/leaving/reopening, historical entries,
+Places drill-in and rename. A batched seed produced a 1,005-entry archive; short
+titles permit the selected-date jump, while wrapped titles reproducibly land in
+December instead of the requested June. An earlier incremental seed lost its VM
+connection without a captured cause and remains an explicitly unresolved stress
+observation. Runtime logs retain the startup sharing-plugin exception and keyring
+warnings separately from journal findings.
+
+The report preserves 16 screenshots, raw VM records, test/runtime logs, probe
+sources, replay instructions and limits. No full suite, production-source fix,
+cloud/GPS replay, physical mobile test, restart-durability check or release
+performance claim is included. The isolated windows were closed after the audit.
+
+## 353. Second journal audit: ten additional confirmed bugs (November 24, 2026)
+
+Extended the journal audit on `audit/journal-rigorous-2026-11-24`, with findings
+written as confirmed in the [second-pass report](audits/journal-2026-11-24/round-2/README.md).
+Application source remains unchanged. **JRN-011–020 add ten confirmed open bugs,
+bringing the cumulative total to twenty.**
+
+Repeated merging leaves existing constituents in an old group; asynchronous
+alias decryption can roll back newer state; failed alias writes disappear on
+reopening without a retry record; canonically equivalent Unicode place names
+split into duplicate groups; antimeridian longitude averaging places a cluster
+near Greenwich; rounded coordinate keys join clusters outside the radius; and
+incomplete weather responses invent clear, 0°C measurements. Cached dates remain
+on yesterday after midnight/resume, and the earliest-year cache hides newly
+backfilled older memories. A pending weather fetch also overwrites journal body
+edits made while its request is in flight, with the loss retained on reopening.
+
+Native Linux/Dart VM replay confirms repeated merge splitting, midnight/resume
+staleness, older-backfill pagination staleness and weather-related edit loss.
+The clock experiment uses a process-scoped wall-clock shim; monotonic time and
+the host clock are unchanged. Weather is intercepted by a delayed mock HTTP
+client while exercising the real button and native keyboard input. The report
+preserves nine new screenshots, VM records, runtime logs and replay sources.
+
+All **72 selected existing tests pass** without warnings in this pass's logs:
+
+```sh
+flutter test --no-pub --reporter expanded \
+  test/journal/place_grouping_service_test.dart \
+  test/journal/places_merge_ui_test.dart \
+  test/journal/place_alias_sync_test.dart \
+  test/journal/on_this_day_widget_test.dart \
+  test/journal/journal_metadata_service_test.dart
+flutter test --no-pub --reporter expanded \
+  test/editor/frontmatter_properties_section_test.dart
+```
+
+The eleven new edge probes produce three passes and eight expected failures;
+the separate Properties weather-race probe produces one expected failure.
+A positive durability probe closes and reopens a temporary SQLite file and
+retains the journal ID and saved body. The first pass's existing warning-bearing
+alias fixture was not rerun in this selected gate; it remains unresolved.
+An initial test-font layout overflow is retained as an uncounted observation,
+and the previously unresolved incremental-seed process exit remains unresolved.
+
+Final `flutter analyze` is clean; the clock shim builds with C warnings treated
+as errors. Probe code is archived as `.dart.txt`, without adding failing ordinary
+CI tests or shipping VM hooks. The window was closed and its clock offset reset.
+No fixes, full suite, physical mobile checks, live GPS/weather/cloud requests or
+release performance claims are included.

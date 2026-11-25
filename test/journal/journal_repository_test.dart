@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quitepaper/core/database/app_database.dart';
 import 'package:quitepaper/features/notes/data/notes_repository.dart';
+import 'package:quitepaper/features/notes/domain/note_model.dart';
 
 void main() {
   late AppDatabase db;
@@ -16,6 +17,25 @@ void main() {
   });
 
   group('DriftNotesRepository Journal Tests', () {
+    for (final flag in ['', 'journal: false\n']) {
+      test('ordinary dated note stays outside journal ($flag)', () async {
+        final now = DateTime.now();
+        await repository.saveNote(Note(
+          id: 'invoice', title: 'Invoice',
+          content: '---\n${flag}date: 2026-01-15\n---\nInvoice body',
+          createdAt: now, updatedAt: now,
+        ));
+        final ordinary = (await repository.getNoteById('invoice'))!;
+        expect(ordinary.isJournal, isFalse);
+        expect(ordinary.journalDate, isNull);
+        expect(await repository.getAllJournalEntries(), isEmpty);
+        final journal = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+        expect(journal.id, isNot('invoice'));
+        expect(journal.isJournal, isTrue);
+        expect((await repository.getNoteById('invoice'))!.content, ordinary.content);
+      });
+    }
+
     test('getOrCreateJournalEntry creates note atomically with canonical frontmatter', () async {
       final date = DateTime(2026, 9, 1);
       final note = await repository.getOrCreateJournalEntry(date);
@@ -30,6 +50,26 @@ void main() {
       final secondCall = await repository.getOrCreateJournalEntry(date);
       expect(secondCall.id, note.id);
       expect(secondCall.journalDate, '2026-09-01');
+    });
+
+    test('failed insert reports the storage error and can be retried', () async {
+      await db.customStatement("CREATE TRIGGER fail_journal_insert BEFORE INSERT ON notes BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END");
+      await expectLater(
+        repository.getOrCreateJournalEntry(DateTime(2026, 1, 15)),
+        throwsA(predicate<Object>((error) => error.toString().contains('simulated write failure'))),
+      );
+      expect(await repository.getJournalEntry('2026-01-15'), isNull);
+      await db.customStatement('DROP TRIGGER fail_journal_insert');
+      final saved = await repository.getOrCreateJournalEntry(DateTime(2026, 1, 15));
+      expect((await repository.getNoteById(saved.id))!.journalDate, '2026-01-15');
+    });
+
+    test('100 concurrent creations return one persisted canonical entry', () async {
+      final notes = await Future.wait(List.generate(100,
+        (_) => repository.getOrCreateJournalEntry(DateTime(2026, 1, 15))));
+      expect(notes.map((note) => note.id).toSet(), hasLength(1));
+      expect(await repository.getAllJournalEntries(), hasLength(1));
+      expect(await repository.validateJournalIntegrity(), isEmpty);
     });
 
     test('user can customize journal note title while preserving journalDate', () async {

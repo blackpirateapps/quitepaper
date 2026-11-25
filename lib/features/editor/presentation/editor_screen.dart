@@ -2312,6 +2312,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                      FrontmatterPropertiesSection(
                                        frontmatter: frontmatterDoc,
                                        rawDocument: contentText,
+                                       documentId: note.id,
+                                       readDocument: () {
+                                         _bodyEditorKey.currentState?.flushPendingChanges();
+                                         return _contentController.text;
+                                       },
                                        readOnly: editorState.isReadOnly,
                                        isJournal: note.isJournal || frontmatterDoc.isJournal,
                                        onDocumentChanged: (updated) {

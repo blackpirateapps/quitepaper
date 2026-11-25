@@ -1,0 +1,16 @@
+00:00 +0: loading /home/dog/.codex/worktrees/dc6d/quitepaper/test/editor/frontmatter_properties_section_test.dart
+00:00 +0: FrontmatterPropertiesSection Widget Tests renders expanded by default with recognized fields
+00:01 +1: FrontmatterPropertiesSection Widget Tests tapping header collapses and expands properties
+00:01 +2: FrontmatterPropertiesSection Widget Tests editing property submits updated canonical markdown
+00:02 +3: FrontmatterPropertiesSection Widget Tests shows notice when frontmatter is malformed
+00:02 +4: FrontmatterPropertiesSection Widget Tests renders empty SizedBox when document only has title in frontmatter
+00:02 +5: FrontmatterPropertiesSection Widget Tests renders empty SizedBox when document has no frontmatter
+00:02 +6: FrontmatterPropertiesSection Widget Tests journal mode filters out author, source, and description when empty
+00:02 +7: FrontmatterPropertiesSection Widget Tests journal mode shows author if explicitly provided
+00:02 +8: FrontmatterPropertiesSection Widget Tests journal mode displays address and coordinates when location is present
+00:02 +9: FrontmatterPropertiesSection Widget Tests non-journal note displays empty Author, Source, Description fields
+00:02 +10: FrontmatterPropertiesSection Widget Tests journal mode displays moment, mood, weather, and activities when present
+00:02 +11: FrontmatterPropertiesSection Widget Tests journal mode shows action buttons when moment, mood, weather, activities are empty
+00:02 +12: FrontmatterPropertiesSection Widget Tests adapts to 2-column layout for compact fields when width >= 560px
+00:02 +13: FrontmatterPropertiesSection Widget Tests falls back to 1-column layout when width < 560px
+00:03 +14: All tests passed!

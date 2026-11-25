@@ -250,8 +250,13 @@ abstract final class JournalDateHelper {
   }
 
   /// Returns a 2-digit day number string (e.g. "01", "16", "31").
-  static String formatDayTwoDigits(int day) {
-    return day.toString().padLeft(2, '0');
+  static String formatDayTwoDigits(int day, {String? localeTag}) {
+    return NumberFormat('00', localeTag).format(day);
+  }
+
+  /// Formats an unpadded calendar day for display, leaving storage keys ASCII.
+  static String formatDayNumber(int day, {String? localeTag}) {
+    return NumberFormat('0', localeTag).format(day);
   }
 
   /// Returns the 7 calendar dates for the week containing [date] (Monday through Sunday).

@@ -54,6 +54,8 @@ abstract final class JournalMetadataService {
     String? dateStr;
 
     for (final line in lines) {
+      // Indented mappings and block scalars belong to user metadata.
+      if (line.startsWith(RegExp(r'\s'))) continue;
       final trimmed = line.trim();
       if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
 
@@ -93,9 +95,6 @@ abstract final class JournalMetadataService {
       return JournalMetadata(isJournal: true, journalDate: dateStr);
     } else if (isJournal) {
       return const JournalMetadata(isJournal: true, journalDate: null);
-    } else if (dateStr != null) {
-      // Only classified as journal entry if `journal: true` is explicitly specified
-      return JournalMetadata(isJournal: false, journalDate: dateStr);
     }
 
     return JournalMetadata.none;
@@ -136,7 +135,7 @@ abstract final class JournalMetadataService {
       final trimmed = line.trim();
       final colonIndex = trimmed.indexOf(':');
 
-      if (colonIndex != -1) {
+      if (colonIndex != -1 && !line.startsWith(RegExp(r'\s'))) {
         final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
         if (key == 'journal') {
           if (!hasJournalKey) {
@@ -185,18 +184,16 @@ abstract final class JournalMetadataService {
     for (final line in lines) {
       final trimmed = line.trim();
       final colonIndex = trimmed.indexOf(':');
-      if (colonIndex != -1) {
+      if (colonIndex != -1 && !line.startsWith(RegExp(r'\s'))) {
         final key = trimmed.substring(0, colonIndex).trim().toLowerCase().replaceAll('-', '_');
         if (key == 'journal' || key == 'date') {
           continue;
         }
       }
-      if (trimmed.isNotEmpty) {
-        remainingLines.add(line);
-      }
+      remainingLines.add(line);
     }
 
-    if (remainingLines.isEmpty) {
+    if (remainingLines.every((line) => line.trim().isEmpty)) {
       return remainder.trimLeft();
     }
 
