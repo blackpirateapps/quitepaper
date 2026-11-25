@@ -79,7 +79,7 @@ npm run build     # Compile TypeScript
 ```bash
 flutter pub get
 flutter analyze   # Static analysis (0 errors/warnings)
-flutter test      # Run full test suite (70 tests)
+flutter test test/<relevant-directory>  # Run focused tests; full suite stays in CI
 ```
 
 ---
@@ -91,6 +91,27 @@ flutter test      # Run full test suite (70 tests)
 - [Cloud Sync Protocol](docs/sync-protocol.md)
 - [Security Review & Threat Model](docs/security-review.md)
 - [Engineering Handoff Document](HANDOFF.md)
+
+### Linux terminal client
+
+`qp` is a standalone Rust executable with local note creation/editing/search,
+external editors, tags, trash/restore, encrypted image imports and upload retries.
+It shares the desktop SQLite notebook and supports concurrent WAL access.
+
+```sh
+bash scripts/build_rust_cli.sh
+build/cli/bin/qp --help
+printf '# A terminal note\n\nHello #work\n' | build/cli/bin/qp new
+build/cli/bin/qp list --json
+build/cli/bin/qp sync
+```
+
+`qp new` initializes a full desktop-compatible notebook when needed. Existing
+notebooks remain under the desktop app's migration control. Cloud setup still
+uses the desktop account/key stores; offline saves remain local if upload fails.
+Linux packages include `qp` and the `quietpaper-cli` alias. Build/test commands,
+the five completed migration batches and compatibility differences are recorded
+in [the Rust CLI report](docs/linux-cli-rust-rewrite.md).
 
 ### Linux watched folders
 

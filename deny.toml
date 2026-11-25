@@ -7,6 +7,14 @@ version = 2
 allow = ["MIT", "Apache-2.0", "ISC", "Unicode-3.0", "Zlib", "CC0-1.0"]
 confidence-threshold = 0.8
 
+# Permissive dependencies used for deterministic tag IDs and constant-time crypto.
+[[licenses.exceptions]]
+name = "sha1_smol"
+allow = ["BSD-3-Clause"]
+[[licenses.exceptions]]
+name = "subtle"
+allow = ["BSD-3-Clause"]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"

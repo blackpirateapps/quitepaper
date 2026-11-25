@@ -65,20 +65,13 @@ jobs:
 
       - name: Build Quiet Paper CLI Binary (qp)
         run: |
-          dart build cli -t bin/qp.dart -o build/cli
+          bash scripts/build_rust_cli.sh
 
       - name: Package Linux Release Tarball
         run: |
           mkdir -p dist/tarball/quitepaper
           cp -a build/linux/x64/release/bundle/* dist/tarball/quitepaper/
-          if [ -d build/cli/bundle ]; then
-            mkdir -p dist/tarball/quitepaper/bin
-            cp -a build/cli/bundle/bin/qp dist/tarball/quitepaper/bin/qp
-            if [ -d build/cli/bundle/lib ]; then
-              cp -a build/cli/bundle/lib/* dist/tarball/quitepaper/lib/ 2>/dev/null || :
-            fi
-            ln -sf bin/qp dist/tarball/quitepaper/qp
-          fi
+          bash scripts/install_rust_cli.sh dist/tarball/quitepaper
           mkdir -p dist/tarball/quitepaper/share/applications
           mkdir -p dist/tarball/quitepaper/share/metainfo
           mkdir -p dist/tarball/quitepaper/share/icons/hicolor/256x256/apps

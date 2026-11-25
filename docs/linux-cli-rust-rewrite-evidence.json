@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-25",
+  "branch": "feat/linux-cli-rust-rewrite",
+  "version": "1.6.4",
+  "schema_version": 25,
+  "flutter_version": "3.47.2",
+  "dart_version": "3.13.2",
+  "rust_version": "1.97.1",
+  "rust_source_sha256": "9e7fe656cef43947fbc98045d1e8ef8802e904f78861d373fb5db99a814aec82",
+  "source_digest_format": "sorted Cargo.toml, Cargo.lock and rust/quietpaper_cli files: path + NUL + bytes + NUL",
+  "results": {
+    "rust_tests": 18,
+    "flutter_cli_schema_tests": 26,
+    "flutter_gui_launch_storage_tests": 3,
+    "flutter_tests_total": 29,
+    "flutter_analyze": "no issues",
+    "rustfmt": "pass",
+    "clippy": "pass; warnings denied",
+    "cargo_audit": "pass; no vulnerabilities",
+    "cargo_deny": "pass; duplicate-version warnings permitted by existing policy",
+    "flutter_linux_release": "pass; pre-existing Whisper C++ literal-operator deprecation warnings",
+    "shell_and_yaml_syntax": "pass",
+    "full_flutter_suite_run": false
+  },
+  "artifacts": [
+    {
+      "format": "rust_cli",
+      "path": "build/cli/bin/qp",
+      "bytes": 13442240,
+      "sha256": "74451876bcec893eb0c3e2ebdefb0a3d5d845c5446372ef747522b5b6688d10a",
+      "verification": "pass"
+    },
+    {
+      "format": "tarball",
+      "path": "build/linux/dist/quiet-paper-1.6.4-linux-x64.tar.gz",
+      "bytes": 32601888,
+      "sha256": "d3336335d3f0a544da7bbd7d164f21516ef8c9a4853dea43dac7a53fa8a6031d",
+      "verification": "pass"
+    },
+    {
+      "format": "deb",
+      "path": "build/linux/dist/quiet-paper-1.6.4-amd64.deb",
+      "bytes": 23919136,
+      "sha256": "b10c3045ac6eedbd7f4edd147e7d5028d21de4c1a692653f8b5f27f028b129a3",
+      "verification": "pass"
+    },
+    {
+      "format": "rpm",
+      "path": "build/linux/rpmbuild/RPMS/x86_64/quitepaper-1.6.4-1.fc44.x86_64.rpm",
+      "bytes": 32556056,
+      "sha256": "d24fee44ff8623c27b51c7824317c713f855f98fd192807fdb3c4d92fc5f6d9b",
+      "verification": "pass"
+    },
+    {
+      "format": "appimage",
+      "path": "build/linux/dist/Quiet_Paper-1.6.4-x86_64.AppImage",
+      "bytes": 30620152,
+      "sha256": "3398766541f64500c4d9dabd10d1377e2060571b3fbef2210d703b812f45bebb",
+      "verification": "pass"
+    },
+    {
+      "format": "flatpak",
+      "path": "build/linux/dist/quiet-paper-1.6.4-x86_64.flatpak",
+      "bytes": 23483104,
+      "sha256": "b807efda2fee8274410b41f164e20bfb0b6656a84c4b2b3d24a0243ca84e5614",
+      "verification": "pass"
+    }
+  ],
+  "verification_scope": [
+    "Relocated headless Rust binary creates/reads/tags/trashes/restores/deletes a disposable full-schema notebook",
+    "Tarball/DEB/RPM/AppImage extracted without installing; Flutter assets present; native FRB contract 2 loads",
+    "Flatpak installed and run in disposable installation/home/data with explicit temporary notebook paths",
+    "Dart decrypts Rust note and QPA1 payloads; actual Drift-created and Rust-created schema-25 notebooks interoperate",
+    "HTTP, refresh, multipart, account mismatch, concurrent edit and retry cases use controlled endpoints/transports"
+  ],
+  "not_exercised": [
+    "Live cloud account/Firebase/Cloudinary upload",
+    "Real user notebook, keyring or clipboard",
+    "Interactive image viewer and manual GUI tour",
+    "Remote CI completion"
+  ]
+}

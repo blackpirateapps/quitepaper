@@ -8,6 +8,15 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## PR #19 integration — November 25, 2026
+
+Merged the latest `main` into the Linux CLI Rust rewrite branch. The only
+conflict was overlapping engineering log additions; both journal audit entries
+and all five CLI migration entries are preserved, with CLI logs renumbered
+354–358. Application source merged without conflicts. Validation passed Rust
+formatting, Clippy with warnings denied, all 18 Rust tests, `flutter analyze`
+with no issues, and all 26 focused Flutter CLI/schema tests. No full suite ran.
+
 ## Journal audit — November 24, 2026
 
 The [second audit pass](handoff/audits/journal-2026-11-24/round-2/README.md) found
@@ -184,6 +193,19 @@ complete. These changes address the recent Linux workflow test failures; see
 [engineering log 312](handoff/latest-logs.md#312-linux-ci-image-import-and-document-viewer-async-test-races-november-17-2026).
 
 ## Latest Linux CLI Work
+
+The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
+All five rewrite batches are implemented: `rust/quietpaper_cli` owns every note,
+editor, image and sync command, and Linux tarball/DEB/RPM/AppImage/Flatpak builders
+require its release binary. The standalone Dart client is removed; the GUI launch
+argument provider stays, with historical database parsing retained only in test
+fixtures. `qp new` bootstraps a complete schema-25 notebook using Drift-generated,
+coherence-checked DDL. Existing notebooks are never migrated by the CLI.
+Encrypted journals, snapshot checks and a notebook sync lock preserve pending
+changes across failures and concurrent edits. See
+[the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
+scope, behavior differences, validation and next-batch acceptance, and
+engineering logs 354–358 in [the active logs](handoff/latest-logs.md).
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image

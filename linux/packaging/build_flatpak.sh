@@ -29,12 +29,8 @@ mkdir -p "${STAGING_DIR}/bundle"
 
 # Copy release bundle and metadata assets
 cp -a "${BUNDLE_DIR}"/* "${STAGING_DIR}/bundle/"
-# Preserve CLI layout so Dart native code assets resolve next to the GUI libs.
-if [ -x "${PROJECT_ROOT}/build/cli/bundle/bin/qp" ]; then
-  mkdir -p "${STAGING_DIR}/bundle/bin"
-  cp -a "${PROJECT_ROOT}/build/cli/bundle/bin/qp" "${STAGING_DIR}/bundle/bin/qp"
-  cp -a "${PROJECT_ROOT}/build/cli/bundle/lib/." "${STAGING_DIR}/bundle/lib/"
-fi
+# The standalone Rust executable has no Dart native asset directory.
+bash "${PROJECT_ROOT}/scripts/install_rust_cli.sh" "${STAGING_DIR}/bundle"
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.desktop" "${STAGING_DIR}/"
 cp "${PROJECT_ROOT}/linux/com.blackpiratex.quietpaper.metainfo.xml" "${STAGING_DIR}/"
 cp "${PROJECT_ROOT}/linux/assets/icon.png" "${STAGING_DIR}/icon_256.png"

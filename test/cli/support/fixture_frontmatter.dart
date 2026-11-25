@@ -1,9 +1,10 @@
+// Test-only historical frontmatter semantics for the compatibility oracle.
 /// Pure Dart YAML frontmatter parser and updater for Quiet Paper CLI.
 ///
 /// Intentionally contains ZERO imports of `package:flutter` or `dart:ui` so the
 /// native CLI binary runs anywhere without UI subsystem overhead.
-class CliFrontmatter {
-  const CliFrontmatter({
+class FixtureFrontmatter {
+  const FixtureFrontmatter({
     required this.hasFrontmatter,
     this.title,
     this.isJournal = false,
@@ -24,20 +25,14 @@ class CliFrontmatter {
   );
 
   /// Parses YAML frontmatter from raw Markdown text.
-  static CliFrontmatter parse(String rawContent) {
+  static FixtureFrontmatter parse(String rawContent) {
     if (rawContent.isEmpty) {
-      return const CliFrontmatter(
-        hasFrontmatter: false,
-        contentBody: '',
-      );
+      return const FixtureFrontmatter(hasFrontmatter: false, contentBody: '');
     }
 
     final match = _frontmatterRegex.firstMatch(rawContent);
     if (match == null) {
-      return CliFrontmatter(
-        hasFrontmatter: false,
-        contentBody: rawContent,
-      );
+      return FixtureFrontmatter(hasFrontmatter: false, contentBody: rawContent);
     }
 
     final blockText = match.group(1) ?? '';
@@ -68,7 +63,10 @@ class CliFrontmatter {
       if (colonIndex == -1) continue;
 
       final rawKey = line.substring(0, colonIndex).trim();
-      final key = rawKey.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+      final key = rawKey
+          .toLowerCase()
+          .replaceAll('-', '_')
+          .replaceAll(' ', '_');
       final rawVal = line.substring(colonIndex + 1).trim();
 
       currentListKey = null;
@@ -103,7 +101,7 @@ class CliFrontmatter {
       }
     }
 
-    return CliFrontmatter(
+    return FixtureFrontmatter(
       hasFrontmatter: true,
       title: parsedTitle,
       isJournal: isJournal,
@@ -129,7 +127,11 @@ class CliFrontmatter {
         : newTitle;
 
     // Check if title: is already in blockText
-    final titleRegex = RegExp(r'^(\s*title\s*:\s*)(.*)$', multiLine: true, caseSensitive: false);
+    final titleRegex = RegExp(
+      r'^(\s*title\s*:\s*)(.*)$',
+      multiLine: true,
+      caseSensitive: false,
+    );
     final titleMatch = titleRegex.firstMatch(blockText);
 
     if (titleMatch != null) {
