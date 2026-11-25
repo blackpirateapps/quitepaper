@@ -165,6 +165,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Tasks'), findsOneWidget);
+      await tester.tap(find.byTooltip('Search tasks'));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.widgetWithText(TextField, 'Search tasks and notes'),
         'Task 1',
@@ -172,6 +174,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Task 1 café বাংলা 😀'), findsWidgets);
       await tester.tap(find.text('Task 1 café বাংলা 😀').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open note'));
       await tester.pumpAndSettle();
       expect(find.byType(EditorScreen), findsOneWidget);
       expect(tester.takeException(), isNull);

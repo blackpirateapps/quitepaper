@@ -132,21 +132,33 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Open (4)'), findsOneWidget);
-        expect(find.text('Completed (1)'), findsOneWidget);
+        expect(find.text('Open 4'), findsOneWidget);
+        expect(find.text('Completed 1'), findsOneWidget);
         expect(find.text('Overdue'), findsOneWidget);
         expect(find.text('Due today'), findsOneWidget);
         expect(tester.takeException(), isNull);
+        await tester.tap(find.byTooltip('Search tasks'));
+        await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), 'estimate');
         await tester.pumpAndSettle();
-        expect(find.text('Open (1)'), findsOneWidget);
-        expect(find.text('Completed (1)'), findsOneWidget);
+        expect(find.text('Open 1'), findsOneWidget);
+        expect(find.text('Completed 1'), findsOneWidget);
+        await tester.tap(find.byTooltip('Hide search'));
+        await tester.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing);
+        expect(find.text('Open 1'), findsOneWidget);
+        await tester.tap(find.byTooltip('Search tasks'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'estimate',
+        );
         await tester.tap(find.byType(DropdownButton<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text('#work').last);
         await tester.pumpAndSettle();
         expect(find.text('Estimate'), findsOneWidget);
-        await tester.tap(find.text('Completed (1)'));
+        await tester.tap(find.text('Completed 1'));
         await tester.pumpAndSettle();
         expect(find.text('Completed estimate'), findsOneWidget);
         expect(tester.takeException(), isNull);

@@ -1025,6 +1025,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               ),
               appBar:
                   (isTagBrowser ||
+                      destination == AppDestination.tasks ||
                       destination == AppDestination.allJournalEntries ||
                       destination == AppDestination.places)
                   ? null

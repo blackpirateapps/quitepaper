@@ -8,6 +8,33 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Tasks phone layout correction (November 25, 2026)
+
+The Tasks workspace now follows the supplied smartphone references: one serif
+Tasks header with Phosphor navigation/search/add icons, an inline Open/Completed
+count strip with an accent underline and compact All tags filter, circular
+completion controls, and shared source-note headings for adjacent tasks. Search
+opens from the toolbar. Tapping a task expands its due-date and Open note actions;
+only one task expands at a time. The phone notes shell no longer adds a second
+app bar above Tasks. Wide labels and large text move the tag filter beneath the
+tabs without overflowing.
+
+Phones use a themed Due date bottom sheet with the task title, direct
+Today/Tomorrow/In a week selection, a calendar picker, and explicit Clear date.
+Dismissing the sheet or calendar does not write a date; existing canonical commands
+and Undo handle selections. Desktop retains its staged Cancel/Save dialog. First
+load shows “Finding tasks in your notes…” and three skeleton rows, with counts
+omitted until the index emits results; cached results remain during refresh.
+No database, indexing, or sync format changed. See [the Tasks guide](handoff/tasks.md).
+
+Validation: `flutter analyze` reports no issues. All **44 task tests** pass with
+`flutter test --no-pub test/tasks`; the final overlapping **9-test UI run** also
+passes after checking search hide/reopen with an active query. The targeted
+`test/widget_test.dart` phone Tasks toolbar/navigation test passes. Light/dark
+widget previews were visually inspected at 390 × 844 logical pixels.
+`git diff --check` passes. No full suite, app build, or physical-device run was
+performed for this UI correction.
+
 ## Tasks workspace implementation (November 25, 2026)
 
 `feat/tasks-workspace` adds a sidebar/command-palette Tasks workspace, local-date

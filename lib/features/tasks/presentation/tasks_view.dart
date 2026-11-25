@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../tags/domain/phosphor_icons.dart';
 import '../../notes/application/notes_provider.dart';
 import '../../../core/database/app_database.dart';
 import '../../notes/domain/note_model.dart';
@@ -31,6 +32,8 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
   Timer? timer;
   Timer? midnight;
   final Set<String> pending = {};
+  String? expandedTask;
+  bool searchVisible = false;
   final listFocus = FocusNode(debugLabel: 'Tasks results');
   @override
   void initState() {
@@ -40,6 +43,7 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
       initialScrollOffset: ref.read(taskScrollProvider),
     );
     search = TextEditingController(text: ref.read(taskSearchProvider));
+    searchVisible = search.text.isNotEmpty;
     WidgetsBinding.instance.addObserver(this);
     // Also detects manual clock/timezone changes while the view is visible.
     scheduleMidnight();
@@ -204,37 +208,79 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
             .toList()
           ..sort();
     if (tag != null && !tags.contains(tag)) tags.add(tag);
+    final firstLoad = data.isLoading && data.valueOrNull == null;
     final display = <Object>[];
+    final groupedKeys = <String>{};
     TaskGroup? prior;
-    for (final item in items) {
+    for (var i = 0; i < items.length;) {
+      final item = items[i];
       final group = item.group(today);
       if (group != prior) {
         display.add(group);
         prior = group;
       }
-      display.add(item);
+      // Keep date ordering intact; share a source heading for adjacent tasks
+      // belonging to the same note in the same date group.
+      var end = i + 1;
+      while (end < items.length &&
+          items[end].group(today) == group &&
+          items[end].note.id == item.note.id) {
+        end++;
+      }
+      if (end - i > 1) {
+        display.add(item.note.displayTitle);
+        groupedKeys.addAll(items.sublist(i, end).map((item) => item.key));
+      }
+      display.addAll(items.sublist(i, end));
+      i = end;
     }
     return Material(
       color: colors.background,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 8, 4),
+            padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
             child: Row(
               children: [
-                if (widget.onMenu != null)
+                if (widget.onMenu != null) ...[
                   IconButton(
                     onPressed: widget.onMenu,
-                    icon: const Icon(Icons.menu),
+                    icon: const Icon(PhosphorIconsRegular.list, size: 26),
+                    color: colors.iconSecondary,
                     tooltip: 'Workspace navigation',
                   ),
+                  const SizedBox(width: 12),
+                ] else
+                  const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Tasks',
-                    style: AppTypography.title.copyWith(
+                    style: context.appTypography.title.copyWith(
+                      fontFamily: 'serif',
+                      fontSize: 36,
+                      height: 1.15,
+                      fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
                   ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    if (searchVisible) {
+                      FocusScope.of(context).unfocus();
+                    }
+                    setState(() => searchVisible = !searchVisible);
+                  },
+                  icon: Icon(
+                    searchVisible
+                        ? PhosphorIconsRegular.x
+                        : PhosphorIconsRegular.magnifyingGlass,
+                    size: 26,
+                  ),
+                  color: search.text.isEmpty
+                      ? colors.iconSecondary
+                      : colors.accent,
+                  tooltip: searchVisible ? 'Hide search' : 'Search tasks',
                 ),
                 IconButton(
                   onPressed: () async {
@@ -247,74 +293,143 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                       );
                     }
                   },
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(PhosphorIconsRegular.plus, size: 28),
+                  color: colors.accent,
                   tooltip: 'New task',
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextField(
-              controller: search,
-              onChanged: (q) => ref.read(taskSearchProvider.notifier).state = q,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search tasks and notes',
-                isDense: true,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: DropdownButton<String>(
-              value: tag ?? '',
-              isExpanded: true,
-              items: [
-                const DropdownMenuItem(value: '', child: Text('All note tags')),
-                for (final name in tags)
-                  DropdownMenuItem(
-                    value: name,
-                    child: Text('#$name', overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onChanged: (value) => ref.read(taskTagProvider.notifier).state =
-                  value == '' ? null : value,
-            ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () =>
-                      ref.read(taskCompletedProvider.notifier).state = false,
-                  child: Text(
-                    'Open ($openCount)',
-                    style: TextStyle(
-                      fontWeight: !completed
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
+          if (searchVisible)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: TextField(
+                controller: search,
+                autofocus: searchVisible,
+                onChanged: (q) =>
+                    ref.read(taskSearchProvider.notifier).state = q,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
+                  suffixIcon: search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          icon: const Icon(PhosphorIconsRegular.x),
+                          onPressed: () {
+                            search.clear();
+                            ref.read(taskSearchProvider.notifier).state = '';
+                          },
+                        ),
+                  hintText: 'Search tasks and notes',
+                  isDense: true,
                 ),
               ),
-              Expanded(
-                child: TextButton(
-                  onPressed: () =>
-                      ref.read(taskCompletedProvider.notifier).state = true,
-                  child: Text(
-                    'Completed ($doneCount)',
-                    style: TextStyle(
-                      fontWeight: completed
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final tabs = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    tab(
+                      'Open',
+                      firstLoad ? null : openCount,
+                      !completed,
+                      () => ref.read(taskCompletedProvider.notifier).state =
+                          false,
+                    ),
+                    const SizedBox(width: 24),
+                    tab(
+                      'Completed',
+                      firstLoad ? null : doneCount,
+                      completed,
+                      () =>
+                          ref.read(taskCompletedProvider.notifier).state = true,
+                    ),
+                  ],
+                );
+                final tagPicker = SizedBox(
+                  width: 104,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: tag ?? '',
+                      isExpanded: true,
+                      icon: const Icon(
+                        PhosphorIconsRegular.caretDown,
+                        size: 12,
+                      ),
+                      dropdownColor: colors.background,
+                      style: Theme.of(context).textTheme.bodyMedium!
+                          .merge(context.appTypography.body)
+                          .copyWith(color: colors.textSecondary),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('All tags'),
+                        ),
+                        for (final name in tags)
+                          DropdownMenuItem(
+                            value: name,
+                            child: Text(
+                              '#$name',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          ref.read(taskTagProvider.notifier).state = value == ''
+                          ? null
+                          : value,
                     ),
                   ),
-                ),
-              ),
-            ],
+                );
+                double labelWidth(String label, bool selected) {
+                  final painter = TextPainter(
+                    text: TextSpan(
+                      text: label,
+                      style: DefaultTextStyle.of(context).style
+                          .merge(context.appTypography.body)
+                          .copyWith(
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                          ),
+                    ),
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout();
+                  final width = painter.width;
+                  painter.dispose();
+                  return width;
+                }
+
+                final tabsWidth =
+                    labelWidth(
+                      firstLoad ? 'Open' : 'Open $openCount',
+                      !completed,
+                    ) +
+                    labelWidth(
+                      firstLoad ? 'Completed' : 'Completed $doneCount',
+                      completed,
+                    ) +
+                    24;
+                if (constraints.maxWidth < tabsWidth + 104 + 16) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: tabs,
+                      ),
+                      Align(alignment: Alignment.centerRight, child: tagPicker),
+                    ],
+                  );
+                }
+                return Row(children: [tabs, const Spacer(), tagPicker]);
+              },
+            ),
           ),
-          if (data.isLoading) const LinearProgressIndicator(),
           if ((ref.watch(taskIndexFailuresProvider).valueOrNull ?? 0) > 0)
             Padding(
               padding: const EdgeInsets.all(12),
@@ -348,18 +463,21 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                 ],
               ),
             ),
-          Divider(height: 1, color: colors.divider),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Divider(height: 1, color: colors.divider),
+          ),
           Expanded(
             child: Focus(
               focusNode: listFocus,
-              child: display.isEmpty
+              child: firstLoad && ref.watch(taskSessionProvider)
+                  ? const _TaskListLoading()
+                  : display.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          data.isLoading
-                              ? 'Building Tasks…'
-                              : !ref.watch(taskSessionProvider)
+                          !ref.watch(taskSessionProvider)
                               ? 'Unlock your vault to see tasks.'
                               : all.isEmpty
                               ? 'Your note checkboxes will appear here.'
@@ -385,116 +503,35 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
                         itemCount: display.length,
                         itemBuilder: (context, index) {
                           final entry = display[index];
-                          if (entry is TaskGroup) {
+                          if (entry is TaskGroup || entry is String) {
                             return Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                              padding: EdgeInsets.fromLTRB(
+                                24,
+                                index == 0 ? 28 : 24,
+                                24,
+                                10,
+                              ),
                               child: Text(
-                                switch (entry) {
-                                  TaskGroup.overdue => 'Overdue',
-                                  TaskGroup.today => 'Due today',
-                                  TaskGroup.upcoming => 'Upcoming',
-                                  TaskGroup.undated => 'No date',
-                                  TaskGroup.completed => 'Completed',
-                                },
-                                style: AppTypography.bodySmall.copyWith(
+                                entry is String
+                                    ? entry
+                                    : switch (entry as TaskGroup) {
+                                        TaskGroup.overdue => 'Overdue',
+                                        TaskGroup.today => 'Due today',
+                                        TaskGroup.upcoming => 'Upcoming',
+                                        TaskGroup.undated => 'No date',
+                                        TaskGroup.completed => 'Completed',
+                                      },
+                                style: context.appTypography.body.copyWith(
+                                  fontWeight: FontWeight.w600,
                                   color: colors.textSecondary,
                                 ),
                               ),
                             );
                           }
                           final item = entry as TaskItem;
-                          final task = item.occurrence;
-                          final due = task.metadata?.due;
-                          final overdue =
-                              !task.completed &&
-                              due != null &&
-                              due.compareTo(today) < 0;
-                          final disabled = pending.contains(item.key);
-                          return Padding(
-                            key: ValueKey(item.key),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: Checkbox(
-                                    value: task.completed,
-                                    onChanged: disabled
-                                        ? null
-                                        : (value) => mutate(
-                                            item,
-                                            () => ref
-                                                .read(taskServiceProvider)
-                                                .setCompleted(item, value!),
-                                          ),
-                                    semanticLabel:
-                                        '${task.completed ? 'Reopen' : 'Complete'} ${task.text}',
-                                  ),
-                                ),
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () => open(item),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            task.text.isEmpty
-                                                ? 'Untitled task'
-                                                : task.text,
-                                            style: AppTypography.body.copyWith(
-                                              color: colors.textPrimary,
-                                              decoration: task.completed
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${item.note.displayTitle}${task.heading == null ? '' : ' · ${task.heading}'}',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(
-                                                  color: colors.textSecondary,
-                                                ),
-                                          ),
-                                          if (due != null)
-                                            TextButton(
-                                              onPressed: disabled
-                                                  ? null
-                                                  : () => editDate(item),
-                                              child: Text(
-                                                '${overdue ? 'Overdue · ' : ''}${taskDateLabel(context, due, today)}',
-                                                style: TextStyle(
-                                                  color: overdue
-                                                      ? colors.accent
-                                                      : colors.textSecondary,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (due == null)
-                                  IconButton(
-                                    onPressed: disabled
-                                        ? null
-                                        : () => editDate(item),
-                                    icon: const Icon(
-                                      Icons.event_outlined,
-                                      size: 20,
-                                    ),
-                                    tooltip: 'Add due date to ${task.text}',
-                                  ),
-                              ],
-                            ),
+                          return taskRow(
+                            item,
+                            showSource: !groupedKeys.contains(item.key),
                           );
                         },
                       ),
@@ -506,11 +543,197 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
     );
   }
 
+  Widget tab(String label, int? count, bool selected, VoidCallback onTap) {
+    final colors = context.appColors;
+    return Semantics(
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? colors.accent : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Text(
+            count == null ? label : '$label $count',
+            style: context.appTypography.body.copyWith(
+              color: selected ? colors.textPrimary : colors.textSecondary,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget taskRow(TaskItem item, {required bool showSource}) {
+    final colors = context.appColors;
+    final task = item.occurrence;
+    final due = task.metadata?.due;
+    final overdue = !task.completed && due != null && due.compareTo(today) < 0;
+    final disabled = pending.contains(item.key);
+    final expanded = expandedTask == item.key;
+    final dateLabel = due == null
+        ? 'Add due date'
+        : '${overdue ? 'Overdue · ' : ''}${taskDateLabel(context, due, today)}';
+    return Material(
+      key: ValueKey(item.key),
+      color: expanded ? colors.surfaceSecondary : colors.background,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Checkbox(
+                  value: task.completed,
+                  shape: const CircleBorder(),
+                  side: BorderSide(color: colors.iconSecondary, width: 1.5),
+                  activeColor: colors.accent,
+                  onChanged: disabled
+                      ? null
+                      : (value) => mutate(
+                          item,
+                          () => ref
+                              .read(taskServiceProvider)
+                              .setCompleted(item, value!),
+                        ),
+                  semanticLabel:
+                      '${task.completed ? 'Reopen' : 'Complete'} ${task.text}',
+                ),
+              ),
+              Expanded(
+                child: Semantics(
+                  expanded: expanded,
+                  child: InkWell(
+                    onTap: () => setState(
+                      () => expandedTask = expanded ? null : item.key,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 9, 24, 9),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  task.text.isEmpty
+                                      ? 'Untitled task'
+                                      : task.text,
+                                  style: context.appTypography.bodyLarge
+                                      .copyWith(
+                                        color: colors.textPrimary,
+                                        height: 1.4,
+                                        decoration: task.completed
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                      ),
+                                ),
+                                if (showSource) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${item.note.displayTitle}${task.heading == null ? '' : ' · ${task.heading}'}',
+                                    style: context.appTypography.bodySmall
+                                        .copyWith(color: colors.textSecondary),
+                                  ),
+                                ] else if (task.heading != null)
+                                  Text(
+                                    task.heading!,
+                                    style: context.appTypography.bodySmall
+                                        .copyWith(color: colors.textSecondary),
+                                  ),
+                                if (due != null && !expanded)
+                                  Text(
+                                    dateLabel,
+                                    style: context.appTypography.bodySmall
+                                        .copyWith(
+                                          color: overdue
+                                              ? colors.accent
+                                              : colors.textSecondary,
+                                        ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (expanded)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, left: 8),
+                              child: Icon(
+                                PhosphorIconsRegular.caretUp,
+                                size: 18,
+                                color: colors.iconSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(64, 0, 16, 4),
+              child: Wrap(
+                spacing: 16,
+                children: [
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      foregroundColor: colors.accent,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: disabled ? null : () => editDate(item),
+                    icon: const Icon(
+                      PhosphorIconsRegular.calendarBlank,
+                      size: 16,
+                    ),
+                    label: Text(dateLabel),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      foregroundColor: colors.textSecondary,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => open(item),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Open note'),
+                        SizedBox(width: 4),
+                        Icon(PhosphorIconsRegular.arrowUpRight, size: 14),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> editDate(TaskItem item) async {
     final selection = await showTaskDatePicker(
       context,
       today: today,
       current: item.occurrence.metadata?.due,
+      taskTitle: item.occurrence.text,
     );
     if (selection != null && mounted) {
       await mutate(
@@ -518,5 +741,79 @@ class _TasksState extends ConsumerState<TasksView> with WidgetsBindingObserver {
         () => ref.read(taskServiceProvider).setDate(item, selection.value),
       );
     }
+  }
+}
+
+class _TaskListLoading extends StatelessWidget {
+  const _TaskListLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.accent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Finding tasks in your notes…',
+                  style: context.appTypography.body.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ExcludeSemantics(
+            child: Column(
+              children: [
+                for (final width in [0.78, 0.66, 0.74])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          PhosphorIconsRegular.circle,
+                          size: 20,
+                          color: colors.textTertiary,
+                        ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FractionallySizedBox(
+                              widthFactor: width,
+                              child: Container(
+                                height: 11,
+                                decoration: BoxDecoration(
+                                  color: colors.divider,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -16,7 +16,8 @@ release approval.
   canonical-save maintenance, durable dirty triggers and bounded repair.
 - `features/tasks/application`: shared explicit completion/date/capture commands,
   field-aware operation receipts and Riverpod state.
-- `features/tasks/presentation`: lazy Tasks list, capture and staged date picker.
+- `features/tasks/presentation`: lazy Tasks list, capture, phone date sheet and
+  staged desktop date picker.
 - Sidebar and command palette expose Tasks and New task. The existing notes
   workspace hosts Tasks in its middle pane; phones retain a full list route and
   push the existing editor. Task search/tag/tab/scroll state is separate from
@@ -30,6 +31,33 @@ release approval.
   ordinary imports/restores. Direct lifecycle/content writes leave a durable
   per-note dirty marker. Queries join current note eligibility and suppress dirty
   projections. Rebuild repairs batches of 32 notes and yields between batches.
+
+## Phone Tasks presentation
+
+The phone shell leaves its app bar to Tasks, preventing duplicate toolbars. Tasks
+uses the supplied November 25 smartphone references: serif title, Phosphor icons,
+search on demand, underlined Open/Completed counts and compact All tags filtering.
+Date groups retain canonical ordering. Adjacent tasks from the same source note
+share a note heading; standalone tasks retain their source subtitle. Circular
+checkboxes invoke the existing completion command. Tapping the task text expands
+one row with due-date and explicit Open note actions, keeping source navigation
+separate from completion. Wide-font/large-text controls adapt to the available
+width and expanded actions wrap.
+
+At viewport widths below 600 logical pixels, due dates use a paper-themed modal
+bottom sheet with the source task title. Presets commit on selection; Pick a date
+commits only after calendar confirmation, and Clear date is explicit. Dismissal
+returns no selection. Capture stages the returned date in its draft as before;
+existing task changes retain canonical persistence and Undo. Wider viewports keep
+the staged desktop dialog with Cancel/Save.
+
+Initial index loading omits counts and displays a progress message and three
+skeleton rows. Refreshes with cached results retain those results. Widget coverage
+includes light/dark phone expansion, large text and combined filtering, first
+load, date dismissal/presets/calendar/clear, canonical date/completion/Undo and
+source opening. A targeted real app-shell test verifies one toolbar and drawer
+navigation. Rendered widget previews were inspected at 390 × 844 logical pixels;
+these checks do not establish physical-device acceptance.
 
 ## Canonical format
 
