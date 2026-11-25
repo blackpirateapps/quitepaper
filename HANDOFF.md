@@ -8,6 +8,19 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Note-save recovery — November 25, 2026
+
+Fixed repeated note saves failing with `UNIQUE constraint failed:
+task_dirty.note_id` after an experimental Tasks build left queue triggers in a
+shared notebook. `AppDatabase.beforeOpen` now atomically upgrades the two legacy
+queue inserts to explicit `ON CONFLICT(note_id) DO NOTHING`, preserving task
+cleanup, existing notes, queue entries and schema version 25. This compatibility
+repair also runs when opening a database without a schema-version change;
+ordinary notebooks do not acquire Tasks tables. Regression coverage includes
+reopened databases, editor autosave, repeated new-note saves, search/tag updates,
+cleanup and idempotence. See engineering log 359 in
+[the active logs](handoff/latest-logs.md).
+
 ## PR #19 integration — November 25, 2026
 
 Merged the latest `main` into the Linux CLI Rust rewrite branch. The only

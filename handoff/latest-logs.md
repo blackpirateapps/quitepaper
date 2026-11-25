@@ -8700,3 +8700,51 @@ remain outside this CLI rewrite's acceptance scope.
 
 See [the completed batch report](../docs/linux-cli-rust-rewrite.md) and
 [artifact hashes and verification evidence](../docs/linux-cli-rust-rewrite-evidence.json).
+
+## 359. Recover note saves from legacy Tasks queue triggers (November 25, 2026)
+
+The installed Linux app could not persist repeated edits because its shared
+notebook retained `task_note_insert` / `task_note_update` from an experimental
+Tasks build. A queued note hit `UNIQUE constraint failed: task_dirty.note_id`
+during `notes` UPSERT: SQLite's outer conflict handling overrides the trigger's
+`INSERT OR IGNORE`, aborting the note transaction. The installed binary has no
+Tasks indexer to drain that queue. The editor's existing catch retains dirty
+state but hides the underlying SQLite error. Integrity and foreign-key checks
+were clean; disk exhaustion was not the cause.
+
+`AppDatabase.beforeOpen` now inspects only the two known queue triggers and
+atomically replaces their legacy insert with
+`INSERT INTO task_dirty(note_id) VALUES(new.id) ON CONFLICT(note_id) DO NOTHING`.
+All remaining trigger statements, including archive/protection cleanup, are
+preserved. Existing notes, task indexes, queue and delete trigger are retained.
+Already-repaired triggers are left alone and ordinary notebooks acquire no task
+tables or triggers. No schema-version bump or generated-schema/CLI snapshot
+change is required: this repair runs on every database open, including shared
+notebooks whose version is still 25. Future Tasks trigger definitions must use
+the explicit UPSERT conflict clause rather than `OR IGNORE`.
+
+The installed database was backed up privately with SQLite's online backup API,
+then both trigger definitions were repaired together under `BEGIN IMMEDIATE`
+without restarting or modifying the installed binary. All 1,020 existing notes
+were preserved; integrity and foreign-key checks pass. Three repeated saves on
+an in-memory copy of the repaired notebook pass. Earlier reproduction using the
+installed SQLite 3.53.4 library failed on the second save with the old triggers;
+the same save passed after removing them from that disposable snapshot. No test
+notes were inserted into the live notebook or its cloud queue. Recovery cannot
+reconstruct edits already discarded before persistence.
+
+Validation: `flutter analyze` reports no issues; `git diff --check`
+passes. All **39 focused tests** pass with:
+
+```sh
+flutter test --no-pub test/database/legacy_task_trigger_repair_test.dart \
+  test/database/app_database_test.dart \
+  test/database/database_migration_test.dart
+```
+
+Four new file-backed regressions cover reopening a legacy notebook followed by
+repeated editor/new-note saves, actual tag/search persistence, task cleanup on
+archive/deletion, retained timestamps/data, idempotence and notebooks without
+Tasks. Disabling the startup repair reproduces the new autosave regression;
+restoring it passes. No full suite, app rebuild, live cloud request or GUI input
+automation was run. The unrelated pre-existing prompt file remains uncommitted.

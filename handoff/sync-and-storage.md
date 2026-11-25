@@ -66,6 +66,17 @@ per note; adding a persisted domain field requires updating this shared mapper.
 - Migrations are defensive and idempotent (e.g. `duplicate column name: source` defensive alter queries).
 - Startup analysis of local attachments is deferred to avoid freezing application launch.
 
+`beforeOpen` also repairs legacy `task_note_insert` / `task_note_update` triggers
+left by experimental Tasks builds in a shared notebook. Queue deduplication must
+use `INSERT ... ON CONFLICT(note_id) DO NOTHING`: `INSERT OR IGNORE` inside a
+trigger can inherit the outer note UPSERT's conflict policy and abort the entire
+save when `task_dirty` already contains the note. The repair replaces only that
+legacy statement, atomically retains the rest of each trigger and leaves existing
+notes, Tasks tables/queue and schema version unchanged. It is idempotent and
+creates no Tasks objects on ordinary databases. Keep future task-trigger creation
+on the explicit UPSERT form. See engineering log 359 and
+`test/database/legacy_task_trigger_repair_test.dart`.
+
 ---
 
 ## 3. Cloud Backend & Sync Protocol

@@ -438,6 +438,7 @@ class AppDatabase extends _$AppDatabase {
       }
     },
     beforeOpen: (details) async {
+      await _repairLegacyTaskQueueTriggers();
       // Defensive evolution of the unreleased schema-23 watcher tables.
       for (final table in ['watched_import_jobs', 'watched_import_receipts']) {
         final columns = await customSelect('PRAGMA table_info($table)').get();
@@ -627,6 +628,34 @@ class AppDatabase extends _$AppDatabase {
 
   /// Resets the background rebuild flag after an auto-repair pass has been triggered.
   void clearSearchIndexRebuildFlag() => _needsSearchIndexRebuild = false;
+
+  /// Experimental Tasks builds can leave these triggers in the shared notebook
+  /// even when the installed build has no Tasks indexer. During a note UPSERT,
+  /// SQLite's outer conflict policy overrides a trigger's INSERT OR IGNORE and
+  /// a second queue entry aborts the whole save. An explicit UPSERT clause keeps
+  /// deduplication local to the queue insert instead.
+  Future<void> _repairLegacyTaskQueueTriggers() async {
+    const legacyInsert =
+        'INSERT OR IGNORE INTO task_dirty(note_id) VALUES(new.id)';
+    const safeInsert =
+        'INSERT INTO task_dirty(note_id) VALUES(new.id) '
+        'ON CONFLICT(note_id) DO NOTHING';
+
+    await transaction(() async {
+      final triggers = await customSelect(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' "
+        "AND name IN ('task_note_insert', 'task_note_update')",
+      ).get();
+      for (final trigger in triggers) {
+        final sql = trigger.read<String>('sql');
+        if (!sql.contains(legacyInsert)) continue;
+        final name = trigger.read<String>('name');
+        await customStatement('DROP TRIGGER "$name"');
+        // Preserve the rest of the trigger, including task-index cleanup.
+        await customStatement(sql.replaceAll(legacyInsert, safeInsert));
+      }
+    });
+  }
 
   /// Local, idempotent backfill for pre-hierarchy databases.
   ///
