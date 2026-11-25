@@ -8,6 +8,17 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## PR #8 integration — November 25, 2026
+
+The browser extension now uses the current Rust CLI's `qp browser-host` command.
+Native messaging keeps its existing protocol and offline behavior; captures save
+through the Rust note/tag/search/history/queue transaction without a page refetch
+or automatic upload. The obsolete Dart CLI host is removed. The Hindu extraction
+fix is retained alongside `main`'s Android redirect, canonical-URL, document and
+UI fixes. Browser build/registration instructions now use `build/cli/bin/qp`.
+Static analysis, 98 focused Flutter tests, 24 Rust tests, Clippy, dependency
+licenses and the Firefox/offline-host checks pass. See engineering log 365.
+
 ## PR #20 integration — November 25, 2026
 
 Integrated Tasks with current `main`, preserving journal fixes, the Rust CLI and
@@ -293,7 +304,7 @@ complete. These changes address the recent Linux workflow test failures; see
 
 ## Latest Linux CLI Work
 
-The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
+The Linux CLI Rust rewrite is integrated into `main`.
 All five rewrite batches are implemented: `rust/quietpaper_cli` owns every note,
 editor, image and sync command, and Linux tarball/DEB/RPM/AppImage/Flatpak builders
 require its release binary. The standalone Dart client is removed; the GUI launch
@@ -305,6 +316,25 @@ changes across failures and concurrent edits. See
 [the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
 scope, behavior differences, validation and next-batch acceptance, and
 engineering logs 354–358 in [the active logs](handoff/latest-logs.md).
+
+The new Linux browser extension captures the **loaded page DOM** in Chrome-family
+and Firefox-family browsers and sends it directly to `qp browser-host` over native
+messaging. Article, whole-page and selection modes save Markdown notes,
+with local notes, source metadata, tags and the regular sync queue. There is no
+page refetch, reader proxy, cookie transfer or local HTTP server. This version
+saves text and remote image links; image/CSS archives and HTML snapshots are not
+included. Build/load/registration instructions are in the
+[extension README](extensions/browser/README.md); see engineering log 362.
+Brave Flatpak can use a CLI bundle and host manifest inside its private app
+directory, with an explicit desktop database path and a notebook-directory
+filesystem grant. A full Brave restart activates the grant; see engineering log 363.
+
+Article mode now recognizes The Hindu's dedicated prose container and other
+article-body markers before broad page wrappers. Matching rules in the extension
+and Android extractor remove recommendation, popular-story, related-topic and ad
+modules, including modules whose classes also contain `article` or `content`.
+See [engineering log 364](handoff/latest-logs.md#364-keep-browser-and-android-article-clips-free-of-recommendation-modules-november-25-2026)
+for the regression coverage and validation scope.
 
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image

@@ -98,6 +98,28 @@ The onboarding system in [`lib/features/onboarding/`](file:///home/dog/git/quite
 - Automated CI Build Numbers: [Latest Logs, Section 133](latest-logs.md#133-automated-ci-build-numbers-git-commit-count--dynamic-runtime-version-resolution)
 - App Version Bump Checklist: [Historical Logs v1.0–v1.4, Section 17](archive/logs-v1.0-v1.4.md#17-app-version-bump-checklist)
 
+## Linux browser extension
+
+For browser captures that connect directly to the CLI, see
+[Linux browser extension](../extensions/browser/README.md). The extension uses
+Manifest V3 variants for Chrome-family and Firefox-family browsers. Build the
+Rust CLI with `scripts/build_rust_cli.sh` (staged at `build/cli/bin/qp`, with
+SQLite bundled), build extension bundles with
+`python3 extensions/browser/manage.py build`, and register that CLI using the
+installer's `install --qp ...` command. Chrome origins are explicitly allowlisted
+using repeatable `--chrome-id`; Firefox has a fixed add-on ID. Registration is
+per user, requires no sudo, honors XDG paths and supports extra Chromium manifest
+directories. Firefox's development add-on is temporary until a signed release
+is distributed. Native Linux browser packages are the supported installation
+target; sandboxed browser packaging may prevent host access.
+
+`qp browser-host` is a stdio protocol endpoint, not an interactive command. It
+receives bounded native messages and saves clips through the Rust CLI's existing
+transactional note writer, including tags, search, history and the sync queue.
+It never prompts for passwords, opens an editor, probes images, acquires webpage
+content or performs cloud sync. The desktop app uploads the queued note when it
+runs; `qp sync` is the explicit CLI alternative. See engineering logs 362 and 365.
+
 ## Linux CLI image attachments
 
 The installed CLI is Rust. All five rewrite batches are complete; see

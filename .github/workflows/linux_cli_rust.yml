@@ -23,6 +23,10 @@ jobs:
       - run: flutter pub get
       - name: Rust checks and focused CLI compatibility tests
         run: bash scripts/test_rust_cli.sh
+      - name: Browser extension packaging and message handoff
+        run: |
+          python3 -m unittest discover -s extensions/browser/tests -p 'test_*.py'
+          node --test extensions/browser/tests/background.test.cjs
       - name: Release CLI and headless relocation smoke
         run: |
           bash scripts/build_rust_cli.sh

@@ -1,5 +1,6 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'article_content_rules.dart';
 import 'clipped_image_filter.dart';
 import 'web_clipper_models.dart';
 
@@ -208,16 +209,22 @@ class ArticleExtractor {
   ({dom.Element element, bool isArticleRootFound}) _findArticleRoot(
     dom.Document doc,
   ) {
-    // 1. Check explicit semantic containers
-    final explicitArticle = doc.querySelector('article');
-    if (explicitArticle != null &&
-        _calculateTextLength(explicitArticle) > 200) {
-      return (element: explicitArticle, isArticleRootFound: true);
-    }
+    // Remove modules before scoring so recommendations cannot outweigh prose.
+    doc.querySelectorAll(articleNoiseSelector).forEach((node) => node.remove());
 
-    final explicitMain = doc.querySelector('main, [role="main"]');
-    if (explicitMain != null && _calculateTextLength(explicitMain) > 200) {
-      return (element: explicitMain, isArticleRootFound: true);
+    // Prefer a publisher's prose root to broad wrappers, which may contain
+    // sidebars, related stories, or an infinite-scroll feed.
+    for (final selector in [
+      ...articleBodySelectors,
+      'article',
+      'main, [role="main"]',
+    ]) {
+      for (final candidate in doc.querySelectorAll(selector)) {
+        if (_calculateTextLength(candidate) >= 10 &&
+            !_hasNonArticleAncestor(candidate)) {
+          return (element: candidate, isArticleRootFound: true);
+        }
+      }
     }
 
     // 2. Score candidate DIV / SECTION elements
@@ -236,10 +243,6 @@ class ArticleExtractor {
     if (bestCandidate != null && highestScore > 20) {
       final root = _expandDocumentSections(bestCandidate);
       return (element: root, isArticleRootFound: root.localName != 'body');
-    }
-
-    if (explicitArticle != null) {
-      return (element: explicitArticle, isArticleRootFound: true);
     }
 
     // Fallback to body or document element
@@ -306,6 +309,15 @@ class ArticleExtractor {
 
   int _calculateTextLength(dom.Element el) => el.text.trim().length;
 
+  bool _hasNonArticleAncestor(dom.Element element) {
+    for (dom.Element? node = element; node != null; node = node.parent) {
+      if (const {'aside', 'nav', 'footer', 'header'}.contains(node.localName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   dom.Element _sanitizeElement(dom.Element el, Uri baseUri) {
     // 1. Remove blacklisted noisy tags
     const blockedTags = {
@@ -327,7 +339,9 @@ class ArticleExtractor {
       'dialog',
     };
 
-    el.querySelectorAll(blockedTags.join(',')).forEach((node) => node.remove());
+    el
+        .querySelectorAll('${blockedTags.join(',')}, $articleNoiseSelector')
+        .forEach((node) => node.remove());
 
     // Semantic sections in a complete document may have technical names such
     // as "comments"; those names are not evidence of a discussion widget.

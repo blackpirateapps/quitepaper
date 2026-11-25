@@ -124,7 +124,7 @@ void main() {
       expect(markdown, contains('author: "Jane Doe"'));
       expect(markdown, isNot(contains('- clipped')));
       expect(markdown, isNot(contains('- example.com')));
-      expect(markdown, contains('- technology'));
+      expect(markdown, contains('- "technology"'));
       expect(
         markdown,
         contains(

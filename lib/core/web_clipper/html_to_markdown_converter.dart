@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:html/dom.dart' as dom;
 import 'package:intl/intl.dart';
 import 'web_clipper_models.dart';
@@ -42,9 +43,9 @@ class HtmlToMarkdownConverter {
     // 1. YAML Frontmatter
     buffer.writeln('---');
     buffer.writeln('title: ${_escapeYaml(metadata.title)}');
-    buffer.writeln('source: "${metadata.sourceUrl}"');
+    buffer.writeln('source: ${_escapeYaml(metadata.sourceUrl)}');
     if (metadata.author != null && metadata.author!.trim().isNotEmpty) {
-      buffer.writeln('author: "${metadata.author!.trim()}"');
+      buffer.writeln('author: ${_escapeYaml(metadata.author!.trim())}');
     }
     final createdDate = metadata.publishedDate ?? DateTime.now();
     buffer.writeln(
@@ -63,7 +64,7 @@ class HtmlToMarkdownConverter {
       for (final tag in allTags) {
         final sanitized = tag.replaceAll('#', '').trim();
         if (sanitized.isNotEmpty) {
-          buffer.writeln('  - $sanitized');
+          buffer.writeln('  - ${_escapeYaml(sanitized)}');
         }
       }
     }
@@ -358,14 +359,9 @@ class HtmlToMarkdownConverter {
   }
 
   String _escapeYaml(String value) {
-    if (value.contains('\n') ||
-        value.contains('"') ||
-        value.contains(':') ||
-        value.contains('#')) {
-      final escaped = value.replaceAll('"', r'\"').replaceAll('\n', ' ');
-      return '"$escaped"';
-    }
-    return '"$value"';
+    // JSON strings are valid YAML quoted scalars, including backslashes,
+    // control characters and browser-supplied multiline metadata.
+    return jsonEncode(value);
   }
 
   String _formatBytes(int bytes) {

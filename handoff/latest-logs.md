@@ -8892,3 +8892,201 @@ QP_RUST_CLI_BIN=/path/to/rebuilt/qp flutter test --no-pub --concurrency=1 test/c
 `git diff --check origin/main` passes. No full suite, app/package build or personal-database
 migration was run for this integration. Existing manual/device/older-client
 rollout limits remain documented in [the Tasks guide](tasks.md).
+
+## 362. Linux browser web clipper over native messaging (November 17, 2026)
+
+Created `feat/linux-browser-web-clipper` after reading the handoff. Added a browser
+extension under `extensions/browser/` with shared popup, background and capture
+sources plus separate Manifest V3 Chrome and Firefox manifests. Article,
+whole-page and selected-text capture operate on the loaded top-level DOM,
+including authenticated and dynamically inserted text. Title and comma-separated
+tags can be edited before saving. Only `activeTab`, `scripting` and
+`nativeMessaging` permissions are requested. Page access is user initiated.
+
+Captures are cloned into an inactive document so preparing image nodes does not
+start resource loads. Hidden content, forms, scripts, frames and unsafe links are
+removed before serialization. The extension does not fetch the page, use a reader
+proxy, inspect cookies, load external parsers or open a local HTTP server.
+
+Added `CliBrowserHost` and `qp browser-host`, with native-endian length-prefixed
+UTF-8 JSON framing, an 8 MiB inbound limit, partial/multiple-frame handling,
+protocol/field validation, safe URL handling and a second sanitization pass.
+The host calls the existing `HtmlToMarkdownConverter` and transactional
+`CliDatabase.createNote`, retaining note history, search indexes, tags and the
+normal sync queue. Domain tags use `web/example-com` because the CLI tag parser
+rejects dots. Invalid custom tags produce an error instead of being dropped.
+Stdout contains framed responses only; no password prompts, editor, page/image
+acquisition or automatic cloud upload occurs. The desktop app syncs queued clips
+when it runs, or users can invoke `qp sync` explicitly.
+
+Web capture/model annotations now import `package:meta` instead of Flutter, making
+the shared converter usable from the native CLI. The converter JSON-quotes YAML
+scalars, including source, author and tags, so browser metadata containing quotes,
+backslashes or line breaks cannot inject frontmatter properties. Existing in-app
+clipper behavior remains covered by its service regressions.
+
+The standard-library-only `manage.py` builds unpacked directories and ZIPs and
+registers a compiled CLI per Linux user. It writes an executable private launcher,
+explicit Chrome extension origin allowlists and Firefox/LibreWolf add-on IDs;
+supports XDG paths, repeatable Chrome IDs, custom manifest directories and an
+optional database override; and quotes executable/database paths safely. The CLI
+is built with `dart build cli` so its SQLite native assets remain in the bundle.
+Build/load/install instructions and limitations are in the extension README;
+HANDOFF and the platform/web clipper domain guides link the new path.
+
+Validation:
+
+- `flutter analyze` and final `flutter analyze --no-pub`: no issues.
+- All **19 relevant Flutter tests pass** in `cli_browser_host_test.dart`,
+  `cli_runner_test.dart` and `web_clipper_service_test.dart`. Coverage includes
+  captured private content, metadata, search/history/sync mutations, unsafe URL
+  removal, frontmatter injection, invalid requests and tags, fragmented Unicode
+  messages, multiple frames, malformed JSON and oversized/truncated frames.
+- **3 Python build/installer tests** and **5 JavaScript background tests** pass.
+  They cover both manifest variants, packaging, permission scope, allowlists,
+  shell-safe paths, source validation, DOM handoff, size limits and host errors.
+- A separate **live headless Firefox fixture check passes** with a disposable
+  profile and cookie-gated page. It captures dynamically inserted Unicode text,
+  article/page/selection modes, relative URLs, hidden/form filtering and selection
+  errors. The article is requested once and a non-cacheable image is requested
+  once, including after captures. The fixture server is then shut down and the
+  captured content saves through the built native CLI to a temporary database,
+  with one queued mutation. A ping response arrives while stdin remains open,
+  verifying the host does not wait for EOF to reply. All temporary processes and
+  fixture data are cleaned up.
+- Native CLI bundle and both extension bundles build successfully. No full test
+  suite was run. Real Chrome-family extension installation, popup/native host
+  browser handshake, store signing/publication and sandboxed browser packages
+  remain outside this automated pass.
+
+Scope: this version stores text and remote image links, without downloading image
+bytes/CSS or attaching an HTML snapshot. Images can require the original session
+and are not available offline. Frames, shadow DOM and content not loaded in the
+current page are not captured. Firefox development loading is temporary until a
+signed distribution exists. The pre-existing untracked smart-tables plan is left
+untouched and excluded from this feature's commit.
+
+## 363. Register the browser clipper in the installed Brave Flatpak (November 17, 2026)
+
+After the user loaded the unpacked extension and supplied its ID, installed the
+complete CLI bundle under Brave's private app data `quietpaper/cli/`, added a
+private native messaging launcher and registered that exact extension origin in
+Brave's private `NativeMessagingHosts` directory. The launcher explicitly selects
+the existing canonical desktop notebook; inheriting Brave's XDG data directory
+would otherwise create a separate notebook inside the sandbox.
+
+Granted the notebook directory through a per-user Flatpak filesystem override,
+allowing SQLite database/WAL/shared-memory access without arbitrary host-process
+launch permissions. A full browser exit and reopen is required for the running
+browser to inherit this new grant. The user is responsible for that restart and
+the first browser save; no further browser UI automation was performed.
+
+Terminal verification from a fresh Brave Flatpak sandbox passed: the installed
+launcher responds to a framed protocol ping, the canonical notebook and its
+parent directory have the required access, and a synthetic capture saves using
+the bundled SQLite native library with one sync mutation in a temporary database.
+The temporary notebook is removed and the real notebook is not modified by the
+checks. README and HANDOFF now describe the Flatpak setup and restart requirement.
+
+Validation: `flutter analyze --no-pub` is clean and all seven tests in
+`test/cli/cli_browser_host_test.dart` pass. No full test suite was run. The
+pre-existing untracked smart-tables plan remains untouched.
+
+## 364. Keep browser and Android article clips free of recommendation modules (November 25, 2026)
+
+The reported The Hindu URL (`article71735766.ece`, including its recommendation
+query and fragment) has no semantic article/main root in the fetched HTML. Its
+prose lives in `.articlebodycontent > .schemaDiv`. The extension did not recognize
+that root and captured the body, including dynamically populated popular-story
+and recommendation modules. Its length-based root score could also prefer a
+large main wrapper over a smaller article. Android's Dart extractor similarly
+preferred broad semantic wrappers before inspecting dedicated prose containers.
+
+Article mode now checks the publisher's prose root, Schema.org `articleBody`, and
+common article-body classes before article/main wrappers. Explicit popular,
+related, recommendation and advertising modules are removed even when their
+names also include positive `article`/`content` hints. Dart removes those modules
+before scoring candidates. Hidden and sidebar prose candidates are excluded.
+The extension's whole-page and selection behavior is preserved. Keep the Dart
+rules in `article_content_rules.dart` aligned with `capture.js`; their tests use
+one shared fixture based on the publisher's structure and synthetic text.
+
+The Android direct/shared-URL and captured-WebView scanner paths both use the
+updated extractor. Regression checks preserve the final article paragraph,
+subheadings, inline images/captions, relative links and legitimate prose that
+contains the words “Most Popular.” A pre-existing converter test was also updated
+to expect the YAML tag quoting already produced on this extension branch.
+
+Validation:
+
+- `flutter analyze` and the final `flutter analyze --no-pub`: no issues.
+- All **56 relevant Flutter tests** pass in `test/web_clipper` and
+  `test/cli/cli_browser_host_test.dart`. No full test suite was run.
+- A temporary Flutter probe against the downloaded article HTML also passes:
+  all **11 prose paragraphs** survive in order, with the dedicated prose root
+  selected. This brings that verification run to **57 passing tests**; the probe
+  and downloaded publisher HTML are not committed.
+- Both real headless Firefox checks pass: the shared publisher regression
+  (article/page/selection, with/without main, Schema.org and short articles), and
+  the existing authenticated DOM capture plus offline native-host save check.
+- A separate Firefox replay of the downloaded publisher HTML preserves all
+  **11 paragraphs**, excludes an injected popular-story block, and saves through
+  the built native CLI into a temporary database with matching article text.
+  Publisher scripts/resources are disabled for that replay; this is not a claim
+  of a live authenticated session or real extension popup/native-host handshake.
+- **5 JavaScript background tests** and **3 Python installer/packaging tests**
+  pass. The native CLI and Chrome/Firefox extension bundles build successfully.
+- No Android device was connected. Android verification exercises its actual
+  shared scanner/extractor code and browser/controller/widget tests, without an
+  APK installation or physical-device clipping run.
+
+Work is isolated on `feat/linux-browser-web-clipper`; the main checkout's
+untracked prompt file is untouched. Reload the rebuilt browser extension to use
+the capture fix; Android receives its extractor fix in the next app build.
+
+## 365. PR #8 integration with the Rust CLI and current Android clipper (November 25, 2026)
+
+Resolved the browser extension branch against current `main`. The standalone Dart
+CLI was removed by PR #19, so retaining its browser host would leave the extension
+without a runnable native endpoint. `rust/quietpaper_cli/src/browser_host.rs` now
+implements the existing version-1 protocol on `qp browser-host`, using bounded
+native-endian frames, immediate flushed replies, lazy database access, and the
+existing Rust transaction for notes, tags, search, history and sync mutations.
+It does not fetch page/assets, read credentials, or upload after saving.
+
+HTML5 parsing uses `html5ever`/`markup5ever_rcdom`. The renderer preserves article
+headings, emphasis, links, images, lists, quotes, code languages/fences and tables;
+active HTML and non-web/local/vault URLs never reach saved Markdown. JSON-quoted
+YAML scalars protect browser metadata, and oversized/deep DOMs are rejected.
+Obsolete Dart browser-host source/tests are replaced by Rust transport/storage
+regressions and a Flutter test against the actual current desktop Drift schema.
+Build/install/Flatpak instructions use the Rust CLI, and the Rust CI gate also
+checks extension packaging and JavaScript handoff.
+
+The article-body/popular-module fix is retained while keeping all newer Android
+redirect/canonical URL, snapshot, document-section and UI behavior from `main`.
+Android's chosen tags stay explicit; YAML values remain safely quoted. Both sets
+of handoff entries are preserved, with branch logs renumbered 362–364 to follow
+existing main logs through 361. The untracked prompt in the primary checkout is
+untouched.
+
+The packaged CLI smoke assertion now expects schema 26, matching the Tasks
+bootstrap already merged into `main`; its old schema-25 assertion would reject
+a correctly initialized notebook during the release gate.
+
+Validation of the integrated source:
+
+- `flutter analyze`: no issues.
+- **98 focused Flutter tests** pass with `QP_RUST_CLI_BIN=target/debug/qp flutter
+  test --no-pub test/web_clipper test/cli`, enabling the cross-language tests.
+- **24 Rust tests** pass with `cargo test --locked -p quietpaper_cli`.
+- Rust formatting, Clippy with warnings denied, and `cargo deny check licenses`
+  pass. Only HTML parser dependencies are added; no second Markdown runtime or
+  legacy Dart executable is required.
+- **5 Python tests**, including both real headless Firefox checks, and **5
+  JavaScript background tests** pass. Authenticated live DOM capture saves through
+  the Rust host after its fixture server closes; ping replies before stdin EOF.
+- The release Rust CLI builds successfully, passes the relocated/headless
+  notebook smoke check with schema 26, and both browser extension bundles build.
+- No full Flutter suite, physical Android device run, real extension popup
+  handshake, store publication or installed host replacement was performed.

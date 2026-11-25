@@ -1,4 +1,5 @@
 mod attachments;
+mod browser_host;
 mod credentials;
 mod crypto;
 mod database;
@@ -40,6 +41,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Save a loaded browser DOM over the native messaging protocol
+    BrowserHost,
     /// List notes with optional filters, search or JSON export
     #[command(alias = "ls")]
     List(ListOptions),
@@ -128,6 +131,9 @@ fn run(cli: Cli) -> Result<()> {
         Some(path) => path,
         None => database::default_path()?,
     };
+    if matches!(&cli.command, Command::BrowserHost) {
+        return browser_host::serve(&path, &mut io::stdin().lock(), &mut io::stdout().lock());
+    }
     if matches!(&cli.command, Command::New(_)) && !path.exists() {
         database::Database::initialize(&path)?;
     }
