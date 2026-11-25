@@ -163,10 +163,11 @@ complete. These changes address the recent Linux workflow test failures; see
 ## Latest Linux CLI Work
 
 The Linux CLI Rust rewrite has started on `feat/linux-cli-rust-rewrite`.
-Batch 1 adds an independent `rust/quietpaper_cli` executable with read-only
-`list`, `show` and `tags`, desktop SQLite/WAL compatibility, and a dedicated
-focused CI gate. Writes/editors, encryption/attachments, upload sync and Linux
-packaging cutover are separate pending batches. The packaged CLI still uses
+Batch 2 adds local note creation/editing/trash/restore/deletion and external
+editors to the independent `rust/quietpaper_cli` executable. Immediate transactions
+preserve desktop history/tags/search/queue contracts, with concurrent-edit guards
+and private recovery drafts. Encryption/attachments, upload sync and Linux
+packaging cutover remain pending. The packaged CLI still uses
 Dart. See [the batch progress report](docs/linux-cli-rust-rewrite.md) for exact
 scope, behavior differences, validation and next-batch acceptance, and
 engineering log 352 in [the active logs](handoff/latest-logs.md).

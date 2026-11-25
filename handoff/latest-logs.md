@@ -8498,3 +8498,24 @@ warnings under the existing policy. Advisory checks prompted an upgrade to
 rusqlite 0.43's patched bundled SQLite and replacement of Chrono with Jiff before
 acceptance; no advisory ignores were added. No full Flutter suite, app/package
 build, production notebook, cloud operation or physical-device validation ran.
+
+## 353. Linux CLI Rust rewrite — batch 2 (November 25, 2026)
+
+Adds local `new`, `edit`, `delete`/restore and aliases, external editors with
+quoted arguments and environment selection, and numbered interactive lookup.
+All six local command families now run in Rust. Existing desktop notebooks are
+updated without schema creation/migration. Immediate transactions include tags,
+per-tag pin caches, version history, FTS projections and sync queue records;
+write failures roll everything back. Desktop provenance/share/revision fields
+survive. Concurrent editor changes prevent overwrite; private temporary files
+and recovery drafts preserve user text. Protected/rich-note editing stays in the
+desktop app. Attachment-bearing saves remain guarded until batch 3 and uploads
+until batch 4; the installed CLI still uses Dart until packaging cutover.
+
+Validation: Rust fmt, Clippy with warnings denied and 13 Rust tests pass;
+`flutter analyze` is clean. All 58 focused Flutter CLI cases pass across the
+directory gate and compatibility rerun, including eight cross-language cases.
+New real-Drift checks cover note writes, FTS/history/queue entries, pin-cache
+preservation, trash/restore/permanent cascades, transactional failure rollback,
+private draft permissions and concurrent edits. No full suite ran.
+See [the batch progress report](../docs/linux-cli-rust-rewrite.md).

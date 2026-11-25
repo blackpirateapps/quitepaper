@@ -16,6 +16,8 @@ clap = { version = "4", features = ["derive"] }
 rusqlite = { version = "0.43", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-
-[dev-dependencies]
+uuid = { version = "1", features = ["v4", "v5"] }
+regex = "1"
+pulldown-cmark = "0.13"
+shell-words = "1"
 tempfile = "3"

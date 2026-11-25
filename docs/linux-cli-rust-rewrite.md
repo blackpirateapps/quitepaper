@@ -14,7 +14,7 @@ be committed and pushed on this branch before the next batch starts.
 | Batch | Scope | Status |
 | --- | --- | --- |
 | 1 | Rust executable, database discovery, read-only `list` / `show` / `tags`, compatibility tests and CI | Complete and verified |
-| 2 | Local `new` / `edit` / `delete` / restore, external editors and interactive picker, frontmatter/tag parsing, transactional history/search/sync-queue updates, concurrent-edit recovery | Pending |
+| 2 | Local `new` / `edit` / `delete` / restore, external editors and interactive picker, frontmatter/tag parsing, transactional history/search/sync-queue updates, concurrent-edit recovery | Complete and verified |
 | 3 | Desktop credential-store compatibility, account/device keys, QPA1 image encryption, Markdown/clipboard imports, attachment listing/opening and draft recovery | Pending |
 | 4 | Encrypted note/image upload retries, auth refresh, attachment reference updates, conflict/offline recovery and `sync` | Pending |
 | 5 | Switch Linux builds and DEB/RPM/AppImage/Flatpak packaging to Rust, installed-package smoke checks, remove superseded Dart-only CLI code after parity verification | Pending |
@@ -22,8 +22,8 @@ be committed and pushed on this branch before the next batch starts.
 Batch 1 implements **3 of the 9 existing top-level command families**. That is a
 command inventory, not a percentage of engineering completion: encryption,
 attachments, sync and packaging remain substantial work. Do not switch the
-installed CLI until their acceptance gates pass. This session ends after batch 1
-is verified, committed and pushed, as requested.
+installed CLI until their acceptance gates pass. The follow-up request authorizes
+continuing through all remaining batches, with a separate commit and push each.
 
 ## Batch 1 implementation
 
@@ -138,6 +138,34 @@ No full Flutter test suite was run. Packaged installation, production notebook
 access and cloud operations are outside batch 1 validation. The GitHub workflow
 is added; the recorded passing results above are local execution, not a claim
 that a remote workflow has finished.
+
+## Batch 2 implementation and verification
+
+Adds `new`/`create`/`add`/`n`, `edit`/`e`/`modify`, and
+`delete`/`rm`/`del`, including pin/unpin, trash, restore and permanent deletion.
+Six of nine command families are now implemented. New notes accept piped
+Markdown or an external editor; editor selection respects `--editor`, `QP_EDITOR`,
+`VISUAL`, `EDITOR` and installed fallbacks. Shell-style quoting is parsed without
+executing a shell. Interactive note selection uses a numbered prompt on stderr.
+Temporary editor files and recovery drafts are private; unchanged/empty edits
+cancel, failed editors preserve drafts, and concurrent notebook changes prevent
+overwrite. Protected/rich-document editing is directed to the desktop app.
+
+Writes open an existing notebook read/write with foreign keys enabled; no
+schema is created or migrated. Immediate transactions include notes, normalized
+Unicode/frontmatter tags, deterministic tag IDs, per-tag pin caches, version
+history, both search indexes and queue entries. Failed history/index/queue writes
+roll everything back. Desktop-owned provenance/share/revision fields survive.
+Trash removes search entries; restore rebuilds them; permanent deletion retains
+a sync tombstone. Attachment-bearing saves are explicitly blocked until batch 3.
+Automatic cloud upload follows in batch 4; current writes remain queued locally.
+
+Validation: Rust fmt and Clippy with warnings denied pass; 13 Rust tests pass.
+`flutter analyze` reports no issues. The focused `test/cli` run plus the corrected
+compatibility-file rerun passes all 58 relevant Flutter cases, including eight
+Rust/Drift cases. New checks cover desktop-readable writes, per-tag pins, history,
+FTS, trash/restore/cascades, injected history failure rollback, private recovery
+and a real concurrent SQLite edit during an external editor session. No full suite.
 
 ## Next batch acceptance
 

@@ -44,16 +44,32 @@ pub fn resolve_path(
     })
 }
 
-pub struct Database(Connection);
+pub struct Database(pub(crate) Connection);
 
 impl Database {
     pub fn open(path: &Path) -> Result<Self> {
-        let db = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+        Self::open_mode(path, false)
+    }
+
+    pub fn open_writable(path: &Path) -> Result<Self> {
+        Self::open_mode(path, true)
+    }
+
+    fn open_mode(path: &Path, writable: bool) -> Result<Self> {
+        let mode = if writable {
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+        } else {
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+        };
+        let db = Connection::open_with_flags(path, mode | OpenFlags::SQLITE_OPEN_NO_MUTEX)
             .with_context(|| format!("Cannot open notebook at {}. Initialize it in the desktop app or select an existing database with --db", path.display()))?;
         db.busy_timeout(Duration::from_secs(5))?;
         // One consistent snapshot for notes and their tags, including a live WAL.
         // No table creation, schema migration, title repair, or journal-mode write.
-        db.execute_batch("PRAGMA query_only = ON; BEGIN DEFERRED;")?;
+        db.execute_batch("PRAGMA foreign_keys = ON;")?;
+        if !writable {
+            db.execute_batch("PRAGMA query_only = ON; BEGIN DEFERRED;")?;
+        }
         db.prepare(&format!("SELECT {NOTE_COLUMNS} FROM notes n LIMIT 0"))
             .context("Unsupported notebook schema: expected the desktop notes table")?;
         db.prepare("SELECT t.id, t.name, t.color, t.icon, t.is_pinned, t.is_deleted, nt.note_id, nt.tag_id FROM tags t LEFT JOIN note_tags nt ON nt.tag_id = t.id LIMIT 0")
@@ -122,22 +138,26 @@ impl Database {
     }
 
     pub fn find(&self, query: &str) -> Result<Note> {
+        unique(self.candidates(query)?, query)
+    }
+
+    pub fn candidates(&self, query: &str) -> Result<Vec<Note>> {
         let query = query.trim();
         let exact = self.query(
             &format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE lower(n.id) = lower(?)"),
             &[query.to_owned()],
         )?;
-        if let Some(note) = exact.into_iter().next() {
-            return Ok(note);
+        if !exact.is_empty() {
+            return Ok(exact);
         }
         if query.len() >= 8 && query.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
             let prefix = self.query(&format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE lower(substr(n.id, 1, length(?))) = lower(?) ORDER BY n.id"), &[query.to_owned(), query.to_owned()])?;
             if !prefix.is_empty() {
-                return unique(prefix, query);
+                return Ok(prefix);
             }
         }
         let candidates = self.query(&format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE n.is_archived = 0 AND n.is_trashed = 0 AND n.title LIKE ? ESCAPE '\\' ORDER BY n.updated_at DESC, n.id"), &[format!("%{}%", escape_like(query))])?;
-        unique(candidates, query)
+        Ok(candidates)
     }
 
     pub fn tags(&self) -> Result<Vec<Tag>> {

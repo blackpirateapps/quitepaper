@@ -78,11 +78,10 @@ fn help_version_and_usage_do_not_open_database() {
         .status
         .success());
     for args in [
-        vec!["new"],
+        vec!["unknown-command"],
         vec!["list", "--limit", "-1"],
         vec!["list", "--limit", "0"],
         vec!["list", "--limit", "oops"],
-        vec!["show"],
         vec!["list", "--json", "--plain"],
         vec!["list", "--wat"],
     ] {

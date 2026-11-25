@@ -1,5 +1,8 @@
 mod database;
+mod editor;
+mod markdown;
 mod model;
+mod writes;
 
 use std::{
     io::{self, Write},
@@ -12,8 +15,8 @@ use clap::{error::ErrorKind, Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "qp", version, about = "Quiet Paper CLI — Offline-first notes in your terminal",
-    long_version = concat!(env!("CARGO_PKG_VERSION"), " (Rust rewrite, batch 1)"),
-    after_help = "Rust migration batch 1: read-only commands. Writes, editor, attachments and sync arrive in later batches.",
+    long_version = concat!(env!("CARGO_PKG_VERSION"), " (Rust)"),
+    after_help = "Rust migration batch 2: local notes and editors. Attachment import and upload sync arrive in later batches.",
     disable_version_flag = true, propagate_version = true, arg_required_else_help = true)]
 struct Cli {
     /// Print the current CLI version
@@ -37,7 +40,7 @@ enum Command {
     /// Display a note by full ID, ID prefix (8+ characters), or title substring
     #[command(aliases = ["cat", "view", "s"])]
     Show {
-        #[arg(required = true, num_args = 1..)]
+        #[arg(num_args = 0..)]
         note: Vec<String>,
         #[arg(long)]
         raw: bool,
@@ -51,6 +54,22 @@ enum Command {
     Tags {
         #[arg(long)]
         json: bool,
+    },
+    /// Create a note with an external editor or piped Markdown
+    #[command(aliases=["create","add","n"])]
+    New(editor::NewOptions),
+    /// Edit a note using an external editor
+    #[command(aliases=["e","modify"])]
+    Edit(editor::EditOptions),
+    /// Trash, restore, or permanently delete a note
+    #[command(aliases=["rm","del"])]
+    Delete {
+        #[arg(num_args=0..)]
+        note: Vec<String>,
+        #[arg(short = 'f', long, conflicts_with = "restore")]
+        permanent: bool,
+        #[arg(short = 'r', long)]
+        restore: bool,
     },
 }
 
@@ -81,6 +100,39 @@ fn run(cli: Cli) -> Result<()> {
         Some(path) => path,
         None => database::default_path()?,
     };
+    if matches!(
+        &cli.command,
+        Command::New(_) | Command::Edit(_) | Command::Delete { .. }
+    ) {
+        let db = database::Database::open_writable(&path)?;
+        match cli.command {
+            Command::New(options) => editor::create(&db, &path, options)?,
+            Command::Edit(options) => editor::edit(&db, &path, options)?,
+            Command::Delete {
+                note,
+                restore,
+                permanent,
+            } => {
+                if let Some(note) = editor::resolve(&db, &note, restore)? {
+                    db.delete(&note, restore, permanent)?;
+                    println!(
+                        "{} note: {} [{}]",
+                        if permanent {
+                            "Permanently deleted"
+                        } else if restore {
+                            "Restored"
+                        } else {
+                            "Moved to trash"
+                        },
+                        note.title,
+                        note.short_id
+                    );
+                }
+            }
+            _ => unreachable!(),
+        }
+        return Ok(());
+    }
     let db = database::Database::open(&path)?;
     let mut out = io::BufWriter::new(io::stdout().lock());
     match cli.command {
@@ -132,7 +184,9 @@ fn run(cli: Cli) -> Result<()> {
             info,
             json,
         } => {
-            let note = db.find(&note.join(" "))?;
+            let Some(note) = editor::resolve(&db, &note, false)? else {
+                return Ok(());
+            };
             if json {
                 serde_json::to_writer_pretty(&mut out, &note)?;
                 writeln!(out)?;
@@ -182,6 +236,7 @@ fn run(cli: Cli) -> Result<()> {
                 writeln!(out, "\n{} tags total.", tags.len())?;
             }
         }
+        _ => unreachable!(),
     }
     out.flush()?;
     Ok(())
