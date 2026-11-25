@@ -143,6 +143,11 @@ flutter test test/cli/cli_browser_host_test.dart test/cli/cli_runner_test.dart \
 python3 -m unittest discover -s extensions/browser/tests -p 'test_*.py'
 node --test extensions/browser/tests/background.test.cjs
 
+# Shared publisher fixture: article-only output in Firefox and Android's scanner
+flutter test test/web_clipper/article_content_regression_test.dart
+QP_FIREFOX_CHECK=1 python3 -m unittest discover -s extensions/browser/tests \
+  -p test_article_capture_firefox.py
+
 # Optional live Firefox fixture and offline native CLI integration (isolated profile)
 QP_FIREFOX_CHECK=1 \
 QP_BROWSER_CLI="$PWD/build/browser-extension/cli/bundle/bin/qp" \

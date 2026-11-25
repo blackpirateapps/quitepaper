@@ -59,6 +59,13 @@ Brave Flatpak can use a CLI bundle and host manifest inside its private app
 directory, with an explicit desktop database path and a notebook-directory
 filesystem grant. A full Brave restart activates the grant; see engineering log 300.
 
+Article mode now recognizes The Hindu's dedicated prose container and other
+article-body markers before broad page wrappers. Matching rules in the extension
+and Android extractor remove recommendation, popular-story, related-topic and ad
+modules, including modules whose classes also contain `article` or `content`.
+See [engineering log 301](handoff/latest-logs.md#301-keep-browser-and-android-article-clips-free-of-recommendation-modules-november-25-2026)
+for the regression coverage and validation scope.
+
 The CLI supports encrypted image attachment, automatic Markdown image imports,
 clipboard screenshots, attachment listing/opening, and independent note/image
 upload retries. See [the CLI guide](handoff/platform-and-builds.md#linux-cli-image-attachments)

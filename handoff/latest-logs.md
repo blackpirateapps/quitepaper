@@ -6900,3 +6900,55 @@ checks. README and HANDOFF now describe the Flatpak setup and restart requiremen
 Validation: `flutter analyze --no-pub` is clean and all seven tests in
 `test/cli/cli_browser_host_test.dart` pass. No full test suite was run. The
 pre-existing untracked smart-tables plan remains untouched.
+
+## 301. Keep browser and Android article clips free of recommendation modules (November 25, 2026)
+
+The reported The Hindu URL (`article71735766.ece`, including its recommendation
+query and fragment) has no semantic article/main root in the fetched HTML. Its
+prose lives in `.articlebodycontent > .schemaDiv`. The extension did not recognize
+that root and captured the body, including dynamically populated popular-story
+and recommendation modules. Its length-based root score could also prefer a
+large main wrapper over a smaller article. Android's Dart extractor similarly
+preferred broad semantic wrappers before inspecting dedicated prose containers.
+
+Article mode now checks the publisher's prose root, Schema.org `articleBody`, and
+common article-body classes before article/main wrappers. Explicit popular,
+related, recommendation and advertising modules are removed even when their
+names also include positive `article`/`content` hints. Dart removes those modules
+before scoring candidates. Hidden and sidebar prose candidates are excluded.
+The extension's whole-page and selection behavior is preserved. Keep the Dart
+rules in `article_content_rules.dart` aligned with `capture.js`; their tests use
+one shared fixture based on the publisher's structure and synthetic text.
+
+The Android direct/shared-URL and captured-WebView scanner paths both use the
+updated extractor. Regression checks preserve the final article paragraph,
+subheadings, inline images/captions, relative links and legitimate prose that
+contains the words “Most Popular.” A pre-existing converter test was also updated
+to expect the YAML tag quoting already produced on this extension branch.
+
+Validation:
+
+- `flutter analyze` and the final `flutter analyze --no-pub`: no issues.
+- All **56 relevant Flutter tests** pass in `test/web_clipper` and
+  `test/cli/cli_browser_host_test.dart`. No full test suite was run.
+- A temporary Flutter probe against the downloaded article HTML also passes:
+  all **11 prose paragraphs** survive in order, with the dedicated prose root
+  selected. This brings that verification run to **57 passing tests**; the probe
+  and downloaded publisher HTML are not committed.
+- Both real headless Firefox checks pass: the shared publisher regression
+  (article/page/selection, with/without main, Schema.org and short articles), and
+  the existing authenticated DOM capture plus offline native-host save check.
+- A separate Firefox replay of the downloaded publisher HTML preserves all
+  **11 paragraphs**, excludes an injected popular-story block, and saves through
+  the built native CLI into a temporary database with matching article text.
+  Publisher scripts/resources are disabled for that replay; this is not a claim
+  of a live authenticated session or real extension popup/native-host handshake.
+- **5 JavaScript background tests** and **3 Python installer/packaging tests**
+  pass. The native CLI and Chrome/Firefox extension bundles build successfully.
+- No Android device was connected. Android verification exercises its actual
+  shared scanner/extractor code and browser/controller/widget tests, without an
+  APK installation or physical-device clipping run.
+
+Work is isolated on `feat/linux-browser-web-clipper`; the main checkout's
+untracked prompt file is untouched. Reload the rebuilt browser extension to use
+the capture fix; Android receives its extractor fix in the next app build.

@@ -7,6 +7,18 @@ globalThis.quietPaperCapture = function captureLoadedPage({ mode = "article" } =
   if (!document.body) throw new Error("The page is still loading. Try again.");
 
   const blocked = "script, style, noscript, iframe, object, embed, form, input, textarea, select, button, svg, canvas, template, nav, dialog, [hidden], [aria-hidden='true']";
+  // Keep these rules aligned with lib/core/web_clipper/article_content_rules.dart
+  // so Android and the extension recognize the same publisher prose containers.
+  const articleBodies = [
+    ".articlebodycontent > .schemaDiv", '[itemprop~="articleBody"]',
+    ".articlebodycontent", ".article-body", ".article__body", ".story-body",
+    ".entry-content", ".post-content", ".article-content",
+  ];
+  const articleNoise = '.most-popular, #most-popular, .most_popular, #most_popular, ' +
+    '.most-read, .popular-premium-tabs, .related-articles, .related-stories, ' +
+    '.related-posts, .related-topics, .recommendations, .recommended-stories, ' +
+    '[id^="taboola-"], [id^="outbrain"], .article-ad, .articleinlinead, ' +
+    '.dfp-ad, [hidden], [aria-hidden="true"]';
   const meta = (name) => document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.content?.trim() || "";
   // An inactive document prevents cloned image/srcset nodes from initiating
   // resource loads while the capture is prepared.
@@ -23,16 +35,13 @@ globalThis.quietPaperCapture = function captureLoadedPage({ mode = "article" } =
   } else {
     source = document.body;
     if (mode === "article") {
-      // Score semantic roots by readable text and link density. The body remains
-      // a fallback for documentation, short pages, and sites without an article.
-      const candidates = [...document.querySelectorAll("article, main, [role='main'], .post-content, .entry-content, .article-content")];
-      let best = 0;
-      for (const candidate of candidates) {
-        if (!candidate.getClientRects().length) continue;
-        const length = candidate.innerText.trim().length;
-        const linkLength = [...candidate.querySelectorAll("a")].reduce((n, a) => n + a.textContent.length, 0);
-        const score = length - linkLength * 0.8;
-        if (score > best) { best = score; source = candidate; }
+      // Prefer prose to broad wrappers. Never let a larger main/body beat an
+      // identified article merely because it contains more recommendation text.
+      for (const selector of [...articleBodies, "article", "main, [role='main']"]) {
+        const candidate = [...document.querySelectorAll(selector)].find((node) =>
+          node.getClientRects().length && node.innerText.trim().length >= 10 &&
+          !node.closest(`aside, nav, footer, header, ${articleNoise}`));
+        if (candidate) { source = candidate; break; }
       }
     }
     root = snapshotDocument.importNode(source, true);
@@ -52,6 +61,9 @@ globalThis.quietPaperCapture = function captureLoadedPage({ mode = "article" } =
     });
   }
   root.querySelectorAll(blocked).forEach((node) => node.remove());
+  if (mode === "article") {
+    root.querySelectorAll(`aside, footer, header, ${articleNoise}`).forEach((node) => node.remove());
+  }
   root.querySelectorAll("source").forEach((node) => node.remove());
   for (const node of [root, ...root.querySelectorAll("*")]) {
     const saved = {};
