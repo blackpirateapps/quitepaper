@@ -8,39 +8,44 @@ mod image_paths;
 mod markdown;
 mod model;
 mod process;
+mod rich;
 mod sync;
+mod tasks;
+mod tui;
 mod writes;
 
 use std::{
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::PathBuf,
     process::ExitCode,
 };
 
 use anyhow::Result;
-use clap::{error::ErrorKind, Args, Parser, Subcommand};
+use clap::{error::ErrorKind, Args, CommandFactory, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "qp", version, about = "Quiet Paper CLI — Offline-first notes in your terminal",
     long_version = concat!(env!("CARGO_PKG_VERSION"), " (Rust)"),
-    after_help = "Upload sync retries local notes and images; remote pull/merge remains in the desktop app.",
-    disable_version_flag = true, propagate_version = true, arg_required_else_help = true)]
+    after_help = "Run qp in a terminal to open the notebook. Upload sync retries local notes and images; remote pull/merge remains in the desktop app.",
+    disable_version_flag = true, propagate_version = true)]
 struct Cli {
     /// Print the current CLI version
     #[arg(short = 'v', long, global = true, action = clap::ArgAction::Version)]
     version: Option<bool>,
-    /// Disable ANSI colors (output currently uses plain text)
+    /// Use the terminal's default foreground and background in the notebook
     #[arg(long, global = true)]
     no_color: bool,
     /// Path to an existing quiet_paper.sqlite database
     #[arg(long, global = true)]
     db: Option<PathBuf>,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 enum Command {
+    /// Open the interactive notebook workspace
+    Tui,
     /// Save a loaded browser DOM over the native messaging protocol
     BrowserHost,
     /// List notes with optional filters, search or JSON export
@@ -127,19 +132,35 @@ pub struct ListOptions {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
+    let command = match cli.command {
+        None if !interactive => {
+            Cli::command().print_help()?;
+            println!();
+            return Ok(());
+        }
+        Some(Command::Tui) if !interactive => {
+            anyhow::bail!("qp tui requires an interactive terminal on standard input and output");
+        }
+        command => command.unwrap_or(Command::Tui),
+    };
     let path = match cli.db {
         Some(path) => path,
         None => database::default_path()?,
     };
-    if matches!(&cli.command, Command::BrowserHost) {
+    if matches!(&command, Command::BrowserHost) {
         return browser_host::serve(&path, &mut io::stdin().lock(), &mut io::stdout().lock());
     }
-    if matches!(&cli.command, Command::New(_)) && !path.exists() {
+    if matches!(&command, Command::New(_)) && !path.exists() {
         database::Database::initialize(&path)?;
     }
     let path = std::fs::canonicalize(&path).unwrap_or(path);
+    if matches!(&command, Command::Tui) {
+        let no_color = std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty());
+        return tui::run(path, cli.no_color || no_color);
+    }
     if matches!(
-        &cli.command,
+        &command,
         Command::New(_)
             | Command::Edit(_)
             | Command::Delete { .. }
@@ -147,7 +168,7 @@ fn run(cli: Cli) -> Result<()> {
             | Command::Sync { .. }
     ) {
         let db = database::Database::open_writable(&path)?;
-        match cli.command {
+        match command {
             Command::New(options) => editor::create(&db, &path, options)?,
             Command::Edit(options) => editor::edit(&db, &path, options)?,
             Command::Delete {
@@ -209,7 +230,7 @@ fn run(cli: Cli) -> Result<()> {
     }
     let db = database::Database::open(&path)?;
     let mut out = io::BufWriter::new(io::stdout().lock());
-    match cli.command {
+    match command {
         Command::List(options) => {
             let notes = db.list(&options)?;
             if options.json {

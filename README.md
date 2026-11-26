@@ -98,8 +98,15 @@ flutter test test/<relevant-directory>  # Run focused tests; full suite stays in
 external editors, tags, trash/restore, encrypted image imports and upload retries.
 It shares the desktop SQLite notebook and supports concurrent WAL access.
 
+Run `qp` in a terminal to open the notebook workspace. Use `Tab` and `Shift+Tab`
+to switch between the sidebar, list and preview. `/` searches the current view,
+`e` opens the configured editor, and `?` shows shortcuts. Journal opens today's
+entry in your editor. In Tasks, press `Space` to check or uncheck a task, `t` to
+switch between Open and Completed, and `u` to undo your last toggle.
+
 ```sh
 bash scripts/build_rust_cli.sh
+build/cli/bin/qp
 build/cli/bin/qp --help
 printf '# A terminal note\n\nHello #work\n' | build/cli/bin/qp new
 build/cli/bin/qp list --json

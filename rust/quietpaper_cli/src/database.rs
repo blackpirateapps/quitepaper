@@ -191,6 +191,28 @@ impl Database {
         Ok(candidates)
     }
 
+    pub fn note_by_id(&self, id: &str) -> Result<Option<Note>> {
+        Ok(self
+            .query(
+                &format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE n.id = ?"),
+                &[id.to_owned()],
+            )?
+            .pop())
+    }
+
+    pub fn journal_entries(&self, today: &str) -> Result<Vec<Note>> {
+        self.query(&format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE n.journal_date IS NOT NULL AND (n.journal_date = ? OR (n.is_trashed = 0 AND n.deleted_at IS NULL)) ORDER BY n.journal_date DESC"), &[today.to_owned()])
+    }
+
+    pub fn journal_entry(&self, date: &str) -> Result<Option<Note>> {
+        Ok(self
+            .query(
+                &format!("SELECT {NOTE_COLUMNS} FROM notes n WHERE n.journal_date = ?"),
+                &[date.to_owned()],
+            )?
+            .pop())
+    }
+
     pub fn tags(&self) -> Result<Vec<Tag>> {
         // Count the matched active notes, not note_tags links to archived/trash rows.
         let mut statement = self.0.prepare("SELECT t.id, t.name, COUNT(n.id), t.color, t.icon, t.is_pinned FROM tags t LEFT JOIN note_tags nt ON nt.tag_id = t.id LEFT JOIN notes n ON n.id = nt.note_id AND n.is_trashed = 0 AND n.is_archived = 0 WHERE t.is_deleted = 0 GROUP BY t.id ORDER BY t.is_pinned DESC, t.name")?;

@@ -8,6 +8,34 @@ Welcome to **Quiet Paper**! This repository is an offline-first notes applicatio
 
 ---
 
+## Linux Ratatui notebook workspace — November 26, 2026
+
+Bare `qp` opens the workspace when stdin and stdout are terminals. The explicit
+`qp tui` command uses the same entry point. The sidebar covers Notes, Pinned,
+Archive, Trash, nested Tags, Journal and Tasks. Narrow terminals show one pane
+at a time. Search, the full-width reader and the configured external Markdown
+editor preserve notebook navigation. `r` refreshes the notebook from disk and
+`?` opens the keyboard shortcuts. A first note or journal entry can initialize
+a new notebook. Existing script commands and `qp browser-host` retain their
+headless output and behavior.
+
+Journal uses the local calendar date and creates or reuses the canonical Today
+entry under an immediate transaction. Past entries are listed by date. Tasks
+show Open and Completed with due-date groups for Open. `Space` changes the
+original Markdown checkbox or rich checklist field and `u` reverses the last
+completion change when its identity and expected state still match. The TUI
+reads canonical task sources, including notebooks without a task index. Writes
+use the existing note history, search indexes and sync queue. Schema 26's dirty
+trigger schedules desktop task-index repair. TUI saves are local and can be
+uploaded by desktop sync or `qp sync`. Rich-document and password-protected
+prose editing use the desktop app.
+
+Validation passed `flutter analyze`, 63 focused Flutter CLI/Tasks/Journal
+tests, 29 Rust CLI tests, Clippy with warnings denied and dependency policy
+checks. A real terminal smoke exercised bare launch, sidebar/list/reader,
+search, resize, external editor success and draft recovery, task completion and
+Undo, Journal persistence and terminal restoration.
+
 ## PR #8 integration — November 25, 2026
 
 The browser extension now uses the current Rust CLI's `qp browser-host` command.

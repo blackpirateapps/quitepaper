@@ -16,7 +16,7 @@ use std::{
 use tempfile::Builder;
 use uuid::Uuid;
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct NewOptions {
     #[command(flatten)]
     pub imports: crate::attachments::ImportOptions,
@@ -32,7 +32,7 @@ pub struct NewOptions {
     pub pinned: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct EditOptions {
     #[command(flatten)]
     pub imports: crate::attachments::ImportOptions,
@@ -180,6 +180,16 @@ fn edit_text(
 }
 
 pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
+    if let Some(note) = create_note(db, path, options)? {
+        println!("Created note: {} ({})", note.title, note.short_id);
+        crate::sync::after_save(db, path, &note.id);
+    } else {
+        println!("Note creation cancelled (empty or unchanged).");
+    }
+    Ok(())
+}
+
+pub fn create_note(db: &Database, path: &Path, options: NewOptions) -> Result<Option<Note>> {
     let fallback = options
         .title
         .or_else(|| (!options.name.is_empty()).then(|| options.name.join(" ")));
@@ -189,10 +199,7 @@ pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
             None if !options.imports.files.is_empty() || options.imports.clipboard => {
                 format!("# {}\n", fallback.as_deref().unwrap_or("Untitled"))
             }
-            None => {
-                println!("Note creation cancelled (empty or unchanged).");
-                return Ok(());
-            }
+            None => return Ok(None),
         }
     } else {
         let mut text = String::new();
@@ -223,17 +230,35 @@ pub fn create(db: &Database, path: &Path, options: NewOptions) -> Result<()> {
         },
         &options.imports,
     );
-    let note = result.map_err(|error| recover(path, &content, error))?;
-    println!("Created note: {} ({})", note.title, note.short_id);
-    crate::sync::after_save(db, path, &note.id);
-    Ok(())
+    result
+        .map(Some)
+        .map_err(|error| recover(path, &content, error))
 }
 
 pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
     let Some(note) = resolve(db, &options.note, false)? else {
         return Ok(());
     };
-    let snapshot = db.snapshot(&note.id)?;
+    if let Some(note) = edit_note(db, path, &note.id, options)? {
+        println!("Saved note: {} [{}]", note.title, note.short_id);
+        crate::sync::after_save(db, path, &note.id);
+    } else {
+        println!("No changes made.");
+    }
+    Ok(())
+}
+
+pub fn edit_note(
+    db: &Database,
+    path: &Path,
+    id: &str,
+    options: EditOptions,
+) -> Result<Option<Note>> {
+    let (note, snapshot) = db.transaction(|| {
+        let note = db.note_by_id(id)?.context("The note no longer exists")?;
+        let snapshot = db.snapshot(id)?;
+        Ok((note, snapshot))
+    })?;
     writes::guard_editor(&note.content)?;
     let text = edit_text(
         path,
@@ -253,8 +278,7 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
         && options.imports.files.is_empty()
         && !options.imports.clipboard
     {
-        println!("No changes made.");
-        return Ok(());
+        return Ok(None);
     }
     let content = text.as_deref().unwrap_or(&note.content);
     let title = if text.is_none() {
@@ -288,10 +312,9 @@ pub fn edit(db: &Database, path: &Path, options: EditOptions) -> Result<()> {
         },
         &options.imports,
     );
-    let note = result.map_err(|error| recover(path, content, error))?;
-    println!("Saved note: {} [{}]", note.title, note.short_id);
-    crate::sync::after_save(db, path, &note.id);
-    Ok(())
+    result
+        .map(Some)
+        .map_err(|error| recover(path, content, error))
 }
 
 pub fn recover(database: &Path, content: &str, error: anyhow::Error) -> anyhow::Error {

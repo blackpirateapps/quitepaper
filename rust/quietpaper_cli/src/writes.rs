@@ -1,4 +1,4 @@
-use crate::{database::Database, markdown, model::Note};
+use crate::{database::Database, markdown, model::Note, rich};
 use anyhow::{bail, Context, Result};
 use rusqlite::{params, types::ValueRef, OptionalExtension, Transaction, TransactionBehavior};
 use serde_json::{json, Value};
@@ -102,10 +102,37 @@ impl Database {
                 params![save.id, id, pinned.contains(tag)],
             )?;
         }
-        self.0.execute("INSERT INTO note_versions (id,note_id,version_number,title,content,tags_json,created_at,char_count,word_count,is_dirty) SELECT ?,?,COALESCE(MAX(version_number),0)+1,?,?,?,?,?,?,1 FROM note_versions WHERE note_id=?", params![Uuid::new_v4().to_string(),save.id,save.title,save.content,serde_json::to_string(&tags)?,now,save.content.encode_utf16().count() as i64,save.content.split_whitespace().count() as i64,save.id])?;
-        self.queue(save.id, "upsert")?;
-        self.update_search(save.id)?;
+        self.record_save(save.id, save.title, save.content, &tags, now)?;
         self.find(save.id)
+    }
+
+    // The caller holds the write transaction and has resolved the current task.
+    // Keep title, tags, journal identity and attachments exactly as stored.
+    pub fn save_task_completion(&self, note: &Note, content: &str) -> Result<()> {
+        let now = now();
+        let title: String =
+            self.0
+                .query_row("SELECT title FROM notes WHERE id=?", [&note.id], |row| {
+                    row.get(0)
+                })?;
+        self.0.execute(
+            "UPDATE notes SET content=?, updated_at=?, is_dirty=1 WHERE id=?",
+            params![content, now, note.id],
+        )?;
+        self.record_save(&note.id, &title, content, &note.tags, now)
+    }
+
+    fn record_save(
+        &self,
+        id: &str,
+        title: &str,
+        content: &str,
+        tags: &[String],
+        now: i64,
+    ) -> Result<()> {
+        self.0.execute("INSERT INTO note_versions (id,note_id,version_number,title,content,tags_json,created_at,char_count,word_count,is_dirty) SELECT ?,?,COALESCE(MAX(version_number),0)+1,?,?,?,?,?,?,1 FROM note_versions WHERE note_id=?", params![Uuid::new_v4().to_string(),id,title,content,serde_json::to_string(tags)?,now,content.encode_utf16().count() as i64,content.split_whitespace().count() as i64,id])?;
+        self.queue(id, "upsert")?;
+        self.update_search(id)
     }
 
     pub fn queue(&self, id: &str, operation: &str) -> Result<()> {
@@ -131,12 +158,10 @@ impl Database {
         if note.is_trashed || !row["deleted_at"].is_null() {
             return Ok(());
         }
-        let body = if note
-            .content
-            .trim_start()
-            .starts_with("<!-- quiet-paper-encrypted-note-v1:")
-        {
+        let body = if is_protected(&note.content) {
             String::new()
+        } else if rich::is_document(&note.content) {
+            rich::plain_text(&note.content)
         } else {
             markdown::plain_text(&note.content)
         };
@@ -200,11 +225,14 @@ pub fn preserve_draft(database: &Path, text: &str) -> Result<std::path::PathBuf>
     Ok(path)
 }
 
-pub fn guard_editor(content: &str) -> Result<()> {
-    if content
+pub fn is_protected(content: &str) -> bool {
+    content
         .trim_start()
         .starts_with("<!-- quiet-paper-encrypted-note-v1:")
-    {
+}
+
+pub fn guard_editor(content: &str) -> Result<()> {
+    if is_protected(content) {
         bail!("Unlock password-protected notes in the desktop app before editing.");
     }
     if serde_json::from_str::<BTreeMap<String, Value>>(content).is_ok() {

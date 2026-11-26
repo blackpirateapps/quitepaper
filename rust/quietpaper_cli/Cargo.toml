@@ -15,10 +15,11 @@ jiff = "0.2"
 clap = { version = "4", features = ["derive"] }
 rusqlite = { version = "0.43", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["raw_value"] }
 uuid = { version = "1", features = ["v4", "v5"] }
 regex = "1"
 pulldown-cmark = "0.13"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm", "unstable-rendered-line-info"] }
 shell-words = "1"
 tempfile = "3"
 aes-gcm = "0.10"

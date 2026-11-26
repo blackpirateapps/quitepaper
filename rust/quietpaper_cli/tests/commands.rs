@@ -67,6 +67,7 @@ fn help_version_and_usage_do_not_open_database() {
         vec!["--help"],
         vec!["-v"],
         vec!["--version"],
+        vec!["tui", "--help"],
         vec!["list", "--help"],
         vec!["show", "--help"],
         vec!["new", "--help"],
@@ -83,6 +84,10 @@ fn help_version_and_usage_do_not_open_database() {
         .unwrap()
         .status
         .success());
+    let non_interactive = qp(&path, &["tui"]);
+    assert!(!non_interactive.status.success());
+    assert!(non_interactive.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&non_interactive.stderr).contains("interactive terminal"));
     for args in [
         vec!["unknown-command"],
         vec!["list", "--limit", "-1"],
